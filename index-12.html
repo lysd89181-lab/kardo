@@ -1,0 +1,1337 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#0F172A">
+<title>كاردو — بطاقات أكثر .. فرص أكبر</title>
+
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Arabic:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap">
+
+<style>
+:root{
+  --navy:#0F172A; --navy-2:#1B2438; --emerald:#10B981; --emerald-d:#059669;
+  --bg:#F8FAFC; --card:#FFFFFF; --muted:#64748B; --border:#E2E8F0;
+  --error:#EF4444; --warn:#F59E0B; --radius:14px;
+}
+*{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
+html,body{height:100%}
+body{
+  font-family:'IBM Plex Sans Arabic',system-ui,-apple-system,sans-serif;
+  background:var(--bg); color:var(--navy); font-size:15px; line-height:1.6;
+  -webkit-font-smoothing:antialiased;
+}
+.mono{font-family:'IBM Plex Mono',ui-monospace,monospace;font-variant-numeric:tabular-nums}
+.num{font-variant-numeric:tabular-nums;letter-spacing:-.01em}
+button{font:inherit;color:inherit;background:none;border:none;cursor:pointer}
+input,select,textarea{font:inherit;color:inherit;width:100%}
+a{color:inherit;text-decoration:none}
+
+/* الأيقونات: بدون قياس صريح تتمدّد لحجم الحاوية */
+svg{flex:none}
+.btn svg{width:17px;height:17px}
+.btn.sm svg{width:15px;height:15px}
+.stat .ico svg{width:18px;height:18px}
+.banner svg{width:16px;height:16px}
+
+:focus-visible{outline:2px solid var(--emerald);outline-offset:2px;border-radius:6px}
+::-webkit-scrollbar{width:8px;height:8px}
+::-webkit-scrollbar-thumb{background:#CBD5E1;border-radius:8px}
+
+/* ─── Layout ─────────────────────────── */
+#app{display:none;min-height:100%}
+.shell{display:grid;grid-template-columns:1fr;min-height:100vh}
+@media(min-width:1024px){.shell{grid-template-columns:1fr 264px}}
+
+.side{
+  display:none;background:var(--navy);color:#fff;padding:22px 18px;
+  position:sticky;top:0;height:100vh;flex-direction:column;grid-column:2;
+}
+@media(min-width:1024px){.side{display:flex}}
+.side .brand{display:flex;align-items:center;gap:10px;margin-bottom:6px}
+.side .tag{font-size:11px;color:#64748B;margin:0 0 26px 2px}
+.navlink{
+  display:flex;align-items:center;gap:11px;padding:11px 13px;border-radius:11px;
+  color:#94A3B8;font-size:14px;font-weight:500;transition:.16s;margin-bottom:3px;
+}
+.navlink:hover{background:rgba(255,255,255,.06);color:#fff}
+.navlink.on{background:var(--emerald);color:#fff}
+.navlink svg{width:19px;height:19px;flex:none}
+.side-foot{margin-top:auto;padding-top:18px;border-top:1px solid rgba(255,255,255,.09)}
+
+.main{grid-column:1;min-width:0;padding-bottom:calc(74px + env(safe-area-inset-bottom))}
+@media(min-width:1024px){.main{padding-bottom:34px}}
+
+.top{
+  position:sticky;top:0;z-index:30;background:rgba(248,250,252,.88);
+  backdrop-filter:blur(12px);border-bottom:1px solid var(--border);
+  padding:12px 16px;display:flex;align-items:center;gap:12px;
+}
+@media(min-width:1024px){.top{padding:14px 30px}}
+.wrap{padding:18px 16px;max-width:1140px}
+@media(min-width:1024px){.wrap{padding:26px 30px}}
+
+.tabbar{
+  position:fixed;inset:auto 0 0 0;z-index:40;background:var(--navy);
+  display:grid;grid-template-columns:repeat(5,1fr);
+  padding:8px 4px calc(8px + env(safe-area-inset-bottom));
+}
+@media(min-width:1024px){.tabbar{display:none}}
+.tab{display:flex;flex-direction:column;align-items:center;gap:3px;padding:5px 2px;
+  color:#64748B;font-size:10.5px;font-weight:500;border-radius:10px}
+.tab.on{color:var(--emerald)}
+.tab svg{width:21px;height:21px}
+
+/* ─── Blocks ─────────────────────────── */
+.box{background:var(--card);border:1px solid var(--border);border-radius:var(--radius);padding:18px}
+.h1{font-size:21px;font-weight:700;letter-spacing:-.02em}
+.h2{font-size:16px;font-weight:600}
+.sub{color:var(--muted);font-size:13.5px}
+.lbl{font-size:12.5px;font-weight:600;color:var(--muted);margin-bottom:7px;display:block}
+
+.inp{
+  border:1px solid var(--border);border-radius:11px;padding:12px 13px;
+  background:#fff;font-size:15px;transition:.15s;
+}
+.inp:focus{outline:none;border-color:var(--emerald);box-shadow:0 0 0 3px rgba(16,185,129,.11)}
+.inp.bad{border-color:var(--error)}
+
+.btn{
+  display:inline-flex;align-items:center;justify-content:center;gap:8px;
+  padding:13px 20px;border-radius:11px;font-weight:600;font-size:14.5px;
+  background:var(--emerald);color:#fff;transition:.16s;
+}
+.btn:hover:not(:disabled){background:var(--emerald-d)}
+.btn:disabled{opacity:.5;cursor:not-allowed}
+.btn.dark{background:var(--navy)}
+.btn.dark:hover:not(:disabled){background:var(--navy-2)}
+.btn.ghost{background:#fff;border:1px solid var(--border);color:var(--navy)}
+.btn.ghost:hover:not(:disabled){background:var(--bg)}
+.btn.danger{background:#fff;border:1px solid #FECACA;color:var(--error)}
+.btn.wide{width:100%}
+.btn.sm{padding:9px 14px;font-size:13px;border-radius:9px}
+
+.pill{display:inline-flex;align-items:center;gap:5px;padding:3px 10px;
+  border-radius:999px;font-size:11.5px;font-weight:600}
+.pill.ok{background:#D1FAE5;color:#065F46}
+.pill.wait{background:#FEF3C7;color:#92400E}
+.pill.bad{background:#FEE2E2;color:#991B1B}
+.pill.off{background:#E2E8F0;color:#475569}
+
+.grid4{display:grid;gap:12px;grid-template-columns:repeat(2,1fr)}
+@media(min-width:900px){.grid4{grid-template-columns:repeat(4,1fr)}}
+
+.stat{background:#fff;border:1px solid var(--border);border-radius:var(--radius);padding:15px}
+.stat .ico{width:38px;height:38px;border-radius:11px;display:grid;place-items:center;margin-bottom:11px}
+.stat .v{font-size:21px;font-weight:700;letter-spacing:-.03em}
+.stat .k{font-size:12.5px;color:var(--muted)}
+
+/* ─── The card (signature element) ──── */
+.vcard{
+  position:relative;aspect-ratio:1.586;border-radius:16px;overflow:hidden;
+  background:var(--navy);color:#fff;padding:17px;display:flex;flex-direction:column;
+  cursor:pointer;transition:transform .22s cubic-bezier(.2,.8,.3,1);
+  box-shadow:0 10px 26px -14px rgba(15,23,42,.6);
+}
+.vcard:hover{transform:translateY(-4px)}
+.vcard::after{
+  content:'';position:absolute;left:-14%;bottom:-42%;width:62%;height:118%;
+  background:var(--emerald);opacity:.16;
+  clip-path:polygon(0 0,100% 34%,44% 50%,100% 66%,0 100%);
+}
+.vcard.frozen{background:#334155}
+.vcard.frozen::after{background:#94A3B8;opacity:.2}
+.vcard.dead{background:#475569;opacity:.62}
+.vcard .row1{display:flex;justify-content:space-between;align-items:flex-start;position:relative;z-index:2}
+.vcard .chip{width:31px;height:23px;border-radius:5px;background:linear-gradient(140deg,#D6E4E4,#9BB0B0);
+  position:relative;z-index:2;margin:auto 0 11px}
+.vcard .pan{font-size:15.5px;letter-spacing:.09em;position:relative;z-index:2}
+.vcard .foot{display:flex;justify-content:space-between;align-items:flex-end;margin-top:11px;position:relative;z-index:2}
+.vcard .exp{font-size:8.5px;color:#94A3B8;letter-spacing:.11em;margin-bottom:2px}
+.vcard .bal{font-size:19px;font-weight:700;letter-spacing:-.02em}
+
+/* ─── Wizard ─────────────────────────── */
+.steps{display:flex;align-items:center;gap:6px;margin-bottom:22px}
+.stepn{width:29px;height:29px;border-radius:50%;display:grid;place-items:center;
+  font-size:13px;font-weight:700;background:var(--border);color:var(--muted);flex:none}
+.stepn.on{background:var(--emerald);color:#fff}
+.stepn.done{background:var(--navy);color:#fff}
+.stepbar{height:2px;flex:1;background:var(--border);border-radius:2px}
+.stepbar.on{background:var(--navy)}
+
+.amts{display:grid;grid-template-columns:repeat(4,1fr);gap:9px}
+.amt{padding:14px 6px;border:1.5px solid var(--border);border-radius:11px;background:#fff;
+  font-weight:700;font-size:16px;transition:.15s;text-align:center}
+.amt:hover{border-color:#CBD5E1}
+.amt.on{border-color:var(--emerald);background:#ECFDF5;color:var(--emerald-d)}
+
+.quote{background:var(--bg);border:1px solid var(--border);border-radius:12px;padding:15px;margin-top:16px}
+.qrow{display:flex;justify-content:space-between;padding:6px 0;font-size:14px}
+.qrow.tot{border-top:1px dashed #CBD5E1;margin-top:7px;padding-top:11px;font-weight:700;font-size:16px}
+.qrow .k{color:var(--muted)}
+
+/* ─── Table ──────────────────────────── */
+.tbl{width:100%;border-collapse:collapse;font-size:13.5px}
+.tbl th{text-align:right;padding:10px 12px;color:var(--muted);font-size:12px;
+  font-weight:600;border-bottom:1px solid var(--border);white-space:nowrap}
+.tbl td{padding:12px;border-bottom:1px solid #F1F5F9;white-space:nowrap}
+.tbl tr:last-child td{border-bottom:none}
+.scrollx{overflow-x:auto;-webkit-overflow-scrolling:touch}
+
+.rowcard{background:#fff;border:1px solid var(--border);border-radius:12px;padding:13px;margin-bottom:9px}
+
+/* ─── Feedback ───────────────────────── */
+.sk{background:linear-gradient(90deg,#EEF2F7 25%,#E2E8F0 37%,#EEF2F7 63%);
+  background-size:400% 100%;animation:sh 1.3s ease infinite;border-radius:8px}
+@keyframes sh{0%{background-position:100% 0}100%{background-position:0 0}}
+
+.empty{text-align:center;padding:44px 20px;color:var(--muted)}
+.empty svg{width:44px;height:44px;margin:0 auto 13px;opacity:.32;display:block}
+
+#toasts{position:fixed;top:14px;left:50%;transform:translateX(-50%);z-index:200;
+  display:flex;flex-direction:column;gap:8px;width:min(92vw,400px)}
+.toast{background:var(--navy);color:#fff;padding:13px 15px;border-radius:12px;
+  font-size:14px;display:flex;gap:9px;align-items:flex-start;
+  box-shadow:0 12px 30px -10px rgba(15,23,42,.5);animation:tin .26s cubic-bezier(.2,.9,.3,1)}
+.toast.ok{background:var(--emerald-d)}
+.toast.bad{background:var(--error)}
+@keyframes tin{from{opacity:0;transform:translateY(-14px)}}
+
+.ov{position:fixed;inset:0;z-index:120;background:rgba(15,23,42,.55);
+  display:none;align-items:flex-end;justify-content:center;backdrop-filter:blur(3px)}
+.ov.show{display:flex}
+@media(min-width:640px){.ov{align-items:center}}
+.sheet{background:#fff;width:100%;max-width:480px;border-radius:20px 20px 0 0;
+  padding:22px;max-height:92vh;overflow-y:auto;animation:up .3s cubic-bezier(.2,.9,.3,1)}
+@media(min-width:640px){.sheet{border-radius:18px;animation:pop .22s ease}}
+@keyframes up{from{transform:translateY(100%)}}
+@keyframes pop{from{opacity:0;transform:scale(.96)}}
+
+.secret{display:flex;align-items:center;justify-content:space-between;gap:10px;
+  padding:12px 0;border-bottom:1px solid #F1F5F9}
+.secret .val{font-size:15px;letter-spacing:.05em}
+.secret .val.hid{letter-spacing:.16em;color:var(--muted)}
+.iconbtn{width:34px;height:34px;border-radius:9px;display:grid;place-items:center;
+  color:var(--muted);transition:.14s;flex:none}
+.iconbtn:hover{background:var(--bg);color:var(--navy)}
+.iconbtn svg{width:17px;height:17px}
+
+.banner{background:#FFFBEB;border:1px solid #FDE68A;color:#92400E;
+  padding:11px 14px;border-radius:11px;font-size:13px;margin-bottom:16px}
+
+/* ─── Auth ───────────────────────────── */
+#gate{min-height:100vh;display:grid;place-items:center;padding:22px;background:var(--navy)}
+.gatebox{background:#fff;border-radius:20px;padding:28px;width:min(100%,400px)}
+
+@media(prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
+.hide{display:none!important}
+</style>
+</head>
+<body>
+
+<!-- ══ Auth gate ══ -->
+<div id="gate">
+  <div class="gatebox">
+    <div style="display:flex;align-items:center;gap:11px;margin-bottom:5px">
+      <span id="gateMark"></span>
+      <div>
+        <div style="font-size:22px;font-weight:700;letter-spacing:-.02em">Kardo</div>
+        <div style="font-size:12px;color:var(--muted)">كاردو</div>
+      </div>
+    </div>
+    <p class="sub" style="margin:3px 0 22px">بطاقات أكثر .. فرص أكبر</p>
+
+    <div id="gateFields">
+      <div class="hide" id="nameWrap" style="margin-bottom:13px">
+        <label class="lbl">الاسم</label>
+        <input class="inp" id="gName" placeholder="اسمك الكامل" autocomplete="name">
+      </div>
+      <div style="margin-bottom:13px">
+        <label class="lbl">البريد الإلكتروني</label>
+        <input class="inp" id="gEmail" type="email" placeholder="you@example.com" autocomplete="email">
+      </div>
+      <div style="margin-bottom:18px">
+        <label class="lbl">كلمة المرور</label>
+        <input class="inp" id="gPass" type="password" placeholder="••••••••" autocomplete="current-password">
+      </div>
+      <button class="btn wide" id="gSubmit">تسجيل الدخول</button>
+      <button class="btn ghost wide" id="gGoogle" style="margin-top:9px">
+        <svg width="17" height="17" viewBox="0 0 24 24"><path fill="#4285F4" d="M22.6 12.2c0-.8-.1-1.5-.2-2.2H12v4.2h5.9c-.3 1.4-1 2.5-2.1 3.3v2.7h3.4c2-1.8 3.1-4.5 3.1-7.7z"/><path fill="#34A853" d="M12 23c2.9 0 5.3-1 7.1-2.6l-3.4-2.7c-1 .6-2.2 1-3.7 1-2.8 0-5.2-1.9-6.1-4.5H2.4v2.8C4.2 20.6 7.8 23 12 23z"/><path fill="#FBBC05" d="M5.9 14.2c-.2-.7-.4-1.4-.4-2.2s.1-1.5.4-2.2V7H2.4C1.6 8.5 1.2 10.2 1.2 12s.4 3.5 1.2 5l3.5-2.8z"/><path fill="#EA4335" d="M12 5.4c1.6 0 3 .5 4.1 1.6l3-3C17.3 2.2 14.9 1 12 1 7.8 1 4.2 3.4 2.4 7l3.5 2.8C6.8 7.3 9.2 5.4 12 5.4z"/></svg>
+        متابعة بحساب Google
+      </button>
+      <p style="text-align:center;margin-top:16px;font-size:13.5px;color:var(--muted)">
+        <span id="switchTxt">ليس لديك حساب؟</span>
+        <button id="gSwitch" style="color:var(--emerald);font-weight:600">إنشاء حساب</button>
+      </p>
+    </div>
+  </div>
+</div>
+
+<!-- ══ App ══ -->
+<div id="app">
+<div class="shell">
+
+  <!-- Sidebar -->
+  <aside class="side">
+    <div class="brand">
+      <span id="sideMark"></span>
+      <div>
+        <div style="font-size:19px;font-weight:700;letter-spacing:-.02em">Kardo</div>
+        <div style="font-size:11px;color:#64748B">كاردو</div>
+      </div>
+    </div>
+    <p class="tag">بطاقات أكثر .. فرص أكبر</p>
+    <nav id="navDesk"></nav>
+    <div class="side-foot">
+      <div style="display:flex;align-items:center;gap:10px;padding:0 3px 12px">
+        <div id="avatar" style="width:34px;height:34px;border-radius:50%;background:var(--emerald);
+             display:grid;place-items:center;font-weight:700;font-size:13px;flex:none"></div>
+        <div style="min-width:0">
+          <div id="sideName" style="font-size:13px;font-weight:600;overflow:hidden;
+               text-overflow:ellipsis;white-space:nowrap"></div>
+          <div id="sideBal" style="font-size:11.5px;color:var(--emerald);font-weight:600"></div>
+        </div>
+      </div>
+      <button class="navlink" style="width:100%" onclick="signOutNow()">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4M16 17l5-5-5-5M21 12H9"/></svg>
+        تسجيل الخروج
+      </button>
+    </div>
+  </aside>
+
+  <!-- Main -->
+  <div class="main">
+    <header class="top">
+      <div style="display:flex;align-items:center;gap:9px" class="lg-hide">
+        <span id="topMark"></span>
+        <span style="font-size:17px;font-weight:700;letter-spacing:-.02em">Kardo</span>
+      </div>
+      <div style="margin-inline-start:auto;display:flex;align-items:center;gap:9px">
+        <div style="background:#fff;border:1px solid var(--border);border-radius:10px;
+             padding:7px 13px;font-size:13.5px;font-weight:700" class="num">
+          <span id="topBal">—</span>
+        </div>
+        <button class="iconbtn" onclick="go('wallet')" title="المحفظة" style="background:#fff;border:1px solid var(--border)">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 5v14M5 12h14"/></svg>
+        </button>
+      </div>
+    </header>
+    <main class="wrap" id="view"></main>
+  </div>
+</div>
+
+<!-- Bottom nav -->
+<nav class="tabbar" id="navMob"></nav>
+</div>
+
+<div id="toasts"></div>
+<div class="ov" id="ov"><div class="sheet" id="sheet"></div></div>
+
+<style>@media(min-width:1024px){.lg-hide{display:none}}</style>
+
+<script type="module">
+import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js';
+import {
+  getAuth, onAuthStateChanged, signInWithEmailAndPassword,
+  createUserWithEmailAndPassword, signInWithPopup, GoogleAuthProvider,
+  signOut, updateProfile
+} from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js';
+import {
+  getFirestore, doc, setDoc, getDoc, onSnapshot, collection,
+  query, where, orderBy, limit, addDoc, serverTimestamp
+} from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js';
+
+/* ═══════════════════════════════════════════════════════
+   ⚙️  الإعداد الوحيد المطلوب
+   ضع رابط Cloudflare Worker بعد نشره.
+   اتركه فارغًا لتشغيل واجهة العرض التجريبية.
+   ═══════════════════════════════════════════════════════ */
+const API_BASE = '';
+
+const firebaseConfig = {
+  apiKey: "AIzaSyARNJOPAycWU3YJdZSBN1d9uoLrvso3i4Y",
+  authDomain: "cd-card-87365.firebaseapp.com",
+  projectId: "cd-card-87365",
+  storageBucket: "cd-card-87365.firebasestorage.app",
+  messagingSenderId: "397926299412",
+  appId: "1:397926299412:web:efbe9ae9aae29df368f401"
+};
+
+const DEMO = !API_BASE;
+
+/* أي خطأ يظهر على الشاشة بدل صفحة بيضاء */
+window.addEventListener('error', e=>{
+  const g = document.getElementById('gate');
+  if(g && g.style.display !== 'none'){
+    const p = document.createElement('p');
+    p.style.cssText = 'color:#EF4444;font-size:12.5px;margin-top:14px;word-break:break-all';
+    p.textContent = 'خطأ: ' + (e.message||'') + ' — ' + String(e.filename||'').split('/').pop() + ':' + (e.lineno||'');
+    g.querySelector('.gatebox')?.appendChild(p);
+  }
+});
+
+const app = initializeApp(firebaseConfig);
+const auth = getAuth(app);
+const db = getFirestore(app);
+
+/* ─── State ─────────────────────────── */
+const S = {
+  user:null, profile:{wallet_balance:0,cards_count:0,total_spent:0,name:''},
+  cards:[], orders:[], deposits:[], config:{min_amount:10,max_amount:200,usd_to_lyd:7,issuing_enabled:true,funding_enabled:true,maintenance_message:''},
+  page:'home', wiz:{step:1,amount:null,name:'',label:'',idem:null,quote:null},
+  txFilter:'all', unsub:[]
+};
+
+/* ─── Icons ─────────────────────────── */
+const I = {
+  home:'<path d="M3 10.2 12 3l9 7.2V20a1 1 0 0 1-1 1h-5v-7H9v7H4a1 1 0 0 1-1-1z"/>',
+  card:'<rect x="2" y="5" width="20" height="14" rx="2.5"/><path d="M2 10h20"/>',
+  plus:'<rect x="2" y="5" width="20" height="14" rx="2.5"/><path d="M12 10v5M9.5 12.5h5"/>',
+  wallet:'<path d="M3 7.5A2.5 2.5 0 0 1 5.5 5H19a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H5.5A2.5 2.5 0 0 1 3 16.5z"/><path d="M16 12h2"/>',
+  list:'<path d="M8 6h13M8 12h13M8 18h13M3 6h.01M3 12h.01M3 18h.01"/>',
+  gear:'<circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.9l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-2.9 1.2V21a2 2 0 1 1-4 0v-.1A1.7 1.7 0 0 0 7 19.4a1.7 1.7 0 0 0-1.9.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0-1.2-2.9H1a2 2 0 1 1 0-4h.1A1.7 1.7 0 0 0 2.6 7a1.7 1.7 0 0 0-.3-1.9l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1A1.7 1.7 0 0 0 7 2.6h.1A1.7 1.7 0 0 0 8.3 1V1a2 2 0 1 1 4 0"/>',
+  more:'<circle cx="5" cy="12" r="1.6"/><circle cx="12" cy="12" r="1.6"/><circle cx="19" cy="12" r="1.6"/>',
+  eye:'<path d="M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7-10-7-10-7"/><circle cx="12" cy="12" r="3"/>',
+  eyeoff:'<path d="M17.9 17.9A10.6 10.6 0 0 1 12 19c-6.4 0-10-7-10-7a18 18 0 0 1 4.1-5M9.9 4.2A10.6 10.6 0 0 1 12 5c6.4 0 10 7 10 7a18 18 0 0 1-2.2 3.2M3 3l18 18"/>',
+  copy:'<rect x="9" y="9" width="12" height="12" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/>',
+  snow:'<path d="M12 2v20M20 7 4 17M4 7l16 10"/>',
+  trash:'<path d="M3 6h18M8 6V4h8v2M6 6l1 15h10l1-15"/>',
+  chart:'<path d="M4 20V10M10 20V4M16 20v-7M22 20H2"/>',
+  check:'<path d="M20 6 9 17l-5-5"/>'
+};
+const svg = (d,s=2)=>`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="${s}" stroke-linecap="round" stroke-linejoin="round">${d}</svg>`;
+
+/* Brand mark: the K built from a card */
+function mark(size=34,dark=true){
+  const bg = dark?'#0F172A':'#fff';
+  return `<svg width="${size}" height="${size}" viewBox="0 0 40 40" style="flex:none">
+    <rect width="40" height="40" rx="10" fill="${bg}"/>
+    <path d="M11 9h4.4v22H11z" fill="#10B981"/>
+    <path d="M17 20.2 27.5 9H33L22.4 20.2 33 31h-5.6z" fill="#10B981"/>
+    <rect x="19" y="15.6" width="12.4" height="8.8" rx="2" fill="#fff" opacity=".93"/>
+    <rect x="21" y="18.4" width="3.4" height="2.6" rx=".7" fill="#0F172A" opacity=".55"/>
+  </svg>`;
+}
+
+/* ─── Helpers ───────────────────────── */
+const $ = s => document.querySelector(s);
+const usd = n => '$' + Number(n||0).toFixed(2);
+const lyd = n => Math.ceil(Number(n||0) * (S.config.usd_to_lyd||7)).toLocaleString('en-US') + ' د.ل';
+const esc = s => String(s??'').replace(/[&<>"']/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const dt = v => { if(!v) return '—'; const d = v.toDate? v.toDate(): new Date(v);
+  return isNaN(d)?'—':d.toLocaleDateString('ar-LY',{day:'2-digit',month:'short'})+' · '+
+  d.toLocaleTimeString('en-GB',{hour:'2-digit',minute:'2-digit'}); };
+
+function toast(msg,kind=''){
+  const el = document.createElement('div');
+  el.className = 'toast '+kind;
+  el.innerHTML = (kind==='ok'?svg(I.check):'')+`<span>${esc(msg)}</span>`;
+  $('#toasts').appendChild(el);
+  setTimeout(()=>{el.style.opacity='0';el.style.transform='translateY(-10px)';
+    el.style.transition='.25s';setTimeout(()=>el.remove(),260)},3600);
+}
+function sheet(html){ $('#sheet').innerHTML = html; $('#ov').classList.add('show'); }
+function closeSheet(){ $('#ov').classList.remove('show'); }
+$('#ov').addEventListener('click', e=>{ if(e.target.id==='ov') closeSheet(); });
+document.addEventListener('keydown', e=>{ if(e.key==='Escape') closeSheet(); });
+
+async function copy(text,label){
+  try{ await navigator.clipboard.writeText(text); toast(label+' نُسخ','ok'); }
+  catch{ toast('تعذّر النسخ','bad'); }
+}
+
+/* ─── API ───────────────────────────── */
+async function api(path, body){
+  if(DEMO) return demoApi(path, body);
+  const token = await auth.currentUser.getIdToken();
+  const res = await fetch(API_BASE + path, {
+    method: body ? 'POST' : 'GET',
+    headers: { 'content-type':'application/json', authorization:'Bearer '+token },
+    body: body ? JSON.stringify(body) : undefined
+  });
+  const data = await res.json().catch(()=>({success:false,error:'رد غير مفهوم'}));
+  if(!data.success) throw new Error(data.error || 'فشلت العملية');
+  return data;
+}
+async function apiGet(path){
+  if(DEMO) return demoApi(path);
+  const res = await fetch(API_BASE + path);
+  const d = await res.json();
+  if(!d.success) throw new Error(d.error||'خطأ');
+  return d;
+}
+
+/* ─── Demo data (تُستبعد تلقائيًا عند وضع رابط الـWorker) ─── */
+function demoApi(path, body){
+  return new Promise(r=>setTimeout(()=>{
+    if(path.startsWith('/api/quote')){
+      const a = +new URLSearchParams(path.split('?')[1]).get('amount');
+      const fee = +(1 + a*0.04 + 2.6).toFixed(2);
+      r({success:true,quote:{amount:a,service_fee:fee,total:+(a+fee).toFixed(2),total_lyd:Math.ceil((a+fee)*7)}});
+    }
+    else if(path==='/api/status') r({success:true,...S.config});
+    else if(path==='/api/cards/details') r({success:true,details:{
+      card_number:'5395020000001234',expiry:'12/29',cvv:'417',balance:10,status:'active'}});
+    else if(path==='/api/cards/transactions') r({success:true,balance:8.5,total:2,transactions:[
+      {date:'2026-08-16 10:44',type:'Authorize',merchant:'Spotify',amount:9.99,status:'success',reason:'تمت الموافقة'},
+      {date:'2026-08-15 18:02',type:'Authorize',merchant:'Netflix',amount:5.49,status:'failed',reason:'رصيد غير كافٍ'}]});
+    else if(path==='/api/cards/create'){
+      const id='MR_DEMO'+Date.now();
+      S.cards.unshift({id,card_name:S.wiz.label||'بطاقتي',name_on_card:S.wiz.name,
+        last4:String(1000+Math.floor(Math.random()*8999)),amount_loaded:S.wiz.amount,
+        live_balance:S.wiz.amount,status:'active',created_at:new Date()});
+      S.orders.unshift({id:'KRD'+Date.now(),type:'create',status:'completed',
+        amount:S.wiz.amount,customer_price:S.wiz.quote.total,created_at:new Date()});
+      S.profile.wallet_balance -= S.wiz.quote.total;
+      S.profile.cards_count++;
+      r({success:true,card:{card_id:id,last4:S.cards[0].last4}});
+    }
+    else r({success:true});
+  }, 520));
+}
+
+/* ═══════════════════════════════════════
+   AUTH
+   ═══════════════════════════════════════ */
+let signupMode = false;
+$('#gateMark').innerHTML = mark(42);
+$('#sideMark').innerHTML = mark(34,false);
+$('#topMark').innerHTML = mark(30);
+
+$('#gSwitch').onclick = ()=>{
+  signupMode = !signupMode;
+  $('#nameWrap').classList.toggle('hide', !signupMode);
+  $('#gSubmit').textContent = signupMode ? 'إنشاء الحساب' : 'تسجيل الدخول';
+  $('#switchTxt').textContent = signupMode ? 'لديك حساب بالفعل؟' : 'ليس لديك حساب؟';
+  $('#gSwitch').textContent = signupMode ? 'تسجيل الدخول' : 'إنشاء حساب';
+  $('#gPass').autocomplete = signupMode ? 'new-password' : 'current-password';
+};
+
+$('#gSubmit').onclick = async ()=>{
+  const email = $('#gEmail').value.trim(), pass = $('#gPass').value;
+  if(!email || !pass) return toast('أكمل البيانات','bad');
+  if(signupMode && pass.length < 6) return toast('كلمة المرور 6 أحرف على الأقل','bad');
+  $('#gSubmit').disabled = true;
+  try{
+    if(signupMode){
+      const name = $('#gName').value.trim() || 'مستخدم';
+      const c = await createUserWithEmailAndPassword(auth, email, pass);
+      await updateProfile(c.user, {displayName:name});
+      await ensureProfile(c.user, name);
+    } else {
+      await signInWithEmailAndPassword(auth, email, pass);
+    }
+  }catch(e){ toast(authMsg(e.code), 'bad'); }
+  $('#gSubmit').disabled = false;
+};
+
+$('#gGoogle').onclick = async ()=>{
+  try{
+    const c = await signInWithPopup(auth, new GoogleAuthProvider());
+    await ensureProfile(c.user, c.user.displayName || 'مستخدم');
+  }catch(e){ toast(authMsg(e.code),'bad'); }
+};
+
+function authMsg(code){
+  const m = {
+    'auth/invalid-credential':'البريد أو كلمة المرور غير صحيحة',
+    'auth/wrong-password':'كلمة المرور غير صحيحة',
+    'auth/user-not-found':'لا يوجد حساب بهذا البريد',
+    'auth/email-already-in-use':'هذا البريد مسجّل بالفعل',
+    'auth/invalid-email':'صيغة البريد غير صحيحة',
+    'auth/weak-password':'كلمة المرور ضعيفة',
+    'auth/too-many-requests':'محاولات كثيرة، انتظر قليلًا',
+    'auth/popup-closed-by-user':'أُلغيت العملية',
+    'auth/operation-not-allowed':'طريقة الدخول غير مفعّلة في Firebase'
+  };
+  return m[code] || 'تعذّر تسجيل الدخول';
+}
+
+async function ensureProfile(user, name){
+  const ref = doc(db,'users',user.uid);
+  const snap = await getDoc(ref).catch(()=>null);
+  if(!snap || !snap.exists()){
+    await setDoc(ref,{ name, email:user.email||'', phone:'',
+      wallet_balance:0, total_spent:0, cards_count:0, banned:false,
+      created_at:new Date().toISOString() },{merge:true}).catch(()=>{});
+  }
+}
+
+window.signOutNow = ()=> sheet(`
+  <div class="h2" style="margin-bottom:8px">تسجيل الخروج</div>
+  <p class="sub" style="margin-bottom:20px">ستحتاج إلى الدخول مرة أخرى للوصول إلى بطاقاتك.</p>
+  <button class="btn wide dark" onclick="doSignOut()">تسجيل الخروج</button>
+  <button class="btn ghost wide" style="margin-top:9px" onclick="closeSheet()">إلغاء</button>`);
+window.doSignOut = ()=>{ closeSheet(); signOut(auth); };
+window.closeSheet = closeSheet;
+
+/* Demo mode bypasses auth so the platform is viewable immediately */
+if(DEMO){
+  S.user = {uid:'demo',email:'demo@kardo.ly'};
+  S.profile = {name:'منصور',email:'demo@kardo.ly',phone:'0912345678',
+    wallet_balance:120, cards_count:2, total_spent:38};
+  S.cards = [
+    {id:'MR_D1',card_name:'بطاقة الاشتراكات',name_on_card:'MANSOUR ALI',last4:'2580',
+     amount_loaded:20,live_balance:8.5,status:'active',created_at:new Date(Date.now()-86400000*4)},
+    {id:'MR_D2',card_name:'بطاقة المتاجر',name_on_card:'MANSOUR ALI',last4:'4417',
+     amount_loaded:50,live_balance:50,status:'frozen',created_at:new Date(Date.now()-86400000*11)}
+  ];
+  S.orders = [
+    {id:'KRD784521',type:'create',status:'completed',amount:20,customer_price:24.4,created_at:new Date(Date.now()-86400000*4)},
+    {id:'KRD784519',type:'fund',status:'completed',amount:10,customer_price:12.9,created_at:new Date(Date.now()-86400000*2)},
+    {id:'KRD784518',type:'create',status:'refunded',amount:50,customer_price:55.6,created_at:new Date(Date.now()-86400000*9)}
+  ];
+  S.deposits = [{id:'d1',amount_usd:50,amount_lyd:350,method:'مصرف',status:'approved',created_at:new Date(Date.now()-86400000*5)}];
+  queueMicrotask(boot);
+} else {
+  onAuthStateChanged(auth, async user=>{
+    S.unsub.forEach(u=>{try{u()}catch{}}); S.unsub = [];
+    if(!user){ $('#gate').style.display='grid'; $('#app').style.display='none'; return; }
+    S.user = user;
+    await ensureProfile(user, user.displayName || 'مستخدم');
+    subscribe(user.uid);
+    apiGet('/api/status').then(d=>{ S.config = {...S.config, ...d}; render(); }).catch(()=>{});
+    boot();
+  });
+}
+
+function subscribe(uid){
+  S.unsub.push(onSnapshot(doc(db,'users',uid), s=>{
+    if(s.exists()) S.profile = {...S.profile, ...s.data()};
+    render();
+  }, ()=>{}));
+
+  S.unsub.push(onSnapshot(
+    query(collection(db,'cards'), where('uid','==',uid), orderBy('created_at','desc')),
+    s=>{ S.cards = s.docs.map(d=>({id:d.id,...d.data()})); render(); }, ()=>{}));
+
+  S.unsub.push(onSnapshot(
+    query(collection(db,'card_orders'), where('uid','==',uid), orderBy('created_at','desc'), limit(60)),
+    s=>{ S.orders = s.docs.map(d=>({id:d.id,...d.data()})); render(); }, ()=>{}));
+
+  S.unsub.push(onSnapshot(
+    query(collection(db,'wallet_deposits'), where('uid','==',uid), orderBy('created_at','desc'), limit(30)),
+    s=>{ S.deposits = s.docs.map(d=>({id:d.id,...d.data()})); render(); }, ()=>{}));
+}
+
+function boot(){
+  $('#gate').style.display='none';
+  $('#app').style.display='block';
+  buildNav();
+  render();
+}
+
+/* ═══════════════════════════════════════
+   NAV
+   ═══════════════════════════════════════ */
+const PAGES = [
+  {k:'home',   t:'الرئيسية',   i:I.home},
+  {k:'issue',  t:'إصدار بطاقة',i:I.plus},
+  {k:'cards',  t:'بطاقاتي',    i:I.card},
+  {k:'wallet', t:'المحفظة',    i:I.wallet},
+  {k:'tx',     t:'المعاملات',  i:I.list},
+  {k:'settings',t:'الإعدادات', i:I.gear},
+];
+const MOB = ['home','cards','issue','wallet','more'];
+
+function buildNav(){
+  $('#navDesk').innerHTML = PAGES.map(p=>
+    `<button class="navlink" data-nav="${p.k}">${svg(p.i)}<span>${p.t}</span></button>`).join('');
+  $('#navMob').innerHTML = MOB.map(k=>{
+    if(k==='more') return `<button class="tab" data-nav="more">${svg(I.more)}<span>المزيد</span></button>`;
+    const p = PAGES.find(x=>x.k===k);
+    return `<button class="tab" data-nav="${p.k}">${svg(p.i)}<span>${p.t}</span></button>`;
+  }).join('');
+  document.querySelectorAll('[data-nav]').forEach(b=>
+    b.onclick = ()=> b.dataset.nav==='more' ? moreSheet() : go(b.dataset.nav));
+}
+
+function moreSheet(){
+  sheet(`<div class="h2" style="margin-bottom:14px">المزيد</div>` +
+    ['tx','settings'].map(k=>{ const p=PAGES.find(x=>x.k===k);
+      return `<button class="btn ghost wide" style="margin-bottom:9px;justify-content:flex-start"
+        onclick="closeSheet();go('${p.k}')">${svg(p.i)} ${p.t}</button>`}).join('') +
+    `<button class="btn ghost wide" style="margin-bottom:9px;justify-content:flex-start"
+       onclick="closeSheet();signOutNow()">تسجيل الخروج</button>`);
+}
+
+window.go = k=>{
+  S.page = k;
+  if(k==='issue') S.wiz = {step:1,amount:null,name:S.wiz.name,label:'',idem:null,quote:null};
+  window.scrollTo({top:0,behavior:'instant'});
+  render();
+};
+
+/* ═══════════════════════════════════════
+   RENDER
+   ═══════════════════════════════════════ */
+function render(){
+  const initials = (S.profile.name||'؟').trim().charAt(0);
+  $('#avatar').textContent = initials;
+  $('#sideName').textContent = S.profile.name || '—';
+  $('#sideBal').textContent = usd(S.profile.wallet_balance);
+  $('#topBal').textContent = usd(S.profile.wallet_balance);
+
+  document.querySelectorAll('[data-nav]').forEach(b=>{
+    b.classList.toggle('on', b.dataset.nav === S.page);
+  });
+
+  const views = {home:vHome, issue:vIssue, cards:vCards,
+                 wallet:vWallet, tx:vTx, settings:vSettings};
+  $('#view').innerHTML = (views[S.page] || vHome)();
+  bindView();
+}
+
+const demoBanner = DEMO
+  ? `<div class="banner">وضع العرض — الواجهة تعمل ببيانات تجريبية. ضع رابط الـWorker في <span class="mono">API_BASE</span> لتشغيلها فعليًا.</div>`
+  : '';
+
+function offlineNotice(){
+  if(S.config.issuing_enabled) return '';
+  return `<div class="banner">${esc(S.config.maintenance_message || 'إصدار البطاقات متوقف مؤقتًا.')}</div>`;
+}
+
+/* ─── Home ──────────────────────────── */
+function vHome(){
+  const active = S.cards.filter(c=>c.status==='active').length;
+  const txCount = S.orders.length;
+  return demoBanner + offlineNotice() + `
+  <div style="margin-bottom:20px">
+    <div class="h1">مرحباً ${esc((S.profile.name||'').split(' ')[0]||'')} 👋</div>
+    <p class="sub">أنشئ بطاقتك الافتراضية في دقائق.</p>
+  </div>
+
+  <div class="box" style="background:var(--navy);color:#fff;border:none;padding:22px;margin-bottom:18px;
+       position:relative;overflow:hidden">
+    <div style="position:relative;z-index:2;max-width:320px">
+      <div style="font-size:19px;font-weight:700;line-height:1.4;margin-bottom:6px">
+        بطاقة تعمل في كل مكان يقبل الدفع الإلكتروني</div>
+      <p style="color:#94A3B8;font-size:13.5px;margin-bottom:16px">
+        بالدولار الأمريكي · بدون رسوم شهرية · تُصدر فورًا</p>
+      <button class="btn" data-act="issue">إصدار بطاقة جديدة</button>
+    </div>
+    <div style="position:absolute;left:-30px;bottom:-70px;width:230px;opacity:.13">${mark(230,false)}</div>
+  </div>
+
+  <div class="grid4" style="margin-bottom:22px">
+    ${stat(I.wallet, usd(S.profile.wallet_balance), 'رصيد المحفظة', '#ECFDF5', 'var(--emerald-d)')}
+    ${stat(I.card, active, 'بطاقات نشطة', '#EFF6FF', '#2563EB')}
+    ${stat(I.chart, usd(S.profile.total_spent), 'إجمالي الإنفاق', '#FEF3C7', '#B45309')}
+    ${stat(I.list, txCount, 'عدد المعاملات', '#F1F5F9', '#475569')}
+  </div>
+
+  <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px">
+    <div class="h2">بطاقاتي</div>
+    ${S.cards.length ? `<button data-act="cards" style="color:var(--emerald);font-weight:600;font-size:13.5px">عرض الكل</button>`:''}
+  </div>
+  ${S.cards.length ? `<div style="display:grid;gap:14px;grid-template-columns:repeat(auto-fill,minmax(258px,1fr));margin-bottom:24px">
+    ${S.cards.slice(0,3).map(cardHtml).join('')}</div>`
+   : emptyBox(I.card,'لا توجد بطاقات بعد','أصدر بطاقتك الأولى وابدأ الدفع عالميًا.','إصدار بطاقة','issue')}
+
+  <div class="h2" style="margin-bottom:12px">أحدث المعاملات</div>
+  ${S.orders.length ? `<div class="box" style="padding:0"><div class="scrollx">${txTable(S.orders.slice(0,5))}</div></div>`
+   : emptyBox(I.list,'لا توجد معاملات','ستظهر عملياتك هنا بعد أول بطاقة.')}
+  `;
+}
+
+function stat(icon,val,key,bg,fg){
+  return `<div class="stat">
+    <div class="ico" style="background:${bg};color:${fg}">${svg(icon)}</div>
+    <div class="v num">${val}</div><div class="k">${key}</div></div>`;
+}
+
+function emptyBox(icon,title,desc,btn,act){
+  return `<div class="box"><div class="empty">${svg(icon,1.5)}
+    <div style="font-weight:600;color:var(--navy);margin-bottom:5px">${title}</div>
+    <p style="font-size:13.5px;margin-bottom:${btn?'16px':'0'}">${desc}</p>
+    ${btn?`<button class="btn" data-act="${act}">${btn}</button>`:''}</div></div>`;
+}
+
+/* ─── Card component ────────────────── */
+function cardHtml(c){
+  const cls = c.status==='frozen'?'frozen':c.status==='deleted'?'dead':'';
+  const bal = c.live_balance ?? c.amount_loaded ?? 0;
+  const st = {active:['ok','نشطة'],frozen:['off','مجمدة'],deleted:['bad','محذوفة']}[c.status]||['off','—'];
+  return `<div>
+    <div class="vcard ${cls}" data-card="${esc(c.id)}">
+      <div class="row1">
+        <span style="font-size:15px;font-weight:700;letter-spacing:-.02em">Kardo</span>
+        <span class="pill ${st[0]}" style="font-size:10px">${st[1]}</span>
+      </div>
+      <div class="chip"></div>
+      <div class="pan mono">•••• •••• •••• ${esc(c.last4||'0000')}</div>
+      <div class="foot">
+        <div><div class="exp">VALID THRU</div>
+          <div class="mono" style="font-size:12px">${esc(c.expiry||'••/••')}</div></div>
+        <div class="bal num">${usd(bal)}</div>
+      </div>
+    </div>
+    <div style="padding:10px 3px 0">
+      <div style="font-weight:600;font-size:14px">${esc(c.card_name||'بطاقة')}</div>
+      <div class="sub" style="font-size:12px">${dt(c.created_at)}</div>
+    </div>
+  </div>`;
+}
+
+/* ─── Issue wizard ──────────────────── */
+function vIssue(){
+  if(!S.config.issuing_enabled){
+    return demoBanner + `<div class="h1" style="margin-bottom:16px">إصدار بطاقة</div>` +
+      emptyBox(I.card,'الخدمة متوقفة مؤقتًا', esc(S.config.maintenance_message||'سنعيد تشغيل الإصدار قريبًا.'));
+  }
+  const w = S.wiz;
+  const bar = n => `<div class="stepbar ${w.step>n?'on':''}"></div>`;
+  const dot = n => `<div class="stepn ${w.step===n?'on':w.step>n?'done':''}">${w.step>n?'✓':n}</div>`;
+
+  let body = '';
+  if(w.step===1){
+    body = `
+    <div style="margin-bottom:15px">
+      <label class="lbl">اسم البطاقة <span style="font-weight:400">(لك وحدك، لتمييزها)</span></label>
+      <input class="inp" id="wLabel" placeholder="مثال: بطاقة الاشتراكات" value="${esc(w.label)}" maxlength="40">
+    </div>
+    <div style="margin-bottom:8px">
+      <label class="lbl">اسم حامل البطاقة — بالإنجليزية</label>
+      <input class="inp" id="wName" placeholder="MANSOUR ALI" value="${esc(w.name)}"
+             maxlength="24" style="text-transform:uppercase" dir="ltr">
+      <p class="sub" style="font-size:12px;margin-top:6px">
+        حروف لاتينية فقط. سيظهر هذا الاسم على البطاقة ولا يمكن تغييره بعد الإصدار.</p>
+    </div>
+    <button class="btn wide" id="wNext1" style="margin-top:18px">التالي</button>`;
+  }
+  else if(w.step===2){
+    const min = S.config.min_amount||10, max = S.config.max_amount||200;
+    body = `
+    <label class="lbl">قيمة البطاقة</label>
+    <div class="amts">${[10,20,50,100].map(a=>
+      `<button class="amt ${w.amount===a?'on':''}" data-amt="${a}">$${a}</button>`).join('')}</div>
+    <div style="margin-top:13px">
+      <label class="lbl">أو مبلغ آخر (من $${min} إلى $${max})</label>
+      <input class="inp num" id="wCustom" type="number" inputmode="decimal"
+             min="${min}" max="${max}" placeholder="${min}"
+             value="${w.amount && ![10,20,50,100].includes(w.amount) ? w.amount : ''}">
+    </div>
+    <div id="qbox">${w.quote ? quoteHtml(w.quote) : ''}</div>
+    <button class="btn wide" id="wNext2" style="margin-top:18px" ${w.quote?'':'disabled'}>التالي</button>
+    <button class="btn ghost wide" style="margin-top:9px" data-step="1">رجوع</button>`;
+  }
+  else {
+    const q = w.quote, enough = (S.profile.wallet_balance||0) >= q.total;
+    body = `
+    <div class="quote" style="margin-top:0">
+      <div class="qrow"><span class="k">اسم البطاقة</span><span>${esc(w.label||'بطاقة')}</span></div>
+      <div class="qrow"><span class="k">حامل البطاقة</span><span dir="ltr" class="mono">${esc(w.name)}</span></div>
+      <div class="qrow"><span class="k">قيمة البطاقة</span><span class="num">${usd(q.amount)}</span></div>
+      <div class="qrow"><span class="k">رسوم الخدمة</span><span class="num">${usd(q.service_fee)}</span></div>
+      <div class="qrow tot"><span>الإجمالي</span>
+        <span><span class="num">${usd(q.total)}</span>
+        <span style="font-size:12.5px;color:var(--muted);font-weight:500"> · ${q.total_lyd.toLocaleString('en-US')} د.ل</span></span></div>
+    </div>
+    ${!enough ? `<div class="banner" style="margin:14px 0 0">
+        رصيدك ${usd(S.profile.wallet_balance)} — تحتاج ${usd(q.total - S.profile.wallet_balance)} إضافية.
+        <button style="color:var(--emerald-d);font-weight:700" data-act="wallet">إضافة رصيد</button></div>` : ''}
+    <label style="display:flex;gap:9px;align-items:flex-start;margin:16px 0;font-size:13.5px;cursor:pointer">
+      <input type="checkbox" id="wAgree" style="width:17px;height:17px;margin-top:2px;flex:none;accent-color:#10B981">
+      <span>أوافق على الشروط: البطاقة تُصدر عبر جهة إصدار خارجية،
+      ورسوم الإصدار غير قابلة للاسترداد بعد نجاح العملية.</span>
+    </label>
+    <button class="btn wide" id="wSubmit" ${enough?'':'disabled'}>إصدار البطاقة</button>
+    <button class="btn ghost wide" style="margin-top:9px" data-step="2">رجوع</button>`;
+  }
+
+  return demoBanner + `
+    <div class="h1" style="margin-bottom:4px">إصدار بطاقة</div>
+    <p class="sub" style="margin-bottom:20px">تُصدر البطاقة فورًا وتظهر بياناتها في حسابك.</p>
+    <div class="box" style="max-width:520px">
+      <div class="steps">${dot(1)}${bar(1)}${dot(2)}${bar(2)}${dot(3)}</div>
+      ${body}
+    </div>`;
+}
+
+function quoteHtml(q){
+  return `<div class="quote">
+    <div class="qrow"><span class="k">قيمة البطاقة</span><span class="num">${usd(q.amount)}</span></div>
+    <div class="qrow"><span class="k">رسوم الخدمة</span><span class="num">${usd(q.service_fee)}</span></div>
+    <div class="qrow tot"><span>الإجمالي</span>
+      <span><span class="num">${usd(q.total)}</span>
+      <span style="font-size:12.5px;color:var(--muted);font-weight:500"> · ${q.total_lyd.toLocaleString('en-US')} د.ل</span></span></div>
+  </div>`;
+}
+
+let quoteTimer = null;
+async function fetchQuote(amount){
+  const box = $('#qbox'), btn = $('#wNext2');
+  if(!box) return;
+  const min = S.config.min_amount||10, max = S.config.max_amount||200;
+  if(!(amount>=min && amount<=max)){
+    S.wiz.quote = null;
+    box.innerHTML = amount ? `<div class="banner" style="margin-top:13px">المبلغ يجب أن يكون بين $${min} و $${max}.</div>` : '';
+    if(btn) btn.disabled = true;
+    return;
+  }
+  box.innerHTML = `<div class="quote"><div class="sk" style="height:16px;margin-bottom:9px"></div>
+    <div class="sk" style="height:16px;width:70%;margin-bottom:9px"></div>
+    <div class="sk" style="height:20px;width:50%"></div></div>`;
+  try{
+    const d = await apiGet(`/api/quote?amount=${amount}&kind=create`);
+    S.wiz.quote = d.quote; S.wiz.amount = amount;
+    box.innerHTML = quoteHtml(d.quote);
+    if(btn) btn.disabled = false;
+  }catch(e){
+    S.wiz.quote = null;
+    box.innerHTML = `<div class="banner" style="margin-top:13px">${esc(e.message)}</div>`;
+    if(btn) btn.disabled = true;
+  }
+}
+
+/* ─── Cards page ────────────────────── */
+function vCards(){
+  return demoBanner + `
+    <div class="h1" style="margin-bottom:4px">بطاقاتي</div>
+    <p class="sub" style="margin-bottom:20px">اضغط على أي بطاقة لعرض بياناتها وإدارتها.</p>
+    ${S.cards.length
+      ? `<div style="display:grid;gap:16px;grid-template-columns:repeat(auto-fill,minmax(258px,1fr))">
+         ${S.cards.map(cardHtml).join('')}</div>`
+      : emptyBox(I.card,'لا توجد بطاقات','أصدر بطاقتك الأولى في دقائق.','إصدار بطاقة','issue')}`;
+}
+
+async function openCard(id){
+  const c = S.cards.find(x=>x.id===id);
+  if(!c) return;
+  const bal = c.live_balance ?? c.amount_loaded ?? 0;
+  const isActive = c.status==='active';
+
+  sheet(`
+    <div style="max-width:280px;margin:0 auto 20px">${cardHtml(c).replace('cursor:pointer','')}</div>
+    <div class="h2" style="margin-bottom:3px">${esc(c.card_name||'بطاقة')}</div>
+    <p class="sub" style="margin-bottom:16px">${dt(c.created_at)}</p>
+
+    <div id="secretBox">
+      <button class="btn ghost wide" id="revealBtn">${svg(I.eye)} عرض بيانات البطاقة</button>
+    </div>
+
+    <div style="display:grid;gap:8px;grid-template-columns:repeat(2,1fr);margin-top:16px">
+      <button class="btn ghost sm" id="txBtn">${svg(I.list)} المعاملات</button>
+      ${c.status!=='deleted' ? `<button class="btn ghost sm" id="freezeBtn">${svg(I.snow)}
+        ${isActive?'تجميد':'إلغاء التجميد'}</button>` : ''}
+      ${isActive && S.config.funding_enabled ? `<button class="btn ghost sm" id="fundBtn">${svg(I.plus)} شحن</button>`:''}
+      ${c.status!=='deleted' ? `<button class="btn danger sm" id="delBtn">${svg(I.trash)} إغلاق</button>`:''}
+    </div>
+    <div id="cardExtra"></div>
+    <button class="btn ghost wide" style="margin-top:14px" onclick="closeSheet()">إغلاق النافذة</button>
+  `);
+
+  $('#revealBtn').onclick = async ()=>{
+    const box = $('#secretBox');
+    box.innerHTML = `<div class="sk" style="height:52px;margin-bottom:8px"></div>
+                     <div class="sk" style="height:52px"></div>`;
+    try{
+      const d = (await api('/api/cards/details',{card_id:id})).details;
+      let shown = false;
+      const paint = ()=>{
+        const mask = v => shown ? v : '•'.repeat(String(v).length);
+        const grp = n => shown ? String(n).replace(/(.{4})/g,'$1 ').trim() : '•••• •••• •••• '+String(n).slice(-4);
+        box.innerHTML = `
+        <div class="box" style="padding:14px">
+          <div class="secret"><div><div class="lbl" style="margin:0">رقم البطاقة</div>
+            <div class="val mono ${shown?'':'hid'}" dir="ltr">${grp(d.card_number)}</div></div>
+            <div style="display:flex"><button class="iconbtn" data-cp="${esc(d.card_number)}" data-lb="رقم البطاقة">${svg(I.copy)}</button></div></div>
+          <div class="secret"><div><div class="lbl" style="margin:0">تاريخ الانتهاء</div>
+            <div class="val mono" dir="ltr">${esc(d.expiry)}</div></div>
+            <button class="iconbtn" data-cp="${esc(d.expiry)}" data-lb="تاريخ الانتهاء">${svg(I.copy)}</button></div>
+          <div class="secret" style="border:none"><div><div class="lbl" style="margin:0">CVV</div>
+            <div class="val mono ${shown?'':'hid'}" dir="ltr">${mask(d.cvv)}</div></div>
+            <button class="iconbtn" data-cp="${esc(d.cvv)}" data-lb="CVV">${svg(I.copy)}</button></div>
+        </div>
+        <button class="btn ghost wide sm" id="tog" style="margin-top:9px">
+          ${svg(shown?I.eyeoff:I.eye)} ${shown?'إخفاء':'إظهار'} البيانات</button>
+        <p class="sub" style="font-size:12px;margin-top:10px;text-align:center">
+          لا تشارك هذه البيانات مع أي شخص — من يحصل عليها يستطيع الصرف من بطاقتك.</p>`;
+        $('#tog').onclick = ()=>{ shown = !shown; paint(); };
+        box.querySelectorAll('[data-cp]').forEach(b=>
+          b.onclick = ()=> copy(b.dataset.cp, b.dataset.lb));
+      };
+      paint();
+    }catch(e){
+      box.innerHTML = `<div class="banner">${esc(e.message)}</div>
+        <button class="btn ghost wide sm" onclick="openCard('${esc(id)}')">إعادة المحاولة</button>`;
+    }
+  };
+
+  $('#txBtn').onclick = async ()=>{
+    const x = $('#cardExtra');
+    x.innerHTML = `<div class="sk" style="height:60px;margin-top:14px"></div>`;
+    try{
+      const d = await api('/api/cards/transactions',{card_id:id});
+      x.innerHTML = `
+      <div class="box" style="margin-top:14px;padding:14px">
+        <div style="display:flex;justify-content:space-between;margin-bottom:12px">
+          <span class="h2" style="font-size:14px">معاملات البطاقة</span>
+          <span class="num" style="font-weight:700">${usd(d.balance)}</span></div>
+        ${d.transactions.length ? d.transactions.map(t=>`
+          <div style="display:flex;justify-content:space-between;gap:10px;padding:9px 0;
+               border-bottom:1px solid #F1F5F9">
+            <div style="min-width:0">
+              <div style="font-size:13.5px;font-weight:600;overflow:hidden;
+                   text-overflow:ellipsis;white-space:nowrap">${esc(t.merchant||t.type)}</div>
+              <div class="sub" style="font-size:11.5px">${esc(t.date)} · ${esc(t.reason||'')}</div></div>
+            <div style="text-align:left;flex:none">
+              <div class="num" style="font-size:13.5px;font-weight:600">${usd(t.amount)}</div>
+              <span class="pill ${t.status==='success'?'ok':'bad'}" style="font-size:10px">
+                ${t.status==='success'?'ناجحة':'مرفوضة'}</span></div>
+          </div>`).join('') : `<p class="sub" style="text-align:center;padding:14px 0">لا توجد معاملات على هذه البطاقة بعد.</p>`}
+      </div>`;
+    }catch(e){ x.innerHTML = `<div class="banner" style="margin-top:14px">${esc(e.message)}</div>`; }
+  };
+
+  const fb = $('#freezeBtn');
+  if(fb) fb.onclick = async ()=>{
+    fb.disabled = true;
+    try{
+      await api('/api/cards/freeze',{card_id:id, action: isActive?'freeze':'unfreeze'});
+      if(DEMO){ c.status = isActive?'frozen':'active'; }
+      toast(isActive?'تم تجميد البطاقة':'تم إلغاء التجميد','ok');
+      closeSheet(); render();
+    }catch(e){ toast(e.message,'bad'); fb.disabled = false; }
+  };
+
+  const fnd = $('#fundBtn');
+  if(fnd) fnd.onclick = ()=> fundSheet(c);
+
+  const del = $('#delBtn');
+  if(del) del.onclick = ()=>{
+    sheet(`
+      <div class="h2" style="margin-bottom:8px">إغلاق البطاقة نهائيًا</div>
+      <p class="sub" style="margin-bottom:8px">
+        سيُغلق ${esc(c.card_name||'البطاقة')} ولا يمكن استخدامها بعد ذلك.</p>
+      <div class="banner">الرصيد المتبقي ${usd(bal)} يُعاد إلى محفظتك بعد خصم رسوم الإغلاق.
+        العملية غير قابلة للتراجع.</div>
+      <button class="btn wide" style="background:var(--error)" id="delGo">تأكيد الإغلاق</button>
+      <button class="btn ghost wide" style="margin-top:9px" onclick="openCard('${esc(id)}')">رجوع</button>`);
+
+    $('#delGo').onclick = async ()=>{
+      $('#delGo').disabled = true;
+      try{
+        const r = await api('/api/cards/delete',{card_id:id});
+        if(DEMO){ c.status='deleted'; S.profile.wallet_balance += bal; }
+        toast('أُغلقت البطاقة · أُعيد '+usd(r.refunded_to_wallet ?? bal)+' إلى محفظتك','ok');
+        closeSheet(); render();
+      }catch(e){ toast(e.message,'bad'); $('#delGo').disabled = false; }
+    };
+  };
+}
+window.openCard = openCard;
+
+function fundSheet(c){
+  sheet(`
+    <div class="h2" style="margin-bottom:4px">شحن البطاقة</div>
+    <p class="sub" style="margin-bottom:16px">${esc(c.card_name||'بطاقة')} · ${esc(c.last4)}</p>
+    <label class="lbl">المبلغ (الحد الأدنى $${S.config.min_amount||10})</label>
+    <input class="inp num" id="fAmt" type="number" inputmode="decimal"
+           min="${S.config.min_amount||10}" placeholder="${S.config.min_amount||10}">
+    <div id="fQuote"></div>
+    <button class="btn wide" id="fGo" style="margin-top:16px" disabled>شحن البطاقة</button>
+    <button class="btn ghost wide" style="margin-top:9px" onclick="openCard('${esc(c.id)}')">رجوع</button>`);
+
+  let q = null, t = null;
+  $('#fAmt').oninput = e=>{
+    clearTimeout(t);
+    const a = parseFloat(e.target.value);
+    t = setTimeout(async ()=>{
+      const box = $('#fQuote'), btn = $('#fGo');
+      if(!(a >= (S.config.min_amount||10))){ q=null; box.innerHTML=''; btn.disabled=true; return; }
+      box.innerHTML = `<div class="quote"><div class="sk" style="height:44px"></div></div>`;
+      try{
+        const d = await apiGet(`/api/quote?amount=${a}&kind=fund`);
+        q = d.quote; box.innerHTML = quoteHtml(q);
+        btn.disabled = (S.profile.wallet_balance||0) < q.total;
+        if(btn.disabled) box.innerHTML += `<div class="banner" style="margin-top:11px">
+          رصيدك غير كافٍ — المتاح ${usd(S.profile.wallet_balance)}.</div>`;
+      }catch(err){ q=null; box.innerHTML = `<div class="banner">${esc(err.message)}</div>`; btn.disabled=true; }
+    }, 420);
+  };
+
+  $('#fGo').onclick = async ()=>{
+    if(!q) return;
+    $('#fGo').disabled = true;
+    try{
+      await api('/api/cards/fund',{card_id:c.id, amount:q.amount,
+        idempotency_key: (crypto.randomUUID?crypto.randomUUID():'k'+Date.now()+Math.random())});
+      if(DEMO){ c.live_balance = (c.live_balance||0)+q.amount; S.profile.wallet_balance -= q.total; }
+      toast('تم شحن البطاقة بمبلغ '+usd(q.amount),'ok');
+      closeSheet(); render();
+    }catch(e){ toast(e.message,'bad'); $('#fGo').disabled = false; }
+  };
+}
+
+/* ─── Wallet ────────────────────────── */
+function vWallet(){
+  return demoBanner + `
+  <div class="h1" style="margin-bottom:4px">المحفظة</div>
+  <p class="sub" style="margin-bottom:20px">رصيدك يُستخدم لإصدار البطاقات وشحنها.</p>
+
+  <div class="box" style="background:var(--navy);color:#fff;border:none;margin-bottom:16px">
+    <div style="font-size:12.5px;color:#94A3B8;margin-bottom:5px">الرصيد المتاح</div>
+    <div class="num" style="font-size:33px;font-weight:700;letter-spacing:-.03em">
+      ${usd(S.profile.wallet_balance)}</div>
+    <div style="color:#94A3B8;font-size:13px;margin-bottom:17px">${lyd(S.profile.wallet_balance)}</div>
+    <button class="btn" id="depBtn">${svg(I.plus)} إضافة رصيد</button>
+  </div>
+
+  <div class="h2" style="margin-bottom:12px">سجل الإيداعات</div>
+  ${S.deposits.length ? S.deposits.map(d=>{
+    const st = {pending:['wait','قيد المراجعة'],approved:['ok','مقبول'],rejected:['bad','مرفوض']}[d.status]||['off','—'];
+    return `<div class="rowcard" style="display:flex;justify-content:space-between;align-items:center;gap:10px">
+      <div><div style="font-weight:600" class="num">${usd(d.amount_usd)}
+        <span style="font-weight:400;color:var(--muted);font-size:12.5px">· ${esc(d.method||'—')}</span></div>
+        <div class="sub" style="font-size:12px">${dt(d.created_at)}</div>
+        ${d.reject_reason?`<div style="font-size:12px;color:var(--error);margin-top:3px">${esc(d.reject_reason)}</div>`:''}</div>
+      <span class="pill ${st[0]}">${st[1]}</span></div>`}).join('')
+  : emptyBox(I.wallet,'لا إيداعات بعد','أضف رصيدًا لتبدأ إصدار البطاقات.','إضافة رصيد','deposit')}`;
+}
+
+function depositSheet(){
+  sheet(`
+    <div class="h2" style="margin-bottom:4px">إضافة رصيد</div>
+    <p class="sub" style="margin-bottom:16px">
+      أرسل المبلغ ثم ارفع إثبات التحويل. تُعتمد الإيداعات يدويًا خلال وقت قصير.</p>
+
+    <div class="box" style="background:var(--bg);margin-bottom:16px;padding:14px">
+      <div class="lbl" style="margin-bottom:8px">طرق الدفع</div>
+      <div style="font-size:13.5px;line-height:1.9">
+        · تحويل مصرفي<br>· موبي كاش (ليبيانا / المدار)<br>· USDT
+      </div>
+      <p class="sub" style="font-size:12px;margin-top:9px">
+        تفاصيل الحساب تُرسل بعد إنشاء الطلب.</p>
+    </div>
+
+    <label class="lbl">المبلغ بالدولار</label>
+    <input class="inp num" id="dAmt" type="number" inputmode="decimal" min="1" max="500" placeholder="20">
+    <div id="dLyd" class="sub" style="font-size:12.5px;margin-top:6px"></div>
+
+    <label class="lbl" style="margin-top:14px">طريقة الدفع</label>
+    <select class="inp" id="dMethod">
+      <option>تحويل مصرفي</option><option>موبي كاش</option><option>USDT</option>
+    </select>
+
+    <label class="lbl" style="margin-top:14px">رابط إثبات التحويل <span style="font-weight:400">(اختياري)</span></label>
+    <input class="inp" id="dProof" placeholder="رابط صورة الإيصال" dir="ltr">
+
+    <label class="lbl" style="margin-top:14px">ملاحظة <span style="font-weight:400">(اختياري)</span></label>
+    <input class="inp" id="dNote" placeholder="رقم الحوالة أو أي تفاصيل">
+
+    <button class="btn wide" id="dGo" style="margin-top:18px">إرسال طلب الإيداع</button>
+    <button class="btn ghost wide" style="margin-top:9px" onclick="closeSheet()">إلغاء</button>`);
+
+  $('#dAmt').oninput = e=>{
+    const a = parseFloat(e.target.value);
+    $('#dLyd').textContent = a>0 ? '≈ '+lyd(a) : '';
+  };
+
+  $('#dGo').onclick = async ()=>{
+    const amt = parseFloat($('#dAmt').value);
+    if(!(amt>0 && amt<=500)) return toast('أدخل مبلغًا بين $1 و $500','bad');
+    $('#dGo').disabled = true;
+    try{
+      if(DEMO){
+        S.deposits.unshift({id:'d'+Date.now(),amount_usd:amt,amount_lyd:Math.ceil(amt*7),
+          method:$('#dMethod').value,status:'pending',created_at:new Date()});
+      } else {
+        await addDoc(collection(db,'wallet_deposits'),{
+          uid: S.user.uid, amount_usd: amt,
+          amount_lyd: Math.ceil(amt*(S.config.usd_to_lyd||7)),
+          method: $('#dMethod').value,
+          proof_url: $('#dProof').value.trim(),
+          note: $('#dNote').value.trim(),
+          status:'pending', created_at:new Date().toISOString()
+        });
+      }
+      toast('أُرسل طلب الإيداع — سنراجعه قريبًا','ok');
+      closeSheet(); render();
+    }catch(e){ toast('تعذّر إرسال الطلب','bad'); $('#dGo').disabled = false; }
+  };
+}
+
+/* ─── Transactions ──────────────────── */
+function vTx(){
+  const F = [['all','الكل'],['create','إصدار'],['fund','شحن'],['deposit','إيداع']];
+  let rows = [
+    ...S.orders.map(o=>({...o, kind:o.type})),
+    ...S.deposits.map(d=>({id:d.id, kind:'deposit', status:d.status,
+      amount:d.amount_usd, customer_price:d.amount_usd, created_at:d.created_at}))
+  ].sort((a,b)=>{
+    const av = a.created_at?.toDate?.() || new Date(a.created_at||0);
+    const bv = b.created_at?.toDate?.() || new Date(b.created_at||0);
+    return bv - av;
+  });
+  if(S.txFilter!=='all') rows = rows.filter(r=>r.kind===S.txFilter);
+
+  return demoBanner + `
+  <div class="h1" style="margin-bottom:4px">المعاملات</div>
+  <p class="sub" style="margin-bottom:16px">كل عملياتك في مكان واحد.</p>
+
+  <div style="display:flex;gap:7px;overflow-x:auto;padding-bottom:4px;margin-bottom:14px">
+    ${F.map(([k,t])=>`<button class="btn ${S.txFilter===k?'dark':'ghost'} sm"
+      data-filter="${k}" style="flex:none">${t}</button>`).join('')}
+  </div>
+
+  ${rows.length ? `<div class="box" style="padding:0"><div class="scrollx">${txTable(rows)}</div></div>`
+   : emptyBox(I.list,'لا توجد معاملات','ستظهر عملياتك هنا.')}`;
+}
+
+function txTable(rows){
+  const T = {create:'إصدار بطاقة', fund:'شحن بطاقة', deposit:'إيداع رصيد'};
+  const ST = {completed:['ok','مكتملة'], processing:['wait','قيد المعالجة'],
+    refunded:['bad','مستردة'], failed:['bad','فاشلة'],
+    pending:['wait','قيد المراجعة'], approved:['ok','مقبول'], rejected:['bad','مرفوض']};
+  return `<table class="tbl">
+    <thead><tr><th>رقم العملية</th><th>النوع</th><th>المبلغ</th><th>التاريخ</th><th>الحالة</th></tr></thead>
+    <tbody>${rows.map(r=>{
+      const kind = r.kind || r.type;
+      const st = ST[r.status] || ['off','—'];
+      const isIn = kind==='deposit' && r.status==='approved';
+      const val = r.customer_price ?? r.amount ?? 0;
+      return `<tr>
+        <td class="mono" style="font-size:12px;color:var(--muted)">${esc(r.id)}</td>
+        <td>${T[kind]||'—'}</td>
+        <td class="num" style="font-weight:600;color:${isIn?'var(--emerald-d)':'inherit'}">
+          ${isIn?'+':kind==='deposit'?'':'−'}${usd(val)}</td>
+        <td class="sub" style="font-size:12.5px">${dt(r.created_at)}</td>
+        <td><span class="pill ${st[0]}">${st[1]}</span></td>
+      </tr>`}).join('')}</tbody></table>`;
+}
+
+/* ─── Settings ──────────────────────── */
+function vSettings(){
+  return demoBanner + `
+  <div class="h1" style="margin-bottom:20px">الإعدادات</div>
+  <div class="box" style="max-width:520px;margin-bottom:16px">
+    <div class="h2" style="margin-bottom:16px">الحساب</div>
+    <div style="margin-bottom:13px"><label class="lbl">الاسم</label>
+      <input class="inp" id="pName" value="${esc(S.profile.name||'')}"></div>
+    <div style="margin-bottom:13px"><label class="lbl">البريد الإلكتروني</label>
+      <input class="inp" value="${esc(S.profile.email||S.user?.email||'')}" disabled
+             style="background:var(--bg);color:var(--muted)" dir="ltr"></div>
+    <div style="margin-bottom:18px"><label class="lbl">رقم الهاتف</label>
+      <input class="inp" id="pPhone" value="${esc(S.profile.phone||'')}"
+             placeholder="091xxxxxxx" dir="ltr"></div>
+    <button class="btn" id="pSave">حفظ التغييرات</button>
+  </div>
+
+  <div class="box" style="max-width:520px">
+    <div class="h2" style="margin-bottom:6px">كلمة المرور</div>
+    <p class="sub" style="margin-bottom:14px">سنرسل رابط تغيير كلمة المرور إلى بريدك.</p>
+    <button class="btn ghost" id="pReset">إرسال رابط التغيير</button>
+  </div>`;
+}
+
+/* ─── Bind ──────────────────────────── */
+function bindView(){
+  document.querySelectorAll('[data-act]').forEach(b=>{
+    b.onclick = ()=> b.dataset.act==='deposit' ? depositSheet() : go(b.dataset.act);
+  });
+  document.querySelectorAll('[data-card]').forEach(el=>
+    el.onclick = ()=> openCard(el.dataset.card));
+  document.querySelectorAll('[data-filter]').forEach(b=>
+    b.onclick = ()=>{ S.txFilter = b.dataset.filter; render(); });
+  document.querySelectorAll('[data-step]').forEach(b=>
+    b.onclick = ()=>{ S.wiz.step = +b.dataset.step; render(); });
+
+  const dep = $('#depBtn'); if(dep) dep.onclick = depositSheet;
+
+  // wizard step 1
+  const n1 = $('#wNext1');
+  if(n1) n1.onclick = ()=>{
+    const label = $('#wLabel').value.trim();
+    const name = $('#wName').value.trim().toUpperCase();
+    if(!/^[A-Z][A-Z .'-]{1,23}$/.test(name)){
+      $('#wName').classList.add('bad');
+      return toast('اكتب الاسم بحروف لاتينية (حرفان على الأقل)','bad');
+    }
+    S.wiz.label = label || 'بطاقتي';
+    S.wiz.name = name;
+    S.wiz.step = 2;
+    render();
+  };
+
+  // wizard step 2
+  document.querySelectorAll('[data-amt]').forEach(b=>
+    b.onclick = ()=>{
+      const a = +b.dataset.amt;
+      document.querySelectorAll('[data-amt]').forEach(x=>x.classList.toggle('on', x===b));
+      const cu = $('#wCustom'); if(cu) cu.value = '';
+      fetchQuote(a);
+    });
+  const cu = $('#wCustom');
+  if(cu) cu.oninput = e=>{
+    document.querySelectorAll('[data-amt]').forEach(x=>x.classList.remove('on'));
+    clearTimeout(quoteTimer);
+    quoteTimer = setTimeout(()=> fetchQuote(parseFloat(e.target.value)), 420);
+  };
+  const n2 = $('#wNext2');
+  if(n2) n2.onclick = ()=>{
+    if(!S.wiz.quote) return;
+    S.wiz.idem = crypto.randomUUID ? crypto.randomUUID() : 'k'+Date.now()+Math.random();
+    S.wiz.step = 3;
+    render();
+  };
+
+  // wizard step 3
+  const sub = $('#wSubmit');
+  if(sub) sub.onclick = async ()=>{
+    if(!$('#wAgree').checked) return toast('يجب الموافقة على الشروط','bad');
+    sub.disabled = true;
+    sub.innerHTML = `<span class="sk" style="width:80px;height:14px;display:inline-block"></span>`;
+    try{
+      const r = await api('/api/cards/create',{
+        amount: S.wiz.quote.amount,
+        name_on_card: S.wiz.name,
+        card_name: S.wiz.label,
+        idempotency_key: S.wiz.idem
+      });
+      successSheet(r.card);
+      S.wiz = {step:1,amount:null,name:S.wiz.name,label:'',idem:null,quote:null};
+      S.page = 'cards';
+      render();
+    }catch(e){
+      toast(e.message,'bad');
+      sub.disabled = false; sub.textContent = 'إصدار البطاقة';
+    }
+  };
+
+  // settings
+  const ps = $('#pSave');
+  if(ps) ps.onclick = async ()=>{
+    const name = $('#pName').value.trim(), phone = $('#pPhone').value.trim();
+    if(name.length < 2) return toast('الاسم قصير جدًا','bad');
+    ps.disabled = true;
+    try{
+      if(DEMO){ S.profile.name = name; S.profile.phone = phone; }
+      else await setDoc(doc(db,'users',S.user.uid),{name,phone},{merge:true});
+      toast('حُفظت التغييرات','ok'); render();
+    }catch(e){ toast('تعذّر الحفظ — الكتابة محمية، اطلب من الإدارة','bad'); ps.disabled = false; }
+  };
+  const pr = $('#pReset');
+  if(pr) pr.onclick = ()=> toast('تحقق من بريدك لإكمال تغيير كلمة المرور','ok');
+}
+
+function successSheet(card){
+  sheet(`
+    <div style="text-align:center;margin-bottom:20px">
+      <div style="width:60px;height:60px;border-radius:50%;background:#D1FAE5;color:var(--emerald-d);
+           display:grid;place-items:center;margin:0 auto 14px">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6"
+             stroke-linecap="round" stroke-linejoin="round"
+             style="width:27px;height:27px"><path d="M20 6 9 17l-5-5"/></svg></div>
+      <div class="h2">تم إصدار البطاقة</div>
+      <p class="sub">بطاقة تنتهي بـ ${esc(card.last4)} جاهزة للاستخدام.</p>
+    </div>
+    <button class="btn wide" onclick="closeSheet();openCard('${esc(card.card_id)}')">
+      عرض بيانات البطاقة</button>
+    <button class="btn ghost wide" style="margin-top:9px" onclick="closeSheet()">لاحقًا</button>`);
+}
+</script>
+</body>
+</html>
