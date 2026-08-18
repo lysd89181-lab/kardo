@@ -1,0 +1,197 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex,nofollow">
+<title>تنصيب كاردو</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Arabic:wght@400;500;600;700&family=IBM+Plex+Mono&display=swap">
+<style>
+:root{--navy:#0F172A;--emerald:#10B981;--emerald-d:#059669;--muted:#94A3B8;--error:#EF4444}
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:'IBM Plex Sans Arabic',system-ui,sans-serif;background:var(--navy);
+  color:#fff;padding:22px 18px 60px;line-height:1.7;font-size:15px}
+.wrap{max-width:520px;margin:0 auto}
+.mono{font-family:'IBM Plex Mono',monospace;font-size:12.5px;word-break:break-all}
+h1{font-size:22px;margin:0 0 3px;letter-spacing:-.02em}
+.sub{color:var(--muted);font-size:13.5px;margin-bottom:24px}
+.card{background:#1B2438;border-radius:14px;padding:17px;margin-bottom:12px}
+.card h2{font-size:15px;margin-bottom:5px;display:flex;gap:8px;align-items:center}
+.card p{color:var(--muted);font-size:13px}
+.n{width:24px;height:24px;border-radius:50%;background:#334155;display:grid;
+  place-items:center;font-size:12px;font-weight:700;flex:none}
+.n.ok{background:var(--emerald)}
+label{display:block;font-size:12.5px;font-weight:600;color:var(--muted);margin:12px 0 6px}
+input{width:100%;background:#0F172A;border:1px solid #334155;border-radius:10px;
+  padding:12px;color:#fff;font:inherit}
+input:focus{outline:none;border-color:var(--emerald)}
+button{background:var(--emerald);color:#fff;border:none;padding:14px;border-radius:11px;
+  font:inherit;font-weight:600;width:100%;margin-top:14px;cursor:pointer}
+button:disabled{opacity:.45;cursor:not-allowed}
+button.g{background:#334155}
+.log{background:#0F172A;border-radius:10px;padding:13px;margin-top:14px;
+  font-size:12.5px;max-height:280px;overflow-y:auto;display:none}
+.log.on{display:block}
+.log div{padding:3px 0;border-bottom:1px solid #1B2438}
+.log div:last-child{border:none}
+.ok{color:var(--emerald)}.bad{color:var(--error)}
+.warn{background:#422006;border:1px solid #78350F;color:#FCD34D;
+  padding:12px 14px;border-radius:11px;font-size:13px;margin-bottom:16px}
+</style>
+</head>
+<body>
+<div class="wrap">
+<h1>تنصيب كاردو</h1>
+<p class="sub">يبني قاعدة البيانات ويمنحك صلاحية الإدارة — مرة واحدة فقط</p>
+
+<div class="warn">
+  ⚠️ قبل البدء: من Firebase Console → Firestore → <strong>Rules</strong>،
+  اجعلها مؤقتًا <span class="mono">allow read, write: if true;</span>
+  ثم ارجع هنا. بعد نجاح التنصيب نضع القواعد الآمنة.
+</div>
+
+<div class="card">
+  <h2><span class="n" id="n1">1</span> حسابك</h2>
+  <p>أنشئ حسابك — سيصبح حساب المدير.</p>
+  <label>البريد الإلكتروني</label>
+  <input id="email" type="email" dir="ltr" placeholder="you@mediaplus.com.ly">
+  <label>كلمة المرور (6 أحرف فأكثر)</label>
+  <input id="pass" type="password" dir="ltr">
+  <button id="b1">إنشاء الحساب / تسجيل الدخول</button>
+</div>
+
+<div class="card">
+  <h2><span class="n" id="n2">2</span> قاعدة البيانات</h2>
+  <p>ينشئ الإعدادات وصلاحية الإدارة وملفك الشخصي.</p>
+  <button id="b2" disabled>بناء قاعدة البيانات</button>
+  <div class="log" id="log"></div>
+</div>
+
+<div class="card">
+  <h2><span class="n" id="n3">3</span> التالي</h2>
+  <p id="next">أكمل الخطوتين أولًا.</p>
+</div>
+
+<button class="g" onclick="location.reload()">إعادة البدء</button>
+</div>
+
+<script type="module">
+import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js';
+import { getAuth, createUserWithEmailAndPassword, signInWithEmailAndPassword }
+  from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js';
+import { getFirestore, doc, setDoc }
+  from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js';
+
+const firebaseConfig = {
+  apiKey: "AIzaSyC-GntWur6r_Ow_v0wTNymQqQa6brzgvW8",
+  authDomain: "kardo-1c657.firebaseapp.com",
+  projectId: "kardo-1c657",
+  storageBucket: "kardo-1c657.firebasestorage.app",
+  messagingSenderId: "593934928630",
+  appId: "1:593934928630:web:d36ea455a284e974043ad7"
+};
+
+const app = initializeApp(firebaseConfig);
+const auth = getAuth(app);
+const db = getFirestore(app);
+const $ = s => document.querySelector(s);
+let uid = null;
+
+function log(msg, cls=''){
+  const l = $('#log'); l.classList.add('on');
+  l.insertAdjacentHTML('beforeend', `<div class="${cls}">${msg}</div>`);
+  l.scrollTop = l.scrollHeight;
+}
+
+$('#b1').onclick = async ()=>{
+  const email = $('#email').value.trim(), pass = $('#pass').value;
+  if(!email || pass.length < 6){ alert('أكمل البيانات — كلمة المرور 6 أحرف على الأقل'); return; }
+  $('#b1').disabled = true;
+  try{
+    let cred;
+    try { cred = await createUserWithEmailAndPassword(auth, email, pass); }
+    catch(e){
+      if(e.code === 'auth/email-already-in-use'){
+        cred = await signInWithEmailAndPassword(auth, email, pass);
+      } else throw e;
+    }
+    uid = cred.user.uid;
+    $('#n1').classList.add('ok'); $('#n1').textContent = '✓';
+    $('#b1').textContent = 'تم — ' + email;
+    $('#b2').disabled = false;
+  }catch(e){
+    const m = {
+      'auth/operation-not-allowed':'فعّل Email/Password من Firebase → Authentication → Sign-in method',
+      'auth/invalid-email':'صيغة البريد غير صحيحة',
+      'auth/wrong-password':'كلمة المرور غير صحيحة',
+      'auth/invalid-credential':'كلمة المرور غير صحيحة'
+    }[e.code] || e.message;
+    alert('خطأ: ' + m);
+    $('#b1').disabled = false;
+  }
+};
+
+$('#b2').onclick = async ()=>{
+  $('#b2').disabled = true;
+  $('#log').innerHTML = '';
+  const now = new Date().toISOString();
+
+  const tasks = [
+    ['card_settings/pricing', {
+      provider_fixed_fee: 1.0, provider_pct: 4, margin: 2.6, fund_margin: 1.5,
+      deletion_fee: 2.0, min_amount: 10, max_amount: 200,
+      usd_to_lyd: 7.0, default_bin: '539502'
+    }, 'إعدادات التسعير'],
+
+    ['card_settings/ops', {
+      issuing_enabled: false, funding_enabled: false, provider_float: 0,
+      low_balance_threshold: 30, failed_ops: 0,
+      maintenance_message: 'الخدمة قيد التجهيز — سنفتح الإصدار قريبًا.'
+    }, 'إعدادات التشغيل'],
+
+    [`admins/${uid}`, { email: auth.currentUser.email, role: 'owner', created_at: now },
+      'صلاحية الإدارة'],
+
+    [`users/${uid}`, {
+      name: 'المدير', email: auth.currentUser.email, phone: '',
+      wallet_balance: 0, total_spent: 0, cards_count: 0,
+      banned: false, created_at: now
+    }, 'ملفك الشخصي'],
+  ];
+
+  let failed = 0;
+  for(const [path, data, label] of tasks){
+    try{
+      const [col, id] = path.split('/');
+      await setDoc(doc(db, col, id), data, { merge: true });
+      log('✅ ' + label, 'ok');
+    }catch(e){
+      failed++;
+      log('❌ ' + label + ' — ' + (e.code === 'permission-denied'
+        ? 'القواعد ترفض الكتابة. اجعلها allow read, write: if true; مؤقتًا.'
+        : e.message), 'bad');
+    }
+  }
+
+  if(!failed){
+    $('#n2').classList.add('ok'); $('#n2').textContent = '✓';
+    $('#b2').textContent = 'اكتمل البناء';
+    log('', '');
+    log('🎉 قاعدة البيانات جاهزة', 'ok');
+    $('#next').innerHTML = `
+      <strong style="color:#10B981">جاهز.</strong> الخطوات المتبقية:<br><br>
+      1. أعد قواعد Firestore الآمنة (ملف <span class="mono">firestore.rules</span>)<br>
+      2. انشر الـWorker على Cloudflare<br>
+      3. ضع رابط الـWorker في <span class="mono">API_BASE</span> بالملفين<br>
+      4. فعّل الإصدار من لوحة الإدارة<br><br>
+      <span class="mono" style="color:#94A3B8">uid: ${uid}</span>`;
+  } else {
+    $('#b2').disabled = false;
+    $('#b2').textContent = 'إعادة المحاولة';
+  }
+};
+</script>
+</body>
+</html>
