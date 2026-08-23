@@ -1,0 +1,1405 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#060B14">
+<title>كاردو</title>
+
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Arabic:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap">
+
+<style>
+/* ═══════════════════════════════════════════════
+   كاردو — لغة بصرية مبنية على زاوية حرف K
+   القماش داكن، البطاقة هي البطل، والأرقام تُقرأ
+   كأرقام مالية لا كنص عادي.
+   ═══════════════════════════════════════════════ */
+:root{
+  --ink:#060B14;        /* القماش */
+  --panel:#0D1524;      /* سطح مرتفع */
+  --panel-2:#141F31;    /* أعلى */
+  --line:#1B2739;       /* خط شعري */
+  --line-2:#243449;
+
+  --text:#EAF0F8;
+  --text-2:#8FA1BC;
+  --text-3:#5D708C;
+
+  --accent:#12C98A;     /* الأخضر على داكن */
+  --accent-d:#0EA372;
+  --accent-soft:rgba(18,201,138,.12);
+
+  --danger:#F2685F;
+  --warn:#E0A030;
+
+  --r:16px;
+  --wedge:polygon(0 0,100% 22%,46% 50%,100% 78%,0 100%);
+}
+
+*{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
+html,body{height:100%}
+body{
+  font-family:'IBM Plex Sans Arabic',system-ui,-apple-system,sans-serif;
+  background:var(--ink);color:var(--text);font-size:15px;line-height:1.6;
+  -webkit-font-smoothing:antialiased;overflow-x:hidden;
+}
+/* ضوء محيطي — يمنع الأسود المسطّح */
+body::before{
+  content:'';position:fixed;inset:0;pointer-events:none;z-index:0;
+  background:
+    radial-gradient(64vw 46vh at 92% -8%, rgba(18,201,138,.10), transparent 60%),
+    radial-gradient(52vw 40vh at -6% 4%, rgba(60,110,200,.07), transparent 58%);
+}
+button{font:inherit;color:inherit;background:none;border:none;cursor:pointer}
+input,select,textarea{font:inherit;color:inherit;width:100%}
+a{color:inherit;text-decoration:none}
+:focus-visible{outline:2px solid var(--accent);outline-offset:3px;border-radius:8px}
+::-webkit-scrollbar{width:7px;height:7px}
+::-webkit-scrollbar-thumb{background:var(--line-2);border-radius:8px}
+::selection{background:var(--accent);color:#04121B}
+
+svg{width:18px;height:18px;flex:none;display:inline-block;vertical-align:middle}
+svg[data-lg]{width:26px;height:26px}
+
+.mono{font-family:'IBM Plex Mono',ui-monospace,monospace;font-variant-numeric:tabular-nums}
+.num{font-family:'IBM Plex Mono',ui-monospace,monospace;
+  font-variant-numeric:tabular-nums;letter-spacing:-.02em}
+
+/* ─── الهيكل ─────────────────────────── */
+#app{display:none;position:relative;z-index:1}
+.shell{display:grid;grid-template-columns:1fr;min-height:100vh}
+@media(min-width:1080px){.shell{grid-template-columns:1fr 250px}}
+
+.rail{
+  display:none;grid-column:2;padding:26px 16px;position:sticky;top:0;height:100vh;
+  flex-direction:column;border-inline-start:1px solid var(--line);
+}
+@media(min-width:1080px){.rail{display:flex}}
+.brand{display:flex;align-items:center;gap:11px;margin-bottom:4px}
+.brand .en{font-size:19px;font-weight:700;letter-spacing:-.03em;line-height:1.1}
+.brand .ar{font-size:11px;color:var(--text-3)}
+.rail .tag{font-size:11px;color:var(--text-3);margin:0 2px 28px}
+
+.nav{display:flex;align-items:center;gap:12px;padding:11px 13px;border-radius:11px;
+  color:var(--text-2);font-size:14px;font-weight:500;width:100%;
+  transition:color .16s,background .16s;position:relative;margin-bottom:2px}
+.nav:hover{color:var(--text);background:rgba(255,255,255,.035)}
+.nav.on{color:var(--text);background:rgba(255,255,255,.05)}
+.nav.on::before{content:'';position:absolute;inset-inline-start:0;top:22%;bottom:22%;
+  width:3px;border-radius:99px;background:var(--accent)}
+.nav svg{width:18px;height:18px;opacity:.85}
+.nav.on svg{color:var(--accent);opacity:1}
+
+.rail-foot{margin-top:auto;padding-top:18px;border-top:1px solid var(--line)}
+
+.main{grid-column:1;min-width:0;padding-bottom:calc(78px + env(safe-area-inset-bottom))}
+@media(min-width:1080px){.main{padding-bottom:36px}}
+
+.bar{
+  position:sticky;top:0;z-index:30;padding:13px 18px;
+  display:flex;align-items:center;gap:12px;
+  background:rgba(6,11,20,.82);backdrop-filter:blur(16px);
+  border-bottom:1px solid var(--line);
+}
+@media(min-width:1080px){.bar{padding:15px 30px}}
+.wrap{padding:20px 18px;max-width:1080px}
+@media(min-width:1080px){.wrap{padding:28px 30px}}
+
+/* التبويبات السفلية */
+.dock{
+  position:fixed;inset:auto 0 0 0;z-index:40;display:grid;
+  padding:9px 6px calc(9px + env(safe-area-inset-bottom));
+  background:rgba(6,11,20,.94);backdrop-filter:blur(18px);
+  border-top:1px solid var(--line);
+}
+@media(min-width:1080px){.dock{display:none}}
+.dk{display:flex;flex-direction:column;align-items:center;gap:4px;padding:6px 2px;
+  color:var(--text-3);font-size:10.5px;font-weight:500;border-radius:11px;
+  transition:color .18s;position:relative}
+.dk.on{color:var(--accent)}
+.dk.on::after{content:'';position:absolute;top:-1px;left:50%;transform:translateX(-50%);
+  width:20px;height:2.5px;border-radius:99px;background:var(--accent);
+  animation:dkin .3s cubic-bezier(.2,.9,.3,1)}
+@keyframes dkin{from{width:0;opacity:0}}
+.dk:active{transform:scale(.92)}
+.dk svg{width:21px;height:21px}
+
+/* ─── الأسطح ─────────────────────────── */
+.panel{background:var(--panel);border:1px solid var(--line);border-radius:var(--r);padding:18px}
+.panel-q{background:rgba(255,255,255,.028);border:1px solid var(--line);
+  border-radius:var(--r);padding:16px}
+
+.eyebrow{font-size:11px;font-weight:600;letter-spacing:.09em;
+  color:var(--text-3);text-transform:uppercase}
+.h1{font-size:23px;font-weight:700;letter-spacing:-.03em;line-height:1.25}
+.h2{font-size:16px;font-weight:600;letter-spacing:-.01em}
+.sub{color:var(--text-2);font-size:13.5px}
+.lbl{display:block;font-size:12px;font-weight:600;color:var(--text-2);margin-bottom:8px}
+
+/* ─── البطل: الرصيد ──────────────────── */
+.hero{position:relative;overflow:hidden;border-radius:20px;
+  border:1px solid var(--line);background:var(--panel);padding:24px 22px 22px;margin-bottom:14px}
+.hero::after{content:'';position:absolute;inset-block:-25%;inset-inline-end:-14%;
+  width:52%;background:var(--accent);opacity:.075;clip-path:var(--wedge)}
+.hero > *{position:relative;z-index:2}
+.bal{font-size:clamp(38px,11vw,54px);font-weight:600;letter-spacing:-.045em;line-height:1}
+.bal-lyd{color:var(--text-2);font-size:13px;margin-top:7px}
+.hero-acts{display:flex;gap:9px;margin-top:20px;flex-wrap:wrap}
+
+/* ─── الأزرار ────────────────────────── */
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:8px;
+  padding:12px 18px;border-radius:11px;font-weight:600;font-size:14px;
+  background:var(--accent);color:#04121B;transition:.16s}
+.btn:hover:not(:disabled){background:var(--accent-d)}
+.btn:active:not(:disabled){transform:scale(.97)}
+.btn:disabled{opacity:.4;cursor:not-allowed}
+.btn svg{width:16px;height:16px}
+.btn.line{background:transparent;border:1px solid var(--line-2);color:var(--text)}
+.btn.line:hover:not(:disabled){background:rgba(255,255,255,.05);border-color:var(--text-3)}
+.btn.ghost{background:rgba(255,255,255,.045);color:var(--text)}
+.btn.ghost:hover:not(:disabled){background:rgba(255,255,255,.08)}
+.btn.risk{background:transparent;border:1px solid rgba(242,104,95,.35);color:var(--danger)}
+.btn.wide{width:100%}
+.btn.sm{padding:9px 13px;font-size:12.5px;border-radius:9px}
+.btn.sm svg{width:14px;height:14px}
+
+.chip{display:inline-flex;align-items:center;gap:5px;padding:3px 9px;
+  border-radius:999px;font-size:11px;font-weight:600;white-space:nowrap}
+.chip.ok{background:var(--accent-soft);color:var(--accent)}
+.chip.wait{background:rgba(224,160,48,.14);color:var(--warn)}
+.chip.bad{background:rgba(242,104,95,.14);color:var(--danger)}
+.chip.off{background:rgba(255,255,255,.06);color:var(--text-3)}
+
+/* ─── الحقول ─────────────────────────── */
+.inp{background:rgba(255,255,255,.04);border:1px solid var(--line-2);
+  border-radius:11px;padding:13px;color:var(--text);font-size:15px;transition:.16s}
+.inp::placeholder{color:var(--text-3)}
+.inp:hover:not(:focus){border-color:var(--text-3)}
+.inp:focus{outline:none;border-color:var(--accent);background:rgba(255,255,255,.055);
+  box-shadow:0 0 0 3px var(--accent-soft)}
+.inp.bad{border-color:var(--danger)}
+select.inp{appearance:none;background-image:
+  linear-gradient(45deg,transparent 50%,var(--text-2) 50%),
+  linear-gradient(135deg,var(--text-2) 50%,transparent 50%);
+  background-position:14px 21px,20px 21px;background-size:6px 6px;background-repeat:no-repeat}
+
+/* ─── البطاقة — العنصر المميّز ────────── */
+.card{
+  position:relative;aspect-ratio:1.586;border-radius:18px;overflow:hidden;
+  background:linear-gradient(152deg,#12203A 0%,#0A1322 62%);
+  border:1px solid rgba(255,255,255,.07);
+  padding:18px;display:flex;flex-direction:column;cursor:pointer;
+  box-shadow:0 18px 40px -22px rgba(0,0,0,.9);
+  transition:transform .26s cubic-bezier(.2,.8,.3,1),box-shadow .26s;
+}
+.card::after{content:'';position:absolute;inset-block:-18%;inset-inline-start:-10%;
+  width:56%;background:var(--accent);opacity:.16;clip-path:var(--wedge)}
+.card::before{content:'';position:absolute;inset:0;z-index:3;pointer-events:none;
+  background:linear-gradient(108deg,transparent 40%,rgba(255,255,255,.10) 49%,transparent 58%);
+  transform:translateX(-130%);transition:transform .85s cubic-bezier(.3,.7,.4,1)}
+.card:hover{transform:translateY(-6px);box-shadow:0 26px 52px -22px rgba(0,0,0,1)}
+.card:hover::before{transform:translateX(130%)}
+.card.frozen{background:linear-gradient(152deg,#22304A 0%,#161F2E 62%)}
+.card.frozen::after{background:#7D93B5;opacity:.14}
+.card.dead{opacity:.5;filter:saturate(.35)}
+.card .top{display:flex;justify-content:space-between;align-items:flex-start;
+  position:relative;z-index:2}
+.card .wm{font-size:14.5px;font-weight:700;letter-spacing:-.02em}
+.card .chipx{width:32px;height:24px;border-radius:5px;margin:auto 0 12px;
+  position:relative;z-index:2;
+  background:linear-gradient(140deg,#E2E9EA,#96AAAC 60%,#C6D2D3)}
+.card .pan{font-size:15px;letter-spacing:.12em;position:relative;z-index:2;color:#DCE5F2}
+.card .foot{display:flex;justify-content:space-between;align-items:flex-end;
+  margin-top:12px;position:relative;z-index:2}
+.card .thru{font-size:8px;letter-spacing:.14em;color:var(--text-3);margin-bottom:3px}
+.card .amt{font-size:19px;font-weight:600;letter-spacing:-.03em}
+
+.rail-cards{display:flex;gap:14px;overflow-x:auto;padding:2px 18px 6px;
+  margin:0 -18px;scroll-snap-type:x mandatory;-webkit-overflow-scrolling:touch}
+.rail-cards::-webkit-scrollbar{display:none}
+.rail-cards > *{flex:0 0 min(74vw,268px);scroll-snap-align:start}
+@media(min-width:760px){
+  .rail-cards{display:grid;grid-template-columns:repeat(auto-fill,minmax(258px,1fr));
+    overflow:visible;margin:0;padding:0}
+  .rail-cards > *{flex:none}
+}
+
+/* ─── قائمة النشاط ───────────────────── */
+.feed{border:1px solid var(--line);border-radius:var(--r);overflow:hidden}
+.fitem{display:flex;align-items:center;gap:13px;padding:14px 16px;
+  border-bottom:1px solid var(--line);transition:background .16s}
+.fitem:last-child{border-bottom:none}
+.fitem:hover{background:rgba(255,255,255,.025)}
+.fico{width:36px;height:36px;border-radius:11px;display:grid;place-items:center;
+  background:rgba(255,255,255,.05);color:var(--text-2);flex:none}
+.fmain{flex:1;min-width:0}
+.ftitle{font-size:13.5px;font-weight:600;overflow:hidden;
+  text-overflow:ellipsis;white-space:nowrap}
+.fmeta{font-size:11.5px;color:var(--text-3)}
+.fval{text-align:start;flex:none}
+.famt{font-size:14px;font-weight:600}
+.famt.in{color:var(--accent)}
+
+/* ─── مؤشرات مضغوطة (بديل شبكة الصناديق) ── */
+.metrics{display:flex;gap:0;border:1px solid var(--line);border-radius:var(--r);
+  overflow:hidden;margin-bottom:22px}
+.metric{flex:1;padding:15px 12px;border-inline-end:1px solid var(--line);min-width:0}
+.metric:last-child{border-inline-end:none}
+.metric .v{font-size:19px;font-weight:600;letter-spacing:-.03em}
+.metric .k{font-size:11px;color:var(--text-3);margin-top:2px;
+  overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+
+/* ─── الويزارد ───────────────────────── */
+.steps{display:flex;align-items:center;gap:7px;margin-bottom:22px}
+.sdot{width:26px;height:26px;border-radius:50%;display:grid;place-items:center;
+  font-size:12px;font-weight:700;background:rgba(255,255,255,.06);
+  color:var(--text-3);flex:none;transition:.2s}
+.sdot.on{background:var(--accent);color:#04121B}
+.sdot.done{background:rgba(18,201,138,.2);color:var(--accent)}
+.sline{height:1.5px;flex:1;background:var(--line-2);border-radius:2px;transition:.3s}
+.sline.on{background:var(--accent)}
+
+.amts{display:grid;grid-template-columns:repeat(4,1fr);gap:8px}
+.amt-b{padding:14px 4px;border:1.5px solid var(--line-2);border-radius:11px;
+  background:rgba(255,255,255,.03);font-weight:600;font-size:16px;
+  text-align:center;transition:.16s;font-family:'IBM Plex Mono',monospace}
+.amt-b:hover{border-color:var(--text-3)}
+.amt-b:active{transform:scale(.96)}
+.amt-b.on{border-color:var(--accent);background:var(--accent-soft);color:var(--accent);
+  animation:pop .32s cubic-bezier(.2,.9,.3,1)}
+@keyframes pop{0%{transform:scale(1)}45%{transform:scale(1.07)}100%{transform:scale(1)}}
+
+.quote{background:rgba(255,255,255,.03);border:1px solid var(--line);
+  border-radius:12px;padding:15px;margin-top:16px}
+.qrow{display:flex;justify-content:space-between;padding:6px 0;font-size:13.5px}
+.qrow .k{color:var(--text-2)}
+.qrow.tot{border-top:1px dashed var(--line-2);margin-top:8px;padding-top:12px;
+  font-weight:600;font-size:16px}
+
+/* ─── بيانات الدفع ───────────────────── */
+.paybox{background:rgba(255,255,255,.03);border:1px solid var(--line);
+  border-radius:13px;padding:15px;margin-bottom:14px}
+.payrow{display:flex;align-items:center;justify-content:space-between;gap:10px;
+  padding:11px 0;border-bottom:1px solid var(--line)}
+.payrow:last-child{border-bottom:none;padding-bottom:0}
+.payk{font-size:11.5px;color:var(--text-3);margin-bottom:3px}
+.payv{font-size:14px;font-weight:600;word-break:break-all;line-height:1.45}
+
+.mchip{flex:1;min-width:100px;display:flex;flex-direction:column;align-items:center;gap:3px;
+  padding:12px 8px;border:1.5px solid var(--line-2);border-radius:12px;
+  background:rgba(255,255,255,.03);transition:.16s}
+.mchip:hover{border-color:var(--text-3)}
+.mchip:active{transform:scale(.97)}
+.mchip.on{border-color:var(--accent);background:var(--accent-soft);color:var(--accent)}
+
+.ibtn{width:34px;height:34px;border-radius:10px;display:grid;place-items:center;
+  color:var(--text-2);transition:.16s;flex:none}
+.ibtn:hover{background:rgba(255,255,255,.06);color:var(--text)}
+
+/* ─── الحالات ────────────────────────── */
+.sk{background:linear-gradient(90deg,rgba(255,255,255,.04) 25%,
+  rgba(255,255,255,.09) 37%,rgba(255,255,255,.04) 63%);
+  background-size:400% 100%;animation:sh 1.4s ease infinite;border-radius:8px}
+@keyframes sh{0%{background-position:100% 0}100%{background-position:0 0}}
+
+.empty{text-align:center;padding:46px 20px;color:var(--text-2)}
+.empty .ico{width:58px;height:58px;border-radius:17px;margin:0 auto 15px;
+  display:grid;place-items:center;background:rgba(255,255,255,.04);color:var(--text-3)}
+.empty .ico svg{width:25px;height:25px}
+
+.note{background:rgba(224,160,48,.09);border:1px solid rgba(224,160,48,.24);
+  color:#F0C878;padding:12px 14px;border-radius:12px;font-size:13px;margin-bottom:16px}
+
+#toasts{position:fixed;top:16px;left:50%;transform:translateX(-50%);z-index:200;
+  display:flex;flex-direction:column;gap:8px;width:min(92vw,400px)}
+.toast{background:var(--panel-2);border:1px solid var(--line-2);color:var(--text);
+  padding:13px 15px;border-radius:12px;font-size:13.5px;display:flex;gap:10px;
+  align-items:flex-start;box-shadow:0 16px 40px -14px rgba(0,0,0,.9);
+  animation:tin .3s cubic-bezier(.2,.9,.3,1)}
+.toast.ok{border-color:rgba(18,201,138,.4)}
+.toast.ok svg{color:var(--accent)}
+.toast.bad{border-color:rgba(242,104,95,.4)}
+@keyframes tin{from{opacity:0;transform:translateY(-14px)}}
+
+.ov{position:fixed;inset:0;z-index:120;background:rgba(3,7,13,.72);
+  display:none;align-items:flex-end;justify-content:center;backdrop-filter:blur(5px)}
+.ov.show{display:flex}
+@media(min-width:640px){.ov{align-items:center}}
+.sheet{background:var(--panel);border:1px solid var(--line);border-bottom:none;
+  width:100%;max-width:470px;border-radius:22px 22px 0 0;padding:22px;
+  max-height:92vh;overflow-y:auto;animation:up .4s cubic-bezier(.22,1,.32,1)}
+@media(min-width:640px){.sheet{border-radius:18px;border-bottom:1px solid var(--line)}}
+.sheet::before{content:'';display:block;width:36px;height:4px;border-radius:99px;
+  background:var(--line-2);margin:-8px auto 16px}
+@media(min-width:640px){.sheet::before{display:none}}
+@keyframes up{from{transform:translateY(100%);opacity:.5}}
+
+.secret{display:flex;align-items:center;justify-content:space-between;gap:10px;
+  padding:12px 0;border-bottom:1px solid var(--line)}
+.secret:last-child{border-bottom:none}
+.secret .v{font-size:15px;letter-spacing:.05em}
+.secret .v.hid{letter-spacing:.16em;color:var(--text-3)}
+
+.tbl{width:100%;border-collapse:collapse;font-size:13px}
+.tbl th{text-align:right;padding:11px 12px;color:var(--text-3);font-size:11.5px;
+  font-weight:600;border-bottom:1px solid var(--line);white-space:nowrap}
+.tbl td{padding:12px;border-bottom:1px solid var(--line);white-space:nowrap}
+.tbl tr:last-child td{border-bottom:none}
+.tbl tbody tr{transition:background .15s}
+.tbl tbody tr:hover{background:rgba(255,255,255,.025)}
+.scrollx{overflow-x:auto;-webkit-overflow-scrolling:touch}
+
+/* ─── الحركة ─────────────────────────── */
+@keyframes rise{from{opacity:0;transform:translateY(14px)}to{opacity:1;transform:none}}
+.wrap > *{animation:rise .46s cubic-bezier(.2,.8,.3,1) backwards}
+.wrap > *:nth-child(2){animation-delay:.06s}
+.wrap > *:nth-child(3){animation-delay:.12s}
+.wrap > *:nth-child(4){animation-delay:.17s}
+.wrap > *:nth-child(n+5){animation-delay:.21s}
+@keyframes cardin{from{opacity:0;transform:translateY(18px) rotate(-1.2deg)}}
+.card{animation:cardin .55s cubic-bezier(.2,.8,.3,1) backwards}
+
+@media(prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
+.hide{display:none!important}
+@media(min-width:1080px){.lg-off{display:none}}
+</style>
+</head>
+<body>
+
+<div id="app">
+<div class="shell">
+
+  <aside class="rail">
+    <div class="brand">
+      <span id="railMark"></span>
+      <div><div class="en">Kardo</div><div class="ar">كاردو</div></div>
+    </div>
+    <p class="tag">بطاقات أكثر .. فرص أكبر</p>
+    <nav id="navRail"></nav>
+    <div class="rail-foot">
+      <div style="display:flex;align-items:center;gap:11px;padding:0 3px 13px">
+        <div id="av" style="width:34px;height:34px;border-radius:11px;flex:none;
+             background:var(--accent-soft);color:var(--accent);
+             display:grid;place-items:center;font-weight:700;font-size:13px"></div>
+        <div style="min-width:0">
+          <div id="railName" style="font-size:13px;font-weight:600;overflow:hidden;
+               text-overflow:ellipsis;white-space:nowrap"></div>
+          <div id="railBal" class="num" style="font-size:12px;color:var(--accent);font-weight:600"></div>
+        </div>
+      </div>
+      <button class="nav" onclick="askOut()">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"
+          stroke-linecap="round" stroke-linejoin="round"><path d="M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4M16 17l5-5-5-5M21 12H9"/></svg>
+        تسجيل الخروج</button>
+    </div>
+  </aside>
+
+  <div class="main">
+    <header class="bar">
+      <div class="lg-off" style="display:flex;align-items:center;gap:10px">
+        <span id="barMark"></span>
+        <span style="font-size:16px;font-weight:700;letter-spacing:-.03em">Kardo</span>
+      </div>
+      <div style="margin-inline-start:auto;display:flex;align-items:center;gap:9px">
+        <button class="btn line sm" onclick="go('wallet')">
+          <span class="num" id="barBal">—</span></button>
+      </div>
+    </header>
+    <main class="wrap" id="view"></main>
+  </div>
+</div>
+<nav class="dock" id="navDock"></nav>
+</div>
+
+<div id="toasts"></div>
+<div class="ov" id="ov"><div class="sheet" id="sheet"></div></div>
+
+<script type="module">
+import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js';
+import { getAuth, onAuthStateChanged, signOut, sendPasswordResetEmail }
+  from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js';
+import { getFirestore, doc, setDoc, getDoc, onSnapshot, collection,
+  query, where, orderBy, limit, addDoc }
+  from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js';
+
+const API_BASE = 'https://kardo.sdkhyrallh08.workers.dev';
+
+const firebaseConfig = {
+  apiKey: "AIzaSyC-GntWur6r_Ow_v0wTNymQqQa6brzgvW8",
+  authDomain: "kardo-1c657.firebaseapp.com",
+  projectId: "kardo-1c657",
+  storageBucket: "kardo-1c657.firebasestorage.app",
+  messagingSenderId: "593934928630",
+  appId: "1:593934928630:web:d36ea455a284e974043ad7"
+};
+
+const DEMO = !API_BASE;
+window.addEventListener('error', e=>{
+  const v = document.getElementById('view');
+  if(!v) return;
+  document.getElementById('app').style.display='block';
+  v.innerHTML = `<div class="note" style="margin-top:20px">
+    <strong>حدث خطأ في الصفحة</strong><br><span style="word-break:break-all">${
+      String(e.message||'')}</span><br>
+    <span style="font-size:12px;opacity:.8">سطر ${e.lineno||'?'}</span></div>`;
+});
+
+const app = initializeApp(firebaseConfig);
+const auth = getAuth(app);
+const db = getFirestore(app);
+
+/* ─── الحالة ─── */
+const S = {
+  user:null,
+  profile:{wallet_balance:0,cards_count:0,total_spent:0,name:'',email:'',phone:''},
+  cards:[], orders:[], deposits:[],
+  config:{
+    min_amount:10, max_amount:200, usd_to_lyd:11.8,
+    issuing_enabled:true, funding_enabled:true, maintenance_message:'',
+    deposit_phone:'', deposit_note:'',
+    rates:{libyana:11.8,bank:9.5,usdt:1},
+    methods:{
+      libyana:{on:true,label:'ليبيانا',rate:11.8,auto:true},
+      almadar:{on:true,label:'المدار',rate:11.8,auto:true},
+      bank:{on:false,label:'تحويل مصرفي',rate:9.5,auto:false,fields:[]},
+      usdt:{on:false,label:'USDT',rate:1,auto:false,fields:[]},
+      binance:{on:false,label:'Binance Pay',rate:1,auto:false,fields:[]}
+    },
+    nav:{}, theme:null, texts:{}
+  },
+  page:'home', wiz:{step:1,amount:null,name:'',label:'',idem:null,quote:null},
+  txFilter:'all', unsub:[]
+};
+
+/* ─── الأيقونات ─── */
+const I = {
+  home:'<path d="M3 10.4 12 3.2l9 7.2V20a1 1 0 0 1-1 1h-5v-6.5H9V21H4a1 1 0 0 1-1-1z"/>',
+  card:'<rect x="2" y="5" width="20" height="14" rx="3"/><path d="M2 10h20"/>',
+  plus:'<rect x="2" y="5" width="20" height="14" rx="3"/><path d="M12 10.5v4M10 12.5h4"/>',
+  wallet:'<path d="M3 7.5A2.5 2.5 0 0 1 5.5 5H19a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H5.5A2.5 2.5 0 0 1 3 16.5z"/><path d="M16.5 12h1.5"/>',
+  list:'<path d="M8 6h13M8 12h13M8 18h13M3.5 6h.01M3.5 12h.01M3.5 18h.01"/>',
+  gear:'<circle cx="12" cy="12" r="3"/><path d="M19.9 14.6a1.6 1.6 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.6 1.6 0 0 0-2.7 1.1V21a2 2 0 0 1-4 0v-.1a1.6 1.6 0 0 0-2.7-1.1l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.6 1.6 0 0 0-1.1-2.7H4a2 2 0 0 1 0-4h.1A1.6 1.6 0 0 0 5.2 7.6l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.6 1.6 0 0 0 2.7-1.1V3a2 2 0 0 1 4 0v.1a1.6 1.6 0 0 0 2.7 1.1l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.6 1.6 0 0 0 1.1 2.7H21a2 2 0 0 1 0 4h-.1a1.6 1.6 0 0 0-1 .9z"/>',
+  more:'<circle cx="5" cy="12" r="1.5"/><circle cx="12" cy="12" r="1.5"/><circle cx="19" cy="12" r="1.5"/>',
+  eye:'<path d="M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7-10-7-10-7"/><circle cx="12" cy="12" r="3"/>',
+  eyeoff:'<path d="M17.9 17.9A10.6 10.6 0 0 1 12 19c-6.4 0-10-7-10-7a18 18 0 0 1 4.1-5M9.9 4.2A10.6 10.6 0 0 1 12 5c6.4 0 10 7 10 7a18 18 0 0 1-2.2 3.2M3 3l18 18"/>',
+  copy:'<rect x="9" y="9" width="12" height="12" rx="2.5"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/>',
+  snow:'<path d="M12 2.5v19M20.2 7.2 3.8 16.8M3.8 7.2l16.4 9.6"/>',
+  trash:'<path d="M3.5 6h17M8 6V4h8v2M6.5 6l1 15h9l1-15"/>',
+  up:'<path d="M12 19V5M5.5 11.5 12 5l6.5 6.5"/>',
+  down:'<path d="M12 5v14M18.5 12.5 12 19l-6.5-6.5"/>',
+  check:'<path d="M20 6 9 17l-5-5"/>',
+  clock:'<circle cx="12" cy="12" r="9"/><path d="M12 7v5.2l3.2 2"/>',
+  chart:'<path d="M4 20V10M10 20V4M16 20v-7M22 20H2"/>'
+};
+const svg=(d,w=1.8)=>`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="${w}" stroke-linecap="round" stroke-linejoin="round">${d}</svg>`;
+
+function mark(size=34){
+  return `<svg width="${size}" height="${size}" viewBox="0 0 40 40" style="flex:none">
+    <rect width="40" height="40" rx="11" fill="#101B2E"/>
+    <path d="M11 9h4.4v22H11z" fill="#12C98A"/>
+    <path d="M17 20.2 27.5 9H33L22.4 20.2 33 31h-5.6z" fill="#12C98A"/>
+    <rect x="19" y="15.6" width="12.4" height="8.8" rx="2.2" fill="#EAF0F8" opacity=".95"/>
+    <rect x="21" y="18.4" width="3.4" height="2.6" rx=".7" fill="#101B2E" opacity=".6"/>
+  </svg>`;
+}
+
+/* ─── أدوات ─── */
+const $=s=>document.querySelector(s);
+const usd=n=>'$'+Number(n||0).toFixed(2);
+const rate=()=>Number(S.config.usd_to_lyd)||11.8;
+const lyd=n=>Math.ceil(Number(n||0)*rate()).toLocaleString('en-US')+' د.ل';
+const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const phoneKey=r=>{let p=String(r||'').replace(/\D/g,'');
+  if(p.startsWith('00218'))p=p.slice(5);else if(p.startsWith('218'))p=p.slice(3);
+  if(p.startsWith('0'))p=p.slice(1);return p.slice(-9);};
+const dt=v=>{if(!v)return '—';const d=v.toDate?v.toDate():new Date(v);
+  return isNaN(d)?'—':d.toLocaleDateString('ar-LY',{day:'2-digit',month:'short'})+' · '+
+  d.toLocaleTimeString('en-GB',{hour:'2-digit',minute:'2-digit'});};
+
+function countTo(el,target,fmt=usd,ms=760){
+  if(!el)return;
+  const from=parseFloat(el.dataset.v||0);
+  if(Math.abs(target-from)<.005){el.textContent=fmt(target);el.dataset.v=target;return;}
+  el.dataset.v=target;
+  const t0=performance.now();
+  const step=now=>{const p=Math.min(1,(now-t0)/ms);const e=1-Math.pow(1-p,3);
+    el.textContent=fmt(from+(target-from)*e);if(p<1)requestAnimationFrame(step);};
+  requestAnimationFrame(step);
+}
+
+function toast(msg,kind=''){
+  const el=document.createElement('div');
+  el.className='toast '+kind;
+  el.innerHTML=(kind==='ok'?svg(I.check,2.4):'')+`<span>${esc(msg)}</span>`;
+  $('#toasts').appendChild(el);
+  setTimeout(()=>{el.style.opacity='0';el.style.transform='translateY(-10px)';
+    el.style.transition='.26s';setTimeout(()=>el.remove(),270);},3600);
+}
+function sheet(h){$('#sheet').innerHTML=h;$('#ov').classList.add('show');}
+window.closeSheet=()=>$('#ov').classList.remove('show');
+$('#ov').addEventListener('click',e=>{if(e.target.id==='ov')closeSheet();});
+document.addEventListener('keydown',e=>{if(e.key==='Escape')closeSheet();});
+
+async function copy(text,label){
+  try{await navigator.clipboard.writeText(text);toast(label+' نُسخ','ok');}
+  catch{toast('تعذّر النسخ','bad');}
+}
+
+/* ─── API ─── */
+async function api(path,body){
+  const token=await auth.currentUser.getIdToken();
+  const res=await fetch(API_BASE+path,{method:'POST',
+    headers:{'content-type':'application/json',authorization:'Bearer '+token},
+    body:JSON.stringify(body||{})});
+  const d=await res.json().catch(()=>({success:false,error:'رد غير مفهوم'}));
+  if(!d.success)throw new Error(d.error||'فشلت العملية');
+  return d;
+}
+async function apiGet(path){
+  const res=await fetch(API_BASE+path);
+  const d=await res.json();
+  if(!d.success)throw new Error(d.error||'خطأ');
+  return d;
+}
+
+/* ─── الثيم ─── */
+function applyTheme(){
+  const t=S.config.theme;if(!t)return;
+  const r=document.documentElement.style;
+  const dark=c=>{const m=/^#([\da-f]{6})$/i.exec(c||'');if(!m)return null;
+    const n=parseInt(m[1],16),d=v=>Math.max(0,Math.round(v*.84));
+    return '#'+[d(n>>16&255),d(n>>8&255),d(n&255)].map(v=>v.toString(16).padStart(2,'0')).join('');};
+  if(t.emerald){r.setProperty('--accent',t.emerald);
+    const d=dark(t.emerald);if(d)r.setProperty('--accent-d',d);}
+  if(t.radius)r.setProperty('--r',t.radius+'px');
+}
+
+/* ─── الدخول ─── */
+$('#railMark').innerHTML=mark(34);
+$('#barMark').innerHTML=mark(30);
+
+window.askOut=()=>sheet(`
+  <div class="h2" style="margin-bottom:8px">تسجيل الخروج</div>
+  <p class="sub" style="margin-bottom:20px">ستحتاج إلى الدخول مرة أخرى للوصول إلى بطاقاتك.</p>
+  <button class="btn wide ghost" onclick="doOut()">تسجيل الخروج</button>
+  <button class="btn line wide" style="margin-top:9px" onclick="closeSheet()">إلغاء</button>`);
+window.doOut=async()=>{closeSheet();await signOut(auth);location.replace('login.html');};
+
+onAuthStateChanged(auth,async user=>{
+  S.unsub.forEach(u=>{try{u()}catch{}});S.unsub=[];
+  if(!user){location.replace('login.html');return;}
+  S.user=user;
+  await ensureProfile(user);
+  subscribe(user.uid);
+  apiGet('/api/status').then(d=>{
+    S.config={...S.config,...d};applyTheme();buildNav();render();
+  }).catch(()=>{});
+  boot();
+});
+
+async function ensureProfile(user){
+  const ref=doc(db,'users',user.uid);
+  try{
+    const snap=await getDoc(ref);
+    if(!snap.exists())await setDoc(ref,{
+      name:user.displayName||'مستخدم',email:user.email||'',phone:'',
+      wallet_balance:0,total_spent:0,cards_count:0,banned:false,
+      created_at:new Date().toISOString()},{merge:true});
+  }catch{}
+}
+
+function subscribe(uid){
+  S.unsub.push(onSnapshot(doc(db,'users',uid),s=>{
+    if(s.exists())S.profile={...S.profile,...s.data()};render();},()=>{}));
+  S.unsub.push(onSnapshot(query(collection(db,'cards'),
+    where('uid','==',uid),orderBy('created_at','desc')),
+    s=>{S.cards=s.docs.map(d=>({id:d.id,...d.data()}));render();},()=>{}));
+  S.unsub.push(onSnapshot(query(collection(db,'card_orders'),
+    where('uid','==',uid),orderBy('created_at','desc'),limit(60)),
+    s=>{S.orders=s.docs.map(d=>({id:d.id,...d.data()}));render();},()=>{}));
+  S.unsub.push(onSnapshot(query(collection(db,'wallet_deposits'),
+    where('uid','==',uid),orderBy('created_at','desc'),limit(40)),
+    s=>{S.deposits=s.docs.map(d=>({id:d.id,...d.data()}));render();},()=>{}));
+}
+
+function boot(){$('#app').style.display='block';applyTheme();buildNav();render();}
+
+/* ─── التنقّل ─── */
+const PAGES=[
+  {k:'home',t:'الرئيسية',i:I.home},
+  {k:'issue',t:'إصدار بطاقة',i:I.plus},
+  {k:'cards',t:'بطاقاتي',i:I.card},
+  {k:'wallet',t:'المحفظة',i:I.wallet},
+  {k:'tx',t:'المعاملات',i:I.list},
+  {k:'settings',t:'الإعدادات',i:I.gear},
+];
+const DOCK=['home','cards','issue','wallet','more'];
+const visible=()=>PAGES.filter(p=>(S.config.nav||{})[p.k]!==false);
+
+function buildNav(){
+  const vis=visible(),keys=vis.map(p=>p.k);
+  $('#navRail').innerHTML=vis.map(p=>
+    `<button class="nav" data-nav="${p.k}">${svg(p.i)}<span>${p.t}</span></button>`).join('');
+  const dk=DOCK.filter(k=>k==='more'||keys.includes(k));
+  $('#navDock').style.gridTemplateColumns=`repeat(${dk.length},1fr)`;
+  $('#navDock').innerHTML=dk.map(k=>{
+    if(k==='more')return `<button class="dk" data-nav="more">${svg(I.more)}<span>المزيد</span></button>`;
+    const p=PAGES.find(x=>x.k===k);
+    return `<button class="dk" data-nav="${p.k}">${svg(p.i)}<span>${p.t}</span></button>`;
+  }).join('');
+  if(keys.length&&!keys.includes(S.page))S.page=keys[0];
+  document.querySelectorAll('[data-nav]').forEach(b=>
+    b.onclick=()=>b.dataset.nav==='more'?moreSheet():go(b.dataset.nav));
+}
+
+function moreSheet(){
+  const keys=visible().map(p=>p.k);
+  sheet(`<div class="h2" style="margin-bottom:14px">المزيد</div>`+
+    ['tx','settings'].filter(k=>keys.includes(k)).map(k=>{const p=PAGES.find(x=>x.k===k);
+      return `<button class="btn line wide" style="margin-bottom:9px;justify-content:flex-start"
+        onclick="closeSheet();go('${p.k}')">${svg(p.i)} ${p.t}</button>`;}).join('')+
+    `<button class="btn line wide" style="justify-content:flex-start"
+       onclick="closeSheet();askOut()">تسجيل الخروج</button>`);
+}
+
+window.go=k=>{
+  S.page=k;
+  if(k==='issue')S.wiz={step:1,amount:null,name:S.wiz.name,label:'',idem:null,quote:null};
+  window.scrollTo({top:0,behavior:'instant'});
+  render();
+};
+
+/* ─── العرض ─── */
+function render(){
+  $('#av').textContent=(S.profile.name||'؟').trim().charAt(0);
+  $('#railName').textContent=S.profile.name||'—';
+  countTo($('#railBal'),S.profile.wallet_balance);
+  countTo($('#barBal'),S.profile.wallet_balance);
+  const tag=document.querySelector('.rail .tag');
+  if(tag&&S.config.texts&&S.config.texts.tagline)tag.textContent=S.config.texts.tagline;
+  document.querySelectorAll('[data-nav]').forEach(b=>
+    b.classList.toggle('on',b.dataset.nav===S.page));
+  const V={home:vHome,issue:vIssue,cards:vCards,wallet:vWallet,tx:vTx,settings:vSettings};
+  $('#view').innerHTML=(V[S.page]||vHome)();
+  bind();
+}
+
+const offline=()=>S.config.issuing_enabled?'':
+  `<div class="note">${esc(S.config.maintenance_message||'إصدار البطاقات متوقف مؤقتًا.')}</div>`;
+
+/* ─── الرئيسية ─── */
+function vHome(){
+  const active=S.cards.filter(c=>c.status==='active').length;
+  const recent=[...S.orders].slice(0,4);
+  const T=S.config.texts||{};
+  return offline()+`
+  <div class="hero">
+    <div class="eyebrow">رصيد المحفظة</div>
+    <div class="bal num" id="heroBal">${usd(S.profile.wallet_balance)}</div>
+    <div class="bal-lyd">≈ ${lyd(S.profile.wallet_balance)}</div>
+    <div class="hero-acts">
+      <button class="btn" data-act="deposit">${svg(I.up,2)} إضافة رصيد</button>
+      <button class="btn line" data-act="issue">${svg(I.plus)} إصدار بطاقة</button>
+    </div>
+  </div>
+
+  <div class="metrics">
+    <div class="metric"><div class="v num">${active}</div><div class="k">بطاقات نشطة</div></div>
+    <div class="metric"><div class="v num">${usd(S.profile.total_spent)}</div><div class="k">إجمالي الإنفاق</div></div>
+    <div class="metric"><div class="v num">${S.orders.length}</div><div class="k">عملية</div></div>
+  </div>
+
+  ${S.cards.length?`
+    <div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:13px">
+      <div class="h2">بطاقاتي</div>
+      <button data-act="cards" style="color:var(--accent);font-weight:600;font-size:13px">
+        عرض الكل</button>
+    </div>
+    <div class="rail-cards" style="margin-bottom:26px">
+      ${S.cards.slice(0,4).map(cardHtml).join('')}</div>`
+  :`<div class="panel" style="margin-bottom:26px">
+      <div class="empty">
+        <div class="ico">${svg(I.card,1.6)}</div>
+        <div style="font-weight:600;color:var(--text);font-size:15px;margin-bottom:5px">
+          ${esc(T.hero_title||'أنشئ بطاقتك الأولى')}</div>
+        <p style="font-size:13px;margin-bottom:18px">
+          ${esc(T.hero_sub||'بطاقة تعمل في كل مكان يقبل الدفع الإلكتروني — تُصدر في دقائق.')}</p>
+        <button class="btn" data-act="issue">إصدار بطاقة</button>
+      </div></div>`}
+
+  <div class="h2" style="margin-bottom:13px">آخر النشاط</div>
+  ${recent.length?`<div class="feed">${recent.map(feedRow).join('')}</div>`
+    :`<div class="panel"><div class="empty">
+        <div class="ico">${svg(I.list,1.6)}</div>
+        <p style="font-size:13.5px">ستظهر عملياتك هنا بعد أول بطاقة.</p></div></div>`}`;
+}
+
+const TYPE={create:'إصدار بطاقة',fund:'شحن بطاقة',deposit:'إيداع رصيد'};
+const STAT={completed:['ok','مكتملة'],processing:['wait','قيد المعالجة'],
+  refunded:['bad','مستردة'],failed:['bad','فاشلة'],
+  pending:['wait','قيد المراجعة'],approved:['ok','مقبول'],rejected:['bad','مرفوض']};
+
+function feedRow(r){
+  const kind=r.kind||r.type;
+  const st=STAT[r.status]||['off','—'];
+  const isIn=kind==='deposit';
+  const val=r.customer_price??r.amount??0;
+  const ico=kind==='deposit'?I.up:kind==='fund'?I.plus:I.card;
+  return `<div class="fitem">
+    <div class="fico" ${isIn?'style="color:var(--accent);background:var(--accent-soft)"':''}>
+      ${svg(ico)}</div>
+    <div class="fmain">
+      <div class="ftitle">${TYPE[kind]||'عملية'}</div>
+      <div class="fmeta">${dt(r.created_at)}</div>
+    </div>
+    <div class="fval">
+      <div class="famt num ${isIn&&r.status==='approved'?'in':''}">
+        ${isIn?'+':'−'}${usd(val)}</div>
+      <span class="chip ${st[0]}" style="margin-top:3px">${st[1]}</span>
+    </div></div>`;
+}
+
+/* ─── البطاقة ─── */
+function cardHtml(c){
+  const cls=c.status==='frozen'?'frozen':c.status==='deleted'?'dead':'';
+  const bal=c.live_balance??c.amount_loaded??0;
+  const st={active:['ok','نشطة'],frozen:['off','مجمدة'],deleted:['bad','مغلقة']}[c.status]||['off','—'];
+  return `<div>
+    <div class="card ${cls}" data-card="${esc(c.id)}">
+      <div class="top">
+        <span class="wm">Kardo</span>
+        <span class="chip ${st[0]}">${st[1]}</span>
+      </div>
+      <div class="chipx"></div>
+      <div class="pan mono">•••• •••• •••• ${esc(c.last4||'0000')}</div>
+      <div class="foot">
+        <div><div class="thru">VALID THRU</div>
+          <div class="mono" style="font-size:12px">${esc(c.expiry||'••/••')}</div></div>
+        <div class="amt num">${usd(bal)}</div>
+      </div>
+    </div>
+    <div style="padding:11px 3px 0">
+      <div style="font-weight:600;font-size:14px">${esc(c.card_name||'بطاقة')}</div>
+      <div class="fmeta">${dt(c.created_at)}</div>
+    </div></div>`;
+}
+
+/* ─── إصدار ─── */
+function vIssue(){
+  if(!S.config.issuing_enabled)
+    return `<div class="h1" style="margin-bottom:18px">إصدار بطاقة</div>
+      <div class="panel"><div class="empty"><div class="ico">${svg(I.clock,1.6)}</div>
+      <div style="font-weight:600;color:var(--text);margin-bottom:5px">الخدمة متوقفة مؤقتًا</div>
+      <p style="font-size:13px">${esc(S.config.maintenance_message||'سنعيد التشغيل قريبًا.')}</p>
+      </div></div>`;
+
+  const w=S.wiz;
+  const dot=n=>`<div class="sdot ${w.step===n?'on':w.step>n?'done':''}">${w.step>n?'✓':n}</div>`;
+  const line=n=>`<div class="sline ${w.step>n?'on':''}"></div>`;
+  let body='';
+
+  if(w.step===1){
+    body=`
+    <label class="lbl">اسم البطاقة — لك وحدك، لتمييزها</label>
+    <input class="inp" id="wLabel" placeholder="بطاقة الاشتراكات"
+           value="${esc(w.label)}" maxlength="40">
+    <label class="lbl" style="margin-top:16px">اسم حامل البطاقة — بالإنجليزية</label>
+    <input class="inp mono" id="wName" placeholder="MANSOUR ALI" value="${esc(w.name)}"
+           maxlength="24" style="text-transform:uppercase" dir="ltr">
+    <p class="sub" style="font-size:12px;margin-top:8px">
+      حروف لاتينية فقط. يظهر على البطاقة ولا يمكن تغييره بعد الإصدار.</p>
+    <button class="btn wide" id="wN1" style="margin-top:20px">التالي</button>`;
+  } else if(w.step===2){
+    const mn=S.config.min_amount||10,mx=S.config.max_amount||200;
+    body=`
+    <label class="lbl">قيمة البطاقة</label>
+    <div class="amts">${[10,20,50,100].map(a=>
+      `<button class="amt-b ${w.amount===a?'on':''}" data-amt="${a}">$${a}</button>`).join('')}</div>
+    <label class="lbl" style="margin-top:16px">أو مبلغ آخر — من $${mn} إلى $${mx}</label>
+    <input class="inp num" id="wCustom" type="number" inputmode="decimal"
+           min="${mn}" max="${mx}" placeholder="${mn}"
+           value="${w.amount&&![10,20,50,100].includes(w.amount)?w.amount:''}">
+    <div id="qbox">${w.quote?quoteHtml(w.quote):''}</div>
+    <button class="btn wide" id="wN2" style="margin-top:18px" ${w.quote?'':'disabled'}>التالي</button>
+    <button class="btn line wide" style="margin-top:9px" data-step="1">رجوع</button>`;
+  } else {
+    const q=w.quote,ok=(S.profile.wallet_balance||0)>=q.total;
+    body=`
+    <div class="quote" style="margin-top:0">
+      <div class="qrow"><span class="k">اسم البطاقة</span><span>${esc(w.label||'بطاقة')}</span></div>
+      <div class="qrow"><span class="k">حامل البطاقة</span>
+        <span class="mono" dir="ltr">${esc(w.name)}</span></div>
+      <div class="qrow"><span class="k">قيمة البطاقة</span><span class="num">${usd(q.amount)}</span></div>
+      <div class="qrow"><span class="k">رسوم الخدمة</span><span class="num">${usd(q.service_fee)}</span></div>
+      <div class="qrow tot"><span>الإجمالي</span><span class="num">${usd(q.total)}
+        <span style="font-size:12px;color:var(--text-3);font-weight:400">
+          · ${q.total_lyd.toLocaleString('en-US')} د.ل</span></span></div>
+    </div>
+    ${!ok?`<div class="note" style="margin:14px 0 0">
+      رصيدك ${usd(S.profile.wallet_balance)} — تحتاج ${usd(q.total-S.profile.wallet_balance)} إضافية.
+      <button style="color:var(--accent);font-weight:700" data-act="deposit">إضافة رصيد</button>
+      </div>`:''}
+    <label style="display:flex;gap:10px;align-items:flex-start;margin:16px 0;
+           font-size:13px;cursor:pointer;color:var(--text-2)">
+      <input type="checkbox" id="wAgree" style="width:17px;height:17px;margin-top:2px;
+             flex:none;accent-color:var(--accent)">
+      <span>أوافق على الشروط: البطاقة تُصدر عبر جهة إصدار خارجية، ورسوم الإصدار
+        غير قابلة للاسترداد بعد نجاح العملية.</span></label>
+    <button class="btn wide" id="wGo" ${ok?'':'disabled'}>إصدار البطاقة</button>
+    <button class="btn line wide" style="margin-top:9px" data-step="2">رجوع</button>`;
+  }
+
+  return `
+  <div class="eyebrow" style="margin-bottom:5px">خطوة ${w.step} من 3</div>
+  <div class="h1" style="margin-bottom:20px">إصدار بطاقة</div>
+  <div class="panel" style="max-width:520px">
+    <div class="steps">${dot(1)}${line(1)}${dot(2)}${line(2)}${dot(3)}</div>
+    ${body}
+  </div>`;
+}
+
+function quoteHtml(q){
+  return `<div class="quote">
+    <div class="qrow"><span class="k">قيمة البطاقة</span><span class="num">${usd(q.amount)}</span></div>
+    <div class="qrow"><span class="k">رسوم الخدمة</span><span class="num">${usd(q.service_fee)}</span></div>
+    <div class="qrow tot"><span>الإجمالي</span><span class="num">${usd(q.total)}
+      <span style="font-size:12px;color:var(--text-3);font-weight:400">
+        · ${q.total_lyd.toLocaleString('en-US')} د.ل</span></span></div>
+  </div>`;
+}
+
+let qTimer=null;
+async function fetchQuote(amount){
+  const box=$('#qbox'),btn=$('#wN2');
+  if(!box)return;
+  const mn=S.config.min_amount||10,mx=S.config.max_amount||200;
+  if(!(amount>=mn&&amount<=mx)){
+    S.wiz.quote=null;
+    box.innerHTML=amount?`<div class="note" style="margin-top:14px">
+      المبلغ يجب أن يكون بين $${mn} و $${mx}.</div>`:'';
+    if(btn)btn.disabled=true;return;
+  }
+  box.innerHTML=`<div class="quote">
+    <div class="sk" style="height:15px;margin-bottom:10px"></div>
+    <div class="sk" style="height:15px;width:68%;margin-bottom:10px"></div>
+    <div class="sk" style="height:20px;width:46%"></div></div>`;
+  try{
+    const d=await apiGet(`/api/quote?amount=${amount}&kind=create`);
+    S.wiz.quote=d.quote;S.wiz.amount=amount;
+    box.innerHTML=quoteHtml(d.quote);
+    if(btn)btn.disabled=false;
+  }catch(e){
+    S.wiz.quote=null;
+    box.innerHTML=`<div class="note" style="margin-top:14px">${esc(e.message)}</div>`;
+    if(btn)btn.disabled=true;
+  }
+}
+
+/* ─── بطاقاتي ─── */
+function vCards(){
+  return `
+  <div class="h1" style="margin-bottom:5px">بطاقاتي</div>
+  <p class="sub" style="margin-bottom:22px">اضغط أي بطاقة لعرض بياناتها وإدارتها.</p>
+  ${S.cards.length?`<div class="rail-cards">${S.cards.map(cardHtml).join('')}</div>`
+   :`<div class="panel"><div class="empty">
+      <div class="ico">${svg(I.card,1.6)}</div>
+      <div style="font-weight:600;color:var(--text);font-size:15px;margin-bottom:5px">
+        لم تصدر أي بطاقة بعد</div>
+      <p style="font-size:13px;margin-bottom:18px">أنشئ بطاقتك الافتراضية الأولى وابدأ الدفع.</p>
+      <button class="btn" data-act="issue">إصدار بطاقة</button></div></div>`}`;
+}
+
+async function openCard(id){
+  const c=S.cards.find(x=>x.id===id);if(!c)return;
+  const bal=c.live_balance??c.amount_loaded??0;
+  const act=c.status==='active';
+
+  sheet(`
+    <div style="max-width:280px;margin:0 auto 20px">${cardHtml(c)}</div>
+    <div class="h2">${esc(c.card_name||'بطاقة')}</div>
+    <p class="fmeta" style="margin-bottom:16px">${dt(c.created_at)}</p>
+    <div id="sec"><button class="btn line wide" id="rev">${svg(I.eye)} عرض بيانات البطاقة</button></div>
+    <div style="display:grid;gap:8px;grid-template-columns:repeat(2,1fr);margin-top:14px">
+      <button class="btn line sm" id="txB">${svg(I.list)} المعاملات</button>
+      ${c.status!=='deleted'?`<button class="btn line sm" id="frB">${svg(I.snow)}
+        ${act?'تجميد':'إلغاء التجميد'}</button>`:''}
+      ${act&&S.config.funding_enabled?`<button class="btn line sm" id="fdB">${svg(I.plus)} شحن</button>`:''}
+      ${c.status!=='deleted'?`<button class="btn risk sm" id="dlB">${svg(I.trash)} إغلاق</button>`:''}
+    </div>
+    <div id="extra"></div>
+    <button class="btn line wide" style="margin-top:14px" onclick="closeSheet()">إغلاق</button>`);
+
+  $('#rev').onclick=async()=>{
+    const box=$('#sec');
+    box.innerHTML=`<div class="sk" style="height:52px;margin-bottom:8px"></div>
+                   <div class="sk" style="height:52px"></div>`;
+    try{
+      const d=(await api('/api/cards/details',{card_id:id})).details;
+      let shown=false;
+      const paint=()=>{
+        const grp=n=>shown?String(n).replace(/(.{4})/g,'$1 ').trim():'•••• •••• •••• '+String(n).slice(-4);
+        box.innerHTML=`<div class="panel-q">
+          <div class="secret"><div><div class="payk">رقم البطاقة</div>
+            <div class="v mono ${shown?'':'hid'}" dir="ltr">${grp(d.card_number)}</div></div>
+            <button class="ibtn" data-cp="${esc(d.card_number)}" data-lb="رقم البطاقة">${svg(I.copy)}</button></div>
+          <div class="secret"><div><div class="payk">تاريخ الانتهاء</div>
+            <div class="v mono" dir="ltr">${esc(d.expiry)}</div></div>
+            <button class="ibtn" data-cp="${esc(d.expiry)}" data-lb="تاريخ الانتهاء">${svg(I.copy)}</button></div>
+          <div class="secret"><div><div class="payk">CVV</div>
+            <div class="v mono ${shown?'':'hid'}" dir="ltr">${shown?esc(d.cvv):'•••'}</div></div>
+            <button class="ibtn" data-cp="${esc(d.cvv)}" data-lb="CVV">${svg(I.copy)}</button></div>
+        </div>
+        <button class="btn line wide sm" id="tg" style="margin-top:10px">
+          ${svg(shown?I.eyeoff:I.eye)} ${shown?'إخفاء':'إظهار'} البيانات</button>
+        <p class="sub" style="font-size:11.5px;margin-top:10px;text-align:center">
+          لا تشارك هذه البيانات — من يحصل عليها يستطيع الصرف من بطاقتك.</p>`;
+        $('#tg').onclick=()=>{shown=!shown;paint();};
+        box.querySelectorAll('[data-cp]').forEach(b=>b.onclick=()=>copy(b.dataset.cp,b.dataset.lb));
+      };
+      paint();
+    }catch(e){
+      box.innerHTML=`<div class="note">${esc(e.message)}</div>
+        <button class="btn line wide sm" onclick="openCard('${esc(id)}')">إعادة المحاولة</button>`;
+    }
+  };
+
+  $('#txB').onclick=async()=>{
+    const x=$('#extra');
+    x.innerHTML=`<div class="sk" style="height:64px;margin-top:14px"></div>`;
+    try{
+      const d=await api('/api/cards/transactions',{card_id:id});
+      x.innerHTML=`<div class="panel-q" style="margin-top:14px">
+        <div style="display:flex;justify-content:space-between;margin-bottom:12px">
+          <span class="h2" style="font-size:14px">معاملات البطاقة</span>
+          <span class="num" style="font-weight:600">${usd(d.balance)}</span></div>
+        ${d.transactions.length?d.transactions.map(t=>`
+          <div style="display:flex;justify-content:space-between;gap:10px;padding:10px 0;
+               border-bottom:1px solid var(--line)">
+            <div style="min-width:0">
+              <div style="font-size:13.5px;font-weight:600;overflow:hidden;
+                   text-overflow:ellipsis;white-space:nowrap">${esc(t.merchant||t.type)}</div>
+              <div class="fmeta">${esc(t.date)} · ${esc(t.reason||'')}</div></div>
+            <div style="text-align:start;flex:none">
+              <div class="num" style="font-size:13.5px;font-weight:600">${usd(t.amount)}</div>
+              <span class="chip ${t.status==='success'?'ok':'bad'}">
+                ${t.status==='success'?'ناجحة':'مرفوضة'}</span></div>
+          </div>`).join('')
+          :`<p class="sub" style="text-align:center;padding:14px 0">لا معاملات على هذه البطاقة بعد.</p>`}
+      </div>`;
+    }catch(e){x.innerHTML=`<div class="note" style="margin-top:14px">${esc(e.message)}</div>`;}
+  };
+
+  const fr=$('#frB');
+  if(fr)fr.onclick=async()=>{
+    fr.disabled=true;
+    try{
+      await api('/api/cards/freeze',{card_id:id,action:act?'freeze':'unfreeze'});
+      toast(act?'جُمّدت البطاقة':'أُلغي التجميد','ok');closeSheet();render();
+    }catch(e){toast(e.message,'bad');fr.disabled=false;}
+  };
+
+  const fd=$('#fdB');if(fd)fd.onclick=()=>fundSheet(c);
+
+  const dl=$('#dlB');
+  if(dl)dl.onclick=()=>{
+    sheet(`<div class="h2" style="margin-bottom:8px">إغلاق البطاقة نهائيًا</div>
+      <p class="sub" style="margin-bottom:10px">
+        سيُغلق ${esc(c.card_name||'البطاقة')} ولا يمكن استخدامها بعد ذلك.</p>
+      <div class="note">الرصيد المتبقي ${usd(bal)} يُعاد إلى محفظتك بعد خصم رسوم الإغلاق.
+        العملية غير قابلة للتراجع.</div>
+      <button class="btn wide" style="background:var(--danger);color:#fff" id="dlGo">
+        تأكيد الإغلاق</button>
+      <button class="btn line wide" style="margin-top:9px"
+        onclick="openCard('${esc(id)}')">رجوع</button>`);
+    $('#dlGo').onclick=async()=>{
+      $('#dlGo').disabled=true;
+      try{
+        const r=await api('/api/cards/delete',{card_id:id});
+        toast('أُغلقت البطاقة · أُعيد '+usd(r.refunded_to_wallet??bal)+' إلى محفظتك','ok');
+        closeSheet();render();
+      }catch(e){toast(e.message,'bad');$('#dlGo').disabled=false;}
+    };
+  };
+}
+window.openCard=openCard;
+
+function fundSheet(c){
+  sheet(`
+    <div class="h2" style="margin-bottom:4px">شحن البطاقة</div>
+    <p class="fmeta" style="margin-bottom:16px">${esc(c.card_name||'بطاقة')} · ••${esc(c.last4)}</p>
+    <label class="lbl">المبلغ — الحد الأدنى $${S.config.min_amount||10}</label>
+    <input class="inp num" id="fA" type="number" inputmode="decimal"
+           min="${S.config.min_amount||10}" placeholder="${S.config.min_amount||10}">
+    <div id="fQ"></div>
+    <button class="btn wide" id="fG" style="margin-top:16px" disabled>شحن البطاقة</button>
+    <button class="btn line wide" style="margin-top:9px"
+      onclick="openCard('${esc(c.id)}')">رجوع</button>`);
+
+  let q=null,t=null;
+  $('#fA').oninput=e=>{
+    clearTimeout(t);
+    const a=parseFloat(e.target.value);
+    t=setTimeout(async()=>{
+      const box=$('#fQ'),btn=$('#fG');
+      if(!(a>=(S.config.min_amount||10))){q=null;box.innerHTML='';btn.disabled=true;return;}
+      box.innerHTML=`<div class="quote"><div class="sk" style="height:46px"></div></div>`;
+      try{
+        const d=await apiGet(`/api/quote?amount=${a}&kind=fund`);
+        q=d.quote;box.innerHTML=quoteHtml(q);
+        btn.disabled=(S.profile.wallet_balance||0)<q.total;
+        if(btn.disabled)box.innerHTML+=`<div class="note" style="margin-top:11px">
+          رصيدك غير كافٍ — المتاح ${usd(S.profile.wallet_balance)}.</div>`;
+      }catch(err){q=null;box.innerHTML=`<div class="note">${esc(err.message)}</div>`;btn.disabled=true;}
+    },420);
+  };
+
+  $('#fG').onclick=async()=>{
+    if(!q)return;
+    $('#fG').disabled=true;
+    try{
+      await api('/api/cards/fund',{card_id:c.id,amount:q.amount,
+        idempotency_key:crypto.randomUUID?crypto.randomUUID():'k'+Date.now()+Math.random()});
+      toast('شُحنت البطاقة بمبلغ '+usd(q.amount),'ok');closeSheet();render();
+    }catch(e){toast(e.message,'bad');$('#fG').disabled=false;}
+  };
+}
+
+/* ─── المحفظة ─── */
+function vWallet(){
+  return `
+  <div class="hero">
+    <div class="eyebrow">الرصيد المتاح</div>
+    <div class="bal num">${usd(S.profile.wallet_balance)}</div>
+    <div class="bal-lyd">≈ ${lyd(S.profile.wallet_balance)}</div>
+    <div class="hero-acts">
+      <button class="btn" data-act="deposit">${svg(I.up,2)} إضافة رصيد</button>
+    </div>
+  </div>
+
+  <div class="h2" style="margin:24px 0 13px">سجل الإيداعات</div>
+  ${S.deposits.length?`<div class="feed">${S.deposits.map(d=>{
+    const st=STAT[d.status]||['off','—'];
+    return `<div class="fitem">
+      <div class="fico" ${d.status==='approved'?'style="color:var(--accent);background:var(--accent-soft)"':''}>
+        ${svg(I.up)}</div>
+      <div class="fmain">
+        <div class="ftitle num">${usd(d.amount_usd)}
+          <span style="font-weight:400;color:var(--text-3);font-size:12px;
+                font-family:'IBM Plex Sans Arabic'"> · ${esc(d.method||'—')}</span></div>
+        <div class="fmeta">${dt(d.created_at)}${
+          d.reject_reason?' · <span style="color:var(--danger)">'+esc(d.reject_reason)+'</span>':''}</div>
+      </div>
+      <span class="chip ${st[0]}">${st[1]}</span></div>`;}).join('')}</div>`
+   :`<div class="panel"><div class="empty">
+      <div class="ico">${svg(I.wallet,1.6)}</div>
+      <div style="font-weight:600;color:var(--text);margin-bottom:5px">لا إيداعات بعد</div>
+      <p style="font-size:13px;margin-bottom:18px">أضف رصيدًا لتبدأ إصدار البطاقات.</p>
+      <button class="btn" data-act="deposit">إضافة رصيد</button></div></div>`}`;
+}
+
+function depositSheet(){
+  const dp=S.config.deposit_phone||'';
+  const M=S.config.methods||{};
+  const list=['libyana','almadar','bank','usdt','binance']
+    .map(k=>({k,...(M[k]||{})})).filter(m=>m.on);
+
+  if(!list.length)return sheet(`<div class="h2" style="margin-bottom:10px">إضافة رصيد</div>
+    <div class="note">طرق الدفع متوقفة مؤقتًا — تواصل مع الدعم.</div>
+    <button class="btn line wide" onclick="closeSheet()">حسنًا</button>`);
+
+  let sel=list[0].k;
+  const rateOf=k=>(M[k]&&M[k].rate)||11.8;
+  const isAuto=k=>!!(M[k]&&M[k].auto);
+
+  sheet(`
+    <div class="h2" style="margin-bottom:4px">إضافة رصيد</div>
+    <p class="sub" style="margin-bottom:18px">اختر طريقة التحويل، ثم أكّد لإضافة الرصيد.</p>
+
+    <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:16px">
+      ${list.map(m=>`<button class="mchip ${m.k===sel?'on':''}" data-m="${m.k}">
+        <span style="font-weight:700;font-size:13px">${esc(m.label||m.k)}</span>
+        <span style="font-size:10.5px;opacity:.7">${m.auto?'فوري':'مراجعة يدوية'}</span>
+      </button>`).join('')}
+    </div>
+
+    <div id="mBox"></div>
+
+    ${dp?`<div id="pBox" class="panel-q" style="text-align:center;margin-bottom:16px">
+      <div class="payk" style="margin-bottom:9px">رقم التحويل — ممنوع الاتصال</div>
+      <button id="cpP" class="mono" dir="ltr"
+        style="display:inline-flex;align-items:center;gap:9px;background:var(--accent);
+               color:#04121B;padding:10px 18px;border-radius:10px;font-weight:700;font-size:18px">
+        ${svg(I.copy,2)} ${esc(dp)}</button>
+    </div>`:''}
+
+    <div id="aFields">
+      <label class="lbl">رقمك الذي حوّلت منه</label>
+      <input class="inp num" id="cP" type="tel" inputmode="numeric" placeholder="912345678"
+             dir="ltr" maxlength="13" value="${esc(S.profile.phone||'')}">
+      <p class="sub" style="font-size:12px;margin-top:7px">اكتب رقمك بدون الصفر</p>
+    </div>
+
+    <label class="lbl" style="margin-top:16px">المبلغ الذي أرسلته</label>
+    <input class="inp num" id="cA" type="number" inputmode="decimal"
+           step="0.001" min="1" placeholder="118">
+
+    <div id="cQ"></div>
+    <button class="btn wide" id="cG" style="margin-top:18px">تأكيد التحويل</button>
+    <p class="sub" style="font-size:11.5px;text-align:center;margin-top:12px">
+      إن لم تصل رسالة التحويل بعد، يبقى طلبك معلّقًا ويُضاف الرصيد فور وصولها.</p>
+    <button class="btn line wide" style="margin-top:9px" onclick="closeSheet()">إلغاء</button>`);
+
+  const cp=$('#cpP');
+  if(cp)cp.onclick=()=>copy(dp,'رقم التحويل');
+
+  function calc(){
+    const a=parseFloat($('#cA').value),box=$('#cQ');
+    if(!box)return;
+    if(!(a>0)){box.innerHTML='';return;}
+    const r=rateOf(sel),unit=sel==='usdt'||sel==='binance'?'USDT':'د.ل';
+    box.innerHTML=`<div class="quote">
+      <div class="qrow"><span class="k">المبلغ المحوّل</span>
+        <span class="num">${a.toLocaleString('en-US')} ${unit}</span></div>
+      ${unit==='USDT'?'':`<div class="qrow"><span class="k">سعر الصرف</span>
+        <span class="num">${r} د.ل</span></div>`}
+      <div class="qrow tot"><span>سيُضاف لمحفظتك</span><span class="num">${usd(a/r)}</span></div>
+    </div>`;
+  }
+
+  const note=S.config.deposit_note||'';
+  function paintMethod(){
+    const m=M[sel]||{},auto=isAuto(sel);
+    const pb=$('#pBox'),af=$('#aFields');
+    if(pb)pb.style.display=auto?'block':'none';
+    if(af)af.style.display=auto?'block':'none';
+    const fields=(m.fields||[]).filter(f=>f&&f.value);
+    $('#mBox').innerHTML=!auto&&fields.length
+      ? `<div class="paybox">
+          <div class="lbl" style="margin-bottom:2px">بيانات ${esc(m.label||'')}</div>
+          ${fields.map((f,i)=>`<div class="payrow">
+            <div style="min-width:0"><div class="payk">${esc(f.label)}</div>
+              <div class="payv ${f.copy?'mono':''}" ${f.copy?'dir="ltr"':''}>${esc(f.value)}</div></div>
+            ${f.copy?`<button class="ibtn" data-cpf="${i}">${svg(I.copy)}</button>`:''}
+          </div>`).join('')}
+        </div>`
+      : (note?`<div class="note">${esc(note)}</div>`:'');
+    document.querySelectorAll('[data-cpf]').forEach(b=>{
+      const f=fields[+b.dataset.cpf];
+      if(f)b.onclick=()=>copy(f.value,f.label);
+    });
+    calc();
+  }
+
+  document.querySelectorAll('[data-m]').forEach(b=>{
+    b.onclick=()=>{sel=b.dataset.m;
+      document.querySelectorAll('[data-m]').forEach(x=>x.classList.toggle('on',x===b));
+      paintMethod();};
+  });
+  $('#cA').oninput=calc;
+  paintMethod();
+
+  $('#cG').onclick=async()=>{
+    const amt=parseFloat($('#cA').value);
+    if(!(amt>0))return toast('اكتب المبلغ الذي حوّلته','bad');
+    const auto=isAuto(sel);
+    const phone=auto?$('#cP').value.trim():'';
+    if(auto&&phone.replace(/\D/g,'').length<9)return toast('اكتب رقمك كاملاً','bad');
+
+    $('#cG').disabled=true;
+    $('#cG').innerHTML='<span class="sk" style="width:70px;height:14px;display:inline-block"></span>';
+    try{
+      const r=auto
+        ? await api('/api/wallet/claim',{phone,amount_lyd:amt,method:sel})
+        : await manualDeposit(sel,amt);
+      closeSheet();
+      resultSheet(auto&&!!r.matched,amt/rateOf(sel));
+      render();
+    }catch(e){
+      toast(e.message,'bad');
+      $('#cG').disabled=false;$('#cG').textContent='تأكيد التحويل';
+    }
+  };
+}
+
+async function manualDeposit(method,amountLyd){
+  const M=S.config.methods||{};
+  const r=(M[method]&&M[method].rate)||1;
+  await addDoc(collection(db,'wallet_deposits'),{
+    uid:S.user.uid,
+    amount_usd:Math.round((amountLyd/r)*100)/100,
+    amount_lyd:amountLyd,
+    method:(M[method]&&M[method].label)||method,
+    proof_url:'',note:'',status:'pending',
+    created_at:new Date().toISOString()});
+  return {matched:false};
+}
+
+function resultSheet(matched,amount){
+  sheet(`
+    <div style="text-align:center;margin-bottom:22px">
+      <div style="width:62px;height:62px;border-radius:19px;margin:0 auto 15px;
+           display:grid;place-items:center;
+           background:${matched?'var(--accent-soft)':'rgba(224,160,48,.14)'};
+           color:${matched?'var(--accent)':'var(--warn)'}">
+        ${svg(matched?I.check:I.clock,2.2).replace('<svg','<svg data-lg')}</div>
+      <div class="h2">${matched?'أُضيف الرصيد':'طلبك قيد الانتظار'}</div>
+      <p class="sub" style="margin-top:5px">
+        ${matched?'أُضيف '+usd(amount)+' إلى محفظتك.'
+                 :'لم تصل رسالة التحويل بعد. سيُضاف '+usd(amount)+' تلقائيًا فور وصولها.'}</p>
+    </div>
+    ${matched?`<button class="btn wide" onclick="closeSheet();go('issue')">إصدار بطاقة الآن</button>`:''}
+    <button class="btn line wide" style="margin-top:9px" onclick="closeSheet()">حسنًا</button>`);
+}
+
+/* ─── المعاملات ─── */
+function vTx(){
+  const F=[['all','الكل'],['create','إصدار'],['fund','شحن'],['deposit','إيداع']];
+  let rows=[...S.orders.map(o=>({...o,kind:o.type})),
+    ...S.deposits.map(d=>({id:d.id,kind:'deposit',status:d.status,
+      amount:d.amount_usd,customer_price:d.amount_usd,created_at:d.created_at}))]
+    .sort((a,b)=>{
+      const av=a.created_at?.toDate?.()||new Date(a.created_at||0);
+      const bv=b.created_at?.toDate?.()||new Date(b.created_at||0);
+      return bv-av;});
+  if(S.txFilter!=='all')rows=rows.filter(r=>r.kind===S.txFilter);
+
+  return `
+  <div class="h1" style="margin-bottom:5px">المعاملات</div>
+  <p class="sub" style="margin-bottom:18px">كل عملياتك في مكان واحد.</p>
+  <div style="display:flex;gap:7px;overflow-x:auto;padding-bottom:4px;margin-bottom:16px">
+    ${F.map(([k,t])=>`<button class="btn ${S.txFilter===k?'ghost':'line'} sm"
+      data-filter="${k}" style="flex:none">${t}</button>`).join('')}
+  </div>
+  ${rows.length?`<div class="feed">${rows.map(feedRow).join('')}</div>`
+   :`<div class="panel"><div class="empty">
+      <div class="ico">${svg(I.list,1.6)}</div>
+      <p style="font-size:13.5px">لا معاملات بهذا التصنيف.</p></div></div>`}`;
+}
+
+/* ─── الإعدادات ─── */
+function vSettings(){
+  return `
+  <div class="h1" style="margin-bottom:22px">الإعدادات</div>
+  <div class="panel" style="max-width:520px;margin-bottom:14px">
+    <div class="h2" style="margin-bottom:18px">الحساب</div>
+    <label class="lbl">الاسم</label>
+    <input class="inp" id="pN" value="${esc(S.profile.name||'')}">
+    <label class="lbl" style="margin-top:14px">البريد الإلكتروني</label>
+    <input class="inp" value="${esc(S.profile.email||S.user?.email||'')}" disabled
+           style="opacity:.55" dir="ltr">
+    <label class="lbl" style="margin-top:14px">رقم الهاتف</label>
+    <input class="inp num" id="pP" value="${esc(S.profile.phone||'')}"
+           placeholder="0912345678" dir="ltr" inputmode="tel">
+    <p class="sub" style="font-size:12px;margin-top:7px">
+      سجّل الرقم الذي تحوّل منه — يساعد على مطابقة إيداعاتك تلقائيًا.</p>
+    <button class="btn" id="pS" style="margin-top:18px">حفظ التغييرات</button>
+  </div>
+
+  <div class="panel" style="max-width:520px">
+    <div class="h2" style="margin-bottom:6px">كلمة المرور</div>
+    <p class="sub" style="margin-bottom:16px">سنرسل رابط التغيير إلى بريدك.</p>
+    <button class="btn line" id="pR">إرسال رابط التغيير</button>
+  </div>`;
+}
+
+/* ─── الربط ─── */
+function bind(){
+  document.querySelectorAll('[data-act]').forEach(b=>
+    b.onclick=()=>b.dataset.act==='deposit'?depositSheet():go(b.dataset.act));
+  document.querySelectorAll('[data-card]').forEach(el=>
+    el.onclick=()=>openCard(el.dataset.card));
+  document.querySelectorAll('[data-filter]').forEach(b=>
+    b.onclick=()=>{S.txFilter=b.dataset.filter;render();});
+  document.querySelectorAll('[data-step]').forEach(b=>
+    b.onclick=()=>{S.wiz.step=+b.dataset.step;render();});
+
+  const hb=$('#heroBal');
+  if(hb){hb.dataset.v=0;countTo(hb,S.profile.wallet_balance);}
+
+  const n1=$('#wN1');
+  if(n1)n1.onclick=()=>{
+    const name=$('#wName').value.trim().toUpperCase();
+    if(!/^[A-Z][A-Z .'-]{1,23}$/.test(name)){
+      $('#wName').classList.add('bad');
+      return toast('اكتب الاسم بحروف لاتينية — حرفان على الأقل','bad');
+    }
+    S.wiz.label=$('#wLabel').value.trim()||'بطاقتي';
+    S.wiz.name=name;S.wiz.step=2;render();
+  };
+
+  document.querySelectorAll('[data-amt]').forEach(b=>
+    b.onclick=()=>{
+      document.querySelectorAll('[data-amt]').forEach(x=>x.classList.toggle('on',x===b));
+      const cu=$('#wCustom');if(cu)cu.value='';
+      fetchQuote(+b.dataset.amt);
+    });
+  const cu=$('#wCustom');
+  if(cu)cu.oninput=e=>{
+    document.querySelectorAll('[data-amt]').forEach(x=>x.classList.remove('on'));
+    clearTimeout(qTimer);
+    qTimer=setTimeout(()=>fetchQuote(parseFloat(e.target.value)),420);
+  };
+  const n2=$('#wN2');
+  if(n2)n2.onclick=()=>{
+    if(!S.wiz.quote)return;
+    S.wiz.idem=crypto.randomUUID?crypto.randomUUID():'k'+Date.now()+Math.random();
+    S.wiz.step=3;render();
+  };
+
+  const go3=$('#wGo');
+  if(go3)go3.onclick=async()=>{
+    if(!$('#wAgree').checked)return toast('يجب الموافقة على الشروط','bad');
+    go3.disabled=true;
+    go3.innerHTML='<span class="sk" style="width:84px;height:14px;display:inline-block"></span>';
+    try{
+      const r=await api('/api/cards/create',{
+        amount:S.wiz.quote.amount,name_on_card:S.wiz.name,
+        card_name:S.wiz.label,idempotency_key:S.wiz.idem});
+      successSheet(r.card);
+      S.wiz={step:1,amount:null,name:S.wiz.name,label:'',idem:null,quote:null};
+      S.page='cards';render();
+    }catch(e){
+      toast(e.message,'bad');
+      go3.disabled=false;go3.textContent='إصدار البطاقة';
+    }
+  };
+
+  const ps=$('#pS');
+  if(ps)ps.onclick=async()=>{
+    const name=$('#pN').value.trim(),phone=$('#pP').value.trim();
+    if(name.length<2)return toast('الاسم قصير جدًا','bad');
+    ps.disabled=true;
+    try{
+      await setDoc(doc(db,'users',S.user.uid),
+        {name,phone,phone_key:phoneKey(phone)},{merge:true});
+      toast('حُفظت التغييرات','ok');render();
+    }catch(e){toast('تعذّر الحفظ','bad');ps.disabled=false;}
+  };
+  const pr=$('#pR');
+  if(pr)pr.onclick=async()=>{
+    const em=S.profile.email||S.user?.email;
+    if(!em)return toast('لا يوجد بريد مسجّل','bad');
+    pr.disabled=true;
+    try{await sendPasswordResetEmail(auth,em);toast('أُرسل رابط التغيير إلى '+em,'ok');}
+    catch{toast('تعذّر الإرسال','bad');pr.disabled=false;}
+  };
+}
+
+function successSheet(card){
+  sheet(`
+    <div style="text-align:center;margin-bottom:22px">
+      <div style="width:62px;height:62px;border-radius:19px;margin:0 auto 15px;
+           display:grid;place-items:center;background:var(--accent-soft);color:var(--accent)">
+        ${svg(I.check,2.4).replace('<svg','<svg data-lg')}</div>
+      <div class="h2">صدرت البطاقة</div>
+      <p class="sub" style="margin-top:5px">بطاقة تنتهي بـ ${esc(card.last4)} جاهزة للاستخدام.</p>
+    </div>
+    <button class="btn wide" onclick="closeSheet();openCard('${esc(card.card_id)}')">
+      عرض بيانات البطاقة</button>
+    <button class="btn line wide" style="margin-top:9px" onclick="closeSheet()">لاحقًا</button>`);
+}
+</script>
+</body>
+</html>
