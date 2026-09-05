@@ -1,0 +1,3363 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#150C0E">
+<meta name="description" content="كاردو — متجر الخدمات الرقمية في ليبيا. اشحن رصيدك واشترِ اشتراكاتك واستلمها فورًا.">
+<title>كاردو — متجر خدمات رقمية</title>
+
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Reem+Kufi:wght@500;600;700&family=IBM+Plex+Sans+Arabic:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap">
+
+<style>
+/* ═══════════════════════════════════════════════════
+   KARDO — ورق وذهب
+   Engraved-note design system · Arabic RTL
+   Ink, brass foil, bone. Guilloché line-work.
+   ═══════════════════════════════════════════════════ */
+:root{
+  /* Ink — five steps, warm oxblood-black, never blue */
+  --bg:#150C0E;
+  --s1:#1E1214;
+  --s2:#26181A;
+  --s3:#301F21;
+  --line:#3A272A;
+  --line-2:#4C3439;
+
+  /* Bone */
+  --tx:#F5EBDD;
+  --tx-2:#C3AB9A;
+  --tx-3:#8E7568;
+
+  /* Brass foil — the accent. Var names kept so existing JS re-skins itself. */
+  --g:#D4A544;
+  --g-d:#B98C2E;
+  --g-l:#EFC76A;
+  --g-soft:rgba(212,165,68,.12);
+  --g-line:rgba(212,165,68,.30);
+  --on-g:#1A1005;
+
+  /* Signals — green means one thing only: it worked */
+  --ok:#4FBF7B;
+  --ok-soft:rgba(79,191,123,.12);
+  --warn:#E0A030;
+  --warn-soft:rgba(224,160,48,.12);
+  --bad:#E4685F;
+  --bad-soft:rgba(228,104,95,.12);
+
+  /* Radii — hierarchy, not one value on everything */
+  --r-s:6px;
+  --r:9px;
+  --r-l:13px;
+
+  --spring:cubic-bezier(.34,1.35,.44,1);
+  --ease:cubic-bezier(.22,1,.36,1);
+  --swift:cubic-bezier(.4,0,.2,1);
+
+  --bar-h:64px;
+  --dock-h:66px;
+
+  /* Security engraving — the signature texture */
+  --engrave:
+    repeating-linear-gradient(58deg, rgba(212,165,68,.075) 0 1px, transparent 1px 7px),
+    repeating-linear-gradient(-58deg, rgba(212,165,68,.055) 0 1px, transparent 1px 9px);
+}
+
+*{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
+html{-webkit-text-size-adjust:100%}
+body{
+  font-family:'IBM Plex Sans Arabic','Noto Sans Arabic',system-ui,sans-serif;
+  font-feature-settings:'lnum' 1,'tnum' 1;
+  background:var(--bg);color:var(--tx);
+  font-size:15px;line-height:1.65;
+  -webkit-font-smoothing:antialiased;
+  overflow-x:hidden;
+}
+/* Atmosphere: warm foil bloom from the corner + engraved field, not a flat wash */
+body::before{
+  content:'';position:fixed;inset:0;pointer-events:none;z-index:0;
+  background:
+    radial-gradient(60vw 42vh at 92% -10%, rgba(212,165,68,.10), transparent 60%),
+    radial-gradient(46vw 36vh at -8% 6%, rgba(150,52,48,.10), transparent 58%);
+}
+/* Paper grain */
+body::after{
+  content:'';position:fixed;inset:0;pointer-events:none;z-index:0;opacity:.045;
+  background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='140' height='140'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.82' numOctaves='3'/%3E%3C/filter%3E%3Crect width='140' height='140' filter='url(%23n)'/%3E%3C/svg%3E");
+}
+button{font:inherit;color:inherit;background:none;border:none;cursor:pointer}
+input,select,textarea{font:inherit;color:inherit;width:100%}
+a{color:inherit;text-decoration:none}
+img{max-width:100%;display:block}
+:focus-visible{outline:2px solid var(--g);outline-offset:3px;border-radius:4px}
+::selection{background:var(--g);color:var(--on-g)}
+::-webkit-scrollbar{width:6px;height:6px}
+::-webkit-scrollbar-thumb{background:var(--line-2);border-radius:8px}
+
+svg{width:20px;height:20px;flex:none;display:inline-block;vertical-align:middle}
+svg[data-lg]{width:26px;height:26px}
+
+/* Mono is reserved for machine data: card numbers, serials, codes. */
+.mono{font-family:'IBM Plex Mono',ui-monospace,monospace;font-feature-settings:'lnum' 1}
+.num{font-variant-numeric:tabular-nums lining-nums;letter-spacing:-.01em;font-weight:600}
+
+/* ─── Layout ─────────────────────────────── */
+#app{display:none;position:relative;z-index:1}
+.shell{display:grid;grid-template-columns:1fr;min-height:100vh}
+@media(min-width:1024px){.shell{grid-template-columns:1fr 258px}}
+
+.rail{display:none;grid-column:2;position:sticky;top:0;height:100vh;
+  flex-direction:column;padding:22px 14px;border-inline-start:1px solid var(--line);
+  background:linear-gradient(to bottom,rgba(30,18,20,.6),transparent 40%)}
+@media(min-width:1024px){.rail{display:flex}}
+
+.main{grid-column:1;min-width:0;
+  padding-bottom:calc(var(--dock-h) + env(safe-area-inset-bottom) + 12px)}
+@media(min-width:1024px){.main{padding-bottom:32px}}
+
+.wrap{padding:16px;max-width:1080px;margin:0 auto}
+@media(min-width:640px){.wrap{padding:22px}}
+
+/* ─── Header ─────────────────────────────── */
+.bar{
+  position:sticky;top:0;z-index:40;height:var(--bar-h);
+  display:flex;align-items:center;gap:12px;padding:0 16px;
+  background:rgba(21,12,14,.86);
+  backdrop-filter:blur(18px) saturate(150%);
+  -webkit-backdrop-filter:blur(18px) saturate(150%);
+  border-bottom:1px solid var(--line);
+  box-shadow:0 1px 0 rgba(212,165,68,.07);
+}
+.bar-logo{display:flex;align-items:center;gap:9px;margin-inline-end:auto;
+  padding:6px 8px;border-radius:var(--r-s);transition:.16s}
+.bar-logo:hover{background:var(--s2)}
+.bar-logo:active{transform:scale(.97)}
+.bar-logo .txt{font-family:'Reem Kufi',serif;font-size:20px;font-weight:600;
+  letter-spacing:0;line-height:1}
+.iconbtn{width:40px;height:40px;border-radius:var(--r-s);flex:none;
+  display:grid;place-items:center;color:var(--tx-2);
+  border:1px solid transparent;transition:.16s}
+.iconbtn:hover{background:var(--s2);color:var(--tx)}
+.iconbtn:active{transform:scale(.92)}
+.iconbtn.on{border-color:var(--line-2);background:var(--s1)}
+.dotmark{position:absolute;top:8px;inset-inline-end:8px;width:7px;height:7px;
+  border-radius:50%;background:var(--g);box-shadow:0 0 0 2px var(--bg)}
+.rel{position:relative}
+.cbadge{position:absolute;top:-3px;inset-inline-end:-3px;min-width:18px;height:18px;
+  padding:0 5px;border-radius:99px;background:var(--g);color:var(--on-g);
+  font-size:10.5px;font-weight:700;display:grid;place-items:center;
+  animation:pop .3s var(--spring)}
+
+/* ─── Bottom dock ────────────────────────── */
+.dock{
+  position:fixed;inset:auto 0 0 0;z-index:50;display:grid;height:var(--dock-h);
+  padding-bottom:env(safe-area-inset-bottom);
+  background:rgba(21,12,14,.95);
+  backdrop-filter:blur(20px) saturate(150%);
+  -webkit-backdrop-filter:blur(20px) saturate(150%);
+  border-top:1px solid var(--line);
+  box-shadow:0 -1px 0 rgba(212,165,68,.08);
+}
+@media(min-width:1024px){.dock{display:none}}
+.dk{position:relative;display:flex;flex-direction:column;align-items:center;
+  justify-content:center;gap:4px;font-size:10.5px;font-weight:500;
+  color:var(--tx-3);transition:color .18s}
+.dk .dkico{transition:transform .28s var(--spring)}
+.dk::before{content:'';position:absolute;top:0;left:50%;width:28px;height:2px;
+  background:var(--g);
+  transform:translateX(-50%) scaleX(0);transition:transform .32s var(--spring)}
+.dk.on{color:var(--g)}
+.dk.on::before{transform:translateX(-50%) scaleX(1)}
+.dk.on .dkico{transform:translateY(-3px)}
+.dk:active{transform:scale(.94)}
+
+/* ─── Sidebar nav ────────────────────────── */
+.brand{display:flex;align-items:center;gap:10px;padding:0 6px;margin-bottom:22px}
+.brand .en{font-family:'Reem Kufi',serif;font-size:20px;font-weight:600;
+  letter-spacing:0;line-height:1.15}
+.brand .ar{font-size:11px;color:var(--tx-3)}
+.nav{display:flex;align-items:center;gap:12px;width:100%;padding:11px 12px;
+  border-radius:var(--r-s);color:var(--tx-2);font-size:14px;font-weight:500;
+  position:relative;margin-bottom:2px;transition:.16s}
+.nav:hover{background:var(--s1);color:var(--tx)}
+.nav.on{background:var(--s2);color:var(--tx)}
+.nav.on::before{content:'';position:absolute;inset-inline-start:0;top:22%;bottom:22%;
+  width:2px;background:var(--g)}
+.nav.on svg{color:var(--g)}
+.nav .cnt{margin-inline-start:auto;min-width:20px;height:20px;padding:0 6px;
+  border-radius:99px;background:var(--g);color:var(--on-g);
+  font-size:11px;font-weight:700;display:grid;place-items:center}
+.rail-foot{margin-top:auto;padding-top:16px;border-top:1px solid var(--line)}
+
+/* ─── Type ───────────────────────────────── */
+.h1{font-family:'Reem Kufi',serif;font-size:27px;font-weight:600;
+  letter-spacing:0;line-height:1.3}
+.h2{font-family:'Reem Kufi',serif;font-size:18px;font-weight:500;
+  letter-spacing:0;line-height:1.4}
+.h3{font-size:14.5px;font-weight:600}
+.sub{color:var(--tx-2);font-size:13.5px;max-width:62ch}
+/* No all-caps, no tracked-out label. An eyebrow here marks a real category. */
+.eyebrow{font-size:11.5px;font-weight:600;color:var(--g);letter-spacing:0}
+.lbl{display:block;font-size:12.5px;font-weight:600;color:var(--tx-2);margin-bottom:8px}
+
+/* Section head: the rule carries the eye across, then hands off to the link */
+.sec-head{display:flex;align-items:center;gap:0;margin:26px 0 13px}
+.sec-head:first-child{margin-top:0}
+.sec-head::after{content:'';order:1;flex:1;height:1px;margin:0 14px;
+  background:linear-gradient(to left,transparent,var(--line) 30%,var(--line))}
+.sec-head > *{order:0}
+.more-link{order:2;color:var(--g);font-weight:600;font-size:13px;white-space:nowrap}
+.more-link:hover{color:var(--g-l)}
+
+/* ─── Surfaces ───────────────────────────── */
+.card{background:var(--s1);border:1px solid var(--line);
+  border-radius:var(--r);padding:16px}
+.card-q{background:var(--s1);border:1px solid var(--line);
+  border-radius:var(--r);padding:14px}
+
+/* ─── Banner ─────────────────────────────── */
+.bnr{position:relative;border-radius:var(--r-l);overflow:hidden;margin-bottom:16px;
+  border:1px solid var(--line)}
+.bnr-track{display:flex;overflow-x:auto;scroll-snap-type:x mandatory;
+  -webkit-overflow-scrolling:touch;scrollbar-width:none}
+.bnr-track::-webkit-scrollbar{display:none}
+.bnr-slide{position:relative;flex:0 0 100%;scroll-snap-align:center;
+  aspect-ratio:2.4;background:var(--s2);background-image:var(--engrave)}
+.bnr-slide img{width:100%;height:100%;object-fit:cover}
+.bnr-body{position:absolute;inset:0;display:flex;flex-direction:column;
+  justify-content:center;gap:6px;padding:20px;
+  background:linear-gradient(275deg,transparent 6%,rgba(21,12,14,.9) 64%)}
+.bnr-t{font-family:'Reem Kufi',serif;font-size:20px;font-weight:600;
+  letter-spacing:0;line-height:1.35}
+.bnr-s{font-size:12.5px;color:var(--tx-2)}
+.bnr-cta{align-self:flex-start;margin-top:8px;padding:8px 16px;border-radius:var(--r-s);
+  background:var(--g);color:var(--on-g);font-size:12.5px;font-weight:700;
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.28)}
+.bnr-dots{position:absolute;bottom:10px;inset-inline-start:0;inset-inline-end:0;
+  display:flex;justify-content:center;gap:5px}
+.bnr-dots span{width:5px;height:5px;border-radius:99px;
+  background:rgba(245,235,221,.3);transition:.25s}
+.bnr-dots span.on{width:16px;background:var(--g)}
+
+/* ─── Wallet plate ───────────────────────────
+   The one memorable object. Engraved guilloché field, foil edge,
+   embossed denomination. One sheen sweep on arrival, then it rests. */
+.wallet{position:relative;overflow:hidden;border-radius:var(--r-l);
+  padding:20px;margin-bottom:16px;
+  border:1px solid var(--g-line);
+  background:
+    var(--engrave),
+    radial-gradient(130% 140% at 88% 0%, rgba(212,165,68,.15), transparent 62%),
+    linear-gradient(158deg,#2A1A16 0%,#180E10 100%);
+  box-shadow:
+    inset 0 0 0 1px rgba(239,199,106,.09),
+    inset 0 1px 0 rgba(239,199,106,.22),
+    0 18px 40px -26px #000}
+.wallet > *{position:relative;z-index:2}
+/* Foil sweep — once, on load */
+.wallet::after{content:'';position:absolute;inset:-40%;z-index:3;pointer-events:none;
+  background:linear-gradient(104deg,transparent 44%,rgba(239,199,106,.16) 50%,transparent 56%);
+  transform:translateX(-130%);
+  animation:sweep 1.5s var(--ease) .35s 1 forwards}
+.wallet-top{display:flex;justify-content:space-between;align-items:center;
+  margin-bottom:16px}
+.wallet-ico{width:38px;height:38px;border-radius:var(--r-s);display:grid;
+  place-items:center;background:var(--g-soft);color:var(--g);
+  border:1px solid var(--g-line)}
+.wallet-bal{font-size:clamp(32px,10vw,42px);font-weight:700;letter-spacing:-.035em;
+  line-height:1;font-variant-numeric:tabular-nums lining-nums;
+  text-shadow:0 1px 0 rgba(0,0,0,.5),0 -1px 0 rgba(239,199,106,.16)}
+.wallet-sub{color:var(--tx-2);font-size:12.5px;margin-top:7px}
+
+/* Wallet action row */
+.wacts{display:grid;grid-template-columns:repeat(4,1fr);gap:6px}
+.wact{display:flex;flex-direction:column;align-items:center;gap:7px;
+  padding:11px 4px;border-radius:var(--r-s);font-size:10.5px;font-weight:600;
+  color:var(--tx-2);transition:.16s}
+.wact-i{width:38px;height:38px;border-radius:var(--r-s);display:grid;place-items:center;
+  background:rgba(245,235,221,.06);color:var(--tx-2);
+  border:1px solid rgba(245,235,221,.09);transition:.16s}
+.wact:hover{color:var(--tx)}
+.wact:hover .wact-i{background:var(--g-soft);color:var(--g);border-color:var(--g-line)}
+.wact:active{transform:scale(.94)}
+.wact.pri .wact-i{background:var(--g);color:var(--on-g);border-color:var(--g);
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.3)}
+.wact.off{opacity:.4}
+
+/* ─── Buttons — struck, not glowing ──────── */
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:8px;
+  padding:12px 18px;border-radius:var(--r-s);font-weight:700;font-size:14px;
+  background:linear-gradient(180deg,var(--g-l),var(--g) 55%,var(--g-d));
+  color:var(--on-g);
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.32),0 1px 0 rgba(0,0,0,.55);
+  transition:filter .16s,transform .18s var(--spring)}
+.btn:hover:not(:disabled){filter:brightness(1.07)}
+.btn:active:not(:disabled){transform:scale(.97)}
+.btn:disabled{opacity:.4;cursor:not-allowed;box-shadow:none;filter:saturate(.4)}
+.btn svg{width:17px;height:17px}
+.btn.line{background:transparent;border:1px solid var(--line-2);color:var(--tx);
+  box-shadow:none}
+.btn.line:hover:not(:disabled){background:var(--s2);border-color:var(--g-line);filter:none}
+.btn.ghost{background:var(--s2);color:var(--tx);box-shadow:none;
+  border:1px solid var(--line)}
+.btn.ghost:hover:not(:disabled){background:var(--s3);filter:none}
+.btn.risk{background:transparent;border:1px solid rgba(228,104,95,.35);
+  color:var(--bad);box-shadow:none}
+.btn.wide{width:100%}
+.btn.sm{padding:9px 14px;font-size:12.5px}
+.btn.sm svg{width:15px;height:15px}
+.btn.lg{padding:15px 22px;font-size:15.5px;border-radius:var(--r)}
+
+/* Quick actions */
+.quick{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:6px}
+.qbtn{display:flex;align-items:center;gap:11px;padding:14px;border-radius:var(--r);
+  border:1px solid var(--line);background:var(--s1);text-align:start;transition:.18s}
+.qbtn:hover{border-color:var(--g-line);background:var(--s2)}
+.qbtn .qi{width:38px;height:38px;border-radius:var(--r-s);flex:none;display:grid;
+  place-items:center;background:var(--s3);color:var(--tx-2);transition:.18s}
+.qbtn:hover .qi{background:var(--g-soft);color:var(--g)}
+.qbtn.pri .qi{background:var(--g-soft);color:var(--g)}
+.qbtn .qt{font-size:13.5px;font-weight:600}
+.qbtn .qs{font-size:11px;color:var(--tx-3)}
+
+/* ─── Chips — stamped, not pilled ────────── */
+.chip{display:inline-flex;align-items:center;gap:5px;padding:3px 8px;
+  border-radius:4px;font-size:11px;font-weight:600;white-space:nowrap;
+  border:1px solid transparent}
+.chip.ok{background:var(--ok-soft);color:var(--ok);border-color:rgba(79,191,123,.28)}
+.chip.wait{background:var(--warn-soft);color:var(--warn);border-color:rgba(224,160,48,.28)}
+.chip.bad{background:var(--bad-soft);color:var(--bad);border-color:rgba(228,104,95,.28)}
+.chip.off{background:var(--s3);color:var(--tx-3);border-color:var(--line)}
+
+/* ─── Categories ─────────────────────────── */
+.cats{display:grid;grid-template-columns:repeat(4,1fr);gap:9px}
+@media(max-width:400px){.cats{grid-template-columns:repeat(2,1fr)}}
+.cat{position:relative;display:flex;flex-direction:column;align-items:center;
+  gap:9px;padding:15px 8px;border-radius:var(--r);border:1px solid var(--line);
+  background:var(--s1);transition:.18s;overflow:hidden;
+  animation:rise .42s var(--ease) backwards}
+.cat:hover{border-color:var(--g-line);background:var(--s2)}
+.cat.soon{opacity:.5}
+.cat.soon:hover{border-color:var(--line)}
+.cat-i{width:44px;height:44px;border-radius:var(--r-s);display:grid;place-items:center;
+  background:var(--s3);color:var(--g);overflow:hidden;flex:none;
+  border:1px solid var(--line)}
+.cat-i img{width:100%;height:100%;object-fit:cover}
+.cat-i svg{width:21px;height:21px}
+.cat-n{font-size:12px;font-weight:600;text-align:center;line-height:1.35}
+.cat-s{font-size:9.5px;color:var(--tx-3);text-align:center;line-height:1.35}
+.soonbadge{position:absolute;top:6px;inset-inline-start:6px;z-index:3;
+  font-size:9px;font-weight:700;padding:2px 6px;border-radius:3px;
+  background:var(--g);color:var(--on-g)}
+
+/* Horizontal category rail — bleeds off the page edge */
+.catrail{display:flex;gap:9px;overflow-x:auto;padding:2px 16px 6px;margin:0 -16px;
+  scroll-snap-type:x proximity;scrollbar-width:none}
+.catrail::-webkit-scrollbar{display:none}
+.catrail > *{flex:0 0 104px;scroll-snap-align:start}
+
+/* Two-up grid — category pages */
+.catgrid2{display:grid;grid-template-columns:repeat(2,1fr);gap:11px}
+@media(min-width:700px){.catgrid2{grid-template-columns:repeat(3,1fr)}}
+.cat.big{padding:18px 12px;gap:12px}
+.cat.big .cat-i{width:64px;height:64px;border-radius:var(--r)}
+.cat.big .cat-i svg{width:29px;height:29px}
+.cat.big .cat-n{font-size:14px}
+.cat.big .cat-s{font-size:10.5px}
+.cat.more .cat-i{background:var(--g-soft);color:var(--g);border-color:var(--g-line)}
+
+/* Breadcrumbs */
+.crumbs{display:flex;align-items:center;gap:5px;flex-wrap:wrap;
+  font-size:12px;color:var(--tx-3);margin-bottom:16px}
+.crumbs button{color:var(--tx-2);font-weight:500}
+.crumbs button:hover{color:var(--g)}
+.crumbs b{color:var(--tx);font-weight:600}
+.crumbs svg{width:13px;height:13px;opacity:.5}
+
+/* ─── Products ───────────────────────────── */
+.plist{display:flex;flex-direction:column;gap:8px}
+.prod{position:relative;display:flex;align-items:center;gap:12px;width:100%;padding:11px;
+  border-radius:var(--r);border:1px solid var(--line);background:var(--s1);
+  text-align:start;transition:.18s;animation:rise .4s var(--ease) backwards}
+.prod:hover{border-color:var(--g-line);background:var(--s2)}
+.prod.out{opacity:.45}
+.prod-i{width:54px;height:54px;border-radius:var(--r-s);flex:none;overflow:hidden;
+  display:grid;place-items:center;background:var(--s3);color:var(--tx-3);
+  border:1px solid var(--line)}
+.prod-i img{width:100%;height:100%;object-fit:cover}
+.prod-b{flex:1;min-width:0;display:flex;flex-direction:column;gap:1px}
+.prod-n{font-size:14px;font-weight:600;overflow:hidden;
+  text-overflow:ellipsis;white-space:nowrap}
+.prod-s{font-size:11px;color:var(--tx-3)}
+.prod-prow{display:flex;align-items:baseline;gap:8px;margin-top:4px}
+.prod-p{font-size:15.5px;color:var(--g);font-weight:700;
+  font-variant-numeric:tabular-nums lining-nums}
+.prod-old{font-size:12px;color:var(--tx-3);text-decoration:line-through}
+.offbadge{position:absolute;top:8px;inset-inline-start:8px;
+  padding:2px 7px;border-radius:3px;font-size:10px;font-weight:700;
+  background:var(--bad);color:#fff;z-index:3}
+.prod-a{width:34px;height:34px;border-radius:var(--r-s);flex:none;display:grid;
+  place-items:center;background:var(--g-soft);color:var(--g);transition:.18s;
+  border:1px solid var(--g-line)}
+.prod:hover .prod-a{background:var(--g);color:var(--on-g)}
+
+/* Search & filter */
+.search{position:relative;margin-bottom:13px}
+.search svg{position:absolute;inset-inline-start:13px;top:50%;
+  transform:translateY(-50%);color:var(--tx-3);width:17px;height:17px}
+.search input{padding:12px 40px 12px 13px}
+.pills{display:flex;gap:7px;overflow-x:auto;padding-bottom:5px;margin-bottom:14px;
+  scrollbar-width:none}
+.pills::-webkit-scrollbar{display:none}
+.pill{flex:none;padding:8px 14px;border-radius:var(--r-s);font-size:12.5px;
+  font-weight:600;border:1px solid var(--line);background:var(--s1);
+  color:var(--tx-2);transition:.16s}
+.pill:hover{border-color:var(--line-2);color:var(--tx)}
+.pill.on{background:var(--g);border-color:var(--g);color:var(--on-g);
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.28)}
+.pill:active{transform:scale(.96)}
+
+/* Cart items */
+.citem{display:flex;gap:12px;padding:12px;border-radius:var(--r);
+  border:1px solid var(--line);background:var(--s1);
+  animation:rise .34s var(--ease) backwards}
+.citem-i{width:56px;height:56px;border-radius:var(--r-s);flex:none;overflow:hidden;
+  display:grid;place-items:center;background:var(--s3);color:var(--tx-3);
+  border:1px solid var(--line)}
+.citem-i img{width:100%;height:100%;object-fit:cover}
+.citem-n{font-size:14px;font-weight:600;overflow:hidden;
+  text-overflow:ellipsis;white-space:nowrap}
+.citem-q{display:inline-flex;align-items:center;gap:2px;margin-top:7px;
+  border:1px solid var(--line-2);border-radius:var(--r-s);background:var(--s2)}
+.citem-q button{width:30px;height:28px;display:grid;place-items:center;
+  font-size:16px;color:var(--tx-2)}
+.citem-q button:hover{background:var(--s3);color:var(--tx)}
+.citem-q .num{min-width:26px;text-align:center;font-size:13.5px}
+.citem-x{width:30px;height:30px;border-radius:var(--r-s);margin-top:8px;
+  display:grid;place-items:center;color:var(--tx-3);transition:.16s}
+.citem-x:hover{background:var(--bad-soft);color:var(--bad)}
+
+/* ─── Inputs ─────────────────────────────── */
+.inp{background:var(--s2);border:1px solid var(--line-2);border-radius:var(--r-s);
+  padding:13px;color:var(--tx);font-size:15px;transition:.16s}
+.inp::placeholder{color:var(--tx-3)}
+.inp:hover:not(:focus){border-color:var(--tx-3)}
+.inp:focus{outline:none;border-color:var(--g);background:var(--s3);
+  box-shadow:0 0 0 3px var(--g-soft)}
+.inp.bad{border-color:var(--bad)}
+select.inp{appearance:none;background-image:
+  linear-gradient(45deg,transparent 50%,var(--tx-2) 50%),
+  linear-gradient(135deg,var(--tx-2) 50%,transparent 50%);
+  background-position:14px 21px,20px 21px;background-size:6px 6px;
+  background-repeat:no-repeat}
+textarea.inp{resize:vertical;line-height:1.7}
+
+/* Denomination chips — these are values, so they read as struck plates */
+.amts{display:grid;grid-template-columns:repeat(4,1fr);gap:8px}
+.amt{padding:13px 4px;border:1px solid var(--line-2);border-radius:var(--r-s);
+  background:var(--s2);font-weight:700;font-size:15px;text-align:center;
+  transition:.16s;font-variant-numeric:tabular-nums lining-nums}
+.amt:hover{border-color:var(--tx-3)}
+.amt:active{transform:scale(.96)}
+.amt.on{border-color:var(--g);background:var(--g-soft);color:var(--g-l);
+  box-shadow:inset 0 1px 0 rgba(239,199,106,.18);
+  animation:pop .3s var(--spring)}
+
+/* Quantity */
+.qty{display:flex;align-items:center;border:1px solid var(--line-2);
+  border-radius:var(--r-s);overflow:hidden;flex:none;background:var(--s2)}
+.qty .num{min-width:44px;text-align:center;font-size:16px}
+.qty button{width:40px;height:42px;display:grid;place-items:center;
+  font-size:19px;color:var(--tx-2);transition:.15s}
+.qty button:hover{background:var(--s3);color:var(--tx)}
+.qty button:active{transform:scale(.9)}
+
+/* ─── Lists ──────────────────────────────── */
+.list{border:1px solid var(--line);border-radius:var(--r);overflow:hidden;
+  background:var(--s1)}
+.row{display:flex;align-items:center;gap:12px;padding:13px 14px;
+  border-bottom:1px solid var(--line);transition:background .15s}
+.row:last-child{border-bottom:none}
+.row:hover{background:var(--s2)}
+.row-i{width:38px;height:38px;border-radius:var(--r-s);flex:none;display:grid;
+  place-items:center;background:var(--s3);color:var(--tx-2);overflow:hidden}
+.row-i img{width:100%;height:100%;object-fit:cover}
+.row-b{flex:1;min-width:0}
+.row-t{font-size:13.5px;font-weight:600;overflow:hidden;
+  text-overflow:ellipsis;white-space:nowrap}
+.row-s{font-size:11.5px;color:var(--tx-3)}
+.row-v{text-align:start;flex:none}
+.row-a{font-size:14px;font-weight:700;font-variant-numeric:tabular-nums lining-nums}
+.row-a.in{color:var(--ok)}
+
+/* Menu rows */
+.menu{display:flex;flex-direction:column;gap:2px}
+.mrow{display:flex;align-items:center;gap:13px;width:100%;padding:14px;
+  border-radius:var(--r-s);text-align:start;transition:.16s;
+  animation:slideIn .34s var(--ease) backwards}
+.mrow:hover{background:var(--s2)}
+.mrow-i{width:36px;height:36px;border-radius:var(--r-s);flex:none;display:grid;
+  place-items:center;background:var(--s2);color:var(--tx-2)}
+.mrow:hover .mrow-i{background:var(--g-soft);color:var(--g)}
+.mrow-t{flex:1;font-size:14px;font-weight:600}
+.mrow-x{color:var(--tx-3)}
+.mrow.danger .mrow-i{color:var(--bad)}
+.mrow.danger .mrow-t{color:var(--bad)}
+
+/* ─── Stats ──────────────────────────────── */
+.stats{display:grid;grid-template-columns:repeat(3,1fr);
+  border:1px solid var(--line);border-radius:var(--r);overflow:hidden;
+  background:var(--s1)}
+.stat{padding:14px 12px;border-inline-end:1px solid var(--line);min-width:0}
+.stat:last-child{border-inline-end:none}
+.stat .v{font-size:20px;font-weight:700;letter-spacing:-.025em;
+  font-variant-numeric:tabular-nums lining-nums}
+.stat .k{font-size:10.5px;color:var(--tx-3);margin-top:3px;
+  overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+
+/* ─── Quote box — a receipt ──────────────── */
+.quote{background:var(--s2);border:1px solid var(--line);border-radius:var(--r);
+  padding:14px;margin-top:14px}
+.qrow{display:flex;justify-content:space-between;padding:6px 0;font-size:13.5px;
+  font-variant-numeric:tabular-nums lining-nums}
+.qrow .k{color:var(--tx-2)}
+.qrow.tot{border-top:1px dashed var(--line-2);margin-top:8px;padding-top:11px;
+  font-weight:700;font-size:16.5px;color:var(--g-l)}
+
+/* ─── Copy rows — delivered codes ────────── */
+.cprow{display:flex;align-items:center;justify-content:space-between;gap:12px;
+  width:100%;padding:14px;border-radius:var(--r);text-align:start;
+  background:var(--s2);border:1px solid var(--line);transition:.16s}
+.cprow:hover{border-color:var(--g-line);background:var(--s3)}
+.cpk{font-size:11.5px;color:var(--tx-3);margin-bottom:3px}
+.cpv{font-family:'IBM Plex Mono',ui-monospace,monospace;
+  font-size:13.5px;font-weight:500;word-break:break-all;line-height:1.5;
+  letter-spacing:.02em}
+.cpi{width:36px;height:36px;border-radius:var(--r-s);flex:none;display:grid;
+  place-items:center;background:var(--s3);color:var(--tx-2);
+  border:1px solid var(--line)}
+.cprow:hover .cpi{background:var(--g);color:var(--on-g);border-color:var(--g)}
+
+/* ─── Virtual card — same material as the plate ── */
+.vcard{position:relative;aspect-ratio:1.586;border-radius:var(--r-l);
+  overflow:hidden;padding:18px;display:flex;flex-direction:column;cursor:pointer;
+  background:
+    var(--engrave),
+    radial-gradient(120% 130% at 88% 4%, rgba(212,165,68,.16), transparent 60%),
+    linear-gradient(158deg,#33201B 0%,#1E1214 48%,#120A0C 100%);
+  border:1px solid var(--g-line);
+  transform-style:preserve-3d;will-change:transform;backface-visibility:hidden;
+  box-shadow:
+    inset 0 1px 0 rgba(239,199,106,.2),
+    0 14px 30px -14px rgba(0,0,0,.85);
+  transition:transform .45s var(--ease),box-shadow .45s var(--ease);
+  animation:cardin .68s var(--spring) backwards}
+.vcard::before{content:'';position:absolute;inset:-40%;z-index:3;pointer-events:none;
+  background:linear-gradient(108deg,transparent 44%,rgba(239,199,106,.18) 50%,transparent 56%);
+  transform:translateX(-120%);transition:transform .9s var(--ease)}
+.vcard:hover{transform:translateY(-4px);
+  box-shadow:
+    inset 0 1px 0 rgba(239,199,106,.26),
+    0 22px 42px -18px rgba(0,0,0,.9)}
+.vcard:hover::before{transform:translateX(120%)}
+.vcard.tilt{transform:perspective(900px) rotateX(var(--rx,0)) rotateY(var(--ry,0))
+  translateY(-4px);transition:transform .12s linear}
+.vcard.frozen{background:
+  var(--engrave),linear-gradient(158deg,#2C2A33,#191820)}
+.vcard.dead{opacity:.5;filter:saturate(.3)}
+.vcard > *{position:relative;z-index:2}
+.vc-top{display:flex;justify-content:space-between;align-items:flex-start}
+.vc-wm{font-family:'Reem Kufi',serif;font-size:16px;font-weight:600;letter-spacing:0}
+/* Brass contact plate, not the stock silver chip */
+.vc-chip{width:34px;height:26px;border-radius:4px;margin:auto 0 12px;
+  background:linear-gradient(115deg,#F3DFA6,#C9A03C 24%,#F0DDA4 42%,
+                             #B08A2C 64%,#E7D093 82%,#BE9433);
+  box-shadow:inset 0 0 0 .5px rgba(0,0,0,.3)}
+.vc-pan{font-family:'IBM Plex Mono',ui-monospace,monospace;
+  font-size:15px;letter-spacing:.13em;color:#F0E4D2;
+  text-shadow:0 1px 0 rgba(0,0,0,.55),0 -.5px 0 rgba(255,255,255,.14)}
+.vc-foot{display:flex;justify-content:space-between;align-items:flex-end;margin-top:12px}
+.vc-thru{font-size:8px;letter-spacing:.12em;color:var(--tx-3);margin-bottom:3px}
+.vc-amt{font-size:20px;font-weight:700;letter-spacing:-.025em;
+  font-variant-numeric:tabular-nums lining-nums}
+.crail{display:flex;gap:13px;overflow-x:auto;padding:2px 16px 6px;margin:0 -16px;
+  scroll-snap-type:x mandatory;scrollbar-width:none}
+.crail::-webkit-scrollbar{display:none}
+.crail > *{flex:0 0 min(74vw,264px);scroll-snap-align:start}
+@media(min-width:700px){
+  .crail{display:grid;grid-template-columns:repeat(auto-fill,minmax(256px,1fr));
+    overflow:visible;margin:0;padding:0}
+  .crail > *{flex:none}
+}
+
+/* ─── Sheet ──────────────────────────────── */
+.ov{position:fixed;inset:0;z-index:120;background:rgba(12,6,7,.76);
+  display:none;align-items:flex-end;justify-content:center;
+  backdrop-filter:blur(4px);-webkit-backdrop-filter:blur(4px)}
+.ov.show{display:flex}
+@media(min-width:640px){.ov{align-items:center}}
+.sheet{background:var(--s1);border:1px solid var(--line);border-bottom:none;
+  width:100%;max-width:480px;border-radius:16px 16px 0 0;padding:20px;
+  max-height:92vh;overflow-y:auto;
+  animation:up .4s var(--ease);
+  box-shadow:0 -1px 0 rgba(212,165,68,.12),0 -12px 44px -14px #000}
+@media(min-width:640px){
+  .sheet{border-radius:var(--r-l);border-bottom:1px solid var(--line)}
+}
+.sheet::before{content:'';display:block;width:36px;height:3px;border-radius:99px;
+  background:var(--line-2);margin:-6px auto 14px}
+@media(min-width:640px){.sheet::before{display:none}}
+.sheet > *{animation:slideIn .32s var(--ease) backwards}
+.sheet > *:nth-child(2){animation-delay:.035s}
+.sheet > *:nth-child(3){animation-delay:.07s}
+.sheet > *:nth-child(n+4){animation-delay:.1s}
+.sheet-head{display:flex;align-items:center;gap:12px;margin-bottom:18px;
+  padding-bottom:14px;border-bottom:1px solid var(--line)}
+
+/* ─── Toast ──────────────────────────────── */
+#toasts{position:fixed;top:14px;left:50%;transform:translateX(-50%);z-index:200;
+  display:flex;flex-direction:column;gap:8px;width:min(92vw,400px)}
+.toast{background:var(--s3);border:1px solid var(--line-2);padding:13px 15px;
+  border-radius:var(--r-s);font-size:13.5px;display:flex;gap:10px;align-items:flex-start;
+  box-shadow:0 16px 38px -14px #000;
+  animation:tin .3s var(--spring)}
+.toast.ok{border-color:rgba(79,191,123,.4)}
+.toast.ok svg{color:var(--ok)}
+.toast.bad{border-color:rgba(228,104,95,.4)}
+.toast.bad svg{color:var(--bad)}
+
+/* ─── States ─────────────────────────────── */
+.sk{background:linear-gradient(90deg,var(--s2) 25%,var(--s3) 37%,var(--s2) 63%);
+  background-size:400% 100%;animation:sh 1.4s ease infinite;border-radius:var(--r-s)}
+@keyframes sh{0%{background-position:100% 0}100%{background-position:0 0}}
+.empty{text-align:center;padding:46px 20px;color:var(--tx-2);
+  animation:settle .46s var(--spring) backwards}
+.empty .ei{width:58px;height:58px;border-radius:var(--r);margin:0 auto 15px;
+  display:grid;place-items:center;background:var(--s2);color:var(--tx-3);
+  border:1px solid var(--line);
+  animation:settle .5s var(--spring) .08s backwards}
+.empty .ei svg{width:25px;height:25px}
+.empty .et{font-family:'Reem Kufi',serif;font-weight:500;color:var(--tx);
+  font-size:17px;margin-bottom:6px}
+.note{background:var(--warn-soft);border:1px solid rgba(224,160,48,.26);
+  color:#EDC583;padding:12px 14px;border-radius:var(--r-s);font-size:13px;
+  margin-bottom:14px}
+.note.bad{background:var(--bad-soft);border-color:rgba(228,104,95,.3);color:#F0A29B}
+
+/* ─── Table ──────────────────────────────── */
+.scrollx{overflow-x:auto;-webkit-overflow-scrolling:touch}
+.tbl{width:100%;border-collapse:collapse;font-size:13px}
+.tbl th{text-align:right;padding:11px 12px;color:var(--tx-3);font-size:11.5px;
+  font-weight:600;border-bottom:1px solid var(--line);white-space:nowrap}
+.tbl td{padding:12px;border-bottom:1px solid var(--line);white-space:nowrap;
+  font-variant-numeric:tabular-nums lining-nums}
+.tbl tr:last-child td{border-bottom:none}
+.tbl tbody tr{transition:background .15s}
+.tbl tbody tr:hover{background:var(--s2)}
+
+/* ─── Steps — a real sequence, so it gets numbers ── */
+.steps{display:flex;align-items:center;gap:7px;margin-bottom:20px}
+.sdot{width:27px;height:27px;border-radius:50%;display:grid;place-items:center;
+  font-size:12px;font-weight:700;background:var(--s3);color:var(--tx-3);
+  flex:none;transition:.25s;border:1px solid var(--line)}
+.sdot.on{background:var(--g);color:var(--on-g);border-color:var(--g)}
+.sdot.done{background:var(--g-soft);color:var(--g);border-color:var(--g-line)}
+.sline{height:1px;flex:1;background:var(--line-2);transition:.3s}
+.sline.on{background:var(--g)}
+
+/* ─── Motion ─────────────────────────────
+   One orchestrated arrival per screen. After that, motion only
+   answers an action: did that register, where did this come from. */
+@keyframes rise{from{opacity:0;transform:translate3d(0,14px,0)}
+  to{opacity:1;transform:none}}
+@keyframes slideIn{from{opacity:0;transform:translate3d(-14px,0,0)}
+  to{opacity:1;transform:none}}
+@keyframes up{from{transform:translateY(100%);opacity:.4}}
+@keyframes down{to{transform:translateY(100%);opacity:.3}}
+@keyframes tin{from{opacity:0;transform:translateY(-12px)}}
+@keyframes pop{0%{transform:scale(1)}45%{transform:scale(1.07)}100%{transform:scale(1)}}
+@keyframes cardin{from{opacity:0;
+  transform:perspective(900px) translate3d(0,26px,-70px) rotateX(9deg) scale(.95)}}
+@keyframes pulse{0%,100%{opacity:.3;transform:scale(.8)}50%{opacity:1;transform:scale(1)}}
+@keyframes settle{0%{opacity:0;transform:translateY(10px) scale(.97)}
+  100%{opacity:1;transform:none}}
+@keyframes sweep{to{transform:translateX(130%)}}
+
+.wrap.anim > *{animation:rise .42s var(--ease) backwards}
+.wrap.anim > *:nth-child(2){animation-delay:.045s}
+.wrap.anim > *:nth-child(3){animation-delay:.09s}
+.wrap.anim > *:nth-child(4){animation-delay:.13s}
+.wrap.anim > *:nth-child(n+5){animation-delay:.16s}
+
+.cats .cat:nth-child(2){animation-delay:.05s}
+.cats .cat:nth-child(3){animation-delay:.1s}
+.cats .cat:nth-child(4){animation-delay:.15s}
+
+/* Lists settle in sequence — the eye follows one path */
+.plist > *:nth-child(1){animation-delay:.02s}
+.plist > *:nth-child(2){animation-delay:.06s}
+.plist > *:nth-child(3){animation-delay:.1s}
+.plist > *:nth-child(4){animation-delay:.13s}
+.plist > *:nth-child(n+5){animation-delay:.16s}
+
+.list .row{animation:rise .34s var(--ease) backwards}
+.list .row:nth-child(2){animation-delay:.04s}
+.list .row:nth-child(3){animation-delay:.08s}
+.list .row:nth-child(n+4){animation-delay:.11s}
+
+.sec-head{animation:rise .38s var(--ease) backwards}
+
+/* Touch feedback: the surface yields under the finger, then settles */
+.prod,.cat,.row,.mrow,.qbtn,.cprow,.citem{
+  transition:transform .16s var(--swift),
+             background .16s var(--swift),
+             border-color .16s var(--swift)}
+.prod:active,.cat:active,.row:active,.mrow:active,
+.qbtn:active,.cprow:active{transform:scale(.985)}
+
+.wallet-bal,.bal{transition:color .3s var(--swift)}
+.ov.closing .sheet{animation:down .26s var(--swift) forwards}
+.btn:disabled{transition:opacity .2s}
+.catrail,.crail,.pills{scroll-behavior:smooth}
+
+.autochk{display:flex;align-items:center;justify-content:center;gap:8px;
+  margin-top:14px;font-size:12px;color:var(--tx-3)}
+.autochk i{width:7px;height:7px;border-radius:50%;background:var(--g);
+  animation:pulse 1.6s ease-in-out infinite}
+
+@supports not (backdrop-filter:blur(1px)){
+  .bar,.dock{background:rgba(21,12,14,.98)}
+}
+@media(prefers-reduced-motion:reduce){
+  *{animation:none!important;transition:none!important}
+  .vcard::before,.wallet::after{display:none}
+}
+.hide{display:none!important}
+@media(min-width:1024px){.lg-off{display:none}}
+</style>
+</head>
+<body>
+
+<div id="app">
+<div class="shell">
+
+  <aside class="rail">
+    <div class="brand">
+      <span id="railMark"></span>
+      <div><div class="en">Kardo</div><div class="ar">كاردو</div></div>
+    </div>
+    <nav id="navRail"></nav>
+    <div class="rail-foot">
+      <div style="display:flex;align-items:center;gap:11px;padding:0 4px 12px">
+        <div id="av" style="width:36px;height:36px;border-radius:12px;flex:none;
+             background:var(--g-soft);color:var(--g);display:grid;
+             place-items:center;font-weight:800;font-size:14px"></div>
+        <div style="min-width:0">
+          <div id="railName" style="font-size:13px;font-weight:700;overflow:hidden;
+               text-overflow:ellipsis;white-space:nowrap"></div>
+          <div id="railBal" class="num" style="font-size:12.5px;color:var(--g)"></div>
+        </div>
+      </div>
+      <button class="nav" id="railOut"></button>
+    </div>
+  </aside>
+
+  <div class="main">
+    <header class="bar">
+      <button class="bar-logo" id="homeBtn" aria-label="الرئيسية">
+        <span id="barMark"></span>
+        <span class="txt">كاردو</span>
+      </button>
+      <button class="iconbtn rel" id="cartBtn" aria-label="السلة">
+        <span id="cartIco"></span>
+        <span class="cbadge" id="cartBadge" hidden>0</span>
+      </button>
+    </header>
+    <main class="wrap" id="view"></main>
+  </div>
+</div>
+<nav class="dock" id="navDock"></nav>
+</div>
+
+<div id="toasts"></div>
+<div class="ov" id="ov"><div class="sheet" id="sheet"></div></div>
+
+<script type="module">
+import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js';
+import { getAuth, onAuthStateChanged, signOut, sendPasswordResetEmail }
+  from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js';
+import { getFirestore, doc, setDoc, getDoc, onSnapshot, collection,
+  query, where, orderBy, limit, addDoc }
+  from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js';
+
+/* ═══ Config ═══ */
+const API_BASE = 'https://kardo.sdkhyrallh08.workers.dev';
+const firebaseConfig = {
+  apiKey: "AIzaSyC-GntWur6r_Ow_v0wTNymQqQa6brzgvW8",
+  authDomain: "kardo-1c657.firebaseapp.com",
+  projectId: "kardo-1c657",
+  storageBucket: "kardo-1c657.firebasestorage.app",
+  messagingSenderId: "593934928630",
+  appId: "1:593934928630:web:d36ea455a284e974043ad7"
+};
+
+const app = initializeApp(firebaseConfig);
+const auth = getAuth(app);
+const db = getFirestore(app);
+
+window.addEventListener('error', e=>{
+  const v=document.getElementById('view');
+  if(!v)return;
+  document.getElementById('app').style.display='block';
+  v.innerHTML=`<div class="note bad" style="margin-top:18px">
+    <strong>حدث خطأ في الصفحة</strong><br>
+    <span style="word-break:break-all">${String(e.message||'')}</span></div>`;
+});
+
+/* ═══ State ═══ */
+const S={
+  user:null,
+  profile:{wallet_balance:0,cards_count:0,total_spent:0,name:'',email:'',phone:''},
+  cards:[], orders:[], deposits:[], shopOrders:[],
+  catalog:{categories:[],products:[]}, cart:[], cat:null, q:'', filter:'all',
+  config:{
+    min_amount:10,max_amount:200,usd_to_lyd:11.8,
+    issuing_enabled:true,funding_enabled:true,maintenance_message:'',
+    kill_switch:false,kill_message:'',
+    deposit_phone:'',deposit_note:'',banners:[],
+    rates:{libyana:11.8,almadar:12.5,bank:9.5,usdt:1},
+    methods:{},nav:{},theme:null,texts:{},referral:{},limits:{}
+  },
+  withdrawals:[], transfers:[], tickets:[], coupon:null, dataErr:{},
+  page:'home', dir:null, unsub:[],
+  wiz:{step:1,amount:null,name:'',label:'',idem:null,quote:null}
+};
+
+/* ═══ Icons ═══ */
+const I={
+  home:'<path d="M3 10.4 12 3.2l9 7.2V20a1 1 0 0 1-1 1h-5v-6.5H9V21H4a1 1 0 0 1-1-1z"/>',
+  grid:'<rect x="3" y="3" width="7.5" height="7.5" rx="2"/><rect x="13.5" y="3" width="7.5" height="7.5" rx="2"/><rect x="3" y="13.5" width="7.5" height="7.5" rx="2"/><rect x="13.5" y="13.5" width="7.5" height="7.5" rx="2"/>',
+  bag:'<path d="M4.5 8h15l-1.2 12.2a1.8 1.8 0 0 1-1.8 1.6H7.5a1.8 1.8 0 0 1-1.8-1.6z"/><path d="M8.5 8V6a3.5 3.5 0 0 1 7 0v2"/>',
+  wallet:'<path d="M3 7.5A2.5 2.5 0 0 1 5.5 5H19a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H5.5A2.5 2.5 0 0 1 3 16.5z"/><path d="M16.5 12h1.5"/>',
+  user:'<circle cx="12" cy="8" r="3.6"/><path d="M4.5 20.5a7.5 7.5 0 0 1 15 0"/>',
+  card:'<rect x="2" y="5" width="20" height="14" rx="3"/><path d="M2 10h20"/>',
+  plus:'<rect x="2" y="5" width="20" height="14" rx="3"/><path d="M12 10.5v4M10 12.5h4"/>',
+  plus2:'<path d="M12 5.5v13M5.5 12h13"/>',
+  list:'<path d="M8 6h13M8 12h13M8 18h13M3.5 6h.01M3.5 12h.01M3.5 18h.01"/>',
+  gear:'<circle cx="12" cy="12" r="3"/><path d="M19.9 14.6a1.6 1.6 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.6 1.6 0 0 0-2.7 1.1V21a2 2 0 0 1-4 0v-.1a1.6 1.6 0 0 0-2.7-1.1l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.6 1.6 0 0 0-1.1-2.7H4a2 2 0 0 1 0-4h.1A1.6 1.6 0 0 0 5.2 7.6l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.6 1.6 0 0 0 2.7-1.1V3a2 2 0 0 1 4 0v.1a1.6 1.6 0 0 0 2.7 1.1l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.6 1.6 0 0 0 1.1 2.7H21a2 2 0 0 1 0 4h-.1a1.6 1.6 0 0 0-1 .9z"/>',
+  more:'<circle cx="5" cy="12" r="1.6"/><circle cx="12" cy="12" r="1.6"/><circle cx="19" cy="12" r="1.6"/>',
+  menu:'<path d="M4 7h16M4 12h16M4 17h16"/>',
+  bell:'<path d="M18 8.5a6 6 0 1 0-12 0c0 6-2.5 7.5-2.5 7.5h17S18 14.5 18 8.5"/><path d="M13.7 20a2 2 0 0 1-3.4 0"/>',
+  cart:'<circle cx="9" cy="20" r="1.4"/><circle cx="18" cy="20" r="1.4"/><path d="M2.5 3h2.3l2.5 12.2a1.6 1.6 0 0 0 1.6 1.3h8.6a1.6 1.6 0 0 0 1.6-1.3L21 7H6"/>',
+  search:'<circle cx="11" cy="11" r="7"/><path d="M20.5 20.5 16.5 16.5"/>',
+  eye:'<path d="M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7-10-7-10-7"/><circle cx="12" cy="12" r="3"/>',
+  eyeoff:'<path d="M17.9 17.9A10.6 10.6 0 0 1 12 19c-6.4 0-10-7-10-7a18 18 0 0 1 4.1-5M9.9 4.2A10.6 10.6 0 0 1 12 5c6.4 0 10 7 10 7a18 18 0 0 1-2.2 3.2M3 3l18 18"/>',
+  copy:'<rect x="9" y="9" width="12" height="12" rx="2.5"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/>',
+  snow:'<path d="M12 2.5v19M20.2 7.2 3.8 16.8M3.8 7.2l16.4 9.6"/>',
+  trash:'<path d="M3.5 6h17M8 6V4h8v2M6.5 6l1 15h9l1-15"/>',
+  up:'<path d="M12 19V5M5.5 11.5 12 5l6.5 6.5"/>',
+  check:'<path d="M20 6 9 17l-5-5"/>',
+  clock:'<circle cx="12" cy="12" r="9"/><path d="M12 7v5.2l3.2 2"/>',
+  back:'<path d="M15 6l-6 6 6 6"/>',
+  next:'<path d="M9 6l6 6-6 6"/>',
+  gift:'<rect x="3" y="8" width="18" height="13" rx="2"/><path d="M12 8v13M3 12h18"/><path d="M12 8S9.5 3 7.5 4.5 9 8 12 8zM12 8s2.5-5 4.5-3.5S15 8 12 8z"/>',
+  book:'<path d="M4 4.5A2.5 2.5 0 0 1 6.5 2H20v18H6.5A2.5 2.5 0 0 0 4 22z"/><path d="M8 7h8M8 11h6"/>',
+  shield:'<path d="M12 2.5 4 6v6c0 5 3.4 8.6 8 9.5 4.6-.9 8-4.5 8-9.5V6z"/><path d="M9 12l2 2 4-4"/>',
+  out:'<path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4M16 17l5-5-5-5M21 12H9"/>',
+  down:'<path d="M12 5v14M18.5 12.5 12 19l-6.5-6.5"/>',
+  swap:'<path d="M7 4v13M7 4 3.5 7.5M7 4l3.5 3.5M17 20V7M17 20l3.5-3.5M17 20l-3.5-3.5"/>',
+  help:'<circle cx="12" cy="12" r="9"/><path d="M9.6 9.3a2.5 2.5 0 1 1 3.4 2.3c-.6.3-1 .9-1 1.6v.3"/><path d="M12 17h.01"/>',
+  star:'<path d="m12 3 2.7 5.8 6.3.8-4.6 4.4 1.2 6.3L12 17.2 6.4 20.3l1.2-6.3L3 9.6l6.3-.8z"/>',
+  tag:'<path d="M20.5 13.5 13 21a2 2 0 0 1-2.8 0l-7.2-7.2A2 2 0 0 1 2.4 12V4.4A2 2 0 0 1 4.4 2.4H12a2 2 0 0 1 1.4.6l7.1 7.1a2 2 0 0 1 0 2.8z"/><path d="M7.5 7.5h.01"/>'
+};
+const svg=(d,w=1.8)=>`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="${w}" stroke-linecap="round" stroke-linejoin="round">${d}</svg>`;
+
+function mark(size=34){
+  return `<svg width="${size}" height="${size}" viewBox="0 0 40 40" style="flex:none">
+    <rect width="40" height="40" rx="9" fill="#1E1214"/>
+    <path d="M11 9h4.4v22H11z" fill="#D4A544"/>
+    <path d="M17 20.2 27.5 9H33L22.4 20.2 33 31h-5.6z" fill="#D4A544"/>
+    <rect x="19" y="15.6" width="12.4" height="8.8" rx="1.8" fill="#F5EBDD" opacity=".95"/>
+    <rect x="21" y="18.4" width="3.4" height="2.6" rx=".7" fill="#1E1214" opacity=".6"/>
+  </svg>`;
+}
+
+/* ═══ Utils ═══ */
+const $=s=>document.querySelector(s);
+const $$=s=>[...document.querySelectorAll(s)];
+const n=v=>{const x=parseFloat(v);return Number.isFinite(x)?x:0};
+const usd=v=>'$'+Number(v||0).toFixed(2);
+const rate=()=>n(S.config.usd_to_lyd)||11.8;
+const lyd=v=>Number(v||0).toLocaleString('en-US',
+  {minimumFractionDigits:2,maximumFractionDigits:2})+' د.ل';
+const usd2lyd=v=>lyd(Number(v||0)*rate());
+const esc=s=>String(s??'').replace(/[&<>"']/g,c=>
+  ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const phoneKey=r=>{let p=String(r||'').replace(/\D/g,'');
+  if(p.startsWith('00218'))p=p.slice(5);else if(p.startsWith('218'))p=p.slice(3);
+  if(p.startsWith('0'))p=p.slice(1);return p.slice(-9)};
+const dt=v=>{if(!v)return '—';const d=v.toDate?v.toDate():new Date(v);
+  return isNaN(d)?'—':d.toLocaleDateString('ar-LY',{day:'2-digit',month:'short'})
+    +' · '+d.toLocaleTimeString('en-GB',{hour:'2-digit',minute:'2-digit'})};
+
+/* Sort newest-first locally — avoids composite index requirements */
+function sortByDate(rows,key='created_at'){
+  return rows.sort((a,b)=>{
+    const av=a[key]?.toDate?.()||new Date(a[key]||0);
+    const bv=b[key]?.toDate?.()||new Date(b[key]||0);
+    return bv-av;
+  });
+}
+
+const setHTML=(sel,html)=>{const el=$(sel);if(el)el.innerHTML=html};
+const onTap=(sel,fn)=>{const el=$(sel);if(el)el.onclick=fn};
+
+let _invTimer=null,_invPoll=null;
+
+function countTo(el,target,fmt=usd,ms=700){
+  if(!el)return;
+  const from=parseFloat(el.dataset.v||0);
+  el.dataset.v=target;
+  if(Math.abs(target-from)<.005){el.textContent=fmt(target);return}
+  const t0=performance.now();
+  const step=now=>{
+    const p=Math.min(1,(now-t0)/ms),e=1-Math.pow(1-p,3);
+    el.textContent=fmt(from+(target-from)*e);
+    if(p<1)requestAnimationFrame(step);
+  };
+  requestAnimationFrame(step);
+}
+
+function toast(msg,kind=''){
+  const el=document.createElement('div');
+  el.className='toast '+kind;
+  el.innerHTML=(kind==='ok'?svg(I.check,2.4):kind==='bad'?svg(I.clock,2.2):'')
+    +`<span>${esc(msg)}</span>`;
+  $('#toasts').appendChild(el);
+  setTimeout(()=>{el.style.opacity='0';el.style.transform='translateY(-10px)';
+    el.style.transition='.26s';setTimeout(()=>el.remove(),270)},3600);
+}
+
+function sheet(h){$('#sheet').innerHTML=h;$('#ov').classList.add('show')}
+window.closeSheet=()=>{
+  if(_invTimer){clearInterval(_invTimer);_invTimer=null}
+  if(_invPoll){clearInterval(_invPoll);_invPoll=null}
+  const ov=$('#ov');
+  if(!ov.classList.contains('show'))return;
+  // Close downward — mirrors how it opened
+  ov.classList.add('closing');
+  setTimeout(()=>{ov.classList.remove('show','closing')},240);
+};
+$('#ov').addEventListener('click',e=>{if(e.target.id==='ov')closeSheet()});
+document.addEventListener('keydown',e=>{if(e.key==='Escape')closeSheet()});
+
+async function copy(text,label){
+  try{await navigator.clipboard.writeText(text);toast(label+' نُسخ','ok')}
+  catch{toast('تعذّر النسخ','bad')}
+}
+
+/* ═══ API ═══ */
+async function api(path,body){
+  const token=await auth.currentUser.getIdToken();
+  const res=await fetch(API_BASE+path,{method:'POST',
+    headers:{'content-type':'application/json',authorization:'Bearer '+token},
+    body:JSON.stringify(body||{})});
+  const d=await res.json().catch(()=>({success:false,error:'رد غير مفهوم'}));
+  if(!d.success)throw new Error(d.error||'فشلت العملية');
+  return d;
+}
+async function apiGet(path){
+  const res=await fetch(API_BASE+path);
+  const d=await res.json();
+  if(!d.success)throw new Error(d.error||'خطأ');
+  return d;
+}
+
+function applyTheme(){
+  const t=S.config.theme;if(!t)return;
+  const r=document.documentElement.style;
+  const dark=c=>{const m=/^#([\da-f]{6})$/i.exec(c||'');if(!m)return null;
+    const v=parseInt(m[1],16),d=x=>Math.max(0,Math.round(x*.85));
+    return '#'+[d(v>>16&255),d(v>>8&255),d(v&255)]
+      .map(x=>x.toString(16).padStart(2,'0')).join('')};
+  if(t.emerald){r.setProperty('--g',t.emerald);
+    const d=dark(t.emerald);if(d)r.setProperty('--g-d',d)}
+}
+
+/* ═══ Auth ═══ */
+setHTML('#railMark',mark(34));
+setHTML('#barMark',mark(30));
+setHTML('#cartIco',svg(I.cart,1.9));
+
+setHTML('#railOut',svg(I.out)+'<span>تسجيل الخروج</span>');
+onTap('#cartBtn',()=>cartSheet());
+onTap('#homeBtn',()=>go('home'));
+onTap('#railOut',()=>askOut());
+
+window.askOut=()=>sheet(`
+  <div class="h2" style="margin-bottom:8px">تسجيل الخروج</div>
+  <p class="sub" style="margin-bottom:20px">ستحتاج للدخول مرة أخرى للوصول إلى حسابك.</p>
+  <button class="btn ghost wide" onclick="doOut()">تسجيل الخروج</button>
+  <button class="btn line wide" style="margin-top:9px" onclick="closeSheet()">إلغاء</button>`);
+window.doOut=async()=>{closeSheet();await signOut(auth);location.replace('login.html')};
+
+onAuthStateChanged(auth,async user=>{
+  S.unsub.forEach(u=>{try{u()}catch{}});S.unsub=[];
+  dropLazy(null);
+  if(!user){location.replace('login.html');return}
+  S.user=user;
+  await ensureProfile(user);
+  subscribe(user.uid);
+
+  try{
+    const c=JSON.parse(localStorage.getItem('kardo_cfg')||'null');
+    if(c&&c.methods)S.config={...S.config,...c};
+  }catch{}
+
+  apiGet('/api/status').then(d=>{
+    S.config={...S.config,...d};
+    try{localStorage.setItem('kardo_cfg',JSON.stringify(d))}catch{}
+    applyTheme();buildNav();render();
+  }).catch(()=>{});
+
+  api('/api/activity/ping',{}).catch(()=>{});
+  loadCatalog();
+  boot();
+});
+
+async function ensureProfile(user){
+  const ref=doc(db,'users',user.uid);
+  try{
+    const snap=await getDoc(ref);
+    if(!snap.exists())await setDoc(ref,{
+      name:user.displayName||'مستخدم',email:user.email||'',phone:'',
+      wallet_balance:0,total_spent:0,cards_count:0,banned:false,
+      created_at:new Date().toISOString()},{merge:true});
+  }catch{}
+}
+
+function subscribe(uid){
+  S.unsub.push(onSnapshot(doc(db,'users',uid),s=>{
+    if(s.exists())S.profile={...S.profile,...s.data()};render()},()=>{}));
+  S.unsub.push(onSnapshot(query(collection(db,'cards'),
+    where('uid','==',uid),limit(50)),
+    s=>{S.cards=sortByDate(s.docs.map(d=>({id:d.id,...d.data()})));render()},
+    e=>{S.dataErr.cards=e.code;render()}));
+  S.unsub.push(onSnapshot(query(collection(db,'orders'),
+    where('uid','==',uid),limit(50)),
+    s=>{S.shopOrders=sortByDate(s.docs.map(d=>({id:d.id,...d.data()})));render()},
+    e=>{S.dataErr.orders=e.code;render()}));
+}
+
+/* Lazy listeners — heavy lists load only on their page */
+const _lazy={};
+function lazySub(key,build){
+  if(_lazy[key])return;
+  _lazy[key]=onSnapshot(build(),snap=>{
+    const rows=sortByDate(snap.docs.map(d=>({id:d.id,...d.data()})),
+      key==='tickets'?'updated_at':'created_at');
+    if(key==='orders')S.orders=rows;
+    if(key==='deposits')S.deposits=rows;
+    if(key==='shop')S.shopOrders=rows;
+    if(key==='tickets')S.tickets=rows;
+    if(key==='withdrawals')S.withdrawals=rows;
+    S.dataErr[key]=null;
+    render();
+  },e=>{S.dataErr[key]=e.code;render()});
+}
+function dropLazy(except){
+  Object.keys(_lazy).forEach(k=>{
+    if(k!==except&&_lazy[k]){try{_lazy[k]()}catch{} delete _lazy[k]}
+  });
+}
+function ensurePageData(){
+  const uid=S.user&&S.user.uid;if(!uid)return;
+  if(S.page==='orders'){
+    lazySub('shop',()=>query(collection(db,'orders'),
+      where('uid','==',uid),limit(50)));
+    dropLazy('shop');
+  }else if(S.page==='wallet'){
+    lazySub('deposits',()=>query(collection(db,'wallet_deposits'),
+      where('uid','==',uid),limit(40)));
+    lazySub('withdrawals',()=>query(collection(db,'withdrawals'),
+      where('uid','==',uid),limit(20)));
+  }else if(S.page==='tickets'){
+    lazySub('tickets',()=>query(collection(db,'tickets'),
+      where('uid','==',uid),limit(30)));
+    dropLazy('tickets');
+  }else if(S.page==='tx'){
+    lazySub('orders',()=>query(collection(db,'card_orders'),
+      where('uid','==',uid),limit(60)));
+    lazySub('deposits',()=>query(collection(db,'wallet_deposits'),
+      where('uid','==',uid),limit(40)));
+  }else dropLazy(null);
+}
+
+function boot(){
+  $('#app').style.display='block';
+  applyTheme();buildNav();render();
+  setTimeout(resumeInvoice,600);
+}
+
+/* ═══ Navigation ═══ */
+const PAGES=[
+  {k:'home',t:'الرئيسية',i:I.home},
+  {k:'shop',t:'الأقسام',i:I.grid},
+  {k:'orders',t:'طلباتي',i:I.bag},
+  {k:'wallet',t:'المحفظة',i:I.wallet},
+  {k:'cards',t:'بطاقاتي',i:I.card},
+  {k:'issue',t:'إصدار بطاقة',i:I.plus},
+  {k:'tx',t:'المعاملات',i:I.list},
+  {k:'invite',t:'ادعُ صديقًا',i:I.gift},
+  {k:'guide',t:'كيف أستخدمها',i:I.book},
+  {k:'tickets',t:'الدعم',i:I.help},
+  {k:'account',t:'حسابي',i:I.user},
+];
+const DOCK=['home','shop','orders','wallet','account'];
+const visible=()=>PAGES.filter(p=>(S.config.nav||{})[p.k]!==false);
+
+function buildNav(){
+  const vis=visible(),keys=vis.map(p=>p.k);
+  setHTML('#navRail',vis.map(p=>
+    `<button class="nav" data-nav="${p.k}">${svg(p.i)}<span>${p.t}</span>
+     ${p.k==='orders'&&pendCount()?`<span class="cnt">${pendCount()}</span>`:''}
+     </button>`).join(''));
+
+  const dk=DOCK.filter(k=>keys.includes(k));
+  const nd=$('#navDock');
+  if(nd){
+    nd.style.gridTemplateColumns=`repeat(${dk.length},1fr)`;
+    nd.innerHTML=dk.map(k=>{
+      const p=PAGES.find(x=>x.k===k);
+      return `<button class="dk" data-nav="${p.k}">
+        <span class="dkico">${svg(p.i)}</span><span>${p.t}</span></button>`;
+    }).join('');
+  }
+  if(keys.length&&!keys.includes(S.page))S.page=keys[0];
+  $$('[data-nav]').forEach(b=>
+    b.onclick=()=>b.dataset.nav==='more'?moreSheet():go(b.dataset.nav));
+}
+
+const pendCount=()=>S.shopOrders.filter(o=>o.status==='pending').length;
+
+function moreSheet(){
+  const keys=visible().map(p=>p.k);
+  const inDock=['home','shop','orders','wallet'];
+  const rest=PAGES.filter(p=>keys.includes(p.k)&&!inDock.includes(p.k));
+  sheet(`
+    <div class="h2" style="margin-bottom:16px">المزيد</div>
+    <nav class="menu">
+      ${rest.map((p,i)=>`
+        <button class="mrow" style="animation-delay:${i*.04}s" data-more="${p.k}">
+          <span class="mrow-i">${svg(p.i)}</span>
+          <span class="mrow-t">${p.t}</span>
+          <span class="mrow-x">${svg(I.back,2)}</span>
+        </button>`).join('')}
+      <button class="mrow danger" style="animation-delay:${rest.length*.04}s" id="mOut">
+        <span class="mrow-i">${svg(I.out)}</span>
+        <span class="mrow-t">تسجيل الخروج</span>
+      </button>
+    </nav>`);
+  $$('[data-more]').forEach(b=>b.onclick=()=>{closeSheet();go(b.dataset.more)});
+  onTap('#mOut',()=>{closeSheet();askOut()});
+}
+
+window.go=k=>{
+  const seq=PAGES.map(p=>p.k);
+  const f=seq.indexOf(S.page),t=seq.indexOf(k);
+  S.dir=(f<0||t<0||f===t)?'anim':(t>f?'anim':'anim');
+  S.page=k;S.cat=null;S.q='';
+  ensurePageData();
+  window.scrollTo({top:0,behavior:'instant'});
+  render();
+};
+
+/* ═══ Render ═══ */
+let _raf=null,_last=null;
+function render(){
+  if(_raf)return;
+  _raf=requestAnimationFrame(()=>{_raf=null;paint()});
+}
+
+function paint(){
+  const el=$('#av');if(el)el.textContent=(S.profile.name||'؟').trim().charAt(0);
+  const rn=$('#railName');if(rn)rn.textContent=S.profile.name||'—';
+  countTo($('#railBal'),S.profile.wallet_balance);
+
+  const cb=$('#cartBadge');
+  if(cb){const c=cartCount();cb.textContent=c;cb.hidden=c===0}
+
+  $$('[data-nav]').forEach(b=>b.classList.toggle('on',b.dataset.nav===S.page));
+
+  const view=$('#view');
+  if(!view)return;
+
+  if(S.config.kill_switch===true){
+    view.classList.remove('anim');
+    view.innerHTML=killScreen();
+    _last=null;return;
+  }
+
+  const errs=Object.values(S.dataErr||{}).filter(Boolean);
+  const errBar=errs.length?`<div class="note bad" style="margin-bottom:14px">
+    <strong>تعذّر تحميل بعض البيانات</strong><br>
+    ${errs[0]==='permission-denied'
+      ? 'صلاحيات ناقصة — حدّث قواعد Firestore.'
+      : 'أعد تحميل الصفحة، وإن تكرّر تواصل مع الدعم.'}
+  </div>`:'';
+
+  const V={home:vHome,shop:(S.cat?vCat:vShop),orders:vOrders,wallet:vWallet,
+    cards:vCards,issue:vIssue,tx:vTx,invite:vInvite,guide:vGuide,
+    account:vAccount,tickets:vTickets};
+  const moved=_last!==S.page+(S.cat||'');
+  view.classList.toggle('anim',moved);
+  view.innerHTML=errBar+(V[S.page]||vHome)();
+  _last=S.page+(S.cat||'');
+  bind();
+  bindTilt();
+}
+
+function killScreen(){
+  return `<div class="card" style="margin-top:20px"><div class="empty">
+    <div class="ei" style="background:var(--bad-soft);color:var(--bad)">
+      ${svg(I.clock,1.6)}</div>
+    <div class="et">الخدمة متوقفة مؤقتًا</div>
+    <p style="font-size:13.5px;max-width:320px;margin:0 auto">
+      ${esc(S.config.kill_message||'نعمل على صيانة سريعة. عد بعد قليل.')}</p>
+  </div></div>`;
+}
+
+/* ═══ Home ═══ */
+function vHome(){
+  const b=(S.config.banners||[]).filter(x=>x&&x.img);
+  const T=S.config.texts||{};
+  const roots=kidsOf('');
+  const top=S.catalog.products.filter(p=>p.featured).slice(0,5);
+  const deals=S.catalog.products.filter(p=>offPct(p)>0);
+  const recent=S.shopOrders.slice(0,3);
+
+  return `
+  ${b.length?`
+    <section class="bnr">
+      <div class="bnr-track" id="bTrack">
+        ${b.map(x=>`
+          <div class="bnr-slide"${x.link?` data-blink="${esc(x.link)}"`:''}>
+            <img src="${esc(x.img)}" alt="${esc(x.title||'')}" loading="lazy" decoding="async">
+            ${x.title?`<div class="bnr-body">
+              <div class="bnr-t">${esc(x.title)}</div>
+              ${x.sub?`<div class="bnr-s">${esc(x.sub)}</div>`:''}
+              <span class="bnr-cta">تسوّق الآن</span>
+            </div>`:''}
+          </div>`).join('')}
+      </div>
+      ${b.length>1?`<div class="bnr-dots" id="bDots">
+        ${b.map((_,i)=>`<span class="${i?'':'on'}"></span>`).join('')}</div>`:''}
+    </section>`:''}
+
+  <div class="wallet">
+    <div class="wallet-top">
+      <div>
+        <div class="eyebrow">رصيد المحفظة</div>
+        <div class="wallet-bal num" id="hBal">${lyd(S.profile.wallet_balance*rate())}</div>
+        <div class="wallet-sub">${usd(S.profile.wallet_balance)}</div>
+      </div>
+      <div class="wallet-ico">${svg(I.wallet,1.9)}</div>
+    </div>
+    <div class="wacts">
+      ${[['deposit',I.up,'إضافة رصيد',true],
+         ['withdraw',I.down,'سحب',(S.config.withdraw||{}).on],
+         ['transfer',I.swap,'تحويل',(S.config.transfer||{}).on],
+         ['points',I.star,'نقاطي',(S.config.points||{}).on]]
+        .map(([k,ic,t,on])=>`
+          <button class="wact ${k==='deposit'?'pri':''} ${on?'':'off'}"
+                  data-wact="${k}">
+            <span class="wact-i">${svg(ic,2)}</span>
+            <span>${t}</span></button>`).join('')}
+    </div>
+  </div>
+
+  <div class="quick">
+    <button class="qbtn pri" data-act="shop">
+      <span class="qi">${svg(I.grid,1.9)}</span>
+      <span><span class="qt">تسوّق</span><br><span class="qs">كل الخدمات</span></span>
+    </button>
+    <button class="qbtn" data-act="orders">
+      <span class="qi">${svg(I.bag,1.9)}</span>
+      <span><span class="qt">طلباتي</span><br><span class="qs">${
+        pendCount()?pendCount()+' قيد التنفيذ':'السجل'}</span></span>
+    </button>
+  </div>
+
+  ${roots.length?`
+    <div class="sec-head">
+      <div class="h2">الأقسام</div>
+      ${roots.length>10?`<button class="more-link" data-act="shop">عرض المزيد</button>`:''}
+    </div>
+    <div class="catrail">
+      ${roots.slice(0,10).map(c=>catTile(c)).join('')}
+      ${roots.length>10?`
+        <button class="cat more" data-act="shop">
+          <span class="cat-i">${svg(I.more,2)}</span>
+          <span class="cat-n">عرض المزيد</span>
+          <span class="cat-s">${roots.length-10} قسم</span>
+        </button>`:''}
+    </div>`:''}
+
+  ${deals.length?`
+    <div class="sec-head">
+      <div class="h2">${libIcon('fire',2)} العروض</div>
+    </div>
+    <div class="plist">${deals.slice(0,4).map(prodRow).join('')}</div>`:''}
+
+  ${top.length?`
+    <div class="sec-head">
+      <div class="h2">الأكثر طلبًا</div>
+      <button class="more-link" data-act="shop">عرض الكل</button>
+    </div>
+    <div class="plist">${top.map(prodRow).join('')}</div>`:''}
+
+  ${roots.filter(c=>!c.soon).map(c=>{
+    // منتجات القسم نفسه، فإن كان حاويًا لأقسام نأخذ من أبنائه
+    let items=prodsOf(c.id);
+    if(!items.length){
+      for(const k of kidsOf(c.id)){
+        items=items.concat(prodsOf(k.id));
+        if(items.length>=6)break;
+      }
+    }
+    if(!items.length)return '';
+    return `
+      <div class="sec-head">
+        <div class="h2">${c.icon&&c.icon!=='grid'?libIcon(c.icon,2):''} ${esc(c.name)}</div>
+        <button class="more-link" data-cat="${esc(c.id)}">عرض الكل</button>
+      </div>
+      <div class="plist">${items.slice(0,4).map(prodRow).join('')}</div>`;
+  }).join('')}
+
+  ${recent.length?`
+    <div class="sec-head">
+      <div class="h2">آخر الطلبات</div>
+      <button class="more-link" data-act="orders">عرض الكل</button>
+    </div>
+    <div class="list">${recent.map(orderRow).join('')}</div>`:''}
+
+  ${!roots.length&&!top.length?`
+    <div class="card" style="margin-top:16px"><div class="empty">
+      <div class="ei">${svg(I.grid,1.6)}</div>
+      <div class="et">${esc(T.hero_title||'المتجر قيد التجهيز')}</div>
+      <p style="font-size:13px">${esc(T.hero_sub||'سنضيف الخدمات قريبًا.')}</p>
+    </div></div>`:''}`;
+}
+
+function catTile(c,big){
+  const cnt=deepCount(c.id);
+  const subs=kidsOf(c.id).length;
+  return `<button class="cat ${c.soon?'soon':''} ${big?'big':''}"
+          data-cat="${esc(c.id)}">
+    ${c.soon?'<span class="soonbadge">قريبًا</span>':''}
+    <span class="cat-i">${c.image
+      ? `<img src="${esc(c.image)}" alt="" loading="lazy">`
+      : libIcon(c.icon,1.7)}</span>
+    <span class="cat-n">${esc(c.name)}</span>
+    <span class="cat-s">${c.soon?'قيد التجهيز'
+      :subs?subs+' قسم · '+cnt+' منتج':cnt+' منتج'}</span>
+  </button>`;
+}
+
+const offPct=p=>p.old_price>p.price
+  ? Math.round((1-p.price/p.old_price)*100) : 0;
+
+function prodRow(p){
+  const off=offPct(p);
+  return `<button class="prod ${p.available?'':'out'}" data-prod="${esc(p.id)}">
+    <span class="prod-i">${p.image
+      ? `<img src="${esc(p.image)}" alt="" loading="lazy">`
+      : svg(I.bag,1.6)}</span>
+    <span class="prod-b">
+      <span class="prod-n">${esc(p.name)}</span>
+      <span class="prod-s">${p.kind==='stock'?'تسليم فوري':'تنفيذ يدوي'}</span>
+      <span class="prod-prow">
+        <span class="prod-p num">${lyd(p.price)}</span>
+        ${off?`<span class="prod-old num">${lyd(p.old_price)}</span>`:''}
+      </span>
+    </span>
+    ${off?`<span class="offbadge">−${off}٪</span>`:''}
+    ${p.available
+      ?`<span class="prod-a">${svg(I.plus2,2.2)}</span>`
+      :`<span class="chip bad">نفد</span>`}
+  </button>`;
+}
+
+/* Icon library — pick one per category from the admin panel */
+const LIB={
+  fire:{n:'نار',d:'<path d="M12 22c4.4 0 7-2.9 7-6.6 0-3.6-2.4-5.6-3.6-8.6-.5-1.2-2.1-1.3-2.7-.2-.8 1.5-.5 3.2-1.5 4.3-.7.8-1.6.2-1.6-.8 0-1.2.4-2-.3-3.1-.5-.8-1.7-.7-2.2.1C5.9 9.2 5 11.6 5 14.6 5 19 8 22 12 22z"/>'},
+  gift:{n:'هدية',d:'<rect x="3" y="8" width="18" height="13" rx="2"/><path d="M12 8v13M3 12h18"/><path d="M12 8S9.5 3 7.5 4.5 9 8 12 8zM12 8s2.5-5 4.5-3.5S15 8 12 8z"/>'},
+  play:{n:'ألعاب',d:'<rect x="2" y="6" width="20" height="12" rx="4"/><path d="M7 12h3M8.5 10.5v3M15 11h.01M17.5 13h.01"/>'},
+  tv:{n:'اشتراكات',d:'<rect x="2.5" y="4" width="19" height="13" rx="2.5"/><path d="M8 21h8M12 17v4"/>'},
+  music:{n:'موسيقى',d:'<path d="M9 18V5l11-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="17" cy="16" r="3"/>'},
+  card:{n:'بطاقات',d:'<rect x="2" y="5" width="20" height="14" rx="3"/><path d="M2 10h20"/>'},
+  phone:{n:'شحن رصيد',d:'<rect x="6" y="2" width="12" height="20" rx="3"/><path d="M11 18h2"/>'},
+  cloud:{n:'خدمات',d:'<path d="M17.5 19a4.5 4.5 0 0 0 .5-9 6 6 0 0 0-11.6 1.5A3.8 3.8 0 0 0 7 19z"/>'},
+  bolt:{n:'سريع',d:'<path d="M13 2 4.5 13.5H11l-1 8.5 8.5-11.5H12z"/>'},
+  shop:{n:'متجر',d:'<path d="M3.5 8h17l-1 12.5a1.5 1.5 0 0 1-1.5 1.4H6a1.5 1.5 0 0 1-1.5-1.4z"/><path d="M8 8V6a4 4 0 0 1 8 0v2"/>'},
+  crown:{n:'مميّز',d:'<path d="M3 8l3.5 3L12 4l5.5 7L21 8l-2 11H5z"/>'},
+  globe:{n:'عالمي',d:'<circle cx="12" cy="12" r="9"/><path d="M3.5 9h17M3.5 15h17M12 3a15 15 0 0 1 0 18M12 3a15 15 0 0 0 0 18"/>'},
+  book:{n:'تعليم',d:'<path d="M4 4.5A2.5 2.5 0 0 1 6.5 2H20v18H6.5A2.5 2.5 0 0 0 4 22z"/><path d="M8 7h8M8 11h6"/>'},
+  shield:{n:'حماية',d:'<path d="M12 2.5 4 6v6c0 5 3.4 8.6 8 9.5 4.6-.9 8-4.5 8-9.5V6z"/><path d="M9 12l2 2 4-4"/>'},
+  wallet:{n:'محفظة',d:'<path d="M3 7.5A2.5 2.5 0 0 1 5.5 5H19a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H5.5A2.5 2.5 0 0 1 3 16.5z"/><path d="M16.5 12h1.5"/>'},
+  grid:{n:'عام',d:'<rect x="3" y="3" width="7.5" height="7.5" rx="2"/><rect x="13.5" y="3" width="7.5" height="7.5" rx="2"/><rect x="3" y="13.5" width="7.5" height="7.5" rx="2"/><rect x="13.5" y="13.5" width="7.5" height="7.5" rx="2"/>'}
+};
+const libIcon=(k,w=1.8)=>svg((LIB[k]||LIB.grid).d,w);
+
+/* Category tree helpers */
+const kidsOf=id=>S.catalog.categories.filter(c=>(c.parent||'')===(id||''));
+const prodsOf=id=>S.catalog.products.filter(p=>p.cat===id);
+function trailOf(id){
+  const out=[];let cur=S.catalog.categories.find(c=>c.id===id);
+  while(cur){out.unshift(cur);cur=S.catalog.categories.find(c=>c.id===cur.parent)}
+  return out;
+}
+/* Counts everything beneath a node, at any depth */
+function deepCount(id){
+  let t=prodsOf(id).length;
+  for(const k of kidsOf(id))t+=deepCount(k.id);
+  return t;
+}
+
+/* ═══ Shop ═══ */
+const cartCount=()=>S.cart.reduce((t,i)=>t+i.qty,0);
+const cartTotal=()=>S.cart.reduce((t,i)=>t+i.price_lyd*i.qty,0);
+
+function loadCatalog(){
+  apiGet('/api/catalog').then(d=>{
+    S.catalog={categories:d.categories||[],products:d.products||[]};
+    render();
+  }).catch(()=>{});
+}
+
+function vShop(){
+  const roots=kidsOf('');
+  const q=S.q.trim().toLowerCase();
+  const hits=q?S.catalog.products.filter(p=>p.name.toLowerCase().includes(q)):[];
+
+  return `
+  <div class="h1" style="margin-bottom:5px">الأقسام</div>
+  <p class="sub" style="margin-bottom:16px">اختر القسم أو ابحث عن منتج.</p>
+
+  <div class="search">
+    ${svg(I.search,2)}
+    <input class="inp" id="shopQ" placeholder="ابحث عن منتج…" value="${esc(S.q)}">
+  </div>
+
+  ${q?(hits.length
+      ?`<div class="plist">${hits.map(prodRow).join('')}</div>`
+      :`<div class="card"><div class="empty">
+          <div class="ei">${svg(I.search,1.6)}</div>
+          <p style="font-size:13.5px">لا نتائج لـ«${esc(S.q)}»</p></div></div>`)
+   :(roots.length
+      ?`<div class="catgrid2">${roots.map(c=>catTile(c,true)).join('')}</div>`
+      :`<div class="card"><div class="empty">
+          <div class="ei">${svg(I.grid,1.6)}</div>
+          <p style="font-size:13.5px">لا أقسام بعد.</p></div></div>`)}`;
+}
+
+function vCat(){
+  const c=S.catalog.categories.find(x=>x.id===S.cat);
+  if(!c)return vShop();
+
+  const trail=trailOf(c.id);
+  const subs=kidsOf(c.id);
+  let items=prodsOf(c.id);
+
+  const q=S.q.trim().toLowerCase();
+  if(q)items=items.filter(p=>p.name.toLowerCase().includes(q));
+  if(S.filter==='stock')items=items.filter(p=>p.kind==='stock');
+  if(S.filter==='manual')items=items.filter(p=>p.kind!=='stock');
+  if(S.filter==='off')items=items.filter(p=>offPct(p)>0);
+
+  return `
+  <div style="display:flex;align-items:center;gap:10px;margin-bottom:4px">
+    <button class="iconbtn" data-back="1">${svg(I.next,2.2)}</button>
+    <div class="h1" style="margin:0">${esc(c.name)}</div>
+  </div>
+
+  <div class="crumbs">
+    <button data-cat="">الأقسام</button>
+    ${trail.map((t,i)=>`<span>${svg(I.back,2.4)}</span>
+      ${i===trail.length-1
+        ? `<b>${esc(t.name)}</b>`
+        : `<button data-cat="${esc(t.id)}">${esc(t.name)}</button>`}`).join('')}
+  </div>
+
+  ${subs.length?`
+    <div class="catgrid2" style="margin-bottom:18px">
+      ${subs.map(x=>catTile(x,true)).join('')}
+    </div>`:''}
+
+  ${prodsOf(c.id).length?`
+    ${subs.length?`<div class="sec-head"><div class="h2">منتجات ${esc(c.name)}</div></div>`:''}
+    <div class="search">
+      ${svg(I.search,2)}
+      <input class="inp" id="shopQ" placeholder="ابحث في القسم…" value="${esc(S.q)}">
+    </div>
+    <div class="pills">
+      ${[['all','الكل'],['off','عروض'],['stock','تسليم فوري'],['manual','تنفيذ يدوي']]
+        .map(([k,t])=>`<button class="pill ${S.filter===k?'on':''}"
+          data-filter="${k}">${t}</button>`).join('')}
+    </div>
+    ${items.length
+      ?`<div class="plist">${items.map(prodRow).join('')}</div>`
+      :`<div class="card"><div class="empty">
+          <div class="ei">${svg(I.bag,1.6)}</div>
+          <p style="font-size:13.5px">لا منتجات مطابقة.</p></div></div>`}`
+   :(subs.length?'':`<div class="card"><div class="empty">
+      <div class="ei">${svg(I.bag,1.6)}</div>
+      <p style="font-size:13.5px">هذا القسم فارغ حاليًا.</p></div></div>`)}`;
+}
+
+function soonSheet(c){
+  sheet(`
+    <div style="text-align:center;margin-bottom:20px">
+      <div style="width:64px;height:64px;border-radius:20px;margin:0 auto 15px;
+           display:grid;place-items:center;background:var(--g-soft);color:var(--g)">
+        ${svg(I.clock,2.1).replace('<svg','<svg data-lg')}</div>
+      <div class="h2">${esc(c.name)}</div>
+      <p class="sub" style="margin-top:6px;max-width:300px;margin-inline:auto">
+        نجهّز هذا القسم الآن. سيفتح قريبًا وستكون من أوائل من يستخدمه.</p>
+    </div>
+    <button class="btn line wide" onclick="closeSheet()">حسنًا</button>`);
+}
+
+function productSheet(id){
+  const p=S.catalog.products.find(x=>x.id===id);
+  if(!p)return;
+  let qty=1;
+  const bal=S.profile.wallet_balance*rate();
+
+  sheet(`
+    <div class="sheet-head">
+      <div class="prod-i" style="width:72px;height:72px;border-radius:15px">
+        ${p.image?`<img src="${esc(p.image)}" alt="">`:svg(I.bag,1.5)}</div>
+      <div style="min-width:0;flex:1">
+        <div class="h2">${esc(p.name)}</div>
+        <div class="num" style="color:var(--g);font-size:19px;margin-top:2px">
+          ${lyd(p.price)}</div>
+        <span class="chip ${p.kind==='stock'?'ok':'wait'}" style="margin-top:6px">
+          ${p.kind==='stock'?'تسليم فوري':'تنفيذ خلال ساعات'}</span>
+      </div>
+    </div>
+
+    ${p.desc?`<div class="card-q" style="margin-bottom:14px">
+      <div class="eyebrow" style="margin-bottom:7px">معلومات المنتج</div>
+      <p class="sub" style="font-size:13px;line-height:1.75;white-space:pre-line"
+        >${esc(p.desc)}</p></div>`:''}
+
+    ${p.fields.map(f=>`
+      <label class="lbl" style="margin-top:12px">${esc(f.label)}${
+        f.required?'':' <span style="color:var(--tx-3);font-weight:400">(اختياري)</span>'}</label>
+      <input class="inp ${f.type==='number'||f.type==='tel'?'num':''}"
+             data-pf="${esc(f.key)}" type="${f.type}"
+             ${f.type==='number'||f.type==='tel'?'inputmode="numeric"':''}
+             placeholder="${esc(f.hint||'')}">`).join('')}
+
+    <div style="display:flex;align-items:center;gap:12px;margin-top:18px">
+      <div class="qty">
+        <button data-q="-">−</button>
+        <span class="num" id="pQty">1</span>
+        <button data-q="+">+</button>
+      </div>
+      <div style="flex:1">
+        <div class="cpk">الإجمالي</div>
+        <div class="num" id="pTot" style="font-size:18px">${lyd(p.price)}</div>
+      </div>
+    </div>
+
+    <div class="quote">
+      <div class="qrow"><span class="k">رصيد محفظتك</span>
+        <span class="num">${lyd(bal)}</span></div>
+      <div class="qrow"><span class="k">بعد الشراء</span>
+        <span class="num" id="pAfter">${lyd(bal-p.price)}</span></div>
+    </div>
+
+    ${p.note?`<div class="note" style="margin-top:12px">${esc(p.note)}</div>`:''}
+
+    <button class="btn lg wide" id="pAdd" style="margin-top:16px"
+            ${p.available?'':'disabled'}>
+      ${p.available?'إضافة إلى السلة':'غير متوفر'}</button>
+    <button class="btn line wide" style="margin-top:9px" onclick="closeSheet()">إلغاء</button>`);
+
+  const paint=()=>{
+    $('#pQty').textContent=qty;
+    $('#pTot').textContent=lyd(p.price*qty);
+    const after=bal-p.price*qty;
+    const el=$('#pAfter');
+    el.textContent=lyd(after);
+    el.style.color=after<0?'var(--bad)':'';
+  };
+  $$('[data-q]').forEach(b=>b.onclick=()=>{
+    qty=Math.max(1,Math.min(20,qty+(b.dataset.q==='+'?1:-1)));paint()});
+
+  onTap('#pAdd',()=>{
+    const vals={};
+    for(const f of p.fields){
+      const el=document.querySelector(`[data-pf="${f.key}"]`);
+      const v=(el&&el.value||'').trim();
+      if(f.required&&!v){el.classList.add('bad');return toast(f.label+' مطلوب','bad')}
+      if(v)vals[f.key]=v;
+    }
+    S.cart.push({id:p.id,name:p.name,image:p.image,price_lyd:p.price,
+      qty,values:vals,kind:p.kind});
+    closeSheet();toast('أُضيف إلى السلة','ok');render();
+  });
+}
+
+function cartSheet(){
+  if(!S.cart.length)return sheet(`
+    <div class="h2" style="margin-bottom:8px">السلة</div>
+    <div class="empty"><div class="ei">${svg(I.cart,1.6)}</div>
+      <p style="font-size:13.5px">سلتك فارغة.</p></div>
+    <button class="btn line wide" onclick="closeSheet()">حسنًا</button>`);
+
+  const tot=cartTotal();
+  const off=S.coupon?S.coupon.off_lyd:0;
+  const totUsd=(tot-off)/rate();
+  const ok=(S.profile.wallet_balance||0)>=totUsd;
+
+  sheet(`
+    <div class="sheet-head" style="margin-bottom:14px;padding-bottom:12px">
+      <div class="row-i" style="background:var(--g-soft);color:var(--g)">
+        ${svg(I.cart,2)}</div>
+      <div style="flex:1"><div class="h2">السلة</div>
+        <div class="row-s">${cartCount()} منتج</div></div>
+    </div>
+
+    <div style="display:flex;flex-direction:column;gap:9px;margin-bottom:14px">
+      ${S.cart.map((it,i)=>`
+        <div class="citem">
+          <div class="citem-i">${it.image
+            ? `<img src="${esc(it.image)}" alt="">`:svg(I.bag,1.6)}</div>
+          <div style="flex:1;min-width:0">
+            <div class="citem-n">${esc(it.name)}</div>
+            <div class="row-s">${lyd(it.price_lyd)} للوحدة</div>
+            <div class="citem-q">
+              <button data-cq="${i}:-">−</button>
+              <span class="num">${it.qty}</span>
+              <button data-cq="${i}:+">+</button>
+            </div>
+          </div>
+          <div style="text-align:start;flex:none">
+            <div class="num" style="font-size:15px;color:var(--g)"
+              >${lyd(it.price_lyd*it.qty)}</div>
+            <button class="citem-x" data-rm="${i}" aria-label="حذف"
+              >${svg(I.trash,2)}</button>
+          </div>
+        </div>`).join('')}
+    </div>
+
+    ${S.config.coupons_on!==false?`
+      <div style="display:flex;gap:8px;margin-bottom:12px">
+        <input class="inp mono" id="cpIn" placeholder="كود الخصم" dir="ltr"
+               style="text-transform:uppercase;flex:1"
+               value="${esc(S.coupon?S.coupon.code:'')}">
+        <button class="btn ghost" id="cpGo" style="flex:none">تطبيق</button>
+      </div>`:''}
+
+    <div class="quote" style="margin-top:0">
+      <div class="qrow"><span class="k">عدد المنتجات</span>
+        <span class="num">${cartCount()}</span></div>
+      ${S.coupon?`<div class="qrow"><span class="k">
+        خصم ${esc(S.coupon.code)}</span>
+        <span class="num" style="color:var(--g)">−${lyd(S.coupon.off_lyd)}</span></div>`:''}
+      <div class="qrow"><span class="k">رصيدك</span>
+        <span class="num">${lyd(S.profile.wallet_balance*rate())}</span></div>
+      <div class="qrow tot"><span>الإجمالي</span>
+        <span class="num">${lyd(tot-(S.coupon?S.coupon.off_lyd:0))}</span></div>
+    </div>
+
+    ${ok?'':`<div class="note" style="margin-top:12px">
+      رصيدك غير كافٍ — تحتاج ${lyd((totUsd-S.profile.wallet_balance)*rate())} إضافية.
+      <button style="color:var(--g);font-weight:800"
+        onclick="closeSheet();depositSheet()">إضافة رصيد</button></div>`}
+
+    <button class="btn lg wide" id="cPay" style="margin-top:16px" ${ok?'':'disabled'}>
+      تأكيد الشراء</button>
+    <button class="btn line wide" style="margin-top:9px"
+      onclick="closeSheet()">متابعة التسوق</button>`);
+
+  $$('[data-rm]').forEach(b=>b.onclick=()=>{
+    S.cart.splice(+b.dataset.rm,1);S.coupon=null;cartSheet();render()});
+  $$('[data-cq]').forEach(b=>b.onclick=()=>{
+    const [i,op]=b.dataset.cq.split(':');
+    const it=S.cart[+i];if(!it)return;
+    it.qty=Math.max(1,Math.min(20,it.qty+(op==='+'?1:-1)));
+    S.coupon=null;cartSheet();render();
+  });
+
+  onTap('#cpGo',async()=>{
+    const code=$('#cpIn').value.trim().toUpperCase();
+    if(!code){S.coupon=null;return cartSheet()}
+    const b=$('#cpGo');b.disabled=true;
+    try{
+      const r=await api('/api/coupon/check',{code,subtotal_lyd:cartTotal()});
+      S.coupon=r.coupon;toast('طُبّق الخصم '+lyd(r.coupon.off_lyd),'ok');cartSheet();
+    }catch(e){S.coupon=null;toast(e.message,'bad');b.disabled=false}
+  });
+
+  onTap('#cPay',async()=>{
+    const b=$('#cPay');
+    b.disabled=true;
+    b.innerHTML='<span class="sk" style="width:80px;height:14px;display:inline-block"></span>';
+    try{
+      const r=await api('/api/store/order',{
+        items:S.cart.map(i=>({id:i.id,qty:i.qty,values:i.values})),
+        coupon:S.coupon?S.coupon.code:'',
+        idempotency_key:crypto.randomUUID?crypto.randomUUID():'o'+Date.now()+Math.random()});
+      S.cart=[];S.coupon=null;closeSheet();orderDone(r.order);render();
+    }catch(e){
+      toast(e.message,'bad');b.disabled=false;b.textContent='تأكيد الشراء';
+    }
+  });
+}
+
+function orderDone(o){
+  const codes=(o.items||[]).filter(i=>i.codes&&i.codes.length);
+  sheet(`
+    <div style="text-align:center;margin-bottom:20px">
+      <div style="width:62px;height:62px;border-radius:19px;margin:0 auto 15px;
+           display:grid;place-items:center;
+           background:${o.status==='completed'?'var(--g-soft)':'var(--warn-soft)'};
+           color:${o.status==='completed'?'var(--g)':'var(--warn)'}">
+        ${svg(o.status==='completed'?I.check:I.clock,2.3).replace('<svg','<svg data-lg')}</div>
+      <div class="h2">${o.status==='completed'?'تم الطلب':'طلبك قيد التنفيذ'}</div>
+      <p class="sub" style="margin-top:5px">
+        ${o.status==='completed'?'استلم منتجاتك أدناه.'
+          :'ننفّذه خلال وقت قصير، وتتابع حالته من طلباتي.'}</p>
+    </div>
+    ${codes.length?`<div class="card-q" style="margin-bottom:14px">
+      ${codes.map(i=>i.codes.map(c=>`
+        <div class="cprow" style="margin-bottom:8px">
+          <div style="min-width:0"><div class="cpk">${esc(i.name)}</div>
+            <div class="cpv mono" dir="ltr">${esc(c)}</div></div>
+          <button class="cpi" data-cpc="${esc(c)}">${svg(I.copy,2)}</button>
+        </div>`).join('')).join('')}
+    </div>`:''}
+    <button class="btn wide" onclick="closeSheet();go('orders')">عرض طلباتي</button>
+    <button class="btn line wide" style="margin-top:9px" onclick="closeSheet()">حسنًا</button>`);
+  $$('[data-cpc]').forEach(b=>b.onclick=()=>copy(b.dataset.cpc,'الكود'));
+}
+
+/* ═══ Orders ═══ */
+const OST={completed:['ok','مكتملة'],pending:['wait','قيد التنفيذ'],
+  processing:['wait','قيد المعالجة'],rejected:['bad','ملغية']};
+
+function orderRow(o){
+  const st=OST[o.status]||['off','—'];
+  const c=(o.items||[]).length;
+  return `<div class="row" data-order="${esc(o.id)}">
+    <div class="row-i">${(o.items&&o.items[0]&&o.items[0].image)
+      ? `<img src="${esc(o.items[0].image)}" alt="">`:svg(I.bag)}</div>
+    <div class="row-b">
+      <div class="row-t">${esc((o.items&&o.items[0]&&o.items[0].name)||'طلب')}${
+        c>1?` +${c-1}`:''}</div>
+      <div class="row-s">${dt(o.created_at)}</div>
+    </div>
+    <div class="row-v">
+      <div class="row-a num">${lyd(o.total_lyd)}</div>
+      <span class="chip ${st[0]}" style="margin-top:3px">${st[1]}</span>
+    </div></div>`;
+}
+
+function vOrders(){
+  const F=[['all','الكل'],['pending','قيد التنفيذ'],
+           ['completed','مكتملة'],['rejected','ملغية']];
+  let rows=S.shopOrders;
+  if(S.filter!=='all')rows=rows.filter(o=>o.status===S.filter);
+
+  return `
+  <div class="h1" style="margin-bottom:5px">طلباتي</div>
+  <p class="sub" style="margin-bottom:14px">حالة كل طلب ومنتجاته.</p>
+
+  <div class="pills">
+    ${F.map(([k,t])=>`<button class="pill ${S.filter===k?'on':''}"
+      data-filter="${k}">${t}</button>`).join('')}
+  </div>
+
+  ${rows.length
+    ?`<div class="list">${rows.map(orderRow).join('')}</div>`
+    :`<div class="card"><div class="empty">
+        <div class="ei">${svg(I.bag,1.6)}</div>
+        <div class="et">لا طلبات بهذا التصنيف</div>
+        <p style="font-size:13px;margin-bottom:16px">تصفّح الأقسام وابدأ أول طلب.</p>
+        <button class="btn" data-act="shop">تصفّح المتجر</button></div></div>`}`;
+}
+
+function orderSheet(id){
+  const o=S.shopOrders.find(x=>x.id===id);
+  if(!o)return;
+  const st=OST[o.status]||['off','—'];
+  sheet(`
+    <div style="display:flex;justify-content:space-between;align-items:flex-start;
+         gap:11px;margin-bottom:16px">
+      <div><div class="h2">طلب ${esc(String(id).slice(-8))}</div>
+        <div class="row-s">${dt(o.created_at)}</div></div>
+      <span class="chip ${st[0]}">${st[1]}</span>
+    </div>
+
+    <div class="list" style="margin-bottom:14px">
+      ${(o.items||[]).map(i=>`
+        <div class="row">
+          <div class="row-i">${i.image
+            ? `<img src="${esc(i.image)}" alt="">`:svg(I.bag)}</div>
+          <div class="row-b">
+            <div class="row-t">${esc(i.name)}</div>
+            <div class="row-s">${i.qty} × ${lyd(i.price_lyd)}</div>
+            ${i.values&&Object.keys(i.values).length
+              ?`<div class="row-s mono" dir="ltr" style="opacity:.85">
+                 ${Object.values(i.values).map(esc).join(' · ')}</div>`:''}
+          </div>
+          <div class="num" style="font-size:13.5px">${lyd(i.line_lyd)}</div>
+        </div>`).join('')}
+    </div>
+
+    ${(o.items||[]).some(i=>i.codes&&i.codes.length)?`
+      <div class="lbl">الأكواد المسلّمة</div>
+      ${(o.items||[]).flatMap(i=>(i.codes||[]).map(c=>`
+        <div class="cprow" style="margin-bottom:8px">
+          <div style="min-width:0"><div class="cpk">${esc(i.name)}</div>
+            <div class="cpv mono" dir="ltr">${esc(c)}</div></div>
+          <button class="cpi" data-cpc="${esc(c)}">${svg(I.copy,2)}</button>
+        </div>`)).join('')}`:''}
+
+    ${o.delivery?`<div class="lbl" style="margin-top:8px">ملاحظة التنفيذ</div>
+      <div class="card-q"><p class="sub" style="font-size:13px;white-space:pre-line"
+        >${esc(o.delivery)}</p></div>`:''}
+
+    ${o.reject_reason?`<div class="note bad" style="margin-top:12px">
+      ${esc(o.reject_reason)} — أُعيد المبلغ إلى محفظتك.</div>`:''}
+
+    <div class="quote">
+      <div class="qrow tot"><span>الإجمالي</span>
+        <span class="num">${lyd(o.total_lyd)}</span></div>
+    </div>
+
+    <button class="btn line wide" style="margin-top:14px"
+      onclick="closeSheet()">إغلاق</button>`);
+  $$('[data-cpc]').forEach(b=>b.onclick=()=>copy(b.dataset.cpc,'الكود'));
+}
+window.orderSheet=orderSheet;
+
+/* ═══ Wallet ═══ */
+const DST={approved:['ok','مقبول'],pending:['wait','قيد المراجعة'],
+  rejected:['bad','مرفوض']};
+
+function vWallet(){
+  const inSum=S.deposits.filter(d=>d.status==='approved')
+    .reduce((t,d)=>t+n(d.amount_usd),0);
+  const outSum=n(S.profile.total_spent);
+
+  return `
+  <div class="wallet">
+    <div class="wallet-top">
+      <div>
+        <div class="eyebrow">الرصيد المتاح</div>
+        <div class="wallet-bal num">${lyd(S.profile.wallet_balance*rate())}</div>
+        <div class="wallet-sub">${usd(S.profile.wallet_balance)}</div>
+      </div>
+      <div class="wallet-ico">${svg(I.wallet,1.9)}</div>
+    </div>
+    <div class="wacts">
+      ${[['deposit',I.up,'إضافة رصيد',true],
+         ['withdraw',I.down,'سحب',(S.config.withdraw||{}).on],
+         ['transfer',I.swap,'تحويل',(S.config.transfer||{}).on],
+         ['points',I.star,'نقاطي',(S.config.points||{}).on]]
+        .map(([k,ic,t,on])=>`
+          <button class="wact ${k==='deposit'?'pri':''} ${on?'':'off'}"
+                  data-wact="${k}">
+            <span class="wact-i">${svg(ic,2)}</span>
+            <span>${t}</span></button>`).join('')}
+    </div>
+  </div>
+
+  <div class="stats">
+    <div class="stat"><div class="v num">${lyd(inSum*rate())}</div>
+      <div class="k">إجمالي الإيداعات</div></div>
+    <div class="stat"><div class="v num">${lyd(outSum*rate())}</div>
+      <div class="k">إجمالي المصروفات</div></div>
+    <div class="stat"><div class="v num">${S.deposits.length}</div>
+      <div class="k">عملية</div></div>
+  </div>
+
+  ${S.withdrawals.length?`
+    <div class="sec-head"><div class="h2">طلبات السحب</div></div>
+    <div class="list" style="margin-bottom:6px">
+      ${S.withdrawals.map(w=>{
+        const st={completed:['ok','نُفّذ'],pending:['wait','قيد التنفيذ'],
+          rejected:['bad','مرفوض']}[w.status]||['off','—'];
+        return `<div class="row">
+          <div class="row-i">${svg(I.down)}</div>
+          <div class="row-b">
+            <div class="row-t num">${usd(w.amount_usd)}
+              <span style="font-weight:400;color:var(--tx-3);font-size:12px"
+                > · ${esc(w.method||'')}</span></div>
+            <div class="row-s">${dt(w.created_at)}${
+              w.reject_reason?` · <span style="color:var(--bad)">${esc(w.reject_reason)}</span>`:''}</div>
+          </div>
+          <span class="chip ${st[0]}">${st[1]}</span></div>`}).join('')}
+    </div>`:''}
+
+  <div class="sec-head"><div class="h2">سجل الإيداعات</div></div>
+  ${S.deposits.length?`<div class="list">${S.deposits.map(d=>{
+    const st=DST[d.status]||['off','—'];
+    return `<div class="row">
+      <div class="row-i" ${d.status==='approved'
+        ?'style="color:var(--g);background:var(--g-soft)"':''}>${svg(I.up)}</div>
+      <div class="row-b">
+        <div class="row-t num">${lyd(n(d.amount_usd)*rate())}
+          <span style="font-weight:400;color:var(--tx-3);font-size:12px"
+            > · ${esc(d.method||'—')}</span></div>
+        <div class="row-s">${dt(d.created_at)}${
+          d.reject_reason?` · <span style="color:var(--bad)">${esc(d.reject_reason)}</span>`:''}</div>
+      </div>
+      <span class="chip ${st[0]}">${st[1]}</span></div>`}).join('')}</div>`
+   :`<div class="card"><div class="empty">
+      <div class="ei">${svg(I.wallet,1.6)}</div>
+      <div class="et">لا إيداعات بعد</div>
+      <p style="font-size:13px;margin-bottom:16px">أضف رصيدًا لتبدأ الشراء.</p>
+      <button class="btn" data-act="deposit">إضافة رصيد</button></div></div>`}`;
+}
+
+/* ═══ Deposit ═══ */
+function depositSheet(){
+  const M=S.config.methods||{};
+  const order=String(S.config.method_order||'libyana,almadar,usdt,bank,binance')
+    .split(',').map(x=>x.trim()).filter(Boolean);
+  const all=Object.keys(M);
+  const seq=[...order.filter(k=>all.includes(k)),...all.filter(k=>!order.includes(k))];
+  const list=seq.map(k=>({k,...(M[k]||{})})).filter(m=>m.on);
+
+  if(!list.length)return sheet(`
+    <div class="h2" style="margin-bottom:10px">إضافة رصيد</div>
+    <div class="note">طرق الدفع متوقفة مؤقتًا — تواصل مع الدعم.</div>
+    <button class="btn line wide" onclick="closeSheet()">حسنًا</button>`);
+
+  if(list.length===1)return methodSheet(list[0].k);
+
+  sheet(`
+    <div class="h2" style="margin-bottom:4px">إضافة رصيد</div>
+    <p class="sub" style="margin-bottom:16px">اختر طريقة التحويل.</p>
+    <div class="menu">
+      ${list.map((m,i)=>`
+        <button class="mrow" style="animation-delay:${i*.04}s" data-pick="${m.k}">
+          <span class="mrow-i" style="overflow:hidden">${m.logo
+            ? `<img src="${esc(m.logo)}" alt="" style="width:100%;height:100%;object-fit:cover">`
+            : svg(I.wallet)}</span>
+          <span style="flex:1;min-width:0;text-align:start">
+            <span class="mrow-t" style="display:block">${esc(m.label||m.k)}</span>
+            <span style="font-size:11px;color:var(--tx-3)">${
+              m.auto?'يُضاف فورًا':'مراجعة يدوية'}</span>
+          </span>
+          <span class="chip ${m.auto?'ok':'off'}">${m.auto?'تلقائي':'يدوي'}</span>
+        </button>`).join('')}
+    </div>
+    <button class="btn line wide" style="margin-top:14px"
+      onclick="closeSheet()">إلغاء</button>`);
+
+  $$('[data-pick]').forEach(b=>b.onclick=()=>methodSheet(b.dataset.pick));
+}
+
+function methodSheet(k){
+  const M=S.config.methods||{};
+  const m=M[k]||{};
+  if(m.invoice)return usdtSheet(k);
+
+  const auto=!!m.auto;
+  const r=m.rate||rate();
+  const dp=m.phone||S.config.deposit_phone||'';
+  const note=S.config.deposit_note||'';
+  const fields=(m.fields||[]).filter(f=>f&&f.value);
+  const many=Object.keys(M).filter(x=>M[x]&&M[x].on).length>1;
+  let proof=null;
+
+  sheet(`
+    <div class="sheet-head">
+      ${many?`<button class="iconbtn" id="mBack">${svg(I.next,2.2)}</button>`:'<span></span>'}
+      <div class="row-i" style="width:40px;height:40px;overflow:hidden">
+        ${m.logo?`<img src="${esc(m.logo)}" alt="">`:svg(I.wallet)}</div>
+      <div style="min-width:0;flex:1">
+        <div class="h2" style="font-size:15.5px">${esc(m.label||k)}</div>
+        <div style="font-size:11.5px;color:${auto?'var(--g)':'var(--tx-3)'}">
+          ${auto?'يُضاف الرصيد خلال ثوانٍ':'نراجع الإيصال ثم نضيف الرصيد'}</div>
+      </div>
+    </div>
+
+    ${auto&&dp?`
+      <div class="cprow" id="cpP" style="margin-bottom:14px">
+        <div style="min-width:0">
+          <div class="cpk">رقم التحويل — ممنوع الاتصال</div>
+          <div class="cpv mono" dir="ltr" style="font-size:19px">${esc(dp)}</div>
+        </div>
+        <span class="cpi">${svg(I.copy,2)}</span>
+      </div>`:''}
+
+    ${!auto&&fields.length?`
+      <div class="card-q" style="margin-bottom:14px">
+        ${fields.map((f,i)=>`
+          <div class="cprow" style="margin-bottom:${i<fields.length-1?'8px':'0'};
+               ${f.copy?'':'pointer-events:none'}"
+               ${f.copy?`data-cpf="${i}"`:''}>
+            <div style="min-width:0">
+              <div class="cpk">${esc(f.label)}</div>
+              <div class="cpv ${f.copy?'mono':''}" ${f.copy?'dir="ltr"':''}
+                >${esc(f.value)}</div>
+            </div>
+            ${f.copy?`<span class="cpi">${svg(I.copy,2)}</span>`:''}
+          </div>`).join('')}
+      </div>`:''}
+
+    ${note?`<div class="note">${esc(note)}</div>`:''}
+
+    ${auto?`
+      <label class="lbl">رقمك الذي حوّلت منه</label>
+      <input class="inp num" id="cP" type="tel" inputmode="numeric"
+             placeholder="912345678" dir="ltr" maxlength="13"
+             value="${esc(S.profile.phone||'')}">
+      <p class="sub" style="font-size:12px;margin-top:6px">اكتب رقمك بدون الصفر</p>`:''}
+
+    <label class="lbl" style="margin-top:${auto?'16px':'0'}">
+      المبلغ الذي أرسلته (بالدينار)</label>
+    <input class="inp num" id="cA" type="number" inputmode="decimal"
+           step="0.001" min="1" placeholder="118">
+
+    <div class="amts" style="margin-top:10px">
+      ${[50,100,200,500].map(v=>`<button class="amt" data-qa="${v}">${v}</button>`).join('')}
+    </div>
+
+    ${!auto?`
+      <label class="lbl" style="margin-top:16px">صورة إثبات التحويل</label>
+      <label class="cprow" id="dropZone" style="cursor:pointer">
+        <input type="file" id="proofFile" accept="image/*" hidden>
+        <div id="dropIn" style="flex:1;text-align:center;padding:12px 0">
+          ${svg(I.up,1.7)}
+          <div style="font-size:13px;font-weight:700;margin-top:7px">اختر صورة الإيصال</div>
+          <div style="font-size:11.5px;color:var(--tx-3);margin-top:2px">
+            تُضغط تلقائيًا قبل الإرسال</div>
+        </div>
+      </label>`:''}
+
+    <div id="cQ"></div>
+    <button class="btn lg wide" id="cG" style="margin-top:16px">تأكيد التحويل</button>
+    <p class="sub" style="font-size:11.5px;text-align:center;margin-top:11px">
+      ${auto?'إن لم تصل رسالة التحويل بعد، يبقى طلبك معلّقًا ويُضاف الرصيد فور وصولها.'
+             :'يظهر الرصيد في محفظتك بعد مراجعة الإيصال.'}</p>
+    <button class="btn line wide" style="margin-top:9px"
+      onclick="closeSheet()">إلغاء</button>`);
+
+  onTap('#mBack',()=>depositSheet());
+  onTap('#cpP',()=>copy(dp,'رقم التحويل'));
+  $$('[data-cpf]').forEach(b=>{
+    const f=fields[+b.dataset.cpf];
+    if(f)b.onclick=()=>copy(f.value,f.label);
+  });
+  $$('[data-qa]').forEach(b=>b.onclick=()=>{
+    $('#cA').value=b.dataset.qa;
+    $$('[data-qa]').forEach(x=>x.classList.toggle('on',x===b));
+    calc();
+  });
+
+  const fileEl=$('#proofFile'),zone=$('#dropZone');
+  if(fileEl)fileEl.onchange=e=>{
+    const f=e.target.files[0];if(!f)return;
+    if(!f.type.startsWith('image/'))return toast('اختر ملف صورة','bad');
+    if(f.size>12*1024*1024)return toast('الصورة أكبر من 12 ميجابايت','bad');
+    proof=f;
+    zone.style.borderColor='var(--g)';
+    $('#dropIn').innerHTML=`<img src="${URL.createObjectURL(f)}" alt=""
+      style="max-height:130px;border-radius:10px;margin:0 auto">
+      <div style="font-size:11.5px;color:var(--g);margin-top:8px;font-weight:700">
+        ${esc(f.name.slice(0,30))} — اضغط للتغيير</div>`;
+  };
+
+  function calc(){
+    const a=parseFloat($('#cA').value),box=$('#cQ');
+    if(!box)return;
+    if(!(a>0)){box.innerHTML='';return}
+    box.innerHTML=`<div class="quote">
+      <div class="qrow"><span class="k">المبلغ المحوّل</span>
+        <span class="num">${lyd(a)}</span></div>
+      <div class="qrow"><span class="k">سعر الصرف</span>
+        <span class="num">${r} د.ل</span></div>
+      <div class="qrow tot"><span>سيُضاف لمحفظتك</span>
+        <span class="num">${usd(a/r)}</span></div></div>`;
+  }
+  $('#cA').oninput=()=>{$$('[data-qa]').forEach(x=>x.classList.remove('on'));calc()};
+
+  onTap('#cG',async()=>{
+    const amt=parseFloat($('#cA').value);
+    if(!(amt>0))return toast('اكتب المبلغ الذي حوّلته','bad');
+    const phone=auto?$('#cP').value.trim():'';
+    if(auto&&phone.replace(/\D/g,'').length<9)return toast('اكتب رقمك كاملاً','bad');
+    if(!auto&&!proof)return toast('أرفق صورة إثبات التحويل','bad');
+
+    const btn=$('#cG');
+    btn.disabled=true;
+    btn.innerHTML='<span class="sk" style="width:84px;height:14px;display:inline-block"></span>';
+    try{
+      let proofUrl='';
+      if(!auto&&proof)proofUrl=await compressProof(proof);
+      const res=auto
+        ? await api('/api/wallet/claim',{phone,amount_lyd:amt,method:k})
+        : await manualDeposit(k,amt,proofUrl);
+      closeSheet();
+      depositResult(auto&&!!res.matched,amt/r,auto);
+      render();
+    }catch(e){
+      toast(e.message,'bad');btn.disabled=false;btn.textContent='تأكيد التحويل';
+    }
+  });
+}
+
+function compressProof(file,maxW=900,quality=.55){
+  return new Promise((resolve,reject)=>{
+    const r=new FileReader();
+    r.onerror=()=>reject(new Error('تعذّرت قراءة الصورة'));
+    r.onload=()=>{
+      const img=new Image();
+      img.onerror=()=>reject(new Error('الملف ليس صورة صالحة'));
+      img.onload=()=>{
+        const s=Math.min(1,maxW/img.width);
+        const w=Math.round(img.width*s),h=Math.round(img.height*s);
+        const cv=document.createElement('canvas');
+        cv.width=w;cv.height=h;
+        const cx=cv.getContext('2d');
+        cx.fillStyle='#fff';cx.fillRect(0,0,w,h);
+        cx.drawImage(img,0,0,w,h);
+        let q=quality,out=cv.toDataURL('image/jpeg',q);
+        while(out.length>700000&&q>.2){q-=.1;out=cv.toDataURL('image/jpeg',q)}
+        if(out.length>900000)return reject(new Error('الصورة كبيرة جدًا'));
+        resolve(out);
+      };
+      img.src=r.result;
+    };
+    r.readAsDataURL(file);
+  });
+}
+
+async function manualDeposit(method,amountLyd,proofUrl){
+  const M=S.config.methods||{};
+  const r=(M[method]&&M[method].rate)||1;
+  await addDoc(collection(db,'wallet_deposits'),{
+    uid:S.user.uid,
+    amount_usd:Math.round((amountLyd/r)*100)/100,
+    amount_lyd:amountLyd,
+    method:(M[method]&&M[method].label)||method,
+    proof_url:proofUrl||'',note:'',status:'pending',
+    created_at:new Date().toISOString()});
+  return {matched:false};
+}
+
+function depositResult(matched,amount,auto=true){
+  const wait=!matched;
+  sheet(`
+    <div style="text-align:center;margin-bottom:22px">
+      <div style="width:62px;height:62px;border-radius:19px;margin:0 auto 15px;
+           display:grid;place-items:center;
+           background:${wait?'var(--warn-soft)':'var(--g-soft)'};
+           color:${wait?'var(--warn)':'var(--g)'}">
+        ${svg(wait?I.clock:I.check,2.3).replace('<svg','<svg data-lg')}</div>
+      <div class="h2">${matched?'أُضيف الرصيد'
+        :auto?'طلبك قيد الانتظار':'وصل إيصالك'}</div>
+      <p class="sub" style="margin-top:5px">
+        ${matched?'أُضيف '+usd(amount)+' إلى محفظتك.'
+          :auto?'لم تصل رسالة التحويل بعد. سيُضاف '+usd(amount)+' فور وصولها.'
+               :'سنراجعه ونضيف '+usd(amount)+' إلى محفظتك.'}</p>
+    </div>
+    ${matched?`<button class="btn wide"
+      onclick="closeSheet();go('shop')">تسوّق الآن</button>`
+     :`<button class="btn wide" onclick="closeSheet();go('wallet')">متابعة الطلب</button>`}
+    <button class="btn line wide" style="margin-top:9px" onclick="closeSheet()">حسنًا</button>`);
+}
+
+/* ═══ USDT invoice ═══ */
+function usdtSheet(k){
+  const m=(S.config.methods||{})[k]||{};
+  const mn=m.min||5,mx=m.max||1000;
+  sheet(`
+    <div class="sheet-head">
+      <button class="iconbtn" id="mBack">${svg(I.next,2.2)}</button>
+      <div class="row-i" style="width:40px;height:40px;overflow:hidden">
+        ${m.logo?`<img src="${esc(m.logo)}" alt="">`:svg(I.wallet)}</div>
+      <div><div class="h2" style="font-size:15.5px">${esc(m.label||'USDT')}</div>
+        <div style="font-size:11.5px;color:var(--g)">يُضاف فور تأكيد الشبكة</div></div>
+    </div>
+    <div class="note">حوّل على شبكة <strong>TRC20</strong> فقط.
+      أي شبكة أخرى تعني ضياع المبلغ.</div>
+    <label class="lbl">المبلغ بالدولار — من ${mn} إلى ${mx}</label>
+    <input class="inp num" id="uA" type="number" inputmode="decimal"
+           step="0.01" min="${mn}" max="${mx}" placeholder="10">
+    <p class="sub" style="font-size:12px;margin-top:7px">
+      سنعطيك مبلغًا بكسور مميّزة لتمييز تحويلك — حوّله كما هو بالضبط.</p>
+    <button class="btn lg wide" id="uGo" style="margin-top:18px">إنشاء فاتورة</button>
+    <button class="btn line wide" style="margin-top:9px"
+      onclick="closeSheet()">إلغاء</button>`);
+
+  onTap('#mBack',()=>depositSheet());
+  onTap('#uGo',async()=>{
+    const a=parseFloat($('#uA').value);
+    if(!(a>=mn&&a<=mx))return toast(`المبلغ بين ${mn} و ${mx}`,'bad');
+    const b=$('#uGo');
+    b.disabled=true;
+    b.innerHTML='<span class="sk" style="width:80px;height:14px;display:inline-block"></span>';
+    try{
+      const r=await api('/api/wallet/usdt/invoice',{amount_usd:a});
+      invoiceSheet(r.invoice);
+    }catch(e){toast(e.message,'bad');b.disabled=false;b.textContent='إنشاء فاتورة'}
+  });
+}
+
+function invoiceSheet(inv){
+  clearInterval(_invTimer);clearInterval(_invPoll);
+  try{localStorage.setItem('kardo_inv',JSON.stringify(inv))}catch{}
+
+  sheet(`
+    <div style="text-align:center;margin-bottom:16px">
+      <div class="eyebrow">فاتورة ${esc(String(inv.id).slice(-8))}</div>
+      <div id="invClock" class="num"
+        style="font-size:13px;color:var(--warn);margin-top:7px"></div>
+    </div>
+
+    <div class="cprow" id="cpAmt" style="padding:17px 15px">
+      <div style="min-width:0">
+        <div class="cpk">المبلغ — انسخه ولا تكتبه</div>
+        <div class="num" dir="ltr" style="font-size:30px;line-height:1.15;margin-top:2px"
+          >${inv.pay_amount}</div>
+        <div class="sub" style="font-size:11.5px;margin-top:3px">USDT</div>
+      </div>
+      <span class="cpi">${svg(I.copy,2)}</span>
+    </div>
+
+    <div class="cprow" id="cpAdr" style="margin-top:9px">
+      <div style="min-width:0">
+        <div class="cpk">عنوان الاستقبال</div>
+        <div class="cpv mono" dir="ltr" style="font-size:12px">${esc(inv.address)}</div>
+      </div>
+      <span class="cpi">${svg(I.copy,2)}</span>
+    </div>
+
+    <div class="card-q" style="margin-top:9px;display:flex;
+         justify-content:space-between;align-items:center">
+      <div><div class="cpk">الشبكة</div><div class="cpv">TRC20 (Tron)</div></div>
+      <span class="chip ok">مطلوبة</span>
+    </div>
+
+    <div class="note" style="margin-top:12px">
+      انسخ المبلغ كما هو — الكسور تميّز تحويلك وتُضاف لرصيدك كاملة.</div>
+
+    <div id="invMsg"></div>
+    <div class="autochk"><i></i> نتابع الشبكة تلقائيًا…</div>
+    <button class="btn wide" id="uChk" style="margin-top:10px">تحققت من التحويل</button>
+    <button class="btn line wide" style="margin-top:9px"
+      onclick="closeInvoice()">إغلاق</button>`);
+
+  const done=r=>{
+    clearInterval(_invTimer);clearInterval(_invPoll);
+    try{localStorage.removeItem('kardo_inv')}catch{}
+    closeSheet();depositResult(true,r.credited||inv.amount_usd);render();
+  };
+
+  onTap('#cpAmt',()=>copy(String(inv.pay_amount),'المبلغ'));
+  onTap('#cpAdr',()=>copy(inv.address,'العنوان'));
+
+  const tick=()=>{
+    const left=inv.expires_ms-Date.now();
+    const el=$('#invClock');
+    if(!el){clearInterval(_invTimer);return}
+    if(left<=0){
+      el.textContent='انتهت المهلة';el.style.color='var(--bad)';
+      const b=$('#uChk');if(b){b.disabled=true;b.textContent='انتهت المهلة'}
+      clearInterval(_invTimer);clearInterval(_invPoll);
+      try{localStorage.removeItem('kardo_inv')}catch{}
+      return;
+    }
+    const mm=String(Math.floor(left/60000)).padStart(2,'0');
+    const ss=String(Math.floor(left%60000/1000)).padStart(2,'0');
+    el.textContent=`تنتهي خلال ${mm}:${ss}`;
+  };
+  tick();
+  _invTimer=setInterval(tick,1000);
+
+  let busy=false;
+  _invPoll=setInterval(async()=>{
+    if(busy||!$('#uChk'))return;
+    busy=true;
+    try{
+      const r=await api('/api/wallet/usdt/verify',{invoice_id:inv.id});
+      if(r.paid)return done(r);
+    }catch{}
+    busy=false;
+  },15000);
+
+  onTap('#uChk',async()=>{
+    const b=$('#uChk'),msg=$('#invMsg');
+    b.disabled=true;
+    b.innerHTML='<span class="sk" style="width:90px;height:14px;display:inline-block"></span>';
+    msg.innerHTML='';
+    try{
+      const r=await api('/api/wallet/usdt/verify',{invoice_id:inv.id});
+      if(r.paid)return done(r);
+      msg.innerHTML=`<div class="note" style="margin-top:14px">${
+        r.duplicate?'هذا التحويل مُستخدم بالفعل.'
+        :'لم يصل التحويل بعد. الشبكة تحتاج دقيقة — سنتابع تلقائيًا.'}</div>`;
+    }catch(e){
+      msg.innerHTML=`<div class="note bad" style="margin-top:14px">${esc(e.message)}</div>`;
+    }
+    b.disabled=false;b.textContent='تحققت من التحويل';
+  });
+}
+window.closeInvoice=()=>{clearInterval(_invTimer);clearInterval(_invPoll);closeSheet()};
+
+function resumeInvoice(){
+  let inv=null;
+  try{inv=JSON.parse(localStorage.getItem('kardo_inv')||'null')}catch{}
+  if(!inv||!inv.id)return;
+  if(Date.now()>=inv.expires_ms){
+    try{localStorage.removeItem('kardo_inv')}catch{}
+    return;
+  }
+  invoiceSheet(inv);
+}
+
+/* ═══ Withdraw · Transfer · Points ═══ */
+function withdrawSheet(){
+  const w=S.config.withdraw||{};
+  if(!w.on)return sheet(`
+    <div class="h2" style="margin-bottom:10px">سحب رصيد</div>
+    <div class="note">السحب غير متاح حاليًا.</div>
+    <button class="btn line wide" onclick="closeSheet()">حسنًا</button>`);
+
+  const methods=w.methods||['ليبيانا'];
+  sheet(`
+    <div class="h2" style="margin-bottom:4px">سحب رصيد</div>
+    <p class="sub" style="margin-bottom:16px">
+      رصيدك ${lyd(S.profile.wallet_balance*rate())} · الحد ${w.min}$–${w.max}$</p>
+
+    <label class="lbl">طريقة السحب</label>
+    <select class="inp" id="wdM">
+      ${methods.map(m=>`<option>${esc(m)}</option>`).join('')}
+    </select>
+
+    <label class="lbl" style="margin-top:14px">الوجهة</label>
+    <input class="inp" id="wdD" placeholder="رقم الهاتف أو الحساب أو العنوان" dir="ltr">
+
+    <label class="lbl" style="margin-top:14px">المبلغ بالدولار</label>
+    <input class="inp num" id="wdA" type="number" inputmode="decimal"
+           step="0.5" min="${w.min}" max="${w.max}" placeholder="${w.min}">
+
+    <div id="wdQ"></div>
+    <button class="btn lg wide" id="wdGo" style="margin-top:16px">طلب السحب</button>
+    <p class="sub" style="font-size:11.5px;text-align:center;margin-top:11px">
+      يُخصم المبلغ فورًا ويُحجز حتى التنفيذ. وإن رُفض الطلب يعود كاملًا.</p>
+    <button class="btn line wide" style="margin-top:9px" onclick="closeSheet()">إلغاء</button>`);
+
+  const calc=()=>{
+    const a=parseFloat($('#wdA').value),box=$('#wdQ');
+    if(!(a>0)){box.innerHTML='';return}
+    const fee=n(w.fee_fixed)+a*n(w.fee_pct)/100;
+    const net=a-fee;
+    box.innerHTML=`<div class="quote">
+      <div class="qrow"><span class="k">المبلغ</span><span class="num">${usd(a)}</span></div>
+      <div class="qrow"><span class="k">الرسوم</span><span class="num">${usd(fee)}</span></div>
+      <div class="qrow tot"><span>ستستلم</span>
+        <span class="num" style="color:${net>0?'var(--g)':'var(--bad)'}">${usd(net)}</span></div>
+    </div>`;
+  };
+  $('#wdA').oninput=calc;
+
+  onTap('#wdGo',async()=>{
+    const b=$('#wdGo');
+    const a=parseFloat($('#wdA').value);
+    const d=$('#wdD').value.trim();
+    if(!(a>0))return toast('أدخل المبلغ','bad');
+    if(!d)return toast('أدخل وجهة السحب','bad');
+    b.disabled=true;
+    b.innerHTML='<span class="sk" style="width:70px;height:14px;display:inline-block"></span>';
+    try{
+      const r=await api('/api/wallet/withdraw',
+        {amount_usd:a,method:$('#wdM').value,destination:d});
+      closeSheet();
+      sheet(`<div style="text-align:center;margin-bottom:20px">
+        <div style="width:62px;height:62px;border-radius:19px;margin:0 auto 15px;
+             display:grid;place-items:center;background:var(--warn-soft);color:var(--warn)">
+          ${svg(I.clock,2.3).replace('<svg','<svg data-lg')}</div>
+        <div class="h2">وصل طلب السحب</div>
+        <p class="sub" style="margin-top:5px">
+          سننفّذه قريبًا وستستلم ${usd(r.net)}.</p></div>
+        <button class="btn wide" onclick="closeSheet();go('wallet')">متابعة الطلب</button>`);
+      render();
+    }catch(e){toast(e.message,'bad');b.disabled=false;b.textContent='طلب السحب'}
+  });
+}
+
+function transferSheet(){
+  const t=S.config.transfer||{};
+  if(!t.on)return sheet(`
+    <div class="h2" style="margin-bottom:10px">تحويل رصيد</div>
+    <div class="note">التحويل غير متاح حاليًا.</div>
+    <button class="btn line wide" onclick="closeSheet()">حسنًا</button>`);
+
+  sheet(`
+    <div class="h2" style="margin-bottom:4px">تحويل رصيد</div>
+    <p class="sub" style="margin-bottom:16px">
+      أرسل رصيدًا لمستخدم آخر في كاردو فورًا.</p>
+
+    <label class="lbl">المستلم</label>
+    <input class="inp" id="trTo" placeholder="بريده أو رقم هاتفه" dir="ltr">
+
+    <label class="lbl" style="margin-top:14px">المبلغ بالدولار</label>
+    <input class="inp num" id="trA" type="number" inputmode="decimal"
+           step="0.5" min="${t.min}" placeholder="${t.min}">
+
+    <div id="trQ"></div>
+    <button class="btn lg wide" id="trGo" style="margin-top:16px">تحويل</button>
+    <p class="sub" style="font-size:11.5px;text-align:center;margin-top:11px">
+      تأكد من بيانات المستلم — التحويل فوري ولا يمكن التراجع عنه.</p>
+    <button class="btn line wide" style="margin-top:9px" onclick="closeSheet()">إلغاء</button>`);
+
+  const calc=()=>{
+    const a=parseFloat($('#trA').value),box=$('#trQ');
+    if(!(a>0)){box.innerHTML='';return}
+    const fee=a*n(t.fee_pct)/100;
+    box.innerHTML=`<div class="quote">
+      <div class="qrow"><span class="k">يصل المستلم</span><span class="num">${usd(a)}</span></div>
+      ${fee>0?`<div class="qrow"><span class="k">الرسوم</span>
+        <span class="num">${usd(fee)}</span></div>`:''}
+      <div class="qrow tot"><span>يُخصم منك</span><span class="num">${usd(a+fee)}</span></div>
+    </div>`;
+  };
+  $('#trA').oninput=calc;
+
+  onTap('#trGo',async()=>{
+    const b=$('#trGo');
+    const a=parseFloat($('#trA').value),to=$('#trTo').value.trim();
+    if(!to)return toast('أدخل بيانات المستلم','bad');
+    if(!(a>0))return toast('أدخل المبلغ','bad');
+    b.disabled=true;
+    b.innerHTML='<span class="sk" style="width:60px;height:14px;display:inline-block"></span>';
+    try{
+      const r=await api('/api/wallet/transfer',{to,amount_usd:a});
+      closeSheet();toast('حُوّل '+usd(r.amount)+' بنجاح','ok');render();
+    }catch(e){toast(e.message,'bad');b.disabled=false;b.textContent='تحويل'}
+  });
+}
+
+function pointsSheet(){
+  const p=S.config.points||{};
+  const have=n(S.profile.points);
+  if(!p.on)return sheet(`
+    <div class="h2" style="margin-bottom:10px">النقاط</div>
+    <div class="note">نظام النقاط غير مفعّل حاليًا.</div>
+    <button class="btn line wide" onclick="closeSheet()">حسنًا</button>`);
+
+  sheet(`
+    <div style="text-align:center;margin-bottom:18px">
+      <div style="width:60px;height:60px;border-radius:19px;margin:0 auto 13px;
+           display:grid;place-items:center;background:var(--g-soft);color:var(--g)">
+        ${svg(I.star,2).replace('<svg','<svg data-lg')}</div>
+      <div class="num" style="font-size:34px">${have.toLocaleString('en-US')}</div>
+      <div class="sub">نقطة · تساوي ${lyd(have*n(p.value_lyd))}</div>
+    </div>
+
+    <div class="card-q" style="margin-bottom:14px">
+      <p class="sub" style="font-size:12.5px;line-height:1.7">
+        تكسب ${p.per_lyd} نقطة عن كل دينار تنفقه.
+        الحد الأدنى للاستبدال ${p.min_redeem} نقطة.</p>
+    </div>
+
+    <label class="lbl">عدد النقاط للاستبدال</label>
+    <input class="inp num" id="ptA" type="number" min="${p.min_redeem}"
+           max="${have}" placeholder="${p.min_redeem}">
+    <div id="ptQ"></div>
+
+    <button class="btn lg wide" id="ptGo" style="margin-top:16px"
+      ${have>=n(p.min_redeem)?'':'disabled'}>
+      ${have>=n(p.min_redeem)?'استبدال':'نقاطك غير كافية'}</button>
+    <button class="btn line wide" style="margin-top:9px" onclick="closeSheet()">إغلاق</button>`);
+
+  $('#ptA').oninput=e=>{
+    const v=Math.floor(n(e.target.value)),box=$('#ptQ');
+    if(!(v>0)){box.innerHTML='';return}
+    box.innerHTML=`<div class="quote">
+      <div class="qrow tot"><span>سيُضاف لمحفظتك</span>
+        <span class="num">${lyd(v*n(p.value_lyd))}</span></div></div>`;
+  };
+
+  onTap('#ptGo',async()=>{
+    const b=$('#ptGo');
+    const v=Math.floor(n($('#ptA').value));
+    if(v<n(p.min_redeem))return toast(`الحد الأدنى ${p.min_redeem} نقطة`,'bad');
+    b.disabled=true;
+    try{
+      const r=await api('/api/points/redeem',{points:v});
+      closeSheet();toast('أُضيف '+usd(r.credited)+' إلى محفظتك','ok');render();
+    }catch(e){toast(e.message,'bad');b.disabled=false}
+  });
+}
+
+/* ═══ Support tickets ═══ */
+const TST={open:['wait','مفتوحة'],answered:['ok','تم الرد'],closed:['off','مغلقة']};
+
+function vTickets(){
+  if(!S.config.tickets_on)return `
+    <div class="h1" style="margin-bottom:18px">الدعم</div>
+    <div class="card"><div class="empty">
+      <div class="ei">${svg(I.help,1.6)}</div>
+      <div class="et">غير متاح حاليًا</div></div></div>`;
+
+  const sup=(S.config.texts||{}).support_url||'';
+  return `
+  <div class="h1" style="margin-bottom:5px">الدعم</div>
+  <p class="sub" style="margin-bottom:16px">افتح تذكرة وسنرد عليك هنا.</p>
+
+  <button class="btn wide" id="newTic" style="margin-bottom:16px">
+    ${svg(I.plus2,2.1)} تذكرة جديدة</button>
+
+  ${S.tickets.length?`<div class="list">${S.tickets.map(t=>{
+    const st=TST[t.status]||['off','—'];
+    const last=(t.messages||[]).slice(-1)[0];
+    return `<div class="row" data-tic="${esc(t.id)}">
+      <div class="row-i">${svg(I.help)}</div>
+      <div class="row-b">
+        <div class="row-t">${esc(t.subject)}</div>
+        <div class="row-s">${last?esc(String(last.text).slice(0,44)):''}</div>
+      </div>
+      <div class="row-v">
+        <span class="chip ${st[0]}">${st[1]}</span>
+        <div class="row-s" style="margin-top:3px">${dt(t.updated_at)}</div>
+      </div></div>`}).join('')}</div>`
+   :`<div class="card"><div class="empty">
+      <div class="ei">${svg(I.help,1.6)}</div>
+      <div class="et">لا تذاكر</div>
+      <p style="font-size:13px">افتح تذكرة إن واجهت أي مشكلة.</p></div></div>`}
+
+  ${sup?`<button class="btn line wide" style="margin-top:16px"
+    onclick="window.open('${esc(sup.startsWith('http')?sup:'https://wa.me/'+sup)}','_blank')">
+    أو تواصل عبر واتساب</button>`:''}`;
+}
+
+function newTicketSheet(){
+  sheet(`
+    <div class="h2" style="margin-bottom:16px">تذكرة جديدة</div>
+    <label class="lbl">الموضوع</label>
+    <input class="inp" id="tcS" placeholder="مشكلة في طلب" maxlength="120">
+    <label class="lbl" style="margin-top:14px">رقم الطلب (اختياري)</label>
+    <input class="inp mono" id="tcO" placeholder="ORD…" dir="ltr">
+    <label class="lbl" style="margin-top:14px">رسالتك</label>
+    <textarea class="inp" id="tcM" rows="5" placeholder="اشرح المشكلة بالتفصيل"></textarea>
+    <button class="btn lg wide" id="tcGo" style="margin-top:16px">إرسال</button>
+    <button class="btn line wide" style="margin-top:9px" onclick="closeSheet()">إلغاء</button>`);
+
+  onTap('#tcGo',async()=>{
+    const b=$('#tcGo');
+    const s=$('#tcS').value.trim(),m=$('#tcM').value.trim();
+    if(!s)return toast('اكتب الموضوع','bad');
+    if(!m)return toast('اكتب رسالتك','bad');
+    b.disabled=true;
+    b.innerHTML='<span class="sk" style="width:60px;height:14px;display:inline-block"></span>';
+    try{
+      await api('/api/ticket/create',
+        {subject:s,message:m,order_id:$('#tcO').value.trim()});
+      closeSheet();toast('أُرسلت التذكرة','ok');render();
+    }catch(e){toast(e.message,'bad');b.disabled=false;b.textContent='إرسال'}
+  });
+}
+
+function ticketSheet(id){
+  const t=S.tickets.find(x=>x.id===id);
+  if(!t)return;
+  const st=TST[t.status]||['off','—'];
+  const msgs=t.messages||[];
+
+  sheet(`
+    <div style="display:flex;justify-content:space-between;align-items:flex-start;
+         gap:11px;margin-bottom:16px">
+      <div style="min-width:0"><div class="h2">${esc(t.subject)}</div>
+        <div class="row-s">${dt(t.created_at)}</div></div>
+      <span class="chip ${st[0]}">${st[1]}</span>
+    </div>
+
+    <div style="display:flex;flex-direction:column;gap:9px;margin-bottom:14px">
+      ${msgs.map(m=>`
+        <div style="align-self:${m.by==='admin'?'flex-start':'flex-end'};
+             max-width:86%;padding:11px 13px;border-radius:14px;
+             background:${m.by==='admin'?'var(--s3)':'var(--g-soft)'};
+             border:1px solid ${m.by==='admin'?'var(--line)':'var(--g-line)'}">
+          <div style="font-size:10.5px;color:var(--tx-3);margin-bottom:3px">
+            ${m.by==='admin'?'الدعم':'أنت'} · ${dt(m.at)}</div>
+          <div style="font-size:13.5px;line-height:1.65;white-space:pre-line"
+            >${esc(m.text)}</div>
+        </div>`).join('')}
+    </div>
+
+    ${t.status!=='closed'?`
+      <textarea class="inp" id="tcR" rows="3" placeholder="اكتب ردك…"></textarea>
+      <button class="btn wide" id="tcRGo" style="margin-top:10px">إرسال الرد</button>`
+     :`<div class="note">هذه التذكرة مغلقة.</div>`}
+    <button class="btn line wide" style="margin-top:9px" onclick="closeSheet()">إغلاق</button>`);
+
+  onTap('#tcRGo',async()=>{
+    const b=$('#tcRGo');
+    const m=$('#tcR').value.trim();
+    if(!m)return toast('اكتب ردك','bad');
+    b.disabled=true;
+    try{
+      await api('/api/ticket/reply',{id,message:m});
+      closeSheet();toast('أُرسل ردك','ok');render();
+    }catch(e){toast(e.message,'bad');b.disabled=false}
+  });
+}
+window.ticketSheet=ticketSheet;
+
+/* ═══ Cards ═══ */
+function cardHtml(c){
+  const cls=c.status==='frozen'?'frozen':c.status==='deleted'?'dead':'';
+  const bal=c.live_balance??c.amount_loaded??0;
+  const st={active:['ok','نشطة'],frozen:['off','مجمدة'],
+    deleted:['bad','مغلقة']}[c.status]||['off','—'];
+  return `<div>
+    <div class="vcard ${cls}" data-card="${esc(c.id)}">
+      <div class="vc-top">
+        <span class="vc-wm">Kardo</span>
+        <span class="chip ${st[0]}">${st[1]}</span>
+      </div>
+      <div class="vc-chip"></div>
+      <div class="vc-pan mono">•••• •••• •••• ${esc(c.last4||'0000')}</div>
+      <div class="vc-foot">
+        <div><div class="vc-thru">VALID THRU</div>
+          <div class="mono" style="font-size:12px">${esc(c.expiry||'••/••')}</div></div>
+        <div class="vc-amt num">${usd(bal)}</div>
+      </div>
+    </div>
+    <div style="padding:10px 3px 0">
+      <div style="font-weight:700;font-size:14px">${esc(c.card_name||'بطاقة')}</div>
+      <div class="row-s">${dt(c.created_at)}</div>
+    </div></div>`;
+}
+
+function vCards(){
+  return `
+  <div class="h1" style="margin-bottom:5px">بطاقاتي</div>
+  <p class="sub" style="margin-bottom:20px">اضغط أي بطاقة لعرض بياناتها وإدارتها.</p>
+  ${S.cards.length
+    ?`<div class="crail">${S.cards.map(cardHtml).join('')}</div>`
+    :`<div class="card"><div class="empty">
+        <div class="ei">${svg(I.card,1.6)}</div>
+        <div class="et">لم تصدر أي بطاقة بعد</div>
+        <p style="font-size:13px;margin-bottom:16px">
+          أنشئ بطاقتك الافتراضية الأولى وابدأ الدفع.</p>
+        <button class="btn" data-act="issue">إصدار بطاقة</button></div></div>`}`;
+}
+
+function bindTilt(){
+  if(window.matchMedia('(prefers-reduced-motion: reduce)').matches)return;
+  const MAX=7;
+  $$('.vcard').forEach(el=>{
+    if(el._t)return;el._t=true;
+    const move=(x,y)=>{
+      const r=el.getBoundingClientRect();
+      const px=(x-r.left)/r.width-.5,py=(y-r.top)/r.height-.5;
+      el.style.setProperty('--ry',(px*MAX*2).toFixed(2)+'deg');
+      el.style.setProperty('--rx',(-py*MAX*2).toFixed(2)+'deg');
+      el.classList.add('tilt');
+    };
+    const reset=()=>{el.classList.remove('tilt');
+      el.style.removeProperty('--rx');el.style.removeProperty('--ry')};
+    el.addEventListener('pointermove',e=>{
+      if(e.pointerType==='touch')return;move(e.clientX,e.clientY)});
+    el.addEventListener('pointerleave',reset);
+    let raf=null;
+    el.addEventListener('touchmove',e=>{
+      const t=e.touches[0];if(!t||raf)return;
+      raf=requestAnimationFrame(()=>{raf=null;move(t.clientX,t.clientY)})},{passive:true});
+    el.addEventListener('touchend',reset,{passive:true});
+    el.addEventListener('touchcancel',reset,{passive:true});
+  });
+}
+
+async function openCard(id){
+  const c=S.cards.find(x=>x.id===id);if(!c)return;
+  const bal=c.live_balance??c.amount_loaded??0;
+  const act=c.status==='active';
+
+  sheet(`
+    <div style="max-width:280px;margin:0 auto 18px">${cardHtml(c)}</div>
+    <div class="h2">${esc(c.card_name||'بطاقة')}</div>
+    <p class="row-s" style="margin-bottom:14px">${dt(c.created_at)}</p>
+    <div id="sec"><button class="btn line wide" id="rev">
+      ${svg(I.eye)} عرض بيانات البطاقة</button></div>
+    <div style="display:grid;gap:8px;grid-template-columns:repeat(2,1fr);margin-top:12px">
+      <button class="btn line sm" id="txB">${svg(I.list)} المعاملات</button>
+      ${c.status!=='deleted'?`<button class="btn line sm" id="frB">${svg(I.snow)}
+        ${act?'تجميد':'إلغاء التجميد'}</button>`:''}
+      ${act&&S.config.funding_enabled
+        ?`<button class="btn line sm" id="fdB">${svg(I.plus)} شحن</button>`:''}
+      ${c.status!=='deleted'
+        ?`<button class="btn risk sm" id="dlB">${svg(I.trash)} إغلاق</button>`:''}
+    </div>
+    <div id="extra"></div>
+    <button class="btn line wide" style="margin-top:14px"
+      onclick="closeSheet()">إغلاق</button>`);
+
+  onTap('#rev',async()=>{
+    const box=$('#sec');
+    box.innerHTML=`<div class="sk" style="height:52px;margin-bottom:8px"></div>
+                   <div class="sk" style="height:52px"></div>`;
+    try{
+      const d=(await api('/api/cards/details',{card_id:id})).details;
+      let shown=false;
+      const paint=()=>{
+        const grp=v=>shown?String(v).replace(/(.{4})/g,'$1 ').trim()
+                          :'•••• •••• •••• '+String(v).slice(-4);
+        box.innerHTML=`<div class="card-q">
+          <div class="cprow" style="margin-bottom:8px" data-cp="${esc(d.card_number)}"
+               data-lb="رقم البطاقة">
+            <div style="min-width:0"><div class="cpk">رقم البطاقة</div>
+              <div class="cpv mono" dir="ltr">${grp(d.card_number)}</div></div>
+            <span class="cpi">${svg(I.copy,2)}</span></div>
+          <div class="cprow" style="margin-bottom:8px" data-cp="${esc(d.expiry)}"
+               data-lb="تاريخ الانتهاء">
+            <div style="min-width:0"><div class="cpk">تاريخ الانتهاء</div>
+              <div class="cpv mono" dir="ltr">${esc(d.expiry)}</div></div>
+            <span class="cpi">${svg(I.copy,2)}</span></div>
+          <div class="cprow" data-cp="${esc(d.cvv)}" data-lb="CVV">
+            <div style="min-width:0"><div class="cpk">CVV</div>
+              <div class="cpv mono" dir="ltr">${shown?esc(d.cvv):'•••'}</div></div>
+            <span class="cpi">${svg(I.copy,2)}</span></div>
+        </div>
+        <button class="btn line wide sm" id="tg" style="margin-top:10px">
+          ${svg(shown?I.eyeoff:I.eye)} ${shown?'إخفاء':'إظهار'} البيانات</button>
+        <p class="sub" style="font-size:11.5px;margin-top:10px;text-align:center">
+          لا تشارك هذه البيانات مع أحد.</p>`;
+        onTap('#tg',()=>{shown=!shown;paint()});
+        box.querySelectorAll('[data-cp]').forEach(b=>
+          b.onclick=()=>copy(b.dataset.cp,b.dataset.lb));
+      };
+      paint();
+    }catch(e){
+      box.innerHTML=`<div class="note bad">${esc(e.message)}</div>
+        <button class="btn line wide sm" onclick="openCard('${esc(id)}')">
+          إعادة المحاولة</button>`;
+    }
+  });
+
+  onTap('#txB',async()=>{
+    const x=$('#extra');
+    x.innerHTML=`<div class="sk" style="height:64px;margin-top:14px"></div>`;
+    try{
+      const d=await api('/api/cards/transactions',{card_id:id});
+      x.innerHTML=`<div class="card-q" style="margin-top:14px">
+        <div style="display:flex;justify-content:space-between;margin-bottom:12px">
+          <span class="h3">معاملات البطاقة</span>
+          <span class="num">${usd(d.balance)}</span></div>
+        ${d.transactions.length?d.transactions.map(t=>`
+          <div style="display:flex;justify-content:space-between;gap:10px;padding:10px 0;
+               border-bottom:1px solid var(--line)">
+            <div style="min-width:0">
+              <div style="font-size:13.5px;font-weight:700;overflow:hidden;
+                   text-overflow:ellipsis;white-space:nowrap">${esc(t.merchant||t.type)}</div>
+              <div class="row-s">${esc(t.date)} · ${esc(t.reason||'')}</div></div>
+            <div style="text-align:start;flex:none">
+              <div class="num" style="font-size:13.5px">${usd(t.amount)}</div>
+              <span class="chip ${t.status==='success'?'ok':'bad'}">
+                ${t.status==='success'?'ناجحة':'مرفوضة'}</span></div>
+          </div>`).join('')
+          :`<p class="sub" style="text-align:center;padding:14px 0">لا معاملات بعد.</p>`}
+      </div>`;
+    }catch(e){x.innerHTML=`<div class="note bad" style="margin-top:14px">${esc(e.message)}</div>`}
+  });
+
+  onTap('#frB',async()=>{
+    const fr=$('#frB');fr.disabled=true;
+    try{
+      await api('/api/cards/freeze',{card_id:id,action:act?'freeze':'unfreeze'});
+      toast(act?'جُمّدت البطاقة':'أُلغي التجميد','ok');closeSheet();render();
+    }catch(e){toast(e.message,'bad');fr.disabled=false}
+  });
+
+  onTap('#fdB',()=>fundSheet(c));
+
+  onTap('#dlB',()=>{
+    sheet(`<div class="h2" style="margin-bottom:8px">إغلاق البطاقة نهائيًا</div>
+      <p class="sub" style="margin-bottom:10px">
+        سيُغلق ${esc(c.card_name||'البطاقة')} ولا يمكن استخدامها بعد ذلك.</p>
+      <div class="note">الرصيد المتبقي ${usd(bal)} يُعاد إلى محفظتك بعد خصم رسوم الإغلاق.
+        العملية غير قابلة للتراجع.</div>
+      <button class="btn wide" style="background:var(--bad);color:#fff" id="dlGo">
+        تأكيد الإغلاق</button>
+      <button class="btn line wide" style="margin-top:9px"
+        onclick="openCard('${esc(id)}')">رجوع</button>`);
+    onTap('#dlGo',async()=>{
+      $('#dlGo').disabled=true;
+      try{
+        const r=await api('/api/cards/delete',{card_id:id});
+        toast('أُغلقت البطاقة · أُعيد '+usd(r.refunded_to_wallet??bal),'ok');
+        closeSheet();render();
+      }catch(e){toast(e.message,'bad');$('#dlGo').disabled=false}
+    });
+  });
+}
+window.openCard=openCard;
+
+function fundSheet(c){
+  sheet(`
+    <div class="h2" style="margin-bottom:4px">شحن البطاقة</div>
+    <p class="row-s" style="margin-bottom:16px">
+      ${esc(c.card_name||'بطاقة')} · ••${esc(c.last4)}</p>
+    <label class="lbl">المبلغ — الحد الأدنى $${S.config.min_amount||10}</label>
+    <input class="inp num" id="fA" type="number" inputmode="decimal"
+           min="${S.config.min_amount||10}" placeholder="${S.config.min_amount||10}">
+    <div id="fQ"></div>
+    <button class="btn lg wide" id="fG" style="margin-top:16px" disabled>شحن البطاقة</button>
+    <button class="btn line wide" style="margin-top:9px"
+      onclick="openCard('${esc(c.id)}')">رجوع</button>`);
+
+  let q=null,t=null;
+  $('#fA').oninput=e=>{
+    clearTimeout(t);
+    const a=parseFloat(e.target.value);
+    t=setTimeout(async()=>{
+      const box=$('#fQ'),btn=$('#fG');
+      if(!(a>=(S.config.min_amount||10))){q=null;box.innerHTML='';btn.disabled=true;return}
+      box.innerHTML=`<div class="quote"><div class="sk" style="height:46px"></div></div>`;
+      try{
+        const d=await apiGet(`/api/quote?amount=${a}&kind=fund`);
+        q=d.quote;box.innerHTML=quoteHtml(q);
+        btn.disabled=(S.profile.wallet_balance||0)<q.total;
+        if(btn.disabled)box.innerHTML+=`<div class="note" style="margin-top:11px">
+          رصيدك غير كافٍ — المتاح ${usd(S.profile.wallet_balance)}.</div>`;
+      }catch(err){q=null;box.innerHTML=`<div class="note bad">${esc(err.message)}</div>`;
+        btn.disabled=true}
+    },420);
+  };
+
+  onTap('#fG',async()=>{
+    if(!q)return;
+    $('#fG').disabled=true;
+    try{
+      await api('/api/cards/fund',{card_id:c.id,amount:q.amount,
+        idempotency_key:crypto.randomUUID?crypto.randomUUID():'k'+Date.now()+Math.random()});
+      toast('شُحنت البطاقة بمبلغ '+usd(q.amount),'ok');closeSheet();render();
+    }catch(e){toast(e.message,'bad');$('#fG').disabled=false}
+  });
+}
+
+/* ═══ Issue card ═══ */
+function quoteHtml(q){
+  return `<div class="quote">
+    <div class="qrow"><span class="k">قيمة البطاقة</span>
+      <span class="num">${usd(q.amount)}</span></div>
+    <div class="qrow"><span class="k">رسوم الخدمة</span>
+      <span class="num">${usd(q.service_fee)}</span></div>
+    <div class="qrow tot"><span>الإجمالي</span><span class="num">${usd(q.total)}
+      <span style="font-size:12px;color:var(--tx-3);font-weight:400">
+        · ${lyd(q.total_lyd)}</span></span></div></div>`;
+}
+
+let qTimer=null;
+async function fetchQuote(amount){
+  const box=$('#qbox'),btn=$('#wN2');
+  if(!box)return;
+  const mn=S.config.min_amount||10,mx=S.config.max_amount||200;
+  if(!(amount>=mn&&amount<=mx)){
+    S.wiz.quote=null;
+    box.innerHTML=amount?`<div class="note" style="margin-top:14px">
+      المبلغ يجب أن يكون بين $${mn} و $${mx}.</div>`:'';
+    if(btn)btn.disabled=true;return;
+  }
+  box.innerHTML=`<div class="quote">
+    <div class="sk" style="height:15px;margin-bottom:10px"></div>
+    <div class="sk" style="height:15px;width:68%;margin-bottom:10px"></div>
+    <div class="sk" style="height:20px;width:46%"></div></div>`;
+  try{
+    const d=await apiGet(`/api/quote?amount=${amount}&kind=create`);
+    S.wiz.quote=d.quote;S.wiz.amount=amount;
+    box.innerHTML=quoteHtml(d.quote);
+    if(btn)btn.disabled=false;
+  }catch(e){
+    S.wiz.quote=null;
+    box.innerHTML=`<div class="note bad" style="margin-top:14px">${esc(e.message)}</div>`;
+    if(btn)btn.disabled=true;
+  }
+}
+
+function vIssue(){
+  if(!S.config.issuing_enabled)
+    return `<div class="h1" style="margin-bottom:18px">إصدار بطاقة</div>
+      <div class="card"><div class="empty"><div class="ei">${svg(I.clock,1.6)}</div>
+      <div class="et">الخدمة متوقفة مؤقتًا</div>
+      <p style="font-size:13px">${esc(S.config.maintenance_message||'سنعيد التشغيل قريبًا.')}</p>
+      </div></div>`;
+
+  const w=S.wiz;
+  const dot=k=>`<div class="sdot ${w.step===k?'on':w.step>k?'done':''}">${
+    w.step>k?'✓':k}</div>`;
+  const line=k=>`<div class="sline ${w.step>k?'on':''}"></div>`;
+  let body='';
+
+  if(w.step===1){
+    body=`
+    <label class="lbl">اسم البطاقة — لك وحدك</label>
+    <input class="inp" id="wLabel" placeholder="بطاقة الاشتراكات"
+           value="${esc(w.label)}" maxlength="40">
+    <label class="lbl" style="margin-top:16px">اسم حامل البطاقة — بالإنجليزية</label>
+    <input class="inp mono" id="wName" placeholder="MANSOUR ALI" value="${esc(w.name)}"
+           maxlength="24" style="text-transform:uppercase" dir="ltr">
+    <p class="sub" style="font-size:12px;margin-top:8px">
+      حروف لاتينية فقط، ولا يمكن تغييره بعد الإصدار.</p>
+    <button class="btn lg wide" id="wN1" style="margin-top:20px">التالي</button>`;
+  }else if(w.step===2){
+    const mn=S.config.min_amount||10,mx=S.config.max_amount||200;
+    body=`
+    <label class="lbl">قيمة البطاقة</label>
+    <div class="amts">${[10,20,50,100].map(a=>
+      `<button class="amt ${w.amount===a?'on':''}" data-amt="${a}">$${a}</button>`).join('')}</div>
+    <label class="lbl" style="margin-top:16px">أو مبلغ آخر — من $${mn} إلى $${mx}</label>
+    <input class="inp num" id="wCustom" type="number" inputmode="decimal"
+           min="${mn}" max="${mx}" placeholder="${mn}"
+           value="${w.amount&&![10,20,50,100].includes(w.amount)?w.amount:''}">
+    <div id="qbox">${w.quote?quoteHtml(w.quote):''}</div>
+    <button class="btn lg wide" id="wN2" style="margin-top:18px"
+      ${w.quote?'':'disabled'}>التالي</button>
+    <button class="btn line wide" style="margin-top:9px" data-step="1">رجوع</button>`;
+  }else{
+    const q=w.quote,ok=(S.profile.wallet_balance||0)>=q.total;
+    body=`
+    <div class="quote" style="margin-top:0">
+      <div class="qrow"><span class="k">اسم البطاقة</span>
+        <span>${esc(w.label||'بطاقة')}</span></div>
+      <div class="qrow"><span class="k">حامل البطاقة</span>
+        <span class="mono" dir="ltr">${esc(w.name)}</span></div>
+      <div class="qrow"><span class="k">قيمة البطاقة</span>
+        <span class="num">${usd(q.amount)}</span></div>
+      <div class="qrow"><span class="k">رسوم الخدمة</span>
+        <span class="num">${usd(q.service_fee)}</span></div>
+      <div class="qrow tot"><span>الإجمالي</span><span class="num">${usd(q.total)}
+        <span style="font-size:12px;color:var(--tx-3);font-weight:400">
+          · ${lyd(q.total_lyd)}</span></span></div>
+    </div>
+    ${!ok?`<div class="note" style="margin:14px 0 0">
+      رصيدك ${usd(S.profile.wallet_balance)} — تحتاج
+      ${usd(q.total-S.profile.wallet_balance)} إضافية.
+      <button style="color:var(--g);font-weight:800" data-act="deposit">
+        إضافة رصيد</button></div>`:''}
+    <label style="display:flex;gap:10px;align-items:flex-start;margin:16px 0;
+           font-size:13px;cursor:pointer;color:var(--tx-2)">
+      <input type="checkbox" id="wAgree" style="width:17px;height:17px;margin-top:2px;
+             flex:none;accent-color:var(--g)">
+      <span>أوافق على الشروط: البطاقة تُصدر عبر جهة خارجية، ورسوم الإصدار
+        غير قابلة للاسترداد بعد نجاح العملية.</span></label>
+    <button class="btn lg wide" id="wGo" ${ok?'':'disabled'}>إصدار البطاقة</button>
+    <button class="btn line wide" style="margin-top:9px" data-step="2">رجوع</button>`;
+  }
+
+  return `
+  <div class="eyebrow" style="margin-bottom:5px">خطوة ${w.step} من 3</div>
+  <div class="h1" style="margin-bottom:20px">إصدار بطاقة</div>
+  <div class="card" style="max-width:520px">
+    <div class="steps">${dot(1)}${line(1)}${dot(2)}${line(2)}${dot(3)}</div>
+    ${body}
+  </div>`;
+}
+
+function successSheet(card){
+  sheet(`
+    <div style="text-align:center;margin-bottom:22px">
+      <div style="width:62px;height:62px;border-radius:19px;margin:0 auto 15px;
+           display:grid;place-items:center;background:var(--g-soft);color:var(--g)">
+        ${svg(I.check,2.4).replace('<svg','<svg data-lg')}</div>
+      <div class="h2">صدرت البطاقة</div>
+      <p class="sub" style="margin-top:5px">
+        بطاقة تنتهي بـ ${esc(card.last4)} جاهزة للاستخدام.</p>
+    </div>
+    <button class="btn wide" onclick="closeSheet();openCard('${esc(card.card_id)}')">
+      عرض بيانات البطاقة</button>
+    <button class="btn line wide" style="margin-top:9px" onclick="closeSheet()">لاحقًا</button>`);
+}
+
+/* ═══ Transactions ═══ */
+const TYPE={create:'إصدار بطاقة',fund:'شحن بطاقة',deposit:'إيداع رصيد'};
+const STAT={completed:['ok','مكتملة'],processing:['wait','قيد المعالجة'],
+  refunded:['bad','مستردة'],failed:['bad','فاشلة'],
+  pending:['wait','قيد المراجعة'],approved:['ok','مقبول'],rejected:['bad','مرفوض']};
+
+function vTx(){
+  const F=[['all','الكل'],['create','إصدار'],['fund','شحن'],['deposit','إيداع']];
+  let rows=[...S.orders.map(o=>({...o,kind:o.type})),
+    ...S.deposits.map(d=>({id:d.id,kind:'deposit',status:d.status,
+      amount:d.amount_usd,customer_price:d.amount_usd,created_at:d.created_at}))]
+    .sort((a,b)=>{
+      const av=a.created_at?.toDate?.()||new Date(a.created_at||0);
+      const bv=b.created_at?.toDate?.()||new Date(b.created_at||0);
+      return bv-av});
+  if(S.filter!=='all')rows=rows.filter(r=>r.kind===S.filter);
+
+  return `
+  <div class="h1" style="margin-bottom:5px">المعاملات</div>
+  <p class="sub" style="margin-bottom:14px">كل عمليات بطاقاتك ومحفظتك.</p>
+  <div class="pills">
+    ${F.map(([k,t])=>`<button class="pill ${S.filter===k?'on':''}"
+      data-filter="${k}">${t}</button>`).join('')}
+  </div>
+  ${rows.length?`<div class="list">${rows.map(r=>{
+    const st=STAT[r.status]||['off','—'];
+    const isIn=r.kind==='deposit';
+    const val=r.customer_price??r.amount??0;
+    return `<div class="row">
+      <div class="row-i" ${isIn?'style="color:var(--g);background:var(--g-soft)"':''}>
+        ${svg(isIn?I.up:r.kind==='fund'?I.plus:I.card)}</div>
+      <div class="row-b">
+        <div class="row-t">${TYPE[r.kind]||'عملية'}</div>
+        <div class="row-s">${dt(r.created_at)}</div></div>
+      <div class="row-v">
+        <div class="row-a num ${isIn&&r.status==='approved'?'in':''}">
+          ${isIn?'+':'−'}${usd(val)}</div>
+        <span class="chip ${st[0]}" style="margin-top:3px">${st[1]}</span>
+      </div></div>`}).join('')}</div>`
+   :`<div class="card"><div class="empty">
+      <div class="ei">${svg(I.list,1.6)}</div>
+      <p style="font-size:13.5px">لا معاملات بهذا التصنيف.</p></div></div>`}`;
+}
+
+/* ═══ Account ═══ */
+function vAccount(){
+  const nm=S.profile.name||'مستخدم';
+  return `
+  <div class="card" style="text-align:center;padding:24px 18px;margin-bottom:14px">
+    <div style="width:70px;height:70px;border-radius:22px;margin:0 auto 12px;
+         display:grid;place-items:center;background:var(--g-soft);color:var(--g);
+         font-size:26px;font-weight:800">${esc(nm.trim().charAt(0))}</div>
+    <div class="h2">${esc(nm)}</div>
+    <div class="sub" style="font-size:13px;margin-top:2px" dir="ltr">
+      ${esc(S.profile.phone||S.profile.email||'')}</div>
+    <div class="num" style="color:var(--g);font-size:20px;margin-top:10px">
+      ${lyd(S.profile.wallet_balance*rate())}</div>
+    ${(S.config.points||{}).on?`
+      <button class="chip ok" style="margin-top:9px" data-wact="points">
+        ${svg(I.star,2)} ${n(S.profile.points).toLocaleString('en-US')} نقطة</button>`:''}
+  </div>
+
+  <nav class="menu">
+    ${[['wallet','المحفظة',I.wallet],['orders','طلباتي',I.bag],
+       ['cards','بطاقاتي',I.card],['tx','المعاملات',I.list],
+       ['tickets','الدعم',I.help],
+       ['invite','ادعُ صديقًا',I.gift],['guide','كيف أستخدمها',I.book]]
+      .map(([k,t,ic],i)=>`
+        <button class="mrow" style="animation-delay:${i*.03}s" data-act="${k}">
+          <span class="mrow-i">${svg(ic)}</span>
+          <span class="mrow-t">${t}</span>
+          <span class="mrow-x">${svg(I.back,2)}</span></button>`).join('')}
+  </nav>
+
+  <div class="sec-head"><div class="h2">المعلومات الشخصية</div></div>
+  <div class="card" style="max-width:520px;margin-bottom:14px">
+    <label class="lbl">الاسم</label>
+    <input class="inp" id="pN" value="${esc(S.profile.name||'')}">
+    <label class="lbl" style="margin-top:14px">البريد الإلكتروني</label>
+    <input class="inp" value="${esc(S.profile.email||S.user?.email||'')}" disabled
+           style="opacity:.55" dir="ltr">
+    <label class="lbl" style="margin-top:14px">رقم الهاتف</label>
+    <input class="inp num" id="pP" value="${esc(S.profile.phone||'')}"
+           placeholder="0912345678" dir="ltr" inputmode="tel">
+    <button class="btn" id="pS" style="margin-top:18px">حفظ التغييرات</button>
+  </div>
+
+  <div class="card" style="max-width:520px;margin-bottom:14px">
+    <div class="h3" style="margin-bottom:6px">كلمة المرور</div>
+    <p class="sub" style="margin-bottom:14px">سنرسل رابط التغيير إلى بريدك.</p>
+    <button class="btn line" id="pR">إرسال رابط التغيير</button>
+  </div>
+
+  <div class="card" style="max-width:520px">
+    <div style="display:flex;align-items:center;gap:9px;margin-bottom:6px">
+      ${svg(I.shield)}<div class="h3">آخر عمليات الدخول</div></div>
+    <p class="sub" style="margin-bottom:14px">
+      إن رأيت دخولًا لا تعرفه، غيّر كلمة مرورك فورًا.</p>
+    <div id="actList">
+      <div class="sk" style="height:48px;margin-bottom:8px"></div>
+      <div class="sk" style="height:48px"></div></div>
+  </div>
+
+  <button class="btn risk wide" style="margin-top:16px" onclick="askOut()">
+    ${svg(I.out)} تسجيل الخروج</button>`;
+}
+
+/* ═══ Invite ═══ */
+function vInvite(){
+  const r=S.config.referral||{};
+  if(!r.on)return `
+    <div class="h1" style="margin-bottom:18px">ادعُ صديقًا</div>
+    <div class="card"><div class="empty">
+      <div class="ei">${svg(I.gift,1.6)}</div>
+      <div class="et">غير متاح حاليًا</div>
+      <p style="font-size:13px">سنفعّل نظام الدعوات قريبًا.</p></div></div>`;
+
+  return `
+  <div class="h1" style="margin-bottom:5px">ادعُ صديقًا</div>
+  <p class="sub" style="margin-bottom:18px">
+    شارك رمزك — تحصل على ${usd(r.inviter)} ويحصل صديقك على ${usd(r.invitee)}.</p>
+
+  <div class="wallet" style="text-align:center">
+    <div class="eyebrow">رمز الدعوة</div>
+    <div id="refBox" style="margin-top:12px">
+      <div class="sk" style="height:44px;width:180px;margin:0 auto"></div></div>
+    <p class="sub" style="font-size:12px;margin-top:14px">
+      تُصرف المكافأة بعد أن ينفق صديقك ${usd(r.min_spend)}.</p>
+  </div>
+
+  <div class="card" style="margin-top:14px">
+    <div class="h3" style="margin-bottom:12px">هل لديك رمز؟</div>
+    <input class="inp mono" id="refIn" placeholder="ABC123" maxlength="6" dir="ltr"
+           style="text-transform:uppercase;text-align:center;font-size:18px;
+                  letter-spacing:.2em">
+    <button class="btn wide" id="refGo" style="margin-top:12px">تفعيل الرمز</button>
+  </div>
+
+  <div class="stats" style="margin-top:14px">
+    <div class="stat" style="grid-column:1/-1;text-align:center">
+      <div class="v num">${n(S.profile.referrals_count)}</div>
+      <div class="k">صديق انضم برمزك</div></div>
+  </div>`;
+}
+
+/* ═══ Guide ═══ */
+function vGuide(){
+  const steps=[
+    ['أضف رصيدًا','حوّل عبر ليبيانا أو المدار أو USDT، وأكّد التحويل من صفحة المحفظة.'],
+    ['اختر خدمتك','تصفّح الأقسام واختر ما تحتاجه.'],
+    ['أكمل البيانات','اكتب رقم حسابك أو بريدك حسب المنتج.'],
+    ['استلم فورًا','المنتجات الفورية تصلك لحظة الدفع، واليدوية خلال وقت قصير.'],
+  ];
+  const faq=[
+    ['كم تستغرق إضافة الرصيد؟',
+     'ليبيانا والمدار وUSDT فورية. التحويل المصرفي يحتاج مراجعة.'],
+    ['متى أستلم طلبي؟',
+     'المنتجات المعلّمة «تسليم فوري» تصلك مباشرة. أما اليدوية فننفّذها خلال ساعات.'],
+    ['ماذا لو لم يصل طلبي؟',
+     'تابع حالته من «طلباتي». وإن رُفض لأي سبب، يُعاد المبلغ لمحفظتك تلقائيًا.'],
+    ['هل بياناتي آمنة؟',
+     'نعم — كل عملية تمر عبر خادم مؤمّن، ولا نحتفظ ببيانات حساسة.'],
+  ];
+  const sup=(S.config.texts||{}).support_url||'';
+
+  return `
+  <div class="h1" style="margin-bottom:5px">كيف أستخدم كاردو</div>
+  <p class="sub" style="margin-bottom:20px">أربع خطوات من الصفر إلى أول طلب.</p>
+
+  <div class="list" style="margin-bottom:24px">
+    ${steps.map(([t,d],i)=>`<div class="row">
+      <div class="row-i" style="background:var(--g-soft);color:var(--g);
+           font-weight:800">${i+1}</div>
+      <div class="row-b"><div class="row-t">${t}</div>
+        <div class="row-s" style="white-space:normal;line-height:1.6">${d}</div></div>
+    </div>`).join('')}
+  </div>
+
+  <div class="sec-head"><div class="h2">أسئلة شائعة</div></div>
+  <div class="list">
+    ${faq.map(([q,a])=>`<div class="row" style="align-items:flex-start">
+      <div class="row-b"><div class="row-t" style="white-space:normal">${q}</div>
+        <div class="row-s" style="white-space:normal;line-height:1.65;margin-top:3px"
+          >${a}</div></div></div>`).join('')}
+  </div>
+
+  ${sup?`<button class="btn line wide" style="margin-top:20px"
+    onclick="window.open('${esc(sup.startsWith('http')?sup:'https://wa.me/'+sup)}','_blank')">
+    تواصل مع الدعم</button>`:''}`;
+}
+
+/* ═══ Bind ═══ */
+function bind(){
+  $$('[data-act]').forEach(b=>b.onclick=()=>{
+    const a=b.dataset.act;
+    if(a==='deposit')return depositSheet();
+    go(a);
+  });
+  $$('[data-cat]').forEach(b=>b.onclick=()=>{
+    const id=b.dataset.cat;
+    if(!id){S.cat=null;S.q='';S.page='shop';return render()}
+    const c=S.catalog.categories.find(x=>x.id===id);
+    if(c&&c.soon)return soonSheet(c);
+    S.cat=id;S.q='';S.filter='all';S.page='shop';render();
+  });
+  $$('[data-prod]').forEach(b=>b.onclick=()=>productSheet(b.dataset.prod));
+  $$('[data-back]').forEach(b=>b.onclick=()=>{
+    const cur=S.catalog.categories.find(x=>x.id===S.cat);
+    S.cat=(cur&&cur.parent)||null;   // اصعد طبقة واحدة
+    S.q='';render();
+  });
+  $$('[data-order]').forEach(b=>b.onclick=()=>orderSheet(b.dataset.order));
+  $$('[data-card]').forEach(b=>b.onclick=()=>openCard(b.dataset.card));
+  $$('[data-filter]').forEach(b=>b.onclick=()=>{S.filter=b.dataset.filter;render()});
+  $$('[data-step]').forEach(b=>b.onclick=()=>{S.wiz.step=+b.dataset.step;render()});
+  $$('[data-blink]').forEach(b=>b.onclick=()=>window.open(b.dataset.blink,'_blank'));
+  $$('[data-wact]').forEach(b=>b.onclick=()=>{
+    const a=b.dataset.wact;
+    if(a==='deposit')return depositSheet();
+    if(a==='withdraw')return withdrawSheet();
+    if(a==='transfer')return transferSheet();
+    if(a==='points')return pointsSheet();
+  });
+  $$('[data-tic]').forEach(b=>b.onclick=()=>ticketSheet(b.dataset.tic));
+  onTap('#newTic',()=>newTicketSheet());
+
+  const sq=$('#shopQ');
+  if(sq){
+    sq.oninput=e=>{
+      S.q=e.target.value;
+      clearTimeout(sq._t);
+      sq._t=setTimeout(()=>{const p=sq.selectionStart;render();
+        const el=$('#shopQ');if(el){el.focus();el.setSelectionRange(p,p)}},260);
+    };
+  }
+
+  const hb=$('#hBal');
+  if(hb){hb.dataset.v=0;countTo(hb,S.profile.wallet_balance*rate(),lyd)}
+
+  bannerSlider();
+
+  onTap('#wN1',()=>{
+    const name=$('#wName').value.trim().toUpperCase();
+    if(!/^[A-Z][A-Z .'-]{1,23}$/.test(name)){
+      $('#wName').classList.add('bad');
+      return toast('اكتب الاسم بحروف لاتينية — حرفان على الأقل','bad');
+    }
+    S.wiz.label=$('#wLabel').value.trim()||'بطاقتي';
+    S.wiz.name=name;S.wiz.step=2;render();
+  });
+
+  $$('[data-amt]').forEach(b=>b.onclick=()=>{
+    $$('[data-amt]').forEach(x=>x.classList.toggle('on',x===b));
+    const cu=$('#wCustom');if(cu)cu.value='';
+    fetchQuote(+b.dataset.amt);
+  });
+  const cu=$('#wCustom');
+  if(cu)cu.oninput=e=>{
+    $$('[data-amt]').forEach(x=>x.classList.remove('on'));
+    clearTimeout(qTimer);
+    qTimer=setTimeout(()=>fetchQuote(parseFloat(e.target.value)),420);
+  };
+  onTap('#wN2',()=>{
+    if(!S.wiz.quote)return;
+    S.wiz.idem=crypto.randomUUID?crypto.randomUUID():'k'+Date.now()+Math.random();
+    S.wiz.step=3;render();
+  });
+  onTap('#wGo',async()=>{
+    const go3=$('#wGo');
+    if(!$('#wAgree').checked)return toast('يجب الموافقة على الشروط','bad');
+    go3.disabled=true;
+    go3.innerHTML='<span class="sk" style="width:84px;height:14px;display:inline-block"></span>';
+    try{
+      const r=await api('/api/cards/create',{
+        amount:S.wiz.quote.amount,name_on_card:S.wiz.name,
+        card_name:S.wiz.label,idempotency_key:S.wiz.idem});
+      successSheet(r.card);
+      S.wiz={step:1,amount:null,name:S.wiz.name,label:'',idem:null,quote:null};
+      S.page='cards';render();
+    }catch(e){
+      toast(e.message,'bad');go3.disabled=false;go3.textContent='إصدار البطاقة';
+    }
+  });
+
+  const rb=$('#refBox');
+  if(rb){
+    api('/api/ref/code').then(r=>{
+      rb.innerHTML=`<button id="cpRef" class="mono"
+        style="display:inline-flex;align-items:center;gap:11px;background:var(--g);
+               color:#1A1005;padding:13px 24px;border-radius:6px;font-weight:700;
+               font-size:26px;letter-spacing:.14em">
+        ${svg(I.copy,2)} ${esc(r.code)}</button>`;
+      onTap('#cpRef',()=>copy(r.code,'رمز الدعوة'));
+    }).catch(e=>{
+      rb.innerHTML=`<div class="sub" style="font-size:13px">${esc(e.message)}</div>`;
+    });
+  }
+  onTap('#refGo',async()=>{
+    const rg=$('#refGo');
+    const c=$('#refIn').value.trim().toUpperCase();
+    if(c.length!==6)return toast('الرمز 6 أحرف','bad');
+    rg.disabled=true;
+    try{
+      const r=await api('/api/ref/claim',{code:c});
+      toast(`فُعّل الرمز — ستحصل على ${usd(r.bonus)} بعد إنفاق ${usd(r.min_spend)}`,'ok');
+      render();
+    }catch(e){toast(e.message,'bad');rg.disabled=false}
+  });
+
+  const al=$('#actList');
+  if(al&&S.user){
+    const q=query(collection(db,'activity'),
+      where('uid','==',S.user.uid),limit(20));
+    onSnapshot(q,snap=>{
+      const rows=sortByDate(snap.docs.map(d=>d.data())).slice(0,6);
+      al.innerHTML=rows.length?rows.map((a,i)=>`
+        <div style="display:flex;justify-content:space-between;gap:11px;padding:11px 0;
+             ${i<rows.length-1?'border-bottom:1px solid var(--line)':''}">
+          <div style="min-width:0">
+            <div style="font-size:13.5px;font-weight:700">${
+              i===0?'الجلسة الحالية':'تسجيل دخول'}</div>
+            <div class="row-s">${dt(a.created_at)}${
+              a.city||a.country?' · '+esc([a.city,a.country].filter(Boolean).join(', ')):''}</div>
+          </div>
+          ${i===0?'<span class="chip ok">نشطة</span>':''}
+        </div>`).join('')
+        :`<p class="sub" style="font-size:13px">لا سجلات بعد.</p>`;
+    },()=>{al.innerHTML='<p class="sub" style="font-size:13px">تعذّر تحميل السجل.</p>'});
+  }
+
+  onTap('#pS',async()=>{
+    const ps=$('#pS');
+    const name=$('#pN').value.trim(),phone=$('#pP').value.trim();
+    if(name.length<2)return toast('الاسم قصير جدًا','bad');
+    ps.disabled=true;
+    try{
+      await setDoc(doc(db,'users',S.user.uid),
+        {name,phone,phone_key:phoneKey(phone)},{merge:true});
+      toast('حُفظت التغييرات','ok');render();
+    }catch{toast('تعذّر الحفظ','bad');ps.disabled=false}
+  });
+  onTap('#pR',async()=>{
+    const pr=$('#pR');
+    const em=S.profile.email||S.user?.email;
+    if(!em)return toast('لا يوجد بريد مسجّل','bad');
+    pr.disabled=true;
+    try{await sendPasswordResetEmail(auth,em);toast('أُرسل رابط التغيير إلى '+em,'ok')}
+    catch{toast('تعذّر الإرسال','bad');pr.disabled=false}
+  });
+}
+
+/* Banner auto-advance and dot sync */
+let _bnrTimer=null;
+function bannerSlider(){
+  clearInterval(_bnrTimer);
+  const track=$('#bTrack'),dots=$('#bDots');
+  if(!track)return;
+  const slides=track.children.length;
+  if(slides<2)return;
+
+  const sync=()=>{
+    const i=Math.round(track.scrollLeft/track.clientWidth);
+    if(dots)[...dots.children].forEach((d,x)=>d.classList.toggle('on',x===Math.abs(i)));
+  };
+  track.onscroll=()=>{clearTimeout(track._t);track._t=setTimeout(sync,90)};
+
+  _bnrTimer=setInterval(()=>{
+    if(!document.body.contains(track)){clearInterval(_bnrTimer);return}
+    const i=Math.round(Math.abs(track.scrollLeft)/track.clientWidth);
+    const next=(i+1)%slides;
+    track.scrollTo({left:next*track.clientWidth*(document.dir==='rtl'?-1:1),
+      behavior:'smooth'});
+  },6000);
+}
+</script>
+</body>
+</html>
