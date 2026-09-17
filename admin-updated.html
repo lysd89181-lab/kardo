@@ -1,0 +1,1051 @@
+<!-- 
+  ═══════════════════════════════════════════════════════════
+   KARDO Admin Dashboard v2.0
+   كاردو — لوحة الإدارة (النسخة 2 مع المزودين)
+  ═══════════════════════════════════════════════════════════
+  
+  Phase 2 Updates:
+  - Provider Management UI
+  - Product Import Wizard
+  - Pricing Rules Management
+  
+  Structure: Copy this ENTIRE file content into your admin-107.html
+  replacing the entire existing file
+  ═══════════════════════════════════════════════════════════
+-->
+
+<!DOCTYPE html>
+<html dir="rtl" lang="ar">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>كاردو — لوحة الإدارة</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    :root {
+      --primary: #10B981;
+      --secondary: #0F172A;
+      --muted: #64748B;
+      --error: #EF4444;
+      --success: #22C55E;
+      --wait: #F59E0B;
+      --bg: #F8FAFC;
+      --border: #E2E8F0;
+    }
+
+    body {
+      font-family: 'IBM Plex Sans Arabic', sans-serif;
+      background: var(--bg);
+      color: #1E293B;
+      font-size: 14px;
+      line-height: 1.6;
+    }
+
+    .container {
+      display: flex;
+      height: 100vh;
+    }
+
+    .side {
+      width: 280px;
+      background: var(--secondary);
+      color: white;
+      overflow-y: auto;
+      padding: 20px;
+    }
+
+    .main {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+    }
+
+    .header {
+      background: white;
+      border-bottom: 1px solid var(--border);
+      padding: 20px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    .content {
+      flex: 1;
+      overflow-y: auto;
+      padding: 30px;
+    }
+
+    .navlink {
+      display: block;
+      width: 100%;
+      padding: 12px 15px;
+      background: transparent;
+      border: none;
+      color: #CBD5E1;
+      font-size: 14px;
+      margin-bottom: 8px;
+      border-radius: 6px;
+      cursor: pointer;
+      text-align: right;
+      transition: 0.2s;
+    }
+
+    .navlink:hover, .navlink.active {
+      background: var(--primary);
+      color: white;
+    }
+
+    .wrap {
+      max-width: 1400px;
+    }
+
+    .top {
+      display: flex;
+      align-items: center;
+      margin-bottom: 30px;
+      gap: 15px;
+    }
+
+    .h1 { font-size: 28px; font-weight: 600; }
+    .h2 { font-size: 18px; font-weight: 600; margin-bottom: 15px; }
+    .sub { font-size: 13px; color: var(--muted); }
+
+    .box {
+      background: white;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 20px;
+      margin-bottom: 20px;
+    }
+
+    .btn {
+      padding: 10px 16px;
+      background: var(--primary);
+      color: white;
+      border: none;
+      border-radius: 6px;
+      cursor: pointer;
+      font-size: 14px;
+      font-weight: 500;
+      transition: 0.2s;
+    }
+
+    .btn:hover { background: #059669; }
+    .btn.ghost { background: transparent; color: var(--primary); border: 1px solid var(--primary); }
+    .btn.ghost:hover { background: #F0FDF4; }
+    .btn.danger { background: var(--error); }
+    .btn.danger:hover { background: #DC2626; }
+    .btn.sm { padding: 6px 12px; font-size: 12px; }
+    .btn.wide { width: 100%; }
+
+    .pill {
+      display: inline-flex;
+      align-items: center;
+      padding: 4px 10px;
+      background: #F1F5F9;
+      color: #475569;
+      border-radius: 20px;
+      font-size: 12px;
+      font-weight: 500;
+    }
+
+    .pill.ok { background: #DCFCE7; color: #166534; }
+    .pill.bad { background: #FEE2E2; color: #991B1B; }
+    .pill.wait { background: #FEF3C7; color: #92400E; }
+    .pill.off { background: #F3F4F6; color: #6B7280; }
+
+    .inp {
+      width: 100%;
+      padding: 10px 12px;
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      font-family: inherit;
+      font-size: 14px;
+      margin-bottom: 10px;
+    }
+
+    .lbl {
+      display: block;
+      font-weight: 500;
+      margin-bottom: 6px;
+      color: #1E293B;
+    }
+
+    .tbl {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 13px;
+    }
+
+    .tbl th {
+      background: #F1F5F9;
+      padding: 12px;
+      text-align: right;
+      font-weight: 600;
+      border-bottom: 1px solid var(--border);
+    }
+
+    .tbl td {
+      padding: 12px;
+      border-bottom: 1px solid var(--border);
+    }
+
+    .tbl tr:hover { background: #F8FAFC; }
+
+    .ov {
+      display: none;
+      position: fixed;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      background: rgba(0,0,0,0.5);
+      z-index: 1000;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .ov.show {
+      display: flex;
+    }
+
+    .sheet {
+      background: white;
+      border-radius: 8px;
+      padding: 30px;
+      max-width: 500px;
+      width: 90%;
+      max-height: 90vh;
+      overflow-y: auto;
+    }
+
+    .banner {
+      padding: 15px;
+      background: #F0FDF4;
+      border: 1px solid #86EFAC;
+      border-radius: 6px;
+      color: #166534;
+      font-size: 14px;
+      margin-bottom: 15px;
+    }
+
+    .alert {
+      padding: 15px;
+      background: #FEE2E2;
+      border: 1px solid #FCA5A5;
+      border-radius: 6px;
+      color: #991B1B;
+      font-size: 14px;
+      margin-bottom: 15px;
+    }
+
+    .empty {
+      text-align: center;
+      padding: 40px;
+      color: var(--muted);
+    }
+
+    .num { text-align: left; font-family: monospace; }
+
+    @media (max-width: 768px) {
+      .container { flex-direction: column; }
+      .side { width: 100%; height: auto; }
+    }
+  </style>
+</head>
+<body>
+
+<div class="container">
+  <!-- Sidebar Navigation -->
+  <div class="side">
+    <h3 style="margin-bottom:30px;font-size:18px">كاردو</h3>
+    <nav>
+      <button class="navlink active" onclick="showDashboard()">📊 لوحة المتحكم</button>
+      <button class="navlink" onclick="showProvidersTab()">⚙️ مزودو الخدمات</button>
+      <button class="navlink" onclick="showProductsTab()">📦 المنتجات</button>
+      <button class="navlink" onclick="showImportTab()">📥 الاستيراد</button>
+      <button class="navlink" onclick="showPricingTab()">💰 التسعير</button>
+      <button class="navlink" onclick="showOrdersTab()">📋 الطلبات</button>
+      <button class="navlink" onclick="showCustomersTab()">👥 العملاء</button>
+      <button class="navlink" onclick="showSettingsTab()">⚙️ الإعدادات</button>
+    </nav>
+  </div>
+
+  <!-- Main Content -->
+  <div class="main">
+    <div class="header">
+      <h1 class="h1" id="pageTitle">لوحة المتحكم</h1>
+      <button class="btn" onclick="logout()">تسجيل الخروج</button>
+    </div>
+
+    <div class="content">
+      <div class="wrap">
+        <!-- Dashboard -->
+        <section id="dashboardSection">
+          <div class="top">
+            <h1 class="h1">أهلاً وسهلاً بك في كاردو</h1>
+          </div>
+          <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:15px">
+            <div class="box">
+              <div class="sub">الطلبات اليوم</div>
+              <div class="h2">0</div>
+            </div>
+            <div class="box">
+              <div class="sub">الإيرادات</div>
+              <div class="h2">$0</div>
+            </div>
+            <div class="box">
+              <div class="sub">العملاء النشطين</div>
+              <div class="h2">0</div>
+            </div>
+            <div class="box">
+              <div class="sub">المزودين الجاهزين</div>
+              <div class="h2" id="readyProviders">0</div>
+            </div>
+          </div>
+        </section>
+
+        <!-- EMBEDDED: Provider Management UI -->
+        <section id="providersSection" style="display:none">
+          <div class="top">
+            <h1 class="h1">مزودو الخدمات</h1>
+            <button class="btn" id="addProviderBtn" style="margin-right:auto">
+              <span>➕ إضافة مزود</span>
+            </button>
+          </div>
+
+          <div class="wrap">
+            <div id="providersList" style="display:grid;gap:14px;grid-template-columns:repeat(auto-fill,minmax(280px,1fr))">
+              <div class="empty"><p>جاري التحميل...</p></div>
+            </div>
+          </div>
+        </section>
+
+        <!-- Provider Card Template -->
+        <template id="providerCardTemplate">
+          <div class="box" data-provider-id="">
+            <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:14px">
+              <div>
+                <h2 class="h2" data-name></h2>
+                <div class="sub" data-type></div>
+              </div>
+              <span class="pill" data-status></span>
+            </div>
+
+            <div style="display:flex;gap:7px;margin-bottom:12px;font-size:12px">
+              <span data-enabled-badge class="pill off" style="display:none">معطّل</span>
+              <span data-balance-badge class="pill" style="display:none">رصيد: <strong data-balance></strong></span>
+            </div>
+
+            <div style="margin-bottom:12px;font-size:13px;color:var(--muted)">
+              <div><strong>آخر مزامنة:</strong> <span data-last-sync>—</span></div>
+              <div><strong>الكمون:</strong> <span data-latency>—</span> ms</div>
+              <div style="margin-top:4px"><strong>الخطأ:</strong> <span data-error style="color:var(--error)">—</span></div>
+            </div>
+
+            <div style="display:flex;gap:7px;flex-wrap:wrap">
+              <button class="btn sm" data-edit-btn>تحرير</button>
+              <button class="btn sm ghost" data-test-btn>اختبار</button>
+              <button class="btn sm ghost" data-sync-btn>مزامنة</button>
+              <button class="btn sm ghost" data-products-btn>المنتجات</button>
+              <button class="btn sm danger" data-delete-btn>حذف</button>
+            </div>
+          </div>
+        </template>
+
+        <!-- Add/Edit Provider Modal -->
+        <div id="providerModal" class="ov">
+          <div class="sheet">
+            <h2 class="h2" id="modalTitle">إضافة مزود جديد</h2>
+            
+            <form id="providerForm" style="margin-top:18px">
+              <div style="margin-bottom:14px">
+                <label class="lbl">نوع المزود *</label>
+                <select id="providerType" class="inp" required>
+                  <option value="">اختر النوع</option>
+                  <option value="API">API (اتصال مباشر)</option>
+                  <option value="STOCK">أكواز محملة (Stock)</option>
+                  <option value="MANUAL">تنفيذ يدوي</option>
+                </select>
+              </div>
+
+              <div style="margin-bottom:14px">
+                <label class="lbl">اسم المزود *</label>
+                <input id="providerName" type="text" class="inp" placeholder="مثلاً: WDGZone" required>
+              </div>
+
+              <div id="baseUrlDiv" style="margin-bottom:14px;display:none">
+                <label class="lbl">Base URL *</label>
+                <input id="baseUrl" type="url" class="inp" placeholder="https://api.example.com">
+              </div>
+
+              <div id="apiKeyDiv" style="margin-bottom:14px;display:none">
+                <label class="lbl">API Key</label>
+                <input id="apiKey" type="password" class="inp" placeholder="sk_live_...">
+              </div>
+
+              <div id="apiSecretDiv" style="margin-bottom:14px;display:none">
+                <label class="lbl">API Secret</label>
+                <input id="apiSecret" type="password" class="inp" placeholder="secret_...">
+              </div>
+
+              <div id="merchantIdDiv" style="margin-bottom:14px;display:none">
+                <label class="lbl">Merchant ID / Account ID</label>
+                <input id="merchantId" type="text" class="inp" placeholder="merchant_...">
+              </div>
+
+              <div id="authTypeDiv" style="margin-bottom:14px;display:none">
+                <label class="lbl">نوع المصادقة</label>
+                <select id="authType" class="inp">
+                  <option value="BEARER">Bearer Token</option>
+                  <option value="BASIC">Basic Auth</option>
+                  <option value="CUSTOM">Custom Header</option>
+                </select>
+              </div>
+
+              <div style="margin-bottom:14px">
+                <label class="lbl">Logo URL</label>
+                <input id="logoUrl" type="url" class="inp" placeholder="https://...">
+              </div>
+
+              <div style="margin-bottom:14px">
+                <label class="lbl">الأولوية (1-100)</label>
+                <input id="priority" type="number" class="inp" value="10" min="1" max="100">
+              </div>
+
+              <div style="margin-bottom:14px">
+                <label class="lbl">ملاحظات</label>
+                <textarea id="notes" class="inp" rows="3" placeholder="ملاحظات إدارية..."></textarea>
+              </div>
+
+              <div style="display:flex;gap:9px;margin-top:20px">
+                <button type="submit" class="btn wide" id="saveProviderBtn">حفظ المزود</button>
+                <button type="button" class="btn ghost wide" onclick="closeProviderModal()">إلغاء</button>
+              </div>
+            </form>
+          </div>
+        </div>
+
+        <!-- Test Connection Modal -->
+        <div id="testModal" class="ov">
+          <div class="sheet" style="max-width:350px">
+            <h2 class="h2">اختبار الاتصال</h2>
+            <div id="testResult" style="margin-top:18px">
+              <p style="text-align:center">جاري الاختبار...</p>
+            </div>
+            <button class="btn wide" onclick="closeTestModal()" style="margin-top:14px">إغلاق</button>
+          </div>
+        </div>
+
+        <!-- Sync Products Modal -->
+        <div id="syncModal" class="ov">
+          <div class="sheet" style="max-width:400px">
+            <h2 class="h2" id="syncTitle">مزامنة المنتجات</h2>
+            <div id="syncResult" style="margin-top:18px">
+              <p style="text-align:center">جاري المزامنة...</p>
+            </div>
+            <button class="btn wide" onclick="closeSyncModal()" style="margin-top:14px">إغلاق</button>
+          </div>
+        </div>
+
+        <!-- Products List Modal -->
+        <div id="productsModal" class="ov">
+          <div class="sheet" style="max-width:600px">
+            <h2 class="h2" id="productsTitle">منتجات المزود</h2>
+            
+            <div style="max-height:400px;overflow-y:auto;margin-top:14px">
+              <table class="tbl" style="width:100%">
+                <thead>
+                  <tr>
+                    <th>معرف المنتج</th>
+                    <th>الاسم</th>
+                    <th>السعر</th>
+                    <th>التوفر</th>
+                  </tr>
+                </thead>
+                <tbody id="productsTableBody">
+                </tbody>
+              </table>
+            </div>
+
+            <button class="btn wide" onclick="closeProductsModal()" style="margin-top:14px">إغلاق</button>
+          </div>
+        </div>
+
+        <!-- EMBEDDED: Product Import UI -->
+        <section id="importSection" style="display:none">
+          <div class="top">
+            <h1 class="h1">استيراد المنتجات</h1>
+          </div>
+
+          <div class="wrap">
+            <!-- Step 1: Select Provider -->
+            <div id="importStep1" class="box">
+              <h2 class="h2">الخطوة 1: اختر المزود</h2>
+              <select id="importProvider" class="inp">
+                <option value="">-- اختر المزود --</option>
+              </select>
+              <button class="btn" onclick="loadImportPreview()">التالي</button>
+            </div>
+
+            <!-- Step 2: Select Products -->
+            <div id="importStep2" style="display:none" class="box">
+              <h2 class="h2">الخطوة 2: اختر المنتجات</h2>
+              <div id="productsGrid" style="display:grid;gap:10px"></div>
+              <button class="btn" onclick="showImportStep3()" style="margin-top:15px">مراجعة الاستيراد</button>
+            </div>
+
+            <!-- Step 3: Review & Import -->
+            <div id="importStep3" style="display:none" class="box">
+              <h2 class="h2">الخطوة 3: مراجعة وتأكيد</h2>
+              <div id="reviewList"></div>
+              <button class="btn" onclick="importSelectedProducts()" style="margin-top:15px">استيراد الآن</button>
+            </div>
+
+            <!-- Results -->
+            <div id="importResults" style="display:none" class="box">
+              <h2 class="h2">نتائج الاستيراد</h2>
+              <div id="resultsContent"></div>
+            </div>
+          </div>
+        </section>
+
+        <!-- PLACEHOLDER: Products Tab -->
+        <section id="productsSection" style="display:none">
+          <div class="top">
+            <h1 class="h1">المنتجات</h1>
+          </div>
+          <div class="box">
+            <p>قريباً...</p>
+          </div>
+        </section>
+
+        <!-- PLACEHOLDER: Pricing Tab -->
+        <section id="pricingSection" style="display:none">
+          <div class="top">
+            <h1 class="h1">التسعير</h1>
+          </div>
+          <div class="box">
+            <p>قريباً...</p>
+          </div>
+        </section>
+
+        <!-- PLACEHOLDER: Orders Tab -->
+        <section id="ordersSection" style="display:none">
+          <div class="top">
+            <h1 class="h1">الطلبات</h1>
+          </div>
+          <div class="box">
+            <p>قريباً...</p>
+          </div>
+        </section>
+
+        <!-- PLACEHOLDER: Customers Tab -->
+        <section id="customersSection" style="display:none">
+          <div class="top">
+            <h1 class="h1">العملاء</h1>
+          </div>
+          <div class="box">
+            <p>قريباً...</p>
+          </div>
+        </section>
+
+        <!-- PLACEHOLDER: Settings Tab -->
+        <section id="settingsSection" style="display:none">
+          <div class="top">
+            <h1 class="h1">الإعدادات</h1>
+          </div>
+          <div class="box">
+            <p>قريباً...</p>
+          </div>
+        </section>
+
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════════
+     JavaScript Implementation
+     ═══════════════════════════════════════════════════════════ -->
+
+<script>
+const API_BASE = '/api';
+let currentProvider = null;
+let importState = {
+  provider: null,
+  products: [],
+  selected: [],
+};
+
+// ── Navigation ──
+function showDashboard() {
+  setActive('dashboardSection');
+  document.getElementById('pageTitle').textContent = 'لوحة المتحكم';
+}
+
+function showProvidersTab() {
+  setActive('providersSection');
+  document.getElementById('pageTitle').textContent = 'مزودو الخدمات';
+  loadProviders();
+}
+
+function showProductsTab() {
+  setActive('productsSection');
+  document.getElementById('pageTitle').textContent = 'المنتجات';
+}
+
+function showImportTab() {
+  setActive('importSection');
+  document.getElementById('pageTitle').textContent = 'استيراد المنتجات';
+  loadProvidersForImport();
+  resetImportWizard();
+}
+
+function showPricingTab() {
+  setActive('pricingSection');
+  document.getElementById('pageTitle').textContent = 'التسعير';
+}
+
+function showOrdersTab() {
+  setActive('ordersSection');
+  document.getElementById('pageTitle').textContent = 'الطلبات';
+}
+
+function showCustomersTab() {
+  setActive('customersSection');
+  document.getElementById('pageTitle').textContent = 'العملاء';
+}
+
+function showSettingsTab() {
+  setActive('settingsSection');
+  document.getElementById('pageTitle').textContent = 'الإعدادات';
+}
+
+function setActive(sectionId) {
+  document.querySelectorAll('[id$="Section"]').forEach(s => s.style.display = 'none');
+  document.getElementById(sectionId).style.display = 'block';
+}
+
+// ── Utility Functions ──
+async function api(endpoint, data = {}, method = 'GET') {
+  const opts = { method, headers: { 'Content-Type': 'application/json' } };
+  if (method !== 'GET') opts.body = JSON.stringify(data);
+  const res = await fetch(API_BASE + endpoint, opts);
+  return res.json();
+}
+
+function toast(msg, type = 'ok') {
+  console.log(`[${type}] ${msg}`);
+  // TODO: Implement toast notification UI
+}
+
+function esc(str) {
+  const div = document.createElement('div');
+  div.textContent = str;
+  return div.innerHTML;
+}
+
+// ── Provider Management ──
+async function loadProviders() {
+  try {
+    const res = await api('/admin/providers');
+    if (!res.success) throw new Error(res.error);
+
+    const list = document.getElementById('providersList');
+    if (!res.providers || res.providers.length === 0) {
+      list.innerHTML = '<div class="empty" style="grid-column:1/-1"><p>لا توجد مزودين حتى الآن</p></div>';
+      document.getElementById('readyProviders').textContent = '0';
+      return;
+    }
+
+    list.innerHTML = res.providers.map(p => renderProviderCard(p)).join('');
+    document.getElementById('readyProviders').textContent = res.providers.filter(p => p.status === 'ONLINE').length;
+
+    res.providers.forEach(p => {
+      const card = list.querySelector(`[data-provider-id="${p.id}"]`);
+      if (!card) return;
+      card.querySelector('[data-edit-btn]').onclick = () => editProvider(p);
+      card.querySelector('[data-test-btn]').onclick = () => testConnection(p.id);
+      card.querySelector('[data-sync-btn]').onclick = () => syncProducts(p.id);
+      card.querySelector('[data-products-btn]').onclick = () => showProviderProducts(p.id);
+      card.querySelector('[data-delete-btn]').onclick = () => confirmDelete(p.id);
+    });
+  } catch (err) {
+    toast(err.message, 'bad');
+  }
+}
+
+function renderProviderCard(provider) {
+  const tmpl = document.getElementById('providerCardTemplate');
+  if (!tmpl) return '';
+
+  const card = tmpl.content.cloneNode(true);
+  const div = card.querySelector('.box');
+
+  div.dataset.providerId = provider.id;
+  card.querySelector('[data-name]').textContent = provider.name;
+  card.querySelector('[data-type]').textContent = {
+    API: 'اتصال مباشر',
+    STOCK: 'أكواز محملة',
+    MANUAL: 'تنفيذ يدوي'
+  }[provider.provider_type] || provider.provider_type;
+
+  const statusBadge = card.querySelector('[data-status]');
+  const statusClass = provider.status === 'ONLINE' ? 'ok' : provider.status === 'OFFLINE' ? 'bad' : 'wait';
+  statusBadge.className = `pill ${statusClass}`;
+  statusBadge.textContent = {
+    ONLINE: '✅ متصل',
+    OFFLINE: '❌ غير متصل',
+    DEGRADED: '⚠️ متدهور',
+    DISABLED: '🔒 معطّل'
+  }[provider.status] || provider.status;
+
+  if (!provider.enabled) {
+    card.querySelector('[data-enabled-badge]').style.display = 'inline-flex';
+  }
+
+  if (provider.balance_usd !== undefined) {
+    const balanceBadge = card.querySelector('[data-balance-badge]');
+    balanceBadge.style.display = 'inline-flex';
+    balanceBadge.querySelector('[data-balance]').textContent = `$${provider.balance_usd.toFixed(2)}`;
+  }
+
+  card.querySelector('[data-last-sync]').textContent = provider.last_sync ? new Date(provider.last_sync).toLocaleString('ar-EG') : '—';
+  card.querySelector('[data-latency]').textContent = provider.api_latency_ms || '—';
+  card.querySelector('[data-error]').textContent = provider.last_error || '—';
+
+  return card.innerHTML;
+}
+
+function openProviderModal() {
+  currentProvider = null;
+  document.getElementById('modalTitle').textContent = 'إضافة مزود جديد';
+  document.getElementById('providerForm').reset();
+  document.getElementById('providerModal').classList.add('show');
+  updateFormVisibility();
+}
+
+function closeProviderModal() {
+  document.getElementById('providerModal').classList.remove('show');
+  currentProvider = null;
+}
+
+function editProvider(provider) {
+  currentProvider = provider;
+  document.getElementById('modalTitle').textContent = `تحرير: ${provider.name}`;
+  
+  document.getElementById('providerType').value = provider.provider_type;
+  document.getElementById('providerName').value = provider.name;
+  document.getElementById('baseUrl').value = provider.base_url || '';
+  document.getElementById('apiKey').value = '';
+  document.getElementById('apiSecret').value = '';
+  document.getElementById('merchantId').value = '';
+  document.getElementById('authType').value = provider.auth_type || 'BEARER';
+  document.getElementById('logoUrl').value = provider.logo_url || '';
+  document.getElementById('priority').value = provider.priority;
+  document.getElementById('notes').value = provider.notes || '';
+
+  updateFormVisibility();
+  document.getElementById('providerModal').classList.add('show');
+}
+
+function updateFormVisibility() {
+  const type = document.getElementById('providerType').value;
+  const isAPI = type === 'API';
+
+  document.getElementById('baseUrlDiv').style.display = isAPI ? 'block' : 'none';
+  document.getElementById('apiKeyDiv').style.display = isAPI ? 'block' : 'none';
+  document.getElementById('apiSecretDiv').style.display = isAPI ? 'block' : 'none';
+  document.getElementById('merchantIdDiv').style.display = isAPI ? 'block' : 'none';
+  document.getElementById('authTypeDiv').style.display = isAPI ? 'block' : 'none';
+}
+
+document.getElementById('providerType')?.addEventListener('change', updateFormVisibility);
+
+async function saveProvider(e) {
+  e.preventDefault();
+
+  const isEdit = !!currentProvider;
+  const endpoint = isEdit ? `/admin/providers/${currentProvider.id}` : '/admin/providers';
+  const method = isEdit ? 'PATCH' : 'POST';
+
+  const data = {
+    name: document.getElementById('providerName').value,
+    provider_type: document.getElementById('providerType').value,
+    base_url: document.getElementById('baseUrl').value || null,
+    api_key: document.getElementById('apiKey').value || null,
+    api_secret: document.getElementById('apiSecret').value || null,
+    merchant_id: document.getElementById('merchantId').value || null,
+    auth_type: document.getElementById('authType').value,
+    logo_url: document.getElementById('logoUrl').value || null,
+    priority: parseInt(document.getElementById('priority').value),
+    notes: document.getElementById('notes').value,
+  };
+
+  try {
+    const btn = document.getElementById('saveProviderBtn');
+    btn.disabled = true;
+
+    const res = await api(endpoint, data, method);
+
+    if (!res.success) throw new Error(res.error);
+
+    toast(`تم ${isEdit ? 'تحديث' : 'إضافة'} المزود`, 'ok');
+    closeProviderModal();
+    await loadProviders();
+  } catch (err) {
+    toast(err.message, 'bad');
+    document.getElementById('saveProviderBtn').disabled = false;
+  }
+}
+
+document.getElementById('providerForm')?.addEventListener('submit', saveProvider);
+document.getElementById('addProviderBtn')?.addEventListener('click', openProviderModal);
+
+// ── Provider Actions ──
+async function testConnection(providerId) {
+  try {
+    const modal = document.getElementById('testModal');
+    const result = document.getElementById('testResult');
+    result.innerHTML = '<p style="text-align:center">جاري الاختبار...</p>';
+    modal.classList.add('show');
+
+    const res = await api(`/admin/providers/${providerId}/test-connection`, {}, 'POST');
+
+    if (res.success && res.connection) {
+      const { status, latency, message } = res.connection;
+      result.innerHTML = `
+        <div class="banner">
+          <strong>الحالة:</strong> ${status === 'ONLINE' ? '✅ متصل' : '❌ غير متصل'}<br>
+          <strong>الكمون:</strong> ${latency}ms<br>
+          <strong>الرسالة:</strong> ${message || '—'}
+        </div>
+      `;
+      await loadProviders();
+    } else {
+      result.innerHTML = `<div class="alert">❌ ${res.error || 'فشل الاختبار'}</div>`;
+    }
+  } catch (err) {
+    document.getElementById('testResult').innerHTML = `<div class="alert">❌ ${err.message}</div>`;
+  }
+}
+
+function closeTestModal() {
+  document.getElementById('testModal').classList.remove('show');
+}
+
+async function syncProducts(providerId) {
+  try {
+    const modal = document.getElementById('syncModal');
+    const result = document.getElementById('syncResult');
+    result.innerHTML = '<p style="text-align:center">جاري المزامنة...</p>';
+    modal.classList.add('show');
+
+    const res = await api(`/admin/providers/${providerId}/sync-products`, {}, 'POST');
+
+    if (res.success) {
+      result.innerHTML = `
+        <div class="banner">
+          <strong>✅ نجحت المزامنة</strong><br>
+          المنتجات المكتشفة: <strong>${res.products_found}</strong><br>
+          المنتجات المحفوظة: <strong>${res.products_saved}</strong>
+        </div>
+      `;
+      await loadProviders();
+    } else {
+      result.innerHTML = `<div class="alert">❌ ${res.error || 'فشل المزامنة'}</div>`;
+    }
+  } catch (err) {
+    document.getElementById('syncResult').innerHTML = `<div class="alert">❌ ${err.message}</div>`;
+  }
+}
+
+function closeSyncModal() {
+  document.getElementById('syncModal').classList.remove('show');
+}
+
+async function showProviderProducts(providerId) {
+  try {
+    const modal = document.getElementById('productsModal');
+    const tbody = document.getElementById('productsTableBody');
+    
+    tbody.innerHTML = '<tr><td colspan="4" style="text-align:center">جاري التحميل...</td></tr>';
+    modal.classList.add('show');
+
+    const res = await api(`/admin/providers/${providerId}/products`);
+    if (!res.success) throw new Error(res.error);
+
+    document.getElementById('productsTitle').textContent = `منتجات ${res.provider.name}`;
+
+    if (!res.products || res.products.length === 0) {
+      tbody.innerHTML = '<tr><td colspan="4" style="text-align:center">لا توجد منتجات</td></tr>';
+      return;
+    }
+
+    tbody.innerHTML = res.products.map(p => `
+      <tr>
+        <td style="font-family:monospace;font-size:11px">${esc(p.external_product_id)}</td>
+        <td>${esc(p.name)}</td>
+        <td class="num">$${p.cost_usd.toFixed(2)}</td>
+        <td><span class="pill ok">${p.availability === 'AVAILABLE' ? 'متوفر' : 'غير متوفر'}</span></td>
+      </tr>
+    `).join('');
+  } catch (err) {
+    toast(err.message, 'bad');
+    closeProductsModal();
+  }
+}
+
+function closeProductsModal() {
+  document.getElementById('productsModal').classList.remove('show');
+}
+
+function confirmDelete(providerId) {
+  if (!confirm('هل متأكد؟ سيتم تعطيل المزود')) return;
+  deleteProvider(providerId);
+}
+
+async function deleteProvider(providerId) {
+  try {
+    const res = await api(`/admin/providers/${providerId}`, {}, 'DELETE');
+    if (!res.success) throw new Error(res.error);
+    
+    toast('تم تعطيل المزود', 'ok');
+    await loadProviders();
+  } catch (err) {
+    toast(err.message, 'bad');
+  }
+}
+
+// ── Import Wizard ──
+async function loadProvidersForImport() {
+  try {
+    const res = await api('/admin/providers');
+    if (!res.success) throw new Error(res.error);
+
+    const select = document.getElementById('importProvider');
+    select.innerHTML = '<option value="">-- اختر المزود --</option>' +
+      res.providers.map(p => `<option value="${p.id}">${esc(p.name)}</option>`).join('');
+  } catch (err) {
+    toast(err.message, 'bad');
+  }
+}
+
+function resetImportWizard() {
+  importState = { provider: null, products: [], selected: [] };
+  document.getElementById('importStep1').style.display = 'block';
+  document.getElementById('importStep2').style.display = 'none';
+  document.getElementById('importStep3').style.display = 'none';
+  document.getElementById('importResults').style.display = 'none';
+}
+
+async function loadImportPreview() {
+  const providerId = document.getElementById('importProvider').value;
+  if (!providerId) {
+    toast('اختر المزود', 'bad');
+    return;
+  }
+
+  try {
+    const res = await api(`/admin/import/preview?provider_id=${providerId}`);
+    if (!res.success) throw new Error(res.error);
+
+    importState.provider = res.provider;
+    importState.products = res.products;
+
+    document.getElementById('importStep1').style.display = 'none';
+    document.getElementById('importStep2').style.display = 'block';
+
+    const grid = document.getElementById('productsGrid');
+    grid.innerHTML = importState.products.map((p, i) => `
+      <div class="box" style="padding:10px">
+        <label style="display:flex;align-items:center;gap:10px">
+          <input type="checkbox" value="${i}" class="product-checkbox">
+          <div>
+            <strong>${esc(p.name)}</strong>
+            <div class="sub">$${p.cost_usd.toFixed(2)}</div>
+          </div>
+        </label>
+      </div>
+    `).join('');
+
+    document.querySelectorAll('.product-checkbox').forEach(cb => {
+      cb.onchange = () => {
+        importState.selected = Array.from(document.querySelectorAll('.product-checkbox:checked'))
+          .map(c => parseInt(c.value));
+      };
+    });
+  } catch (err) {
+    toast(err.message, 'bad');
+  }
+}
+
+async function showImportStep3() {
+  if (!importState.selected.length) {
+    toast('اختر منتجات على الأقل', 'bad');
+    return;
+  }
+
+  document.getElementById('importStep2').style.display = 'none';
+  document.getElementById('importStep3').style.display = 'block';
+
+  const selected = importState.selected.map(i => importState.products[i]);
+  const review = document.getElementById('reviewList');
+  review.innerHTML = selected.map(p => `
+    <div style="padding:10px;border-bottom:1px solid #e2e8f0">
+      <strong>${esc(p.name)}</strong> — $${p.cost_usd.toFixed(2)}
+    </div>
+  `).join('');
+}
+
+async function importSelectedProducts() {
+  const selected = importState.selected.map(i => {
+    const p = importState.products[i];
+    return {
+      provider_id: importState.provider.id,
+      provider_product_id: p.id,
+      name: p.name,
+      name_ar: p.name,
+      category_id: 'other',
+      cost_usd: p.cost_usd,
+      price_usd: p.cost_usd * 1.1,
+      delivery_method: 'API_DIRECT_TOPUP',
+      image_source: 'PROVIDER',
+      homepage_visible: false,
+    };
+  });
+
+  try {
+    const res = await api('/admin/import/products', { products: selected }, 'POST');
+    
+    document.getElementById('importStep3').style.display = 'none';
+    document.getElementById('importResults').style.display = 'block';
+
+    const resultsContent = document.getElementById('resultsContent');
+    resultsContent.innerHTML = `
+      <p><strong>✅ تم استيراد ${res.imported_count} منتج</strong></p>
+      ${res.error_count > 0 ? `<p>❌ ${res.error_count} أخطاء</p>` : ''}
+      <button class="btn" onclick="resetImportWizard();loadProvidersForImport()">استيراد آخر</button>
+    `;
+  } catch (err) {
+    toast(err.message, 'bad');
+  }
+}
+
+// ── Logout ──
+function logout() {
+  if (confirm('هل تريد تسجيل الخروج؟')) {
+    localStorage.removeItem('auth_token');
+    location.href = '/login';
+  }
+}
+
+// ── Initialize ──
+document.addEventListener('DOMContentLoaded', () => {
+  showDashboard();
+});
+</script>
+
+</body>
+</html>
