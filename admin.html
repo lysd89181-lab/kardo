@@ -1,1316 +1,612 @@
 <!DOCTYPE html>
-<html dir="rtl" lang="ar">
+<html lang="ar" dir="rtl">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <meta name="theme-color" content="#0F172A">
-  <title>كاردو - لوحة التحكم</title>
-
-  <style>
-    /* ═══════════════════════════════════════════════════════════
-       KARDO ADMIN DESIGN SYSTEM
-       Dark Navy + Emerald Premium Dashboard
-       ═══════════════════════════════════════════════════════════ */
-
-    * {
-      margin: 0;
-      padding: 0;
-      box-sizing: border-box;
-    }
-
-    :root {
-      --dark-base: #020617;
-      --dark-navy: #0F172A;
-      --dark-surface: #111827;
-      --dark-secondary: #172033;
-      --emerald: #10B981;
-      --emerald-light: #34D399;
-      --text-primary: #F8FAFC;
-      --text-muted: #94A3B8;
-      --border: rgba(16, 185, 129, 0.18);
-      --error: #EF4444;
-      --warning: #F59E0B;
-      --success: #22C55E;
-      --font-arabic: 'Tajawal', 'IBM Plex Sans Arabic', sans-serif;
-      --font-mono: 'IBM Plex Mono', monospace;
-      --transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-    }
-
-    html {
-      scroll-behavior: smooth;
-    }
-
-    body {
-      font-family: var(--font-arabic);
-      background: linear-gradient(135deg, var(--dark-base) 0%, var(--dark-navy) 100%);
-      color: var(--text-primary);
-      line-height: 1.6;
-    }
-
-    /* ═══════════════════════════════════════════════════════════
-       LAYOUT
-       ═══════════════════════════════════════════════════════════ */
-
-    .container {
-      display: grid;
-      grid-template-columns: 280px 1fr;
-      grid-template-rows: auto 1fr;
-      min-height: 100vh;
-      gap: 0;
-    }
-
-    /* ═══════════════════════════════════════════════════════════
-       SIDEBAR
-       ═══════════════════════════════════════════════════════════ */
-
-    .sidebar {
-      grid-row: 1 / -1;
-      grid-column: 1;
-      background: rgba(15, 23, 42, 0.95);
-      border-right: 1px solid var(--border);
-      overflow-y: auto;
-      padding: 24px 0;
-      position: sticky;
-      top: 0;
-      max-height: 100vh;
-    }
-
-    .sidebar-header {
-      padding: 0 16px 24px;
-      border-bottom: 1px solid var(--border);
-      margin-bottom: 24px;
-    }
-
-    .sidebar-logo {
-      display: flex;
-      align-items: center;
-      gap: 10px;
-      text-decoration: none;
-      color: var(--text-primary);
-      font-size: 16px;
-      font-weight: 700;
-    }
-
-    .logo-k {
-      width: 32px;
-      height: 32px;
-      background: linear-gradient(135deg, var(--emerald) 0%, var(--emerald-light) 100%);
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      border-radius: 6px;
-      color: var(--dark-navy);
-      font-weight: 900;
-      font-size: 16px;
-    }
-
-    .sidebar-menu {
-      list-style: none;
-    }
-
-    .menu-section {
-      padding: 0 8px 16px;
-      margin-bottom: 16px;
-    }
-
-    .menu-label {
-      font-size: 11px;
-      font-weight: 700;
-      color: var(--text-muted);
-      text-transform: uppercase;
-      letter-spacing: 0.5px;
-      padding: 0 12px 8px;
-    }
-
-    .menu-item {
-      display: block;
-      padding: 10px 16px;
-      color: var(--text-muted);
-      text-decoration: none;
-      font-size: 14px;
-      border-radius: 8px;
-      margin-bottom: 6px;
-      cursor: pointer;
-      border: none;
-      background: transparent;
-      width: 100%;
-      text-align: right;
-      font-family: var(--font-arabic);
-      transition: var(--transition);
-      position: relative;
-    }
-
-    .menu-item:hover {
-      background: rgba(16, 185, 129, 0.1);
-      color: var(--emerald);
-    }
-
-    .menu-item.active {
-      background: rgba(16, 185, 129, 0.15);
-      color: var(--emerald);
-      border-right: 3px solid var(--emerald);
-    }
-
-    .menu-item-icon {
-      display: inline-block;
-      margin-left: 8px;
-    }
-
-    .sidebar-footer {
-      position: sticky;
-      bottom: 0;
-      padding: 24px 16px 16px;
-      border-top: 1px solid var(--border);
-      background: rgba(15, 23, 42, 0.95);
-    }
-
-    .status-indicator {
-      display: flex;
-      align-items: center;
-      gap: 8px;
-      padding: 10px 12px;
-      background: rgba(16, 185, 129, 0.1);
-      border-radius: 6px;
-      font-size: 12px;
-      margin-bottom: 12px;
-    }
-
-    .status-dot {
-      width: 8px;
-      height: 8px;
-      background: var(--success);
-      border-radius: 50%;
-      animation: pulse 2s infinite;
-    }
-
-    @keyframes pulse {
-      0%, 100% {
-        opacity: 1;
-      }
-      50% {
-        opacity: 0.5;
-      }
-    }
-
-    .admin-profile {
-      display: flex;
-      align-items: center;
-      gap: 10px;
-      padding: 10px;
-      background: var(--dark-secondary);
-      border-radius: 8px;
-      cursor: pointer;
-      transition: var(--transition);
-    }
-
-    .admin-profile:hover {
-      background: var(--dark-surface);
-    }
-
-    .admin-avatar {
-      width: 32px;
-      height: 32px;
-      background: linear-gradient(135deg, var(--emerald) 0%, var(--emerald-light) 100%);
-      border-radius: 6px;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      font-size: 16px;
-    }
-
-    .admin-info {
-      flex: 1;
-      min-width: 0;
-    }
-
-    .admin-name {
-      font-size: 12px;
-      font-weight: 600;
-      white-space: nowrap;
-      overflow: hidden;
-      text-overflow: ellipsis;
-    }
-
-    .admin-role {
-      font-size: 11px;
-      color: var(--text-muted);
-    }
-
-    /* ═══════════════════════════════════════════════════════════
-       HEADER
-       ═══════════════════════════════════════════════════════════ */
-
-    .header {
-      grid-column: 2;
-      grid-row: 1;
-      background: rgba(15, 23, 42, 0.95);
-      border-bottom: 1px solid var(--border);
-      padding: 16px 24px;
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      gap: 20px;
-    }
-
-    .header-title {
-      font-size: 20px;
-      font-weight: 700;
-    }
-
-    .header-right {
-      display: flex;
-      align-items: center;
-      gap: 16px;
-    }
-
-    .search-box {
-      position: relative;
-      width: 200px;
-    }
-
-    .search-input {
-      width: 100%;
-      padding: 8px 12px 8px 32px;
-      background: var(--dark-secondary);
-      border: 1px solid var(--border);
-      border-radius: 6px;
-      color: var(--text-primary);
-      font-family: var(--font-arabic);
-      font-size: 13px;
-    }
-
-    .search-input:focus {
-      outline: none;
-      border-color: var(--emerald);
-      box-shadow: 0 0 0 3px rgba(16, 185, 129, 0.1);
-    }
-
-    .search-icon {
-      position: absolute;
-      left: 10px;
-      top: 50%;
-      transform: translateY(-50%);
-      color: var(--text-muted);
-      font-size: 14px;
-    }
-
-    .header-btn {
-      background: transparent;
-      border: none;
-      color: var(--text-muted);
-      cursor: pointer;
-      font-size: 18px;
-      width: 36px;
-      height: 36px;
-      border-radius: 6px;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      transition: var(--transition);
-      position: relative;
-    }
-
-    .header-btn:hover {
-      background: var(--dark-secondary);
-      color: var(--emerald);
-    }
-
-    .badge {
-      position: absolute;
-      top: 4px;
-      right: 4px;
-      background: var(--error);
-      color: white;
-      font-size: 8px;
-      font-weight: 700;
-      border-radius: 50%;
-      width: 16px;
-      height: 16px;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-    }
-
-    /* ═══════════════════════════════════════════════════════════
-       MAIN CONTENT
-       ═══════════════════════════════════════════════════════════ */
-
-    .main {
-      grid-column: 2;
-      grid-row: 2;
-      padding: 32px 24px;
-      overflow-y: auto;
-    }
-
-    /* ═══════════════════════════════════════════════════════════
-       SECTIONS
-       ═══════════════════════════════════════════════════════════ */
-
-    .section {
-      display: none;
-    }
-
-    .section.active {
-      display: block;
-      animation: fadeIn 0.3s ease-out;
-    }
-
-    @keyframes fadeIn {
-      from {
-        opacity: 0;
-        transform: translateY(10px);
-      }
-      to {
-        opacity: 1;
-        transform: translateY(0);
-      }
-    }
-
-    /* ═══════════════════════════════════════════════════════════
-       DASHBOARD
-       ═══════════════════════════════════════════════════════════ */
-
-    .dashboard-title {
-      font-size: 28px;
-      font-weight: 900;
-      margin-bottom: 8px;
-      letter-spacing: -0.5px;
-    }
-
-    .dashboard-subtitle {
-      color: var(--text-muted);
-      font-size: 14px;
-      margin-bottom: 32px;
-    }
-
-    .kpi-grid {
-      display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
-      gap: 16px;
-      margin-bottom: 32px;
-    }
-
-    .kpi-card {
-      background: var(--dark-secondary);
-      border: 1px solid var(--border);
-      border-radius: 12px;
-      padding: 20px;
-      animation: slideUp 0.6s ease-out backwards;
-    }
-
-    .kpi-card:nth-child(1) { animation-delay: 0.1s; }
-    .kpi-card:nth-child(2) { animation-delay: 0.15s; }
-    .kpi-card:nth-child(3) { animation-delay: 0.2s; }
-    .kpi-card:nth-child(4) { animation-delay: 0.25s; }
-    .kpi-card:nth-child(5) { animation-delay: 0.3s; }
-    .kpi-card:nth-child(6) { animation-delay: 0.35s; }
-
-    @keyframes slideUp {
-      from {
-        opacity: 0;
-        transform: translateY(20px);
-      }
-      to {
-        opacity: 1;
-        transform: translateY(0);
-      }
-    }
-
-    .kpi-label {
-      font-size: 12px;
-      color: var(--text-muted);
-      font-weight: 600;
-      text-transform: uppercase;
-      letter-spacing: 0.5px;
-      margin-bottom: 12px;
-    }
-
-    .kpi-value {
-      font-size: 28px;
-      font-weight: 900;
-      margin-bottom: 8px;
-      font-family: var(--font-mono);
-    }
-
-    .kpi-change {
-      font-size: 12px;
-      color: var(--success);
-      display: flex;
-      align-items: center;
-      gap: 4px;
-    }
-
-    .kpi-change.down {
-      color: var(--error);
-    }
-
-    /* ═══════════════════════════════════════════════════════════
-       CHARTS & TABLES
-       ═══════════════════════════════════════════════════════════ */
-
-    .chart-section {
-      background: var(--dark-secondary);
-      border: 1px solid var(--border);
-      border-radius: 12px;
-      padding: 20px;
-      margin-bottom: 32px;
-    }
-
-    .chart-title {
-      font-size: 16px;
-      font-weight: 700;
-      margin-bottom: 20px;
-    }
-
-    .chart-placeholder {
-      height: 300px;
-      background: linear-gradient(135deg, rgba(16, 185, 129, 0.05) 0%, transparent 100%);
-      border-radius: 8px;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      color: var(--text-muted);
-      font-size: 14px;
-    }
-
-    .table {
-      width: 100%;
-      border-collapse: collapse;
-      font-size: 13px;
-    }
-
-    .table th {
-      background: rgba(16, 185, 129, 0.05);
-      padding: 12px;
-      text-align: right;
-      font-weight: 600;
-      color: var(--emerald);
-      border-bottom: 1px solid var(--border);
-    }
-
-    .table td {
-      padding: 12px;
-      border-bottom: 1px solid var(--border);
-    }
-
-    .table tr:hover {
-      background: rgba(16, 185, 129, 0.03);
-    }
-
-    /* ═══════════════════════════════════════════════════════════
-       BUTTONS & FORMS
-       ═══════════════════════════════════════════════════════════ */
-
-    .btn {
-      padding: 10px 20px;
-      background: var(--emerald);
-      color: var(--dark-navy);
-      border: none;
-      border-radius: 6px;
-      font-weight: 600;
-      cursor: pointer;
-      font-family: var(--font-arabic);
-      font-size: 13px;
-      transition: var(--transition);
-    }
-
-    .btn:hover {
-      background: var(--emerald-light);
-      transform: translateY(-2px);
-    }
-
-    .btn-secondary {
-      background: transparent;
-      color: var(--emerald);
-      border: 1px solid var(--border);
-    }
-
-    .btn-secondary:hover {
-      background: rgba(16, 185, 129, 0.1);
-      border-color: var(--emerald);
-    }
-
-    .btn-danger {
-      background: var(--error);
-      color: white;
-    }
-
-    .btn-danger:hover {
-      background: #DC2626;
-    }
-
-    .input-group {
-      display: flex;
-      gap: 10px;
-      margin-bottom: 16px;
-    }
-
-    .input {
-      flex: 1;
-      padding: 10px 12px;
-      background: var(--dark-secondary);
-      border: 1px solid var(--border);
-      border-radius: 6px;
-      color: var(--text-primary);
-      font-family: var(--font-arabic);
-      font-size: 13px;
-    }
-
-    .input:focus {
-      outline: none;
-      border-color: var(--emerald);
-      box-shadow: 0 0 0 3px rgba(16, 185, 129, 0.1);
-    }
-
-    /* ═══════════════════════════════════════════════════════════
-       PROVIDERS SECTION
-       ═══════════════════════════════════════════════════════════ */
-
-    .providers-grid {
-      display: grid;
-      grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
-      gap: 16px;
-      margin-top: 20px;
-    }
-
-    .provider-card {
-      background: var(--dark-secondary);
-      border: 1px solid var(--border);
-      border-radius: 12px;
-      padding: 20px;
-      animation: slideUp 0.6s ease-out backwards;
-    }
-
-    .provider-header {
-      display: flex;
-      justify-content: space-between;
-      align-items: start;
-      margin-bottom: 16px;
-    }
-
-    .provider-name {
-      font-size: 16px;
-      font-weight: 700;
-    }
-
-    .status-badge {
-      display: inline-flex;
-      align-items: center;
-      gap: 4px;
-      font-size: 11px;
-      font-weight: 600;
-      padding: 4px 8px;
-      background: rgba(34, 197, 94, 0.2);
-      color: var(--success);
-      border-radius: 4px;
-    }
-
-    .status-badge.offline {
-      background: rgba(239, 68, 68, 0.2);
-      color: var(--error);
-    }
-
-    .provider-stat {
-      display: flex;
-      justify-content: space-between;
-      padding: 8px 0;
-      border-bottom: 1px solid var(--border);
-      font-size: 12px;
-    }
-
-    .provider-stat:last-child {
-      border-bottom: none;
-    }
-
-    .provider-stat-label {
-      color: var(--text-muted);
-    }
-
-    .provider-stat-value {
-      font-weight: 600;
-      color: var(--emerald);
-      font-family: var(--font-mono);
-    }
-
-    .provider-actions {
-      display: flex;
-      gap: 8px;
-      margin-top: 16px;
-    }
-
-    .btn-small {
-      flex: 1;
-      padding: 8px 12px;
-      font-size: 11px;
-    }
-
-    /* ═══════════════════════════════════════════════════════════
-       RESPONSIVE
-       ═══════════════════════════════════════════════════════════ */
-
-    @media (max-width: 768px) {
-      .container {
-        grid-template-columns: 1fr;
-      }
-
-      .sidebar {
-        display: none;
-      }
-
-      .header {
-        grid-column: 1;
-      }
-
-      .main {
-        grid-column: 1;
-      }
-
-      .kpi-grid {
-        grid-template-columns: repeat(2, 1fr);
-      }
-
-      .providers-grid {
-        grid-template-columns: 1fr;
-      }
-
-      .search-box {
-        width: auto;
-      }
-    }
-  </style>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#05080F">
+<meta name="robots" content="noindex,nofollow">
+<title>كاردو — لوحة التحكم</title>
+
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Tajawal:wght@400;500;700;800;900&family=IBM+Plex+Mono:wght@400;500&display=swap">
+
+<style>
+:root{
+  --bg:#05080F;--bg-2:#0A0E17;--s1:#0F1623;--s2:#141C2B;--s3:#1A2335;--s4:#212B40;
+  --line:#1E2839;--line-2:#2A3648;
+  --tx:#EEF2F8;--tx-2:#97A5BD;--tx-3:#5F6E88;
+  --g:#10B981;--g-2:#0E9E70;--g-3:#34D399;
+  --g-soft:rgba(16,185,129,.10);--g-glow:rgba(16,185,129,.28);--g-line:rgba(16,185,129,.26);
+  --bad:#EF5F5F;--bad-soft:rgba(239,95,95,.12);
+  --warn:#E0A030;--warn-soft:rgba(224,160,48,.12);
+  --info:#4A9EFF;--info-soft:rgba(74,158,255,.12);
+  --spring:cubic-bezier(.34,1.4,.44,1);
+  --ease:cubic-bezier(.22,1,.36,1);
+  --rail-w:250px;--bar-h:60px;
+}
+*{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
+html{-webkit-text-size-adjust:100%}
+body{
+  font-family:'Tajawal',system-ui,-apple-system,sans-serif;
+  font-feature-settings:'lnum' 1,'tnum' 1;
+  background:var(--bg-2);color:var(--tx);
+  font-size:15px;line-height:1.65;
+  -webkit-font-smoothing:antialiased;
+  min-height:100vh;overflow-x:hidden;
+}
+button{font:inherit;color:inherit;background:none;border:none;cursor:pointer}
+input,select,textarea{font:inherit;color:inherit;width:100%}
+a{color:inherit;text-decoration:none}
+img{max-width:100%;display:block}
+:focus-visible{outline:2px solid var(--g);outline-offset:3px;border-radius:8px}
+::selection{background:var(--g);color:#04121B}
+::-webkit-scrollbar{width:8px;height:8px}
+::-webkit-scrollbar-thumb{background:var(--line-2);border-radius:8px}
+::-webkit-scrollbar-thumb:hover{background:var(--s4)}
+svg{width:19px;height:19px;flex:none;display:inline-block;vertical-align:middle}
+svg[data-lg]{width:24px;height:24px}
+.mono{font-family:'IBM Plex Mono',monospace;font-feature-settings:'lnum' 1,'tnum' 1}
+.num{font-variant-numeric:tabular-nums;letter-spacing:-.02em;font-weight:700}
+
+/* ─── Layout ─── */
+.shell{display:grid;grid-template-columns:1fr;min-height:100vh}
+@media(min-width:1024px){.shell{grid-template-columns:1fr var(--rail-w)}}
+
+.rail{
+  display:none;grid-column:2;position:sticky;top:0;height:100vh;
+  flex-direction:column;padding:20px 12px;
+  border-inline-start:1px solid var(--line);
+  background:linear-gradient(180deg,#0A0E17 0%,#0F1623 100%);
+  overflow-y:auto;
+}
+@media(min-width:1024px){.rail{display:flex}}
+
+.main{grid-column:1;min-width:0;padding-bottom:24px}
+
+.bar{
+  position:sticky;top:0;z-index:30;height:var(--bar-h);
+  display:flex;align-items:center;gap:12px;padding:0 16px;
+  background:rgba(10,14,23,.82);
+  backdrop-filter:blur(20px) saturate(180%);
+  -webkit-backdrop-filter:blur(20px) saturate(180%);
+  border-bottom:1px solid var(--line);
+}
+.bar-title{
+  font-size:16px;font-weight:800;letter-spacing:-.02em;
+  overflow:hidden;text-overflow:ellipsis;white-space:nowrap;
+}
+.bar-actions{margin-inline-start:auto;display:flex;align-items:center;gap:8px}
+
+.iconbtn{
+  width:38px;height:38px;border-radius:11px;flex:none;
+  display:grid;place-items:center;color:var(--tx-2);
+  border:1px solid transparent;transition:.16s;position:relative;
+}
+.iconbtn:hover{background:var(--s2);color:var(--tx);border-color:var(--line)}
+.iconbtn:active{transform:scale(.92)}
+.iconbtn.on{border-color:var(--line-2);background:var(--s1);color:var(--g)}
+
+.badge{
+  position:absolute;top:-3px;inset-inline-end:-3px;
+  min-width:18px;height:18px;padding:0 5px;border-radius:99px;
+  background:var(--bad);color:#fff;
+  font-size:10px;font-weight:800;display:grid;place-items:center;
+  box-shadow:0 0 0 2.5px var(--bg-2);
+}
+
+.wrap{padding:18px 16px;max-width:1400px}
+@media(min-width:640px){.wrap{padding:24px}}
+
+/* Sidebar */
+.brand{display:flex;align-items:center;gap:10px;padding:0 6px;margin-bottom:18px}
+.brand .en{font-size:17px;font-weight:800;letter-spacing:-.03em;line-height:1.1}
+.brand .ar{font-size:10.5px;color:var(--tx-3)}
+
+.nav{display:flex;align-items:center;gap:11px;width:100%;
+  padding:10px 12px;border-radius:10px;
+  color:var(--tx-2);font-size:13.5px;font-weight:600;
+  position:relative;margin-bottom:2px;transition:.16s}
+.nav:hover{background:var(--s1);color:var(--tx)}
+.nav.on{background:var(--s2);color:var(--tx)}
+.nav.on::before{content:'';position:absolute;inset-inline-start:0;top:26%;bottom:26%;
+  width:3px;border-radius:99px;background:var(--g);box-shadow:0 0 10px var(--g-glow)}
+.nav.on svg{color:var(--g)}
+.nav .cnt{margin-inline-start:auto;min-width:19px;height:19px;padding:0 5px;
+  border-radius:99px;background:var(--g);color:#04121B;
+  font-size:10.5px;font-weight:800;display:grid;place-items:center}
+
+.nav-group{margin-top:14px;margin-bottom:6px;padding:0 12px;
+  font-size:10.5px;font-weight:800;letter-spacing:.12em;
+  color:var(--tx-3);text-transform:uppercase;opacity:.65}
+
+.rail-foot{margin-top:auto;padding-top:16px;border-top:1px solid var(--line)}
+.rail-user{display:flex;align-items:center;gap:10px;padding:0 4px 12px}
+.rail-av{width:34px;height:34px;border-radius:10px;flex:none;
+  background:var(--g-soft);color:var(--g);display:grid;
+  place-items:center;font-weight:800;font-size:14px}
+.rail-name{font-size:12.5px;font-weight:700;
+  overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.rail-role{font-size:10.5px;color:var(--tx-3)}
+
+/* Typography */
+.h1{font-size:24px;font-weight:800;letter-spacing:-.032em;line-height:1.2}
+.h2{font-size:16px;font-weight:800;letter-spacing:-.02em;line-height:1.3}
+.h3{font-size:14px;font-weight:700}
+.sub{color:var(--tx-2);font-size:13px;line-height:1.55}
+.eyebrow{font-size:10.5px;font-weight:800;letter-spacing:.12em;
+  color:var(--tx-3);text-transform:uppercase}
+.lbl{display:block;font-size:12px;font-weight:700;color:var(--tx-2);margin-bottom:6px}
+
+.sec-head{display:flex;justify-content:space-between;align-items:baseline;
+  margin:22px 0 12px;gap:12px}
+.sec-head:first-child{margin-top:0}
+
+/* Cards */
+.box{
+  background:linear-gradient(180deg,var(--s1) 0%,rgba(10,14,23,.6) 100%);
+  border:1px solid var(--line);border-radius:14px;padding:16px;
+  box-shadow:0 1px 0 rgba(255,255,255,.03) inset,
+    0 8px 24px -18px rgba(0,0,0,.7);
+  margin-bottom:14px;
+}
+.box-np{padding:0}
+
+/* KPI Grid */
+.kpis{
+  display:grid;gap:11px;
+  grid-template-columns:repeat(2,1fr);
+  margin-bottom:16px;
+}
+@media(min-width:720px){.kpis{grid-template-columns:repeat(3,1fr)}}
+@media(min-width:1100px){.kpis{grid-template-columns:repeat(6,1fr)}}
+
+.kpi{
+  background:linear-gradient(180deg,var(--s1) 0%,rgba(10,14,23,.4) 100%);
+  border:1px solid var(--line);border-radius:13px;padding:14px;
+  transition:.2s var(--ease);
+  animation:riseIn .45s var(--ease) backwards;
+}
+.kpi:hover{border-color:var(--line-2);transform:translateY(-2px);
+  box-shadow:0 12px 24px -16px rgba(16,185,129,.25)}
+.kpi-i{
+  width:34px;height:34px;border-radius:10px;
+  display:grid;place-items:center;margin-bottom:10px;
+}
+.kpi-i svg{width:17px;height:17px}
+.kpi-v{font-size:19px;font-weight:800;letter-spacing:-.03em;
+  line-height:1.15;font-variant-numeric:tabular-nums}
+.kpi-k{font-size:11.5px;color:var(--tx-3);margin-top:3px}
+.kpi-t{font-size:11px;font-weight:700;margin-top:6px;display:inline-flex;
+  align-items:center;gap:4px}
+.kpi-t.up{color:var(--g)}
+.kpi-t.down{color:var(--bad)}
+.kpi-t svg{width:11px;height:11px}
+
+.kpi:nth-child(1){animation-delay:.04s}
+.kpi:nth-child(2){animation-delay:.08s}
+.kpi:nth-child(3){animation-delay:.12s}
+.kpi:nth-child(4){animation-delay:.16s}
+.kpi:nth-child(5){animation-delay:.2s}
+.kpi:nth-child(6){animation-delay:.24s}
+
+/* Buttons */
+.btn{
+  display:inline-flex;align-items:center;justify-content:center;gap:7px;
+  padding:10px 16px;border-radius:10px;
+  font-weight:700;font-size:13.5px;
+  background:linear-gradient(135deg,var(--g) 0%,var(--g-2) 100%);
+  color:#04121B;
+  box-shadow:0 1px 0 rgba(255,255,255,.15) inset,
+    0 6px 14px -6px rgba(16,185,129,.45);
+  transition:transform .16s var(--spring),box-shadow .16s;
+  position:relative;overflow:hidden;
+}
+.btn:hover:not(:disabled){transform:translateY(-1px);
+  box-shadow:0 1px 0 rgba(255,255,255,.2) inset,
+    0 10px 22px -8px rgba(16,185,129,.55)}
+.btn:active:not(:disabled){transform:translateY(0) scale(.98)}
+.btn:disabled{opacity:.42;cursor:not-allowed;
+  background:var(--s3);color:var(--tx-3);box-shadow:none}
+.btn svg{width:16px;height:16px}
+.btn.line{background:transparent;border:1px solid var(--line-2);
+  color:var(--tx);box-shadow:none}
+.btn.line:hover:not(:disabled){background:var(--s2);border-color:var(--tx-3)}
+.btn.ghost{background:var(--s2);color:var(--tx);box-shadow:none}
+.btn.ghost:hover:not(:disabled){background:var(--s3)}
+.btn.dark{background:var(--s1);border:1px solid var(--line-2);color:var(--tx);
+  box-shadow:none}
+.btn.dark:hover:not(:disabled){border-color:var(--g);color:var(--g)}
+.btn.bad{background:transparent;border:1px solid rgba(239,95,95,.35);
+  color:var(--bad);box-shadow:none}
+.btn.bad:hover:not(:disabled){background:var(--bad-soft)}
+.btn.sm{padding:7px 12px;font-size:12px;border-radius:9px}
+.btn.sm svg{width:14px;height:14px}
+.btn.wide{width:100%}
+
+/* Input */
+.inp{
+  background:var(--s2);border:1.5px solid var(--line-2);
+  border-radius:11px;padding:11px 13px;
+  color:var(--tx);font-size:14px;
+  transition:.16s;font-family:inherit;
+}
+.inp::placeholder{color:var(--tx-3)}
+.inp:hover:not(:focus){border-color:var(--tx-3)}
+.inp:focus{outline:none;border-color:var(--g);background:var(--s3);
+  box-shadow:0 0 0 3px var(--g-soft)}
+.inp.bad{border-color:var(--bad)}
+select.inp{appearance:none;background-image:
+  linear-gradient(45deg,transparent 50%,var(--tx-2) 50%),
+  linear-gradient(135deg,var(--tx-2) 50%,transparent 50%);
+  background-position:14px 20px,20px 20px;background-size:6px 6px;
+  background-repeat:no-repeat}
+textarea.inp{resize:vertical;line-height:1.65;min-height:80px}
+
+/* Table */
+.scrollx{overflow-x:auto;-webkit-overflow-scrolling:touch;
+  border-radius:14px;border:1px solid var(--line);
+  background:var(--s1)}
+.tbl{width:100%;border-collapse:collapse;font-size:13px;min-width:600px}
+.tbl th{
+  text-align:right;padding:11px 12px;
+  color:var(--tx-3);font-size:11.5px;font-weight:700;
+  border-bottom:1px solid var(--line);white-space:nowrap;
+  background:var(--s2);position:sticky;top:0;z-index:1;
+}
+.tbl td{
+  padding:11px 12px;border-bottom:1px solid var(--line);
+  white-space:nowrap;
+}
+.tbl tbody tr:last-child td{border-bottom:none}
+.tbl tbody tr{transition:background .15s}
+.tbl tbody tr:hover{background:var(--s2)}
+.tbl td.tight{max-width:220px;overflow:hidden;
+  text-overflow:ellipsis}
+
+/* Chip */
+.chip{
+  display:inline-flex;align-items:center;gap:4px;
+  padding:3px 9px;border-radius:99px;
+  font-size:10.5px;font-weight:700;white-space:nowrap;
+}
+.chip.ok{background:var(--g-soft);color:var(--g)}
+.chip.wait{background:var(--warn-soft);color:var(--warn)}
+.chip.bad{background:var(--bad-soft);color:var(--bad)}
+.chip.info{background:var(--info-soft);color:var(--info)}
+.chip.off{background:var(--s3);color:var(--tx-3)}
+
+/* Empty */
+.empty{text-align:center;padding:40px 20px;color:var(--tx-2)}
+.empty .ei{width:56px;height:56px;border-radius:16px;margin:0 auto 14px;
+  display:grid;place-items:center;background:var(--s2);color:var(--tx-3)}
+.empty .ei svg{width:26px;height:26px}
+.empty .et{font-weight:800;color:var(--tx);font-size:14.5px;margin-bottom:4px}
+.empty p{font-size:13px}
+
+/* Loading skeleton */
+.sk{background:linear-gradient(90deg,var(--s2) 25%,var(--s3) 37%,var(--s2) 63%);
+  background-size:400% 100%;animation:shimmer 1.4s ease infinite;border-radius:8px}
+@keyframes shimmer{0%{background-position:100% 0}100%{background-position:0 0}}
+
+/* Note */
+.note{
+  background:var(--warn-soft);border:1px solid rgba(224,160,48,.24);
+  color:#F0C878;padding:11px 13px;border-radius:11px;
+  font-size:12.5px;line-height:1.55;margin-bottom:12px;
+}
+.note.bad{background:var(--bad-soft);border-color:rgba(239,95,95,.28);color:#F5A0A0}
+.note.ok{background:var(--g-soft);border-color:var(--g-line);color:var(--g-3)}
+.note svg{width:17px;height:17px;margin-inline-end:6px;vertical-align:-3px}
+
+/* Grid helpers */
+.grid2{display:grid;grid-template-columns:1fr;gap:12px}
+@media(min-width:640px){.grid2{grid-template-columns:1fr 1fr}}
+.grid3{display:grid;grid-template-columns:1fr;gap:12px}
+@media(min-width:720px){.grid3{grid-template-columns:repeat(3,1fr)}}
+
+.flex-b{display:flex;justify-content:space-between;align-items:center;gap:12px}
+.flex{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+.gap-s{gap:8px}
+
+/* Sparklines */
+.spark{display:flex;align-items:flex-end;gap:3px;height:72px}
+.spark i{flex:1;background:var(--g);border-radius:3px 3px 0 0;
+  min-height:3px;opacity:.85;transition:.3s var(--ease)}
+.spark i:hover{opacity:1;background:var(--g-3)}
+
+/* Provider card */
+.pcard{
+  background:linear-gradient(180deg,var(--s1),rgba(10,14,23,.5));
+  border:1px solid var(--line);border-radius:13px;padding:14px;
+  transition:.16s;
+}
+.pcard:hover{border-color:var(--line-2)}
+.phead{display:flex;justify-content:space-between;align-items:flex-start;
+  margin-bottom:12px;gap:10px}
+.pname{font-size:14.5px;font-weight:800}
+.prow{display:flex;justify-content:space-between;padding:6px 0;
+  border-bottom:1px solid var(--line);font-size:12.5px}
+.prow:last-child{border-bottom:none}
+.pk{color:var(--tx-3)}
+.pv{font-weight:700;color:var(--g);font-family:'IBM Plex Mono',monospace}
+.pacts{display:flex;gap:6px;margin-top:12px}
+
+/* Activity / Timeline */
+.tline{position:relative;padding-inline-start:22px}
+.tline::before{content:'';position:absolute;inset-inline-start:6px;
+  top:6px;bottom:6px;width:2px;background:var(--line);border-radius:2px}
+.tl-item{position:relative;padding-bottom:16px}
+.tl-item:last-child{padding-bottom:0}
+.tl-item::before{content:'';position:absolute;inset-inline-start:-20px;
+  top:6px;width:10px;height:10px;border-radius:50%;
+  background:var(--s3);border:2px solid var(--bg-2);
+  box-shadow:0 0 0 1px var(--line-2)}
+.tl-item.ok::before{background:var(--g);box-shadow:0 0 0 1px var(--g-line),
+  0 0 10px var(--g-glow)}
+.tl-item.bad::before{background:var(--bad);box-shadow:0 0 0 1px rgba(239,95,95,.4)}
+.tl-item.wait::before{background:var(--warn)}
+.tl-title{font-size:13.5px;font-weight:700}
+.tl-meta{font-size:11.5px;color:var(--tx-3);margin-top:2px}
+
+/* Sheet / Modal */
+.ov{position:fixed;inset:0;z-index:120;background:rgba(4,7,13,.72);
+  display:none;align-items:flex-end;justify-content:center;
+  backdrop-filter:blur(4px);-webkit-backdrop-filter:blur(4px)}
+.ov.show{display:flex;animation:ovIn .25s var(--ease)}
+@keyframes ovIn{from{opacity:0}to{opacity:1}}
+.ov.closing{animation:ovOut .22s var(--ease) forwards}
+@keyframes ovOut{to{opacity:0}}
+@media(min-width:640px){.ov{align-items:center}}
+.sheet{
+  background:var(--s1);border:1px solid var(--line);border-bottom:none;
+  width:100%;max-width:520px;border-radius:22px 22px 0 0;padding:20px;
+  max-height:92vh;overflow-y:auto;
+  box-shadow:0 -10px 44px -14px rgba(0,0,0,.9);
+  animation:sheetUp .4s var(--ease);
+}
+@keyframes sheetUp{from{transform:translateY(100%);opacity:.4}
+  to{transform:none;opacity:1}}
+@media(min-width:640px){.sheet{border-radius:18px;border-bottom:1px solid var(--line)}}
+.sheet::before{content:'';display:block;width:36px;height:4px;border-radius:99px;
+  background:var(--line-2);margin:-4px auto 14px}
+@media(min-width:640px){.sheet::before{display:none}}
+.sheet-head{display:flex;align-items:center;gap:12px;margin-bottom:16px;
+  padding-bottom:14px;border-bottom:1px solid var(--line)}
+
+/* Toasts */
+#toasts{position:fixed;top:14px;left:50%;transform:translateX(-50%);z-index:200;
+  display:flex;flex-direction:column;gap:8px;width:min(92vw,400px);
+  pointer-events:none}
+.toast{background:var(--s3);border:1px solid var(--line-2);
+  padding:12px 14px;border-radius:11px;
+  font-size:13px;font-weight:600;
+  display:flex;gap:9px;align-items:flex-start;
+  box-shadow:0 16px 38px -14px rgba(0,0,0,.9);
+  animation:tin .3s var(--spring);pointer-events:auto}
+@keyframes tin{from{opacity:0;transform:translateY(-12px)}to{opacity:1;transform:none}}
+.toast.ok{border-color:var(--g-line);background:linear-gradient(180deg,#122e24,#0d1f18)}
+.toast.ok svg{color:var(--g)}
+.toast.bad{border-color:rgba(239,95,95,.4);background:linear-gradient(180deg,#2a1517,#1c0e10)}
+.toast.bad svg{color:var(--bad)}
+.toast svg{width:17px;height:17px;flex:none;margin-top:2px}
+
+/* Tabs (setting sections) */
+.tabs{display:flex;gap:6px;overflow-x:auto;padding-bottom:4px;
+  margin-bottom:16px;scrollbar-width:none}
+.tabs::-webkit-scrollbar{display:none}
+.tab{flex:none;padding:8px 14px;border-radius:10px;
+  font-size:12.5px;font-weight:700;
+  border:1px solid var(--line);background:var(--s1);
+  color:var(--tx-3);transition:.16s}
+.tab:hover{color:var(--tx)}
+.tab.on{background:var(--s2);border-color:var(--g-line);color:var(--tx)}
+
+/* Switch */
+.sw{width:44px;height:25px;border-radius:99px;background:var(--line-2);
+  position:relative;transition:.22s var(--ease);flex:none;cursor:pointer}
+.sw::after{content:'';position:absolute;top:3px;inset-inline-start:3px;
+  width:19px;height:19px;border-radius:50%;background:#fff;
+  transition:.22s var(--spring)}
+.sw.on{background:var(--g)}
+.sw.on::after{inset-inline-start:22px}
+.sw-row{display:flex;justify-content:space-between;align-items:center;
+  padding:11px 0;border-bottom:1px solid var(--line)}
+.sw-row:last-child{border-bottom:none}
+.sw-lbl{font-size:13.5px;font-weight:600}
+.sw-desc{font-size:11.5px;color:var(--tx-3);margin-top:2px}
+
+/* Field row */
+.field{display:grid;grid-template-columns:1fr 130px;gap:12px;
+  align-items:center;padding:11px 0;border-bottom:1px solid var(--line)}
+.field:last-child{border-bottom:none}
+.field .n{font-size:13.5px;font-weight:600}
+.field .d{font-size:11.5px;color:var(--tx-3);margin-top:2px}
+.field input{text-align:center;padding:9px}
+
+/* Banner rows */
+.bnrrow{display:flex;align-items:center;gap:11px;margin-bottom:9px;
+  padding:10px;border:1px solid var(--line);border-radius:11px}
+.bnrthumb{flex:none;cursor:pointer}
+.bnrthumb > div{width:80px;height:36px;border-radius:8px;overflow:hidden;
+  background:var(--bg);border:1px solid var(--line-2);display:grid;
+  place-items:center}
+.bnrthumb img{width:100%;height:100%;object-fit:cover;display:block}
+.bnradd{font-size:22px;color:var(--tx-3);line-height:1}
+
+/* Copy row */
+.cprow{display:flex;align-items:center;justify-content:space-between;gap:10px;
+  padding:12px;border-radius:11px;background:var(--s2);
+  border:1px solid var(--line);transition:.16s}
+.cprow:hover{border-color:var(--g);background:var(--s3)}
+.cpk{font-size:11.5px;color:var(--tx-3);margin-bottom:3px}
+.cpv{font-size:13.5px;font-weight:700;word-break:break-all}
+.cpi{width:34px;height:34px;border-radius:10px;flex:none;display:grid;
+  place-items:center;background:var(--s3);color:var(--tx-2);transition:.16s}
+.cprow:hover .cpi{background:var(--g);color:#04121B}
+
+/* Login gate */
+#gate{min-height:100vh;display:none;place-items:center;padding:20px;
+  background:var(--bg-2);position:relative;z-index:1}
+#gate.show{display:grid}
+#gate::before{content:'';position:fixed;inset:0;pointer-events:none;z-index:0;
+  background:radial-gradient(60vw 45vh at 85% -8%,rgba(16,185,129,.12),transparent 60%),
+    radial-gradient(50vw 38vh at -6% 4%,rgba(74,158,255,.06),transparent 58%)}
+.gate-card{background:linear-gradient(180deg,var(--s1),rgba(10,14,23,.9));
+  border:1px solid var(--line);border-radius:22px;padding:28px 24px;
+  width:min(100%,400px);position:relative;z-index:1;
+  box-shadow:0 20px 60px -24px rgba(0,0,0,.9),
+    0 0 80px -40px rgba(16,185,129,.25);
+  animation:riseIn .5s var(--ease)}
+
+/* Animations */
+@keyframes riseIn{from{opacity:0;transform:translate3d(0,14px,0)}
+  to{opacity:1;transform:none}}
+@keyframes spin{to{transform:rotate(360deg)}}
+.btn.loading{color:transparent!important;pointer-events:none}
+.btn.loading::after{content:'';position:absolute;width:16px;height:16px;
+  border:2.5px solid rgba(4,18,27,.3);border-top-color:#04121B;
+  border-radius:50%;animation:spin .7s linear infinite}
+
+.wrap.anim > *{animation:riseIn .4s var(--ease) backwards}
+.wrap.anim > *:nth-child(2){animation-delay:.05s}
+.wrap.anim > *:nth-child(3){animation-delay:.1s}
+.wrap.anim > *:nth-child(n+4){animation-delay:.14s}
+
+@media(prefers-reduced-motion:reduce){
+  *,*::before,*::after{animation-duration:.01ms!important;
+    animation-iteration-count:1!important;transition-duration:.01ms!important}}
+
+.hidden{display:none!important}
+
+/* Mobile nav (bottom dock) */
+.dock{position:fixed;inset:auto 0 0 0;z-index:40;display:grid;
+  height:64px;padding-bottom:env(safe-area-inset-bottom);
+  background:rgba(10,14,23,.94);
+  backdrop-filter:blur(20px) saturate(180%);
+  -webkit-backdrop-filter:blur(20px) saturate(180%);
+  border-top:1px solid var(--line)}
+@media(min-width:1024px){.dock{display:none}}
+.dk{display:flex;flex-direction:column;align-items:center;
+  justify-content:center;gap:2px;font-size:10px;font-weight:700;
+  color:var(--tx-3);transition:.16s;padding:0 4px;position:relative}
+.dk.on{color:var(--g)}
+.dk.on::before{content:'';position:absolute;top:0;left:50%;
+  width:22px;height:2.5px;border-radius:0 0 4px 4px;background:var(--g);
+  transform:translateX(-50%);box-shadow:0 0 10px var(--g-glow)}
+.dk svg{width:19px;height:19px}
+.dk .cnt{position:absolute;top:6px;inset-inline-end:12px;
+  min-width:15px;height:15px;padding:0 4px;border-radius:99px;
+  background:var(--bad);color:#fff;font-size:9px;font-weight:800;
+  display:grid;place-items:center}
+
+.mobile-only{display:block}
+@media(min-width:1024px){.mobile-only{display:none}}
+.desktop-only{display:none}
+@media(min-width:1024px){.desktop-only{display:block}}
+
+.main{padding-bottom:80px}
+@media(min-width:1024px){.main{padding-bottom:24px}}
+</style>
 </head>
 <body>
 
-<div class="container">
-
-  <!-- ═══════════════════════════════════════════════════════════
-       SIDEBAR
-       ═══════════════════════════════════════════════════════════ -->
-
-  <aside class="sidebar">
-    <div class="sidebar-header">
-      <a href="/" class="sidebar-logo">
-        <div class="logo-k">K</div>
-        <span>كاردو</span>
-      </a>
+<!-- ═══════════════════════════════════════════════════════════
+     LOGIN GATE
+     ═══════════════════════════════════════════════════════════ -->
+<div id="gate">
+  <div class="gate-card">
+    <div style="display:flex;align-items:center;gap:11px;margin-bottom:22px">
+      <span id="gateMark"></span>
+      <div>
+        <div style="font-size:20px;font-weight:800;letter-spacing:-.03em">Kardo</div>
+        <div style="font-size:11.5px;color:var(--tx-3)">لوحة التحكم</div>
+      </div>
     </div>
+    <p class="sub" style="margin-bottom:18px">
+      هذه الصفحة للمصرّح لهم فقط.
+    </p>
+    <label class="lbl">البريد الإلكتروني</label>
+    <input class="inp" id="gEmail" type="email" dir="ltr"
+           placeholder="admin@kardo.com" autocomplete="email"
+           style="margin-bottom:12px">
+    <label class="lbl">كلمة المرور</label>
+    <input class="inp" id="gPass" type="password" dir="ltr"
+           placeholder="••••••••" autocomplete="current-password"
+           style="margin-bottom:16px">
+    <button class="btn wide" id="gGo">تسجيل الدخول</button>
+    <div id="gErr" class="note bad hidden" style="margin-top:12px"></div>
+  </div>
+</div>
 
-    <nav class="sidebar-menu">
-      <!-- Dashboard -->
-      <div class="menu-section">
-        <button class="menu-item active" onclick="showSection('dashboard')">
-          <span class="menu-item-icon">📊</span>
-          <span>نظرة عامة</span>
-        </button>
+<!-- ═══════════════════════════════════════════════════════════
+     APP
+     ═══════════════════════════════════════════════════════════ -->
+<div id="app" style="display:none">
+<div class="shell">
+
+  <!-- ═══ Desktop Sidebar ═══ -->
+  <aside class="rail">
+    <div class="brand">
+      <span id="railMark"></span>
+      <div>
+        <div class="en">Kardo</div>
+        <div class="ar">لوحة التحكم</div>
       </div>
-
-      <!-- Store -->
-      <div class="menu-section">
-        <div class="menu-label">المتجر</div>
-        <button class="menu-item" onclick="showSection('products')">
-          <span class="menu-item-icon">📦</span>
-          <span>المنتجات</span>
-        </button>
-        <button class="menu-item" onclick="showSection('categories')">
-          <span class="menu-item-icon">🏷️</span>
-          <span>الفئات</span>
-        </button>
-        <button class="menu-item" onclick="showSection('offers')">
-          <span class="menu-item-icon">🎁</span>
-          <span>العروض</span>
-        </button>
-      </div>
-
-      <!-- Orders -->
-      <div class="menu-section">
-        <div class="menu-label">الطلبات</div>
-        <button class="menu-item" onclick="showSection('orders')">
-          <span class="menu-item-icon">📋</span>
-          <span>كل الطلبات</span>
-        </button>
-        <button class="menu-item" onclick="showSection('orders-pending')">
-          <span class="menu-item-icon">⏳</span>
-          <span>قيد التنفيذ</span>
-        </button>
-        <button class="menu-item" onclick="showSection('orders-failed')">
-          <span class="menu-item-icon">❌</span>
-          <span>الفاشلة</span>
-        </button>
-      </div>
-
-      <!-- Providers -->
-      <div class="menu-section">
-        <div class="menu-label">المزودون</div>
-        <button class="menu-item" onclick="showSection('providers')">
-          <span class="menu-item-icon">⚙️</span>
-          <span>المزودون</span>
-        </button>
-        <button class="menu-item" onclick="showSection('import')">
-          <span class="menu-item-icon">📥</span>
-          <span>استيراد</span>
-        </button>
-      </div>
-
-      <!-- Inventory -->
-      <div class="menu-section">
-        <div class="menu-label">الإدارة</div>
-        <button class="menu-item" onclick="showSection('inventory')">
-          <span class="menu-item-icon">📊</span>
-          <span>المخزون</span>
-        </button>
-        <button class="menu-item" onclick="showSection('customers')">
-          <span class="menu-item-icon">👥</span>
-          <span>العملاء</span>
-        </button>
-        <button class="menu-item" onclick="showSection('pricing')">
-          <span class="menu-item-icon">💰</span>
-          <span>التسعير</span>
-        </button>
-      </div>
-
-      <!-- Settings -->
-      <div class="menu-section">
-        <div class="menu-label">النظام</div>
-        <button class="menu-item" onclick="showSection('settings')">
-          <span class="menu-item-icon">⚙️</span>
-          <span>الإعدادات</span>
-        </button>
-        <button class="menu-item" onclick="showSection('security')">
-          <span class="menu-item-icon">🔒</span>
-          <span>الأمان</span>
-        </button>
-        <button class="menu-item" onclick="showSection('logs')">
-          <span class="menu-item-icon">📝</span>
-          <span>السجلات</span>
-        </button>
-      </div>
-    </nav>
-
-    <div class="sidebar-footer">
-      <div class="status-indicator">
-        <div class="status-dot"></div>
-        <span>جميع الأنظمة تعمل</span>
-      </div>
-
-      <div class="admin-profile" onclick="showSection('profile')">
-        <div class="admin-avatar">👤</div>
-        <div class="admin-info">
-          <div class="admin-name">الإدارة</div>
-          <div class="admin-role">مسؤول</div>
+    </div>
+    <nav id="navRail"></nav>
+    <div class="rail-foot">
+      <div class="rail-user">
+        <div class="rail-av" id="railAv">A</div>
+        <div style="min-width:0;flex:1">
+          <div class="rail-name" id="railName">—</div>
+          <div class="rail-role">مدير النظام</div>
         </div>
       </div>
+      <button class="nav" id="railOut"></button>
     </div>
   </aside>
 
-  <!-- ═══════════════════════════════════════════════════════════
-       HEADER
-       ═══════════════════════════════════════════════════════════ -->
-
-  <header class="header">
-    <h1 class="header-title" id="pageTitle">نظرة عامة</h1>
-
-    <div class="header-right">
-      <div class="search-box">
-        <span class="search-icon">🔍</span>
-        <input type="text" class="search-input" placeholder="بحث...">
-      </div>
-
-      <button class="header-btn" title="الإشعارات">
-        🔔
-        <span class="badge">3</span>
+  <div class="main">
+    <!-- ═══ Top bar ═══ -->
+    <header class="bar">
+      <button class="iconbtn mobile-only" id="menuBtn" aria-label="القائمة">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"
+             stroke-width="1.9" stroke-linecap="round">
+          <path d="M4 7h16M4 12h16M4 17h16"/>
+        </svg>
       </button>
-
-      <button class="header-btn" title="تسجيل الخروج" onclick="alert('تسجيل الخروج')">
-        🚪
-      </button>
-    </div>
-  </header>
-
-  <!-- ═══════════════════════════════════════════════════════════
-       MAIN CONTENT
-       ═══════════════════════════════════════════════════════════ -->
-
-  <main class="main">
-
-    <!-- DASHBOARD -->
-    <section id="dashboard" class="section active">
-      <div class="dashboard-title">أهلاً وسهلاً في كاردو</div>
-      <div class="dashboard-subtitle">إليك ملخص متجرك اليوم</div>
-
-      <div class="kpi-grid">
-        <div class="kpi-card">
-          <div class="kpi-label">إجمالي المبيعات</div>
-          <div class="kpi-value">4,852.32</div>
-          <div class="kpi-change">
-            <span>↑</span>
-            <span>12.5% مقابل أمس</span>
-          </div>
-        </div>
-
-        <div class="kpi-card">
-          <div class="kpi-label">صافي الأرباح</div>
-          <div class="kpi-value">1,243.67</div>
-          <div class="kpi-change">
-            <span>↑</span>
-            <span>18.2% مقابل أمس</span>
-          </div>
-        </div>
-
-        <div class="kpi-card">
-          <div class="kpi-label">الطلبات</div>
-          <div class="kpi-value">1,032</div>
-          <div class="kpi-change">
-            <span>↑</span>
-            <span>9.7% مقابل أمس</span>
-          </div>
-        </div>
-
-        <div class="kpi-card">
-          <div class="kpi-label">العملاء</div>
-          <div class="kpi-value">325</div>
-          <div class="kpi-change">
-            <span>↑</span>
-            <span>6.8% مقابل أمس</span>
-          </div>
-        </div>
-
-        <div class="kpi-card">
-          <div class="kpi-label">رصيد المزودين</div>
-          <div class="kpi-value">$2,150</div>
-          <div class="kpi-change down">
-            <span>↓</span>
-            <span>3.2% مقابل أمس</span>
-          </div>
-        </div>
-
-        <div class="kpi-card">
-          <div class="kpi-label">الطلبات قيد التنفيذ</div>
-          <div class="kpi-value">12</div>
-          <div class="kpi-change">
-            <span>→</span>
-            <span>دون تغيير</span>
-          </div>
-        </div>
+      <span id="topMark" style="display:none"></span>
+      <div class="bar-title" id="barTitle">نظرة عامة</div>
+      <div class="bar-actions">
+        <button class="iconbtn" id="refreshBtn" aria-label="تحديث">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"
+               stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M21 12a9 9 0 1 1-3-6.7M21 4v5h-5"/>
+          </svg>
+        </button>
+        <button class="iconbtn" id="notifBtn" aria-label="الإشعارات">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"
+               stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M18 8.5a6 6 0 1 0-12 0c0 6-2.5 7.5-2.5 7.5h17S18 14.5 18 8.5"/>
+            <path d="M13.7 20a2 2 0 0 1-3.4 0"/>
+          </svg>
+          <span class="badge hidden" id="notifBadge">0</span>
+        </button>
       </div>
+    </header>
 
-      <!-- Chart -->
-      <div class="chart-section">
-        <div class="chart-title">المبيعات والأرباح</div>
-        <div class="chart-placeholder">📈 سيتم عرض الرسم البياني هنا</div>
-      </div>
-
-      <!-- Providers Status -->
-      <div class="chart-section">
-        <div class="chart-title">حالة المزودين</div>
-        <div class="providers-grid">
-          <div class="provider-card">
-            <div class="provider-header">
-              <div class="provider-name">WDGZone</div>
-              <div class="status-badge">● متصل</div>
-            </div>
-            <div class="provider-stat">
-              <span class="provider-stat-label">الرصيد</span>
-              <span class="provider-stat-value">$10.24</span>
-            </div>
-            <div class="provider-stat">
-              <span class="provider-stat-label">الخدمات</span>
-              <span class="provider-stat-value">124</span>
-            </div>
-            <div class="provider-stat">
-              <span class="provider-stat-label">الطلبات</span>
-              <span class="provider-stat-value">87</span>
-            </div>
-            <div class="provider-stat">
-              <span class="provider-stat-label">آخر مزامنة</span>
-              <span class="provider-stat-value">منذ 3 دقائق</span>
-            </div>
-            <div class="provider-actions">
-              <button class="btn btn-small" onclick="alert('اختبار الاتصال')">اختبار</button>
-              <button class="btn btn-small" onclick="alert('مزامنة')">مزامنة</button>
-            </div>
-          </div>
-
-          <div class="provider-card">
-            <div class="provider-header">
-              <div class="provider-name">Libya Play</div>
-              <div class="status-badge offline">● غير متصل</div>
-            </div>
-            <div class="provider-stat">
-              <span class="provider-stat-label">الرصيد</span>
-              <span class="provider-stat-value">$0.00</span>
-            </div>
-            <div class="provider-stat">
-              <span class="provider-stat-label">الخدمات</span>
-              <span class="provider-stat-value">0</span>
-            </div>
-            <div class="provider-stat">
-              <span class="provider-stat-label">الطلبات</span>
-              <span class="provider-stat-value">0</span>
-            </div>
-            <div class="provider-stat">
-              <span class="provider-stat-label">آخر محاولة</span>
-              <span class="provider-stat-value">منذ ساعة</span>
-            </div>
-            <div class="provider-actions">
-              <button class="btn btn-small" onclick="alert('اختبار الاتصال')">اختبار</button>
-              <button class="btn btn-secondary btn-small" onclick="alert('تعطيل')">تعطيل</button>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      <!-- Recent Orders -->
-      <div class="chart-section">
-        <div class="chart-title">آخر الطلبات</div>
-        <table class="table">
-          <thead>
-            <tr>
-              <th>معرف الطلب</th>
-              <th>المنتج</th>
-              <th>العميل</th>
-              <th>المزود</th>
-              <th>المبلغ</th>
-              <th>الحالة</th>
-            </tr>
-          </thead>
-          <tbody>
-            <tr>
-              <td>#KRD-10482</td>
-              <td>PUBG Mobile 60 UC</td>
-              <td>محمد</td>
-              <td>WDGZone</td>
-              <td>0.93 د.ل</td>
-              <td><span class="status-badge">● مكتمل</span></td>
-            </tr>
-            <tr>
-              <td>#KRD-10481</td>
-              <td>Netflix VIP</td>
-              <td>فاطمة</td>
-              <td>WDGZone</td>
-              <td>12.50 د.ل</td>
-              <td><span class="status-badge">● قيد التنفيذ</span></td>
-            </tr>
-            <tr>
-              <td>#KRD-10480</td>
-              <td>Free Fire 100 Diamonds</td>
-              <td>علي</td>
-              <td>WDGZone</td>
-              <td>0.87 د.ل</td>
-              <td><span class="status-badge">● مكتمل</span></td>
-            </tr>
-          </tbody>
-        </table>
-      </div>
-    </section>
-
-    <!-- PROVIDERS -->
-    <section id="providers" class="section">
-      <div class="dashboard-title">مزودو الخدمات</div>
-      <div class="dashboard-subtitle">إدارة جميع مزودي الخدمات وربطهم بـ KARDO</div>
-
-      <div style="margin-bottom: 20px;">
-        <button class="btn" onclick="alert('إضافة مزود جديد')">+ إضافة مزود</button>
-      </div>
-
-      <div class="providers-grid">
-        <div class="provider-card">
-          <div class="provider-header">
-            <div class="provider-name">WDGZone</div>
-            <div class="status-badge">● متصل</div>
-          </div>
-          <div class="provider-stat">
-            <span class="provider-stat-label">رصيد المزود</span>
-            <span class="provider-stat-value">$10.24</span>
-          </div>
-          <div class="provider-stat">
-            <span class="provider-stat-label">الخدمات</span>
-            <span class="provider-stat-value">124</span>
-          </div>
-          <div class="provider-stat">
-            <span class="provider-stat-label">الطلبات</span>
-            <span class="provider-stat-value">87</span>
-          </div>
-          <div class="provider-stat">
-            <span class="provider-stat-label">آخر مزامنة</span>
-            <span class="provider-stat-value">منذ 3 دقائق</span>
-          </div>
-          <div class="provider-stat">
-            <span class="provider-stat-label">الكمون</span>
-            <span class="provider-stat-value">182ms</span>
-          </div>
-          <div class="provider-actions">
-            <button class="btn btn-small">اختبار</button>
-            <button class="btn btn-small">مزامنة</button>
-            <button class="btn btn-small">تعديل</button>
-          </div>
-        </div>
-
-        <div class="provider-card">
-          <div class="provider-header">
-            <div class="provider-name">Libya Play</div>
-            <div class="status-badge offline">● غير متصل</div>
-          </div>
-          <div class="provider-stat">
-            <span class="provider-stat-label">رصيد المزود</span>
-            <span class="provider-stat-value">$0.00</span>
-          </div>
-          <div class="provider-stat">
-            <span class="provider-stat-label">الخدمات</span>
-            <span class="provider-stat-value">0</span>
-          </div>
-          <div class="provider-stat">
-            <span class="provider-stat-label">الطلبات</span>
-            <span class="provider-stat-value">0</span>
-          </div>
-          <div class="provider-stat">
-            <span class="provider-stat-label">آخر محاولة</span>
-            <span class="provider-stat-value">منذ ساعة</span>
-          </div>
-          <div class="provider-stat">
-            <span class="provider-stat-label">الكمون</span>
-            <span class="provider-stat-value">-</span>
-          </div>
-          <div class="provider-actions">
-            <button class="btn btn-small">اختبار</button>
-            <button class="btn btn-secondary btn-small">تعديل</button>
-          </div>
-        </div>
-      </div>
-    </section>
-
-    <!-- PRODUCTS -->
-    <section id="products" class="section">
-      <div class="dashboard-title">المنتجات</div>
-      <div class="dashboard-subtitle">إدارة كل منتجات متجرك</div>
-
-      <div style="margin-bottom: 20px;">
-        <div class="input-group">
-          <input type="text" class="input" placeholder="اسم المنتج...">
-          <button class="btn">بحث</button>
-          <button class="btn btn-secondary">+ منتج جديد</button>
-        </div>
-      </div>
-
-      <div class="chart-section">
-        <table class="table">
-          <thead>
-            <tr>
-              <th>المنتج</th>
-              <th>الفئة</th>
-              <th>المزود</th>
-              <th>الكلفة</th>
-              <th>السعر</th>
-              <th>الربح</th>
-              <th>الحالة</th>
-            </tr>
-          </thead>
-          <tbody>
-            <tr>
-              <td>PUBG Mobile 60 UC</td>
-              <td>ألعاب</td>
-              <td>WDGZone</td>
-              <td>0.88</td>
-              <td>0.93</td>
-              <td>0.05</td>
-              <td><span class="status-badge">● نشط</span></td>
-            </tr>
-            <tr>
-              <td>Netflix VIP</td>
-              <td>اشتراكات</td>
-              <td>WDGZone</td>
-              <td>11.00</td>
-              <td>12.50</td>
-              <td>1.50</td>
-              <td><span class="status-badge">● نشط</span></td>
-            </tr>
-            <tr>
-              <td>Free Fire 100 Diamonds</td>
-              <td>ألعاب</td>
-              <td>WDGZone</td>
-              <td>0.82</td>
-              <td>0.87</td>
-              <td>0.05</td>
-              <td><span class="status-badge">● نشط</span></td>
-            </tr>
-          </tbody>
-        </table>
-      </div>
-    </section>
-
-    <!-- ORDERS -->
-    <section id="orders" class="section">
-      <div class="dashboard-title">الطلبات</div>
-      <div class="dashboard-subtitle">عرض وإدارة جميع الطلبات</div>
-
-      <div class="chart-section">
-        <table class="table">
-          <thead>
-            <tr>
-              <th>معرف الطلب</th>
-              <th>المنتج</th>
-              <th>العميل</th>
-              <th>المبلغ</th>
-              <th>المزود</th>
-              <th>الحالة</th>
-              <th>التاريخ</th>
-            </tr>
-          </thead>
-          <tbody>
-            <tr>
-              <td>#KRD-10482</td>
-              <td>PUBG Mobile 60 UC</td>
-              <td>محمد</td>
-              <td>0.93 د.ل</td>
-              <td>WDGZone</td>
-              <td><span class="status-badge">● مكتمل</span></td>
-              <td>اليوم</td>
-            </tr>
-            <tr>
-              <td>#KRD-10481</td>
-              <td>Netflix VIP</td>
-              <td>فاطمة</td>
-              <td>12.50 د.ل</td>
-              <td>WDGZone</td>
-              <td><span class="status-badge">● قيد التنفيذ</span></td>
-              <td>اليوم</td>
-            </tr>
-          </tbody>
-        </table>
-      </div>
-    </section>
-
-    <!-- Placeholders for other sections -->
-    <section id="categories" class="section">
-      <div class="dashboard-title">الفئات</div>
-      <div class="chart-section">
-        <div class="chart-placeholder">قريباً ⏳</div>
-      </div>
-    </section>
-
-    <section id="import" class="section">
-      <div class="dashboard-title">استيراد المنتجات</div>
-      <div class="chart-section">
-        <div class="chart-placeholder">قريباً ⏳</div>
-      </div>
-    </section>
-
-    <section id="pricing" class="section">
-      <div class="dashboard-title">التسعير</div>
-      <div class="chart-section">
-        <div class="chart-placeholder">قريباً ⏳</div>
-      </div>
-    </section>
-
-    <section id="inventory" class="section">
-      <div class="dashboard-title">المخزون</div>
-      <div class="chart-section">
-        <div class="chart-placeholder">قريباً ⏳</div>
-      </div>
-    </section>
-
-    <section id="customers" class="section">
-      <div class="dashboard-title">العملاء</div>
-      <div class="chart-section">
-        <div class="chart-placeholder">قريباً ⏳</div>
-      </div>
-    </section>
-
-    <section id="settings" class="section">
-      <div class="dashboard-title">الإعدادات</div>
-      <div class="chart-section">
-        <div class="chart-placeholder">قريباً ⏳</div>
-      </div>
-    </section>
-
-    <section id="security" class="section">
-      <div class="dashboard-title">الأمان</div>
-      <div class="chart-section">
-        <div class="chart-placeholder">قريباً ⏳</div>
-      </div>
-    </section>
-
-    <section id="logs" class="section">
-      <div class="dashboard-title">السجلات</div>
-      <div class="chart-section">
-        <div class="chart-placeholder">قريباً ⏳</div>
-      </div>
-    </section>
-
-    <section id="orders-pending" class="section">
-      <div class="dashboard-title">الطلبات قيد التنفيذ</div>
-      <div class="chart-section">
-        <div class="chart-placeholder">قريباً ⏳</div>
-      </div>
-    </section>
-
-    <section id="orders-failed" class="section">
-      <div class="dashboard-title">الطلبات الفاشلة</div>
-      <div class="chart-section">
-        <div class="chart-placeholder">قريباً ⏳</div>
-      </div>
-    </section>
-
-    <section id="offers" class="section">
-      <div class="dashboard-title">العروض</div>
-      <div class="chart-section">
-        <div class="chart-placeholder">قريباً ⏳</div>
-      </div>
-    </section>
-
-    <section id="profile" class="section">
-      <div class="dashboard-title">حسابي</div>
-      <div class="chart-section">
-        <div class="chart-placeholder">قريباً ⏳</div>
-      </div>
-    </section>
-
-  </main>
-
+    <main class="wrap anim" id="view"></main>
+  </div>
 </div>
 
-<script>
-  function showSection(id) {
-    // Hide all sections
-    document.querySelectorAll('.section').forEach(s => s.classList.remove('active'));
-    
-    // Show selected section
-    document.getElementById(id).classList.add('active');
+<!-- ═══ Mobile dock ═══ -->
+<nav class="dock" id="navDock"></nav>
+</div>
 
-    // Update menu items
-    document.querySelectorAll('.menu-item').forEach(m => m.classList.remove('active'));
-    event.target.closest('.menu-item').classList.add('active');
+<div id="toasts"></div>
+<div class="ov" id="ov"><div class="sheet" id="sheet"></div></div>
 
-    // Update title
-    const titles = {
-      'dashboard': 'نظرة عامة',
-      'products': 'المنتجات',
-      'providers': 'مزودو الخدمات',
-      'orders': 'الطلبات',
-      'categories': 'الفئات',
-      'import': 'استيراد المنتجات',
-      'pricing': 'التسعير',
-      'inventory': 'المخزون',
-      'customers': 'العملاء',
-      'settings': 'الإعدادات',
-      'security': 'الأمان',
-      'logs': 'السجلات',
-      'offers': 'العروض',
-      'orders-pending': 'الطلبات قيد التنفيذ',
-      'orders-failed': 'الطلبات الفاشلة',
-      'profile': 'حسابي'
-    };
-
-    document.getElementById('pageTitle').textContent = titles[id] || 'كاردو';
-  }
-
-  // Handle menu clicks on mobile
-  document.querySelectorAll('.menu-item').forEach(item => {
-    item.addEventListener('click', function(e) {
-      e.preventDefault();
-      showSection(this.getAttribute('onclick').match(/'([^']+)'/)[1]);
-    });
-  });
-</script>
-
+<script type="module" src="admin.js"></script>
 </body>
 </html>
