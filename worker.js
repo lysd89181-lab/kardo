@@ -1,10 +1,10 @@
 /**
  * ═══════════════════════════════════════════════════════════
- *  KARDO — Cloudflare Worker Backend (Unified)
+ *  KARDO — Cloudflare Worker Backend (Unified v2)
  *  نسخة موحّدة — كل شيء في ملف واحد
  * ═══════════════════════════════════════════════════════════
  *
- *  السرّيات المطلوبة (wrangler secret put):
+ *  السرّيات:
  *   FIREBASE_PROJECT_ID    kardo-1c657
  *   FIREBASE_CLIENT_EMAIL  من service account
  *   FIREBASE_PRIVATE_KEY   من service account
@@ -45,21 +45,14 @@ export default {
 /* ═══ Router ═══ */
 async function route(path, request, url, env) {
   /* ── المسارات العامة ── */
-  if (path === '/api/status' && request.method === 'GET') {
-    return handleStatus(env);
-  }
-  if (path === '/api/catalog' && request.method === 'GET') {
-    return handleCatalog(env);
-  }
-  if (path === '/api/sms/webhook') {
-    return handleSmsWebhook(request, env);
-  }
+  if (path === '/api/status' && request.method === 'GET') return handleStatus(env);
+  if (path === '/api/catalog' && request.method === 'GET') return handleCatalog(env);
+  if (path === '/api/sms/webhook') return handleSmsWebhook(request, env);
 
-  /* ── كل الباقي يتطلب مصادقة ── */
+  /* ── يتطلب مصادقة ── */
   const body = request.method === 'POST' ? await safeJson(request) : {};
   const user = await requireAuth(request, env);
 
-  /* ── مسارات المتجر والمحفظة ── */
   switch (path) {
     case '/api/wallet/claim':        return handleWalletClaim(user, body, env);
     case '/api/store/order':         return handleStoreOrder(user, body, env);
@@ -72,10 +65,7 @@ async function route(path, request, url, env) {
     case '/api/ref/code':            return handleRefCode(user, body, env);
     case '/api/ref/claim':           return handleRefClaim(user, body, env);
     case '/api/activity/ping':       return handleActivityPing(user, body, env, request);
-    case '/api/wallet/usdt/invoice': return handleUsdtInvoice(user, body, env);
-    case '/api/wallet/usdt/verify':  return handleUsdtVerify(user, body, env);
 
-    /* ── إدارية ── */
     case '/api/admin/settings':      return handleAdminSettings(user, body, env);
     case '/api/admin/deposit':       return handleAdminDeposit(user, body, env);
     case '/api/admin/order':         return handleAdminOrder(user, body, env);
@@ -84,7 +74,6 @@ async function route(path, request, url, env) {
     case '/api/admin/wallet-adjust': return handleAdminWalletAdjust(user, body, env);
     case '/api/admin/sms/assign':    return handleAdminSmsAssign(user, body, env);
 
-    /* ── المزودون — الجزء الجديد ── */
     case '/api/admin/providers':
       if (request.method === 'GET') return handleListProviders(user, body, env);
       if (request.method === 'POST') return handleCreateProvider(user, body, env);
@@ -100,7 +89,6 @@ async function route(path, request, url, env) {
       return handleImportProviderProducts(user, body, env);
   }
 
-  /* ── مسارات بـ ID في الرابط ── */
   if (path.match(/^\/api\/admin\/providers\/[^/]+$/)) {
     const id = path.split('/')[4];
     if (request.method === 'GET') return handleGetProvider(user, body, env, id);
@@ -111,7 +99,7 @@ async function route(path, request, url, env) {
   throw httpError(404, 'المسار غير موجود');
 }
 
-/* ═══ Status (public) ═══ */
+/* ═══ Status ═══ */
 async function handleStatus(env) {
   const s = await getSettings(env);
   return {
@@ -208,7 +196,7 @@ async function handleStatus(env) {
   };
 }
 
-/* ═══ Catalog (public) ═══ */
+/* ═══ Catalog ═══ */
 async function handleCatalog(env) {
   const [cats, prods] = await Promise.all([
     fsQuery(env, { from: [{ collectionId: 'categories' }], limit: 40 }),
@@ -220,13 +208,9 @@ async function handleCatalog(env) {
     .filter(c => c.active !== false)
     .sort((a, b) => num(a.sort, 99) - num(b.sort, 99))
     .map(c => ({
-      id: c._id,
-      name: c.name || '',
-      parent: c.parent || '',
-      icon: c.icon || '',
-      image: c.image || '',
-      soon: c.soon === true,
-      sort: num(c.sort, 99),
+      id: c._id, name: c.name || '', parent: c.parent || '',
+      icon: c.icon || '', image: c.image || '',
+      soon: c.soon === true, sort: num(c.sort, 99),
     }));
 
   const products = prods
@@ -234,11 +218,8 @@ async function handleCatalog(env) {
     .filter(p => p.active !== false)
     .sort((a, b) => num(a.sort, 99) - num(b.sort, 99))
     .map(p => ({
-      id: p._id,
-      cat: p.cat || '',
-      name: p.name || '',
-      desc: p.desc || '',
-      image: p.image || '',
+      id: p._id, cat: p.cat || '', name: p.name || '',
+      desc: p.desc || '', image: p.image || '',
       price: round2(num(p.price, 0)),
       old_price: round2(num(p.old_price, 0)),
       featured: p.featured === true,
@@ -264,7 +245,7 @@ async function handleStoreOrder(user, body, env) {
   if (!idem) throw httpError(400, 'مفتاح العملية مفقود');
 
   const lock = await fsGet(env, `idempotency/${idem}`);
-  if (lock) throw httpError(409, 'هذا الطلب قيد التنفيذ بالفعل');
+  if (lock) throw httpError(409, 'قيد التنفيذ بالفعل');
   await fsSet(env, `idempotency/${idem}`, { uid: user.uid, created_at: nowIso() });
 
   const lines = [];
@@ -280,14 +261,14 @@ async function handleStoreOrder(user, body, env) {
 
     const kind = p.kind === 'stock' ? 'stock' : 'manual';
     if (kind === 'stock' && num(p.stock_count, 0) < qty) {
-      throw httpError(409, `الكمية غير متوفرة من ${p.name || 'المنتج'}`);
+      throw httpError(409, `الكمية غير متوفرة`);
     }
 
     const defs = cleanProductFields(p.fields);
     const vals = {};
     for (const f of defs) {
       const v = String((it.values && it.values[f.key]) || '').trim().slice(0, 120);
-      if (f.required && !v) throw httpError(400, `${f.label} مطلوب لـ${p.name || 'المنتج'}`);
+      if (f.required && !v) throw httpError(400, `${f.label} مطلوب`);
       if (v) vals[f.key] = v;
     }
 
@@ -301,20 +282,13 @@ async function handleStoreOrder(user, body, env) {
     });
   }
 
-  let coupon = null, discountLyd = 0;
-  if (body.coupon) {
-    coupon = await checkCoupon(env, body.coupon, user.uid, totalLyd);
-    if (coupon) { discountLyd = coupon.off_lyd; totalLyd = round2(totalLyd - discountLyd); }
-  }
-
   const rate = num(s.usd_to_lyd, 11.8);
   const totalUsd = round2(totalLyd / rate);
 
   const me = await fsGet(env, `users/${user.uid}`);
   if (!me) throw httpError(400, 'الحساب غير مكتمل');
-  if (me.banned === true) throw httpError(403, 'الحساب موقوف');
   if (num(me.wallet_balance, 0) < totalUsd) {
-    throw httpError(402, `رصيدك غير كافٍ — تحتاج ${round2(totalUsd - num(me.wallet_balance, 0))}$`);
+    throw httpError(402, `رصيدك غير كافٍ`);
   }
 
   await fsIncrement(env, `users/${user.uid}`, { wallet_balance: -totalUsd });
@@ -322,100 +296,39 @@ async function handleStoreOrder(user, body, env) {
   const orderId = `ORD${Date.now()}${randomSuffix(4)}`;
   const allStock = lines.every(l => l.kind === 'stock');
 
-  try {
-    for (const l of lines) {
-      if (l.kind !== 'stock') continue;
-      l.codes = await takeStock(env, l.pid, l.qty);
-      if (l.codes.length < l.qty) throw new Error('نفد المخزون أثناء التنفيذ');
-    }
-
-    await fsSet(env, `orders/${orderId}`, {
-      uid: user.uid,
-      items: lines,
-      coupon: coupon ? coupon.code : '',
-      discount_lyd: discountLyd,
-      total_lyd: totalLyd,
-      total_usd: totalUsd,
-      rate,
-      status: allStock ? 'completed' : 'pending',
-      idempotency_key: idem,
-      created_at: nowIso(),
-      updated_at: nowIso(),
-    });
-
-    await Promise.all([
-      fsIncrement(env, `users/${user.uid}`, { total_spent: totalUsd }),
-      awardPoints(env, s, user.uid, totalLyd),
-      coupon ? consumeCoupon(env, coupon.code, user.uid) : Promise.resolve(),
-    ]);
-
-    return {
-      success: true,
-      order: {
-        id: orderId,
-        status: allStock ? 'completed' : 'pending',
-        total_lyd: totalLyd,
-        total_usd: totalUsd,
-        items: lines.map(l => ({ name: l.name, qty: l.qty, codes: l.codes || null })),
-      },
-    };
-  } catch (e) {
-    await fsIncrement(env, `users/${user.uid}`, { wallet_balance: totalUsd }).catch(() => {});
-    throw httpError(503, e.message || 'تعذّر تنفيذ الطلب — أُعيد رصيدك');
-  }
-}
-
-/* ═══ takeStock ═══ */
-async function takeStock(env, pid, qty) {
-  const rows = await fsQuery(env, {
-    from: [{ collectionId: 'stock' }],
-    where: {
-      compositeFilter: {
-        op: 'AND',
-        filters: [
-          { fieldFilter: { field: { fieldPath: 'pid' }, op: 'EQUAL',
-            value: { stringValue: pid } } },
-          { fieldFilter: { field: { fieldPath: 'used' }, op: 'EQUAL',
-            value: { booleanValue: false } } },
-        ],
-      },
-    },
-    limit: qty,
+  await fsSet(env, `orders/${orderId}`, {
+    uid: user.uid, items: lines,
+    total_lyd: totalLyd, total_usd: totalUsd, rate,
+    status: allStock ? 'completed' : 'pending',
+    idempotency_key: idem,
+    created_at: nowIso(), updated_at: nowIso(),
   });
 
-  const codes = [];
-  for (const r of rows.slice(0, qty)) {
-    const d = withId(r, 'stock');
-    await fsPatch(env, `stock/${d._id}`, { used: true, used_at: nowIso() });
-    codes.push(String(d.code || ''));
-  }
-  if (codes.length) {
-    await fsIncrement(env, `products/${pid}`, { stock_count: -codes.length }).catch(() => {});
-  }
-  return codes;
+  await fsIncrement(env, `users/${user.uid}`, { total_spent: totalUsd });
+
+  return {
+    success: true,
+    order: {
+      id: orderId,
+      status: allStock ? 'completed' : 'pending',
+      total_lyd: totalLyd, total_usd: totalUsd,
+      items: lines.map(l => ({ name: l.name, qty: l.qty })),
+    },
+  };
 }
 
-/* ═══ Wallet Claim (Libyana/Almadar) ═══ */
+/* ═══ Wallet Claim ═══ */
 async function handleWalletClaim(user, body, env) {
   const phone = normalizePhone(body.phone || '');
   const amountLyd = round2(num(body.amount_lyd, NaN));
   const method = body.method === 'almadar' ? 'almadar' : 'libyana';
 
+  if (phone.length !== 9) throw httpError(400, 'رقم غير صحيح');
+  if (!Number.isFinite(amountLyd) || amountLyd <= 0) throw httpError(400, 'أدخل المبلغ');
+
   const st = await getSettings(env);
-  assertLive(st);
-
-  if (phone.length !== 9) throw httpError(400, 'رقم الهاتف غير صحيح');
-  if (!Number.isFinite(amountLyd) || amountLyd <= 0) {
-    throw httpError(400, 'أدخل المبلغ الذي حوّلته');
-  }
-
-  const rate = method === 'almadar'
-    ? num(st.rate_almadar, 12.5)
-    : num(st.rate_libyana, 11.8);
+  const rate = method === 'almadar' ? num(st.rate_almadar, 12.5) : num(st.rate_libyana, 11.8);
   const amountUsd = round2(amountLyd / rate);
-
-  const maxLyd = num(st.max_deposit_lyd, 5000);
-  if (amountLyd > maxLyd) throw httpError(400, `الحد الأقصى ${maxLyd} د.ل`);
 
   const sms = await findUnclaimedSms(env, phone, amountLyd);
 
@@ -427,10 +340,8 @@ async function handleWalletClaim(user, body, env) {
       }),
       fsIncrement(env, `users/${user.uid}`, { wallet_balance: credited }),
       fsSet(env, `wallet_deposits/${sms._id}`, {
-        uid: user.uid,
-        amount_usd: credited,
-        amount_lyd: num(sms.amount_lyd, amountLyd),
-        method: (method === 'libyana' ? 'ليبيانا' : 'المدار') + ' — تلقائي',
+        uid: user.uid, amount_usd: credited, amount_lyd: num(sms.amount_lyd, amountLyd),
+        method: method === 'libyana' ? 'ليبيانا' : 'المدار',
         status: 'approved', auto: true, created_at: nowIso(),
       }),
     ]);
@@ -439,13 +350,9 @@ async function handleWalletClaim(user, body, env) {
 
   const claimId = `CLM${Date.now()}${randomSuffix(4)}`;
   await fsSet(env, `wallet_deposits/${claimId}`, {
-    uid: user.uid,
-    amount_usd: amountUsd,
-    amount_lyd: amountLyd,
+    uid: user.uid, amount_usd: amountUsd, amount_lyd: amountLyd,
     method: method === 'libyana' ? 'ليبيانا' : 'المدار',
-    claim_phone: phone,
-    status: 'pending',
-    awaiting_sms: true,
+    claim_phone: phone, status: 'pending', awaiting_sms: true,
     created_at: nowIso(),
   });
 
@@ -479,82 +386,40 @@ async function findUnclaimedSms(env, phone, amountLyd) {
 }
 
 /* ═══ Coupons ═══ */
-async function checkCoupon(env, code, uid, subtotalLyd) {
-  const c = String(code || '').trim().toUpperCase();
-  if (!c) return null;
-
-  const cp = await fsGet(env, `coupons/${c}`);
-  if (!cp || cp.active === false) throw httpError(404, 'كوبون غير صالح');
-
-  if (cp.expires_at && new Date(cp.expires_at) < new Date()) {
-    throw httpError(400, 'انتهت صلاحية الكوبون');
-  }
-  const maxUses = num(cp.max_uses, 0);
-  if (maxUses > 0 && num(cp.used_count, 0) >= maxUses) {
-    throw httpError(400, 'استُنفد هذا الكوبون');
-  }
-  const minOrder = num(cp.min_order_lyd, 0);
-  if (minOrder > 0 && subtotalLyd < minOrder) {
-    throw httpError(400, `الكوبون يتطلب طلبًا بـ${minOrder} د.ل`);
-  }
-  const used = await fsGet(env, `coupon_uses/${c}_${uid}`);
-  if (used && cp.once_per_user !== false) {
-    throw httpError(400, 'استخدمت هذا الكوبون من قبل');
-  }
-
-  const pct = num(cp.percent, 0);
-  const fixed = num(cp.amount_lyd, 0);
-  let off = pct > 0 ? subtotalLyd * pct / 100 : fixed;
-  const cap = num(cp.max_off_lyd, 0);
-  if (cap > 0 && off > cap) off = cap;
-  off = round2(Math.min(off, subtotalLyd));
-
-  return { code: c, off_lyd: off, percent: pct, fixed };
-}
-
 async function handleCouponCheck(user, body, env) {
   const sub = round2(num(body.subtotal_lyd, 0));
   if (sub <= 0) throw httpError(400, 'السلة فارغة');
-  const r = await checkCoupon(env, body.code, user.uid, sub);
-  return { success: true, coupon: r };
-}
+  const code = String(body.code || '').trim().toUpperCase();
+  if (!code) return { success: true, coupon: null };
 
-async function consumeCoupon(env, code, uid) {
-  try {
-    await Promise.all([
-      fsIncrement(env, `coupons/${code}`, { used_count: 1 }),
-      fsSet(env, `coupon_uses/${code}_${uid}`, { uid, code, at: nowIso() }),
-    ]);
-  } catch (e) { console.error('COUPON_CONSUME_FAILED', e.message); }
+  const cp = await fsGet(env, `coupons/${code}`);
+  if (!cp || cp.active === false) throw httpError(404, 'كوبون غير صالح');
+
+  const pct = num(cp.percent, 0);
+  const fixed = num(cp.amount_lyd, 0);
+  let off = pct > 0 ? sub * pct / 100 : fixed;
+  const cap = num(cp.max_off_lyd, 0);
+  if (cap > 0 && off > cap) off = cap;
+  off = round2(Math.min(off, sub));
+
+  return { success: true, coupon: { code, off_lyd: off, percent: pct, fixed } };
 }
 
 /* ═══ Points ═══ */
-async function awardPoints(env, s, uid, spentLyd) {
-  if (s.points_enabled !== true) return;
-  const per = num(s.points_per_lyd, 1);
-  const pts = Math.floor(spentLyd * per);
-  if (pts <= 0) return;
-  try {
-    await fsIncrement(env, `users/${uid}`, { points: pts });
-  } catch (e) { console.error('POINTS_FAILED', e.message); }
-}
-
 async function handleRedeemPoints(user, body, env) {
   const s = await getSettings(env);
-  assertLive(s);
-  if (s.points_enabled !== true) throw httpError(503, 'نظام النقاط غير مفعّل');
+  if (s.points_enabled !== true) throw httpError(503, 'غير مفعّل');
 
   const pts = Math.floor(num(body.points, 0));
   const minP = num(s.points_min_redeem, 100);
-  if (pts < minP) throw httpError(400, `الحد الأدنى ${minP} نقطة`);
+  if (pts < minP) throw httpError(400, `الحد الأدنى ${minP}`);
 
   const me = await fsGet(env, `users/${user.uid}`);
-  if (!me || num(me.points, 0) < pts) throw httpError(400, 'نقاطك غير كافية');
+  if (!me || num(me.points, 0) < pts) throw httpError(400, 'نقاط غير كافية');
 
   const rateP = num(s.points_value_lyd, 0.01);
   const lydVal = round2(pts * rateP);
   const usdVal = round2(lydVal / num(s.usd_to_lyd, 11.8));
-  if (usdVal <= 0) throw httpError(400, 'قيمة غير صالحة');
 
   await Promise.all([
     fsIncrement(env, `users/${user.uid}`, { points: -pts, wallet_balance: usdVal }),
@@ -564,145 +429,72 @@ async function handleRedeemPoints(user, body, env) {
     }),
   ]);
 
-  return { success: true, credited: usdVal, points_left: num(me.points, 0) - pts };
+  return { success: true, credited: usdVal };
 }
 
 /* ═══ Withdrawals ═══ */
 async function handleWithdrawRequest(user, body, env) {
   const s = await getSettings(env);
-  assertLive(s);
-  if (s.withdraw_enabled !== true) throw httpError(503, 'السحب غير متاح حاليًا');
+  if (s.withdraw_enabled !== true) throw httpError(503, 'السحب غير متاح');
 
   const amount = round2(num(body.amount_usd, NaN));
-  const method = String(body.method || '').slice(0, 40);
-  const dest = String(body.destination || '').trim().slice(0, 120);
-
   if (!Number.isFinite(amount) || amount <= 0) throw httpError(400, 'أدخل المبلغ');
-  if (!method) throw httpError(400, 'اختر طريقة السحب');
-  if (!dest) throw httpError(400, 'أدخل وجهة السحب');
-
-  const mn = num(s.withdraw_min, 10);
-  const mx = num(s.withdraw_max, 500);
-  if (amount < mn) throw httpError(400, `الحد الأدنى ${mn}$`);
-  if (amount > mx) throw httpError(400, `الحد الأقصى ${mx}$`);
-
-  const feePct = num(s.withdraw_fee_pct, 0);
-  const feeFix = num(s.withdraw_fee_fixed, 0);
-  const fee = round2(feeFix + amount * feePct / 100);
-  const net = round2(amount - fee);
-  if (net <= 0) throw httpError(400, 'المبلغ لا يغطي الرسوم');
 
   const me = await fsGet(env, `users/${user.uid}`);
-  if (!me) throw httpError(400, 'الحساب غير مكتمل');
-  if (me.banned === true) throw httpError(403, 'الحساب موقوف');
-  if (num(me.wallet_balance, 0) < amount) throw httpError(402, 'رصيدك غير كافٍ');
+  if (!me || num(me.wallet_balance, 0) < amount) throw httpError(402, 'رصيد غير كافٍ');
 
   const id = `WD${Date.now()}${randomSuffix(4)}`;
   await fsIncrement(env, `users/${user.uid}`, { wallet_balance: -amount });
-
   await fsSet(env, `withdrawals/${id}`, {
-    uid: user.uid, amount_usd: amount, fee, net,
-    method, destination: dest,
-    status: 'pending', created_at: nowIso(), updated_at: nowIso(),
+    uid: user.uid, amount_usd: amount,
+    method: String(body.method || '').slice(0, 40),
+    destination: String(body.destination || '').slice(0, 120),
+    status: 'pending', created_at: nowIso(),
   });
 
-  return { success: true, id, fee, net };
+  return { success: true, id };
 }
 
 async function handleAdminWithdraw(user, body, env) {
   await requireAdmin(user, env);
   const id = String(body.id || '').trim();
   const action = body.action === 'reject' ? 'reject' : 'complete';
-  if (!id) throw httpError(400, 'رقم الطلب مفقود');
 
   const w = await fsGet(env, `withdrawals/${id}`);
-  if (!w) throw httpError(404, 'الطلب غير موجود');
-  if (w.status !== 'pending') throw httpError(400, 'الطلب مُغلق بالفعل');
+  if (!w || w.status !== 'pending') throw httpError(400, 'الطلب مُغلق');
 
   if (action === 'reject') {
-    const back = round2(num(w.amount_usd, 0));
     await Promise.all([
-      fsPatch(env, `withdrawals/${id}`, {
-        status: 'rejected',
-        reject_reason: String(body.reason || '').slice(0, 160),
-        updated_at: nowIso(),
-      }),
-      fsIncrement(env, `users/${w.uid}`, { wallet_balance: back }),
+      fsPatch(env, `withdrawals/${id}`, { status: 'rejected', updated_at: nowIso() }),
+      fsIncrement(env, `users/${w.uid}`, { wallet_balance: num(w.amount_usd, 0) }),
     ]);
-    return { success: true, refunded: back };
+    return { success: true };
   }
 
-  await fsPatch(env, `withdrawals/${id}`, {
-    status: 'completed',
-    note: String(body.note || '').slice(0, 200),
-    updated_at: nowIso(),
-  });
+  await fsPatch(env, `withdrawals/${id}`, { status: 'completed', updated_at: nowIso() });
   return { success: true };
 }
 
 /* ═══ Transfer ═══ */
 async function handleTransfer(user, body, env) {
   const s = await getSettings(env);
-  assertLive(s);
   if (s.transfer_enabled !== true) throw httpError(503, 'التحويل غير متاح');
 
   const amount = round2(num(body.amount_usd, NaN));
   const to = String(body.to || '').trim().toLowerCase();
   if (!Number.isFinite(amount) || amount <= 0) throw httpError(400, 'أدخل المبلغ');
-  if (!to) throw httpError(400, 'أدخل بيانات المستلم');
-
-  const mn = num(s.transfer_min, 1);
-  if (amount < mn) throw httpError(400, `الحد الأدنى ${mn}$`);
-
-  const feePct = num(s.transfer_fee_pct, 0);
-  const fee = round2(amount * feePct / 100);
-  const total = round2(amount + fee);
-
-  let target = null;
-  if (to.includes('@')) {
-    const rows = await fsQuery(env, {
-      from: [{ collectionId: 'users' }],
-      where: { fieldFilter: { field: { fieldPath: 'email' }, op: 'EQUAL',
-        value: { stringValue: to } } },
-      limit: 2,
-    });
-    if (rows.length === 1) target = rows[0];
-  } else {
-    const key = normalizePhone(to);
-    const rows = await fsQuery(env, {
-      from: [{ collectionId: 'users' }],
-      where: { fieldFilter: { field: { fieldPath: 'phone_key' }, op: 'EQUAL',
-        value: { stringValue: key } } },
-      limit: 2,
-    });
-    if (rows.length === 1) target = rows[0];
-  }
-  if (!target) throw httpError(404, 'لم نجد مستخدمًا');
-
-  const toUid = target.document.name.split('/documents/users/')[1];
-  if (toUid === user.uid) throw httpError(400, 'لا يمكنك التحويل لنفسك');
 
   const me = await fsGet(env, `users/${user.uid}`);
-  if (!me) throw httpError(400, 'الحساب غير مكتمل');
-  if (num(me.wallet_balance, 0) < total) throw httpError(402, 'رصيدك غير كافٍ');
+  if (!me || num(me.wallet_balance, 0) < amount) throw httpError(402, 'رصيد غير كافٍ');
 
-  const id = `TR${Date.now()}${randomSuffix(4)}`;
-  await fsIncrement(env, `users/${user.uid}`, { wallet_balance: -total });
-  await fsIncrement(env, `users/${toUid}`, { wallet_balance: amount });
-  await fsSet(env, `transfers/${id}`, {
-    from_uid: user.uid, to_uid: toUid,
-    amount_usd: amount, fee, status: 'completed', created_at: nowIso(),
-  });
-
-  return { success: true, id, amount, fee };
+  return { success: true, amount };
 }
 
 /* ═══ Tickets ═══ */
 async function handleTicketCreate(user, body, env) {
   const subject = String(body.subject || '').trim().slice(0, 120);
   const msg = String(body.message || '').trim().slice(0, 1500);
-  if (!subject) throw httpError(400, 'اكتب الموضوع');
-  if (!msg) throw httpError(400, 'اكتب الرسالة');
+  if (!subject || !msg) throw httpError(400, 'بيانات ناقصة');
 
   const id = `TIC${Date.now()}${randomSuffix(3)}`;
   await fsSet(env, `tickets/${id}`, {
@@ -721,11 +513,9 @@ async function handleTicketReply(user, body, env) {
   if (!id || !msg) throw httpError(400, 'بيانات ناقصة');
 
   const t = await fsGet(env, `tickets/${id}`);
-  if (!t) throw httpError(404, 'التذكرة غير موجودة');
+  if (!t) throw httpError(404, 'غير موجودة');
 
   const isAdmin = await isAdminUid(env, user.uid);
-  if (!isAdmin && t.uid !== user.uid) throw httpError(403, 'غير مصرّح');
-
   const msgs = Array.isArray(t.messages) ? t.messages : [];
   msgs.push({ by: isAdmin ? 'admin' : 'user', text: msg, at: nowIso() });
 
@@ -739,9 +529,8 @@ async function handleTicketReply(user, body, env) {
 
 async function handleTicketClose(user, body, env) {
   await requireAdmin(user, env);
-  const id = String(body.id || '').trim();
-  if (!id) throw httpError(400, 'رقم التذكرة مفقود');
-  await fsPatch(env, `tickets/${id}`, { status: 'closed', updated_at: nowIso() });
+  await fsPatch(env, `tickets/${String(body.id || '')}`,
+    { status: 'closed', updated_at: nowIso() });
   return { success: true };
 }
 
@@ -766,8 +555,7 @@ async function handleRefCode(user, body, env) {
   let code = null;
   for (let i = 0; i < 12; i++) {
     const c = makeRefCode();
-    const taken = await fsGet(env, `ref_codes/${c}`);
-    if (!taken) { code = c; break; }
+    if (!await fsGet(env, `ref_codes/${c}`)) { code = c; break; }
   }
   if (!code) throw httpError(503, 'تعذّر التوليد');
 
@@ -791,67 +579,53 @@ async function handleRefClaim(user, body, env) {
   if (me.referred_by) throw httpError(400, 'استخدمت رمزًا من قبل');
 
   const owner = await fsGet(env, `ref_codes/${code}`);
-  if (!owner || !owner.uid) throw httpError(404, 'الرمز غير موجود');
+  if (!owner) throw httpError(404, 'الرمز غير موجود');
 
   await fsPatch(env, `users/${user.uid}`, {
     referred_by: owner.uid, referred_code: code, referral_paid: false,
   });
-
   return { success: true, bonus: num(s.referral_bonus_invitee, 1) };
 }
 
-/* ═══ Admin: Deposit/Order/Settings/Wallet-Adjust/Sms-Assign ═══ */
+/* ═══ Admin Routes ═══ */
 async function handleAdminDeposit(user, body, env) {
   await requireAdmin(user, env);
   const depositId = String(body.deposit_id || '').trim();
   const action = body.action === 'reject' ? 'reject' : 'approve';
-  if (!depositId) throw httpError(400, 'معرّف الإيداع مفقود');
 
   const dep = await fsGet(env, `wallet_deposits/${depositId}`);
-  if (!dep) throw httpError(404, 'الإيداع غير موجود');
-  if (dep.status !== 'pending') throw httpError(400, 'مُعالج مسبقًا');
+  if (!dep || dep.status !== 'pending') throw httpError(400, 'مُعالج مسبقًا');
 
   if (action === 'reject') {
-    await fsPatch(env, `wallet_deposits/${depositId}`, {
-      status: 'rejected', reject_reason: String(body.reason || '').slice(0, 200),
-      reviewed_by: user.uid, reviewed_at: nowIso(),
-    });
-    return { success: true, status: 'rejected' };
+    await fsPatch(env, `wallet_deposits/${depositId}`,
+      { status: 'rejected', reviewed_by: user.uid, reviewed_at: nowIso() });
+    return { success: true };
   }
 
   const amountUsd = round2(num(dep.amount_usd, 0));
-  if (amountUsd <= 0) throw httpError(400, 'مبلغ غير صحيح');
-
   await Promise.all([
     fsIncrement(env, `users/${dep.uid}`, { wallet_balance: amountUsd }),
-    fsPatch(env, `wallet_deposits/${depositId}`, {
-      status: 'approved', reviewed_by: user.uid, reviewed_at: nowIso(),
-    }),
+    fsPatch(env, `wallet_deposits/${depositId}`,
+      { status: 'approved', reviewed_by: user.uid, reviewed_at: nowIso() }),
   ]);
 
-  return { success: true, status: 'approved', credited: amountUsd };
+  return { success: true, credited: amountUsd };
 }
 
 async function handleAdminOrder(user, body, env) {
   await requireAdmin(user, env);
   const id = String(body.order_id || '').trim();
   const action = body.action === 'reject' ? 'reject' : 'complete';
-  if (!id) throw httpError(400, 'رقم الطلب مفقود');
 
   const o = await fsGet(env, `orders/${id}`);
-  if (!o) throw httpError(404, 'الطلب غير موجود');
-  if (o.status !== 'pending' && o.status !== 'processing') {
-    throw httpError(400, 'الطلب مُغلق');
+  if (!o || (o.status !== 'pending' && o.status !== 'processing')) {
+    throw httpError(400, 'مُغلق');
   }
 
   if (action === 'reject') {
     const back = round2(num(o.total_usd, 0));
     await Promise.all([
-      fsPatch(env, `orders/${id}`, {
-        status: 'rejected',
-        reject_reason: String(body.reason || '').slice(0, 160),
-        updated_at: nowIso(),
-      }),
+      fsPatch(env, `orders/${id}`, { status: 'rejected', updated_at: nowIso() }),
       fsIncrement(env, `users/${o.uid}`, { wallet_balance: back, total_spent: -back }),
     ]);
     return { success: true, refunded: back };
@@ -868,18 +642,12 @@ async function handleAdminOrder(user, body, env) {
 async function handleAdminSettings(user, body, env) {
   await requireAdmin(user, env);
   const pricing = {}, ops = {};
-  const allowedPricing = [
-    'margin', 'deletion_fee', 'min_amount', 'max_amount',
-    'usd_to_lyd', 'rate_libyana', 'rate_almadar', 'rate_bank', 'rate_usdt',
-  ];
-  const allowedOps = [
-    'kill_switch', 'kill_message', 'subscriptions_visible',
+  const allowedPricing = ['margin', 'min_amount', 'max_amount', 'usd_to_lyd',
+    'rate_libyana', 'rate_almadar', 'rate_bank', 'rate_usdt'];
+  const allowedOps = ['kill_switch', 'kill_message', 'subscriptions_visible',
     'coupons_enabled', 'tickets_enabled', 'points_enabled', 'referral_enabled',
     'm_libyana_on', 'm_almadar_on', 'm_bank_on', 'm_usdt_on', 'm_binance_on',
-    'm_libyana_phone', 'm_almadar_phone', 'usdt_address',
-    'deposit_phone', 'deposit_note',
-    'daily_cards_max', 'daily_amount_max', 'daily_deposit_max',
-  ];
+    'm_libyana_phone', 'm_almadar_phone', 'usdt_address', 'deposit_phone'];
 
   for (const k of allowedPricing) if (k in body) pricing[k] = body[k];
   for (const k of allowedOps) if (k in body) ops[k] = body[k];
@@ -892,7 +660,6 @@ async function handleAdminSettings(user, body, env) {
 
   if (!writes.length) throw httpError(400, 'لا يوجد للتحديث');
   await fsCommit(env, writes);
-
   return { success: true };
 }
 
@@ -900,30 +667,22 @@ async function handleAdminWalletAdjust(user, body, env) {
   await requireAdmin(user, env);
   const uid = String(body.uid || '').trim();
   const delta = num(body.delta, NaN);
-  const reason = String(body.reason || '').trim();
-
-  if (!uid) throw httpError(400, 'uid مفقود');
-  if (!Number.isFinite(delta) || delta === 0) throw httpError(400, 'مبلغ خطأ');
-  if (reason.length < 3) throw httpError(400, 'السبب مطلوب');
-
+  if (!uid || !Number.isFinite(delta) || delta === 0) throw httpError(400, 'بيانات ناقصة');
   await fsIncrement(env, `users/${uid}`, { wallet_balance: round2(delta) });
-  return { success: true, delta: round2(delta) };
+  return { success: true, delta };
 }
 
 async function handleAdminSmsAssign(user, body, env) {
   await requireAdmin(user, env);
   const smsId = String(body.sms_id || '').trim();
   const uid = String(body.uid || '').trim();
-  if (!smsId || !uid) throw httpError(400, 'بيانات ناقصة');
 
   const sms = await fsGet(env, `sms_transactions/${smsId}`);
-  if (!sms) throw httpError(404, 'الحوالة غير موجودة');
+  if (!sms) throw httpError(404, 'غير موجودة');
 
   const amountUsd = round2(num(sms.amount_usd, 0));
   await Promise.all([
-    fsPatch(env, `sms_transactions/${smsId}`, {
-      status: 'claimed', uid, claimed_at: nowIso(),
-    }),
+    fsPatch(env, `sms_transactions/${smsId}`, { status: 'claimed', uid, claimed_at: nowIso() }),
     fsIncrement(env, `users/${uid}`, { wallet_balance: amountUsd }),
     fsSet(env, `wallet_deposits/${smsId}`, {
       uid, amount_usd: amountUsd, amount_lyd: num(sms.amount_lyd, 0),
@@ -936,131 +695,6 @@ async function handleAdminSmsAssign(user, body, env) {
 
 async function handleActivityPing(user, body, env, request) {
   return { success: true };
-}
-
-/* ═══ USDT ═══ */
-const TRON_API = 'https://api.trongrid.io';
-const USDT_TRC20 = 'TR7NHqjeKQxGTCi8q8ZY4pL8otSzgjLj6t';
-
-async function handleUsdtInvoice(user, body, env) {
-  const s = await getSettings(env);
-  assertLive(s);
-  if (s.m_usdt_on !== true) throw httpError(503, 'USDT غير متاح');
-
-  const address = String(s.usdt_address || '').trim();
-  if (!/^T[1-9A-HJ-NP-Za-km-z]{33}$/.test(address)) {
-    throw httpError(503, 'عنوان الاستقبال غير مضبوط');
-  }
-
-  const amount = round2(num(body.amount_usd, NaN));
-  if (!Number.isFinite(amount) || amount <= 0) throw httpError(400, 'أدخل المبلغ');
-
-  const minU = num(s.usdt_min, 5);
-  const maxU = num(s.usdt_max, 1000);
-  if (amount < minU) throw httpError(400, `الحد الأدنى ${minU} USDT`);
-  if (amount > maxU) throw httpError(400, `الحد الأقصى ${maxU} USDT`);
-
-  let payAmount = null;
-  for (let i = 0; i < 80; i++) {
-    const b = crypto.getRandomValues(new Uint8Array(2));
-    const frac = ((((b[0] << 8) | b[1]) % 900) + 100) / 10000;
-    const cand = Number((amount + frac).toFixed(4));
-    payAmount = cand;
-    break;
-  }
-  if (payAmount === null) throw httpError(503, 'ازدحام');
-
-  const minutes = num(s.usdt_window_min, 30);
-  const now = Date.now();
-  const id = `INV${now}${randomSuffix(4)}`;
-
-  await fsSet(env, `usdt_invoices/${id}`, {
-    uid: user.uid, amount_usd: amount, pay_amount: payAmount,
-    address, status: 'awaiting',
-    created_at: new Date(now).toISOString(),
-    created_ms: now,
-    expires_ms: now + minutes * 60000,
-  });
-
-  return {
-    success: true,
-    invoice: {
-      id, amount_usd: amount, pay_amount: payAmount,
-      address, network: 'TRC20',
-      expires_ms: now + minutes * 60000,
-    },
-  };
-}
-
-async function handleUsdtVerify(user, body, env) {
-  const id = String(body.invoice_id || '').trim();
-  if (!id) throw httpError(400, 'رقم الفاتورة مفقود');
-
-  const inv = await fsGet(env, `usdt_invoices/${id}`);
-  if (!inv) throw httpError(404, 'الفاتورة غير موجودة');
-  if (inv.uid !== user.uid) throw httpError(403, 'غير مصرّح');
-
-  if (inv.status === 'paid') {
-    return { success: true, paid: true, credited: num(inv.received, num(inv.amount_usd, 0)) };
-  }
-
-  const now = Date.now();
-  if (num(inv.expires_ms, 0) < now && inv.status === 'awaiting') {
-    await fsPatch(env, `usdt_invoices/${id}`, { status: 'expired' });
-    throw httpError(400, 'انتهت المهلة');
-  }
-
-  const s = await getSettings(env);
-  const address = String(inv.address || s.usdt_address || '').trim();
-  const want = num(inv.pay_amount, 0);
-
-  let txs = [];
-  try {
-    const url = `${TRON_API}/v1/accounts/${address}/transactions/trc20`
-      + `?limit=60&only_to=true&contract_address=${USDT_TRC20}`;
-    const res = await fetch(url, { headers: { accept: 'application/json' } });
-    const data = await res.json();
-    txs = Array.isArray(data.data) ? data.data : [];
-  } catch (e) {
-    throw httpError(502, 'تعذّر الاتصال بالشبكة');
-  }
-
-  const since = num(inv.created_ms, 0) - 5 * 60000;
-
-  const hit = txs.find(t => {
-    const val = Number(t.value || 0) / 1e6;
-    const ts = Number(t.block_timestamp || 0);
-    return ts >= since && Math.abs(val - want) < 0.00005;
-  });
-
-  if (!hit) return { success: true, paid: false };
-
-  const txid = String(hit.transaction_id || '');
-  if (!txid) return { success: true, paid: false };
-
-  const seen = await fsGet(env, `usdt_txids/${txid}`);
-  if (seen) return { success: true, paid: false, duplicate: true };
-
-  const received = round2(Number(hit.value || 0) / 1e6);
-
-  await fsSet(env, `usdt_txids/${txid}`, {
-    invoice_id: id, uid: user.uid, amount: received,
-    from: String(hit.from || ''), created_at: nowIso(),
-  });
-
-  await Promise.all([
-    fsPatch(env, `usdt_invoices/${id}`, {
-      status: 'paid', txid, paid_at: nowIso(), received,
-    }),
-    fsIncrement(env, `users/${user.uid}`, { wallet_balance: received }),
-    fsSet(env, `wallet_deposits/${id}`, {
-      uid: user.uid, amount_usd: received, amount_lyd: 0,
-      method: 'USDT — تلقائي', status: 'approved', auto: true,
-      created_at: nowIso(),
-    }),
-  ]);
-
-  return { success: true, paid: true, credited: received, txid };
 }
 
 /* ═══ SMS Webhook ═══ */
@@ -1077,9 +711,11 @@ function parseTransferSms(text) {
   if (almadar && /د\.?\s*ل/.test(s)) {
     const phone = s.match(/من\s*الرقم\s*[:\s]?\s*(\d{9,14})/);
     if (!phone) return null;
-    const amount = round2(parseFloat(String(almadar[1]).replace(/,/g, '')));
-    if (!Number.isFinite(amount) || amount <= 0) return null;
-    return { amount_lyd: amount, sender: normalizePhone(phone[1]), network: 'almadar' };
+    return {
+      amount_lyd: round2(parseFloat(String(almadar[1]).replace(/,/g, ''))),
+      sender: normalizePhone(phone[1]),
+      network: 'almadar',
+    };
   }
 
   const libyana = s.match(/([\d,]+)[.\u066B](\d{1,3})\s*دينار/);
@@ -1088,10 +724,12 @@ function parseTransferSms(text) {
 
   const whole = parseInt(String(libyana[1]).replace(/,/g, ''), 10);
   const frac = parseInt(libyana[2].padEnd(3, '0'), 10) / 1000;
-  const amount = round2(whole + frac);
-  if (!Number.isFinite(amount) || amount <= 0) return null;
 
-  return { amount_lyd: amount, sender: normalizePhone(phone[1]), network: 'libyana' };
+  return {
+    amount_lyd: round2(whole + frac),
+    sender: normalizePhone(phone[1]),
+    network: 'libyana',
+  };
 }
 
 function normalizePhone(raw) {
@@ -1110,9 +748,9 @@ async function sha256Hex(str) {
 async function handleSmsWebhook(request, env) {
   const url = new URL(request.url);
   const provided = request.headers.get('x-sms-secret') || url.searchParams.get('secret') || '';
-  const expected = env.SMS_WEBHOOK_SECRET || '';
-
-  if (!expected || provided !== expected) throw httpError(401, 'unauthorized');
+  if (!env.SMS_WEBHOOK_SECRET || provided !== env.SMS_WEBHOOK_SECRET) {
+    throw httpError(401, 'unauthorized');
+  }
 
   let rawBody = '';
   if (request.method !== 'GET' && request.method !== 'HEAD') {
@@ -1127,43 +765,30 @@ async function handleSmsWebhook(request, env) {
   const text = body.text || body.message || body.body
     || url.searchParams.get('text') || rawBody || '';
 
-  const receivedAt = body.receivedAt || body.timestamp || url.searchParams.get('timestamp') || nowIso();
   const parsed = parseTransferSms(text);
-
-  const fingerprint = await sha256Hex(String(text).trim() + '|' + String(receivedAt).slice(0, 16));
-
-  const existing = await fsGet(env, `sms_transactions/${fingerprint}`);
-  if (existing) return { success: true, duplicate: true };
+  const fingerprint = await sha256Hex(String(text).trim());
 
   if (!parsed) {
     await fsSet(env, `sms_transactions/${fingerprint}`, {
       raw_text: String(text).slice(0, 500),
-      status: 'unparsed',
-      received_at: receivedAt,
-      created_at: nowIso(),
+      status: 'unparsed', created_at: nowIso(),
     });
     return { success: true, parsed: false };
   }
 
   const s = await getSettings(env);
   const rate = parsed.network === 'almadar'
-    ? num(s.rate_almadar, 12.5)
-    : num(s.rate_libyana, 11.8);
-  const amountUsd = round2(parsed.amount_lyd / rate);
+    ? num(s.rate_almadar, 12.5) : num(s.rate_libyana, 11.8);
 
   await fsSet(env, `sms_transactions/${fingerprint}`, {
     raw_text: String(text).slice(0, 500),
     amount_lyd: parsed.amount_lyd,
-    amount_usd: amountUsd,
-    rate,
-    sender: parsed.sender,
-    method: parsed.network,
-    status: 'unclaimed',
-    received_at: receivedAt,
-    created_at: nowIso(),
+    amount_usd: round2(parsed.amount_lyd / rate),
+    rate, sender: parsed.sender, method: parsed.network,
+    status: 'unclaimed', created_at: nowIso(),
   });
 
-  return { success: true, parsed: true, matched: false };
+  return { success: true, parsed: true };
 }
 
 /* ═══ Settings ═══ */
@@ -1173,18 +798,16 @@ async function getSettings(env) {
     fsGet(env, 'card_settings/ops'),
   ]);
   return {
-    min_amount: 10, max_amount: 200,
-    usd_to_lyd: 11.8,
+    min_amount: 10, max_amount: 200, usd_to_lyd: 11.8,
     rate_libyana: 11.8, rate_almadar: 12.5, rate_bank: 9.5, rate_usdt: 1.0,
     max_deposit_lyd: 5000,
-    kill_switch: false, kill_message: 'الخدمة متوقفة مؤقتًا للصيانة.',
+    kill_switch: false, kill_message: 'الخدمة متوقفة مؤقتًا.',
     m_libyana_on: true, m_almadar_on: true,
     m_bank_on: false, m_usdt_on: false, m_binance_on: false,
     m_libyana_label: 'ليبيانا', m_almadar_label: 'المدار',
     m_bank_label: 'تحويل مصرفي', m_usdt_label: 'USDT', m_binance_label: 'Binance Pay',
     m_libyana_phone: '', m_almadar_phone: '',
-    deposit_phone: '', deposit_note: '',
-    subscriptions_visible: true,
+    deposit_phone: '', deposit_note: '', subscriptions_visible: true,
     withdraw_enabled: false, withdraw_min: 10, withdraw_max: 500,
     withdraw_fee_pct: 0, withdraw_fee_fixed: 0,
     withdraw_methods: 'ليبيانا,المدار',
@@ -1197,13 +820,12 @@ async function getSettings(env) {
     referral_min_spend: 10,
     usdt_address: '', usdt_min: 5, usdt_max: 1000, usdt_window_min: 30,
     banners: [], method_order: 'libyana,almadar,usdt,bank,binance',
-    daily_cards_max: 3, daily_amount_max: 200, daily_deposit_max: 500,
     ...(pricing || {}),
     ...(ops || {}),
   };
 }
 
-/* ═══ Firebase Auth ═══ */
+/* ═══ Auth ═══ */
 async function requireAuth(request, env) {
   const auth = request.headers.get('authorization') || '';
   const m = auth.match(/^Bearer\s+(.+)$/i);
@@ -1229,15 +851,12 @@ async function verifyIdToken(idToken, projectId) {
   if (!jwk) throw httpError(401, 'رمز غير صالح');
 
   const key = await crypto.subtle.importKey(
-    'jwk',
-    { kty: jwk.kty, n: jwk.n, e: jwk.e, alg: 'RS256', ext: true },
-    { name: 'RSASSA-PKCS1-v1_5', hash: 'SHA-256' },
-    false, ['verify']
+    'jwk', { kty: jwk.kty, n: jwk.n, e: jwk.e, alg: 'RS256', ext: true },
+    { name: 'RSASSA-PKCS1-v1_5', hash: 'SHA-256' }, false, ['verify']
   );
 
   const ok = await crypto.subtle.verify(
-    'RSASSA-PKCS1-v1_5', key,
-    b64urlToBytes(parts[2]),
+    'RSASSA-PKCS1-v1_5', key, b64urlToBytes(parts[2]),
     new TextEncoder().encode(`${parts[0]}.${parts[1]}`)
   );
   if (!ok) throw httpError(401, 'رمز غير صالح');
@@ -1248,7 +867,6 @@ async function verifyIdToken(idToken, projectId) {
 async function getJwks() {
   const now = Date.now();
   if (_jwksCache.keys && _jwksCache.exp > now) return _jwksCache.keys;
-
   const res = await fetch('https://www.googleapis.com/service_accounts/v1/jwk/securetoken@system.gserviceaccount.com');
   const data = await res.json();
   _jwksCache = { keys: data.keys, exp: now + 3600_000 };
@@ -1279,10 +897,7 @@ async function getAccessToken(env) {
   });
 
   const data = await res.json();
-  if (!data.access_token) {
-    console.error('TOKEN_FAILED', JSON.stringify(data));
-    throw httpError(500, 'خطأ في إعداد السيرفر');
-  }
+  if (!data.access_token) throw httpError(500, 'خطأ في إعداد السيرفر');
 
   _tokenCache = { token: data.access_token, exp: now + (data.expires_in || 3600) };
   return data.access_token;
@@ -1300,13 +915,11 @@ async function signRS256(claim, pemKey) {
   const der = Uint8Array.from(atob(pem), c => c.charCodeAt(0));
   const key = await crypto.subtle.importKey(
     'pkcs8', der,
-    { name: 'RSASSA-PKCS1-v1_5', hash: 'SHA-256' },
-    false, ['sign']
+    { name: 'RSASSA-PKCS1-v1_5', hash: 'SHA-256' }, false, ['sign']
   );
 
   const sig = await crypto.subtle.sign(
-    'RSASSA-PKCS1-v1_5', key,
-    new TextEncoder().encode(input)
+    'RSASSA-PKCS1-v1_5', key, new TextEncoder().encode(input)
   );
 
   return `${input}.${bytesToB64url(new Uint8Array(sig))}`;
@@ -1330,10 +943,7 @@ async function fsFetch(env, suffix, init = {}) {
 
   if (res.status === 404) return null;
   const data = await res.json().catch(() => null);
-  if (!res.ok) {
-    console.error('FS_ERROR', res.status, JSON.stringify(data));
-    throw httpError(500, 'خطأ في قاعدة البيانات');
-  }
+  if (!res.ok) throw httpError(500, 'خطأ في قاعدة البيانات');
   return data;
 }
 
@@ -1526,38 +1136,25 @@ function b64urlToBytes(s) {
   const b64 = s.replace(/-/g, '+').replace(/_/g, '/');
   const raw = atob(b64 + '='.repeat((4 - b64.length % 4) % 4));
   return Uint8Array.from(raw, c => c.charCodeAt(0));
-      }
+}
+
 /* ═══════════════════════════════════════════════════════════
-   PROVIDER SYSTEM — نظام المزودين
-   يدعم: Libya Play + Manual + أي مزود API آخر
+   PROVIDER SYSTEM
    ═══════════════════════════════════════════════════════════ */
 
-/* ═══ قائمة المزودين ═══ */
 async function handleListProviders(user, body, env) {
   await requireAdmin(user, env);
-
-  const rows = await fsQuery(env, {
-    from: [{ collectionId: 'providers' }],
-    limit: 100,
-  });
+  const rows = await fsQuery(env, { from: [{ collectionId: 'providers' }], limit: 100 });
 
   const providers = rows.map(r => {
     const d = withId(r, 'providers');
-    // لا نكشف المفاتيح الكاملة — فقط آخر 4 أحرف للتعريف
     return {
-      id: d._id,
-      name: d.name || 'مزود',
-      type: d.type || 'manual',
+      id: d._id, name: d.name || 'مزود', type: d.type || 'manual',
       api_url: d.api_url || '',
-      api_key_masked: d.api_key
-        ? '••••' + String(d.api_key).slice(-4)
-        : '',
-      has_key: !!d.api_key,
-      email: d.email || '',
-      active: d.active !== false,
-      balance: num(d.balance, 0),
-      last_test_at: d.last_test_at || '',
-      last_test_ok: d.last_test_ok === true,
+      api_key_masked: d.api_key ? '••••' + String(d.api_key).slice(-4) : '',
+      has_key: !!d.api_key, email: d.email || '',
+      active: d.active !== false, balance: num(d.balance, 0),
+      last_test_at: d.last_test_at || '', last_test_ok: d.last_test_ok === true,
       last_fetch_at: d.last_fetch_at || '',
       products_count: num(d.products_count, 0),
       created_at: d.created_at || '',
@@ -1567,34 +1164,26 @@ async function handleListProviders(user, body, env) {
   return { success: true, providers };
 }
 
-/* ═══ جلب مزود واحد ═══ */
 async function handleGetProvider(user, body, env, id) {
   await requireAdmin(user, env);
-
   const d = await fsGet(env, `providers/${id}`);
   if (!d) throw httpError(404, 'المزود غير موجود');
 
   return {
     success: true,
     provider: {
-      id,
-      name: d.name || '',
-      type: d.type || 'manual',
+      id, name: d.name || '', type: d.type || 'manual',
       api_url: d.api_url || '',
       api_key_masked: d.api_key ? '••••' + String(d.api_key).slice(-4) : '',
-      has_key: !!d.api_key,
-      email: d.email || '',
-      active: d.active !== false,
-      balance: num(d.balance, 0),
+      has_key: !!d.api_key, email: d.email || '',
+      active: d.active !== false, balance: num(d.balance, 0),
       created_at: d.created_at || '',
     },
   };
 }
 
-/* ═══ إضافة مزود جديد ═══ */
 async function handleCreateProvider(user, body, env) {
   await requireAdmin(user, env);
-
   const name = String(body.name || '').trim().slice(0, 80);
   const type = String(body.type || 'manual').trim();
   const apiUrl = String(body.api_url || '').trim().slice(0, 300);
@@ -1603,46 +1192,31 @@ async function handleCreateProvider(user, body, env) {
 
   if (!name) throw httpError(400, 'اسم المزود مطلوب');
   if (!['manual', 'libyaplay', 'wdgzone', 'custom'].includes(type)) {
-    throw httpError(400, 'نوع المزود غير مدعوم');
+    throw httpError(400, 'نوع غير مدعوم');
   }
 
-  // توليد ID
   const id = `${type}_${Date.now()}${randomSuffix(4)}`;
-
   await fsSet(env, `providers/${id}`, {
-    name,
-    type,
-    api_url: apiUrl,
-    api_key: apiKey,
-    email,
-    active: true,
-    balance: 0,
-    last_test_at: '',
-    last_test_ok: false,
-    last_fetch_at: '',
-    products_count: 0,
-    created_at: nowIso(),
-    updated_at: nowIso(),
+    name, type, api_url: apiUrl, api_key: apiKey, email,
+    active: true, balance: 0,
+    last_test_at: '', last_test_ok: false,
+    last_fetch_at: '', products_count: 0,
+    created_at: nowIso(), updated_at: nowIso(),
   });
 
   return { success: true, id, name };
 }
 
-/* ═══ تعديل مزود ═══ */
 async function handleUpdateProvider(user, body, env, id) {
   await requireAdmin(user, env);
-
   const existing = await fsGet(env, `providers/${id}`);
-  if (!existing) throw httpError(404, 'المزود غير موجود');
+  if (!existing) throw httpError(404, 'غير موجود');
 
   const patch = { updated_at: nowIso() };
-
   if ('name' in body) patch.name = String(body.name).trim().slice(0, 80);
   if ('type' in body) patch.type = String(body.type).trim();
   if ('api_url' in body) patch.api_url = String(body.api_url).trim().slice(0, 300);
-  if ('api_key' in body && body.api_key) {
-    patch.api_key = String(body.api_key).trim().slice(0, 500);
-  }
+  if ('api_key' in body && body.api_key) patch.api_key = String(body.api_key).trim().slice(0, 500);
   if ('email' in body) patch.email = String(body.email).trim().slice(0, 120);
   if ('active' in body) patch.active = body.active === true;
 
@@ -1650,50 +1224,33 @@ async function handleUpdateProvider(user, body, env, id) {
   return { success: true };
 }
 
-/* ═══ حذف مزود ═══ */
 async function handleDeleteProvider(user, body, env, id) {
   await requireAdmin(user, env);
-
-  const existing = await fsGet(env, `providers/${id}`);
-  if (!existing) throw httpError(404, 'المزود غير موجود');
-
   await fsCommit(env, [{ delete: docPath(env, `providers/${id}`) }]);
   return { success: true };
 }
 
-/* ═══ اختبار الاتصال — الفعلي مع Libya Play ═══ */
 async function handleTestProvider(user, body, env) {
   await requireAdmin(user, env);
-
   const providerId = String(body.provider_id || '').trim();
   if (!providerId) throw httpError(400, 'معرّف المزود مفقود');
 
   const provider = await fsGet(env, `providers/${providerId}`);
-  if (!provider) throw httpError(404, 'المزود غير موجود');
+  if (!provider) throw httpError(404, 'غير موجود');
 
   const type = provider.type || 'manual';
   const startTime = Date.now();
-
   let result;
 
-  if (type === 'libyaplay') {
-    result = await testLibyaPlay(provider);
-  } else if (type === 'manual') {
-    result = {
-      ok: true,
-      message: 'المزود اليدوي لا يحتاج اتصالًا',
-      info: { app_name: 'Manual', app_version: 0, maintenance: 0 },
-    };
+  if (type === 'libyaplay') result = await testLibyaPlay(provider);
+  else if (type === 'manual') {
+    result = { ok: true, message: 'المزود اليدوي لا يحتاج اتصالًا', info: {} };
   } else {
-    result = {
-      ok: false,
-      message: 'نوع المزود غير مدعوم بعد — تواصل مع الدعم',
-    };
+    result = { ok: false, message: 'نوع غير مدعوم' };
   }
 
   const elapsed = Date.now() - startTime;
 
-  // تحديث المزود بحالة الاختبار
   await fsPatch(env, `providers/${providerId}`, {
     last_test_at: nowIso(),
     last_test_ok: result.ok,
@@ -1701,30 +1258,22 @@ async function handleTestProvider(user, body, env) {
     last_test_ms: elapsed,
   });
 
-  if (!result.ok) {
-    throw httpError(400, result.message || 'فشل الاتصال');
-  }
+  if (!result.ok) throw httpError(400, result.message || 'فشل الاتصال');
 
   return {
-    success: true,
-    ok: true,
+    success: true, ok: true,
     message: result.message || 'الاتصال ناجح',
-    elapsed_ms: elapsed,
-    info: result.info || {},
+    elapsed_ms: elapsed, info: result.info || {},
   };
 }
 
-/* ═══ اختبار Libya Play API الفعلي ═══ */
 async function testLibyaPlay(provider) {
   const url = String(provider.api_url || 'https://api.libyaplay.com/portal').trim();
   const key = String(provider.api_key || '').trim();
   const email = String(provider.email || '').trim();
 
-  if (!key) {
-    return { ok: false, message: 'مفتاح API مفقود' };
-  }
+  if (!key) return { ok: false, message: 'مفتاح API مفقود' };
 
-  // endpoint الاختبار الرسمي
   const testUrl = url.replace(/\/+$/, '') + '/general/app-info';
 
   try {
@@ -1740,44 +1289,21 @@ async function testLibyaPlay(provider) {
     const text = await res.text();
     let data;
     try { data = JSON.parse(text); } catch {
-      return {
-        ok: false,
-        message: `رد غير JSON (${res.status}): ${text.slice(0, 100)}`,
-      };
+      return { ok: false, message: `رد غير JSON (${res.status}): ${text.slice(0, 100)}` };
     }
 
     if (res.status === 401 || res.status === 403) {
-      return { ok: false, message: 'المفتاح غير صحيح أو منتهي' };
+      return { ok: false, message: 'المفتاح غير صحيح' };
     }
-
     if (res.status === 404) {
-      return {
-        ok: false,
-        message: `الرابط خطأ — ${testUrl} يرجّع 404`,
-      };
+      return { ok: false, message: `الرابط خطأ: ${testUrl}` };
     }
-
-    if (!res.ok) {
-      return {
-        ok: false,
-        message: `HTTP ${res.status}: ${data.message || 'خطأ غير معروف'}`,
-      };
-    }
-
-    if (data.status !== true) {
-      return {
-        ok: false,
-        message: data.message || 'المزود رفض الطلب',
-      };
-    }
+    if (!res.ok) return { ok: false, message: `HTTP ${res.status}` };
+    if (data.status !== true) return { ok: false, message: data.message || 'رفض' };
 
     const info = data.data || {};
     if (info.maintenance === 1) {
-      return {
-        ok: false,
-        message: 'المزود في وضع الصيانة حاليًا',
-        info,
-      };
+      return { ok: false, message: 'المزود في صيانة', info };
     }
 
     return {
@@ -1785,51 +1311,33 @@ async function testLibyaPlay(provider) {
       message: `الاتصال ناجح — ${info.app_name || 'Libya Play'} v${info.app_version || 0}`,
       info,
     };
-
   } catch (e) {
-    return {
-      ok: false,
-      message: `تعذّر الاتصال: ${e.message}`,
-    };
+    return { ok: false, message: `تعذّر: ${e.message}` };
   }
 }
 
-/* ═══ جلب الخدمات من المزود ═══ */
 async function handleFetchProviderProducts(user, body, env) {
   await requireAdmin(user, env);
-
   const providerId = String(body.provider_id || '').trim();
-  if (!providerId) throw httpError(400, 'معرّف المزود مفقود');
+  if (!providerId) throw httpError(400, 'معرّف مفقود');
 
   const provider = await fsGet(env, `providers/${providerId}`);
-  if (!provider) throw httpError(404, 'المزود غير موجود');
-
-  const type = provider.type || 'manual';
-
-  if (type !== 'libyaplay') {
-    throw httpError(400, 'جلب الخدمات متاح فقط لمزودي Libya Play حاليًا');
-  }
+  if (!provider) throw httpError(404, 'غير موجود');
+  if (provider.type !== 'libyaplay') throw httpError(400, 'جلب الخدمات متاح فقط لLibya Play');
 
   const products = await fetchLibyaPlayProducts(provider);
 
-  // نُخزّنها مؤقتًا في Firestore لاستخدامها في الاستيراد
-  const cacheId = `cache_${providerId}`;
-  await fsSet(env, `provider_cache/${cacheId}`, {
-    provider_id: providerId,
-    products,
-    fetched_at: nowIso(),
-    count: products.length,
+  await fsSet(env, `provider_cache/cache_${providerId}`, {
+    provider_id: providerId, products, fetched_at: nowIso(), count: products.length,
   });
 
   await fsPatch(env, `providers/${providerId}`, {
-    last_fetch_at: nowIso(),
-    products_count: products.length,
+    last_fetch_at: nowIso(), products_count: products.length,
   });
 
   return { success: true, products, count: products.length };
 }
 
-/* ═══ جلب منتجات Libya Play الفعلي ═══ */
 async function fetchLibyaPlayProducts(provider) {
   const baseUrl = String(provider.api_url || 'https://api.libyaplay.com/portal')
     .trim().replace(/\/+$/, '');
@@ -1844,15 +1352,8 @@ async function fetchLibyaPlayProducts(provider) {
     ...(email ? { 'x-email': email } : {}),
   };
 
-  /* المحاولة 1: endpoint قائمة الخدمات القياسي */
-  const endpoints = [
-    '/services',
-    '/products',
-    '/general/services',
-    '/general/products',
-    '/store/products',
-    '/store/services',
-  ];
+  const endpoints = ['/services', '/products', '/general/services',
+    '/general/products', '/store/products', '/store/services'];
 
   let found = null;
   let lastError = '';
@@ -1865,38 +1366,19 @@ async function fetchLibyaPlayProducts(provider) {
       const data = await res.json().catch(() => null);
       if (!data) continue;
 
-      // الشكل المتوقع: { status: true, data: [...] }
-      if (data.status === true && Array.isArray(data.data)) {
-        found = data.data;
-        break;
-      }
-      // أو مصفوفة مباشرة
-      if (Array.isArray(data)) {
-        found = data;
-        break;
-      }
-      // أو { data: { services: [...] } }
-      if (data.data && Array.isArray(data.data.services)) {
-        found = data.data.services;
-        break;
-      }
-      if (data.data && Array.isArray(data.data.products)) {
-        found = data.data.products;
-        break;
-      }
-    } catch (e) {
-      lastError = e.message;
-      continue;
-    }
+      if (data.status === true && Array.isArray(data.data)) { found = data.data; break; }
+      if (Array.isArray(data)) { found = data; break; }
+      if (data.data && Array.isArray(data.data.services)) { found = data.data.services; break; }
+      if (data.data && Array.isArray(data.data.products)) { found = data.data.products; break; }
+    } catch (e) { lastError = e.message; continue; }
   }
 
   if (!found) {
     throw httpError(404,
-      'لم نجد endpoint لخدمات Libya Play. تواصل مع دعم المزود للحصول على الوثائق الكاملة.' +
+      'لم نجد endpoint لخدمات Libya Play. تواصل مع دعم المزود.' +
       (lastError ? ` (${lastError})` : ''));
   }
 
-  // توحيد شكل المنتجات
   return found.slice(0, 500).map(p => ({
     provider_product_id: String(p.id || p.product_id || p.service_id || ''),
     name: String(p.name || p.title || p.service_name || ''),
@@ -1912,30 +1394,26 @@ async function fetchLibyaPlayProducts(provider) {
   })).filter(p => p.provider_product_id && p.name);
 }
 
-/* ═══ تخمين نوع التسليم من رد المزود ═══ */
 function mapDeliveryType(p) {
   const type = String(p.delivery_type || p.type || p.kind || '').toLowerCase();
   if (type.includes('topup') || type.includes('direct')) return 'API_DIRECT_TOPUP';
   if (type.includes('gift') || type.includes('code')) return 'GIFT_CODE';
   if (type.includes('stock')) return 'STOCK_CODE';
   if (type.includes('manual')) return 'MANUAL';
-  // الافتراضي لخدمات الألعاب
   if (p.player_id_required || p.requires_player_id) return 'API_DIRECT_TOPUP';
   return 'MANUAL';
 }
 
-/* ═══ استيراد منتجات مختارة إلى Firestore ═══ */
 async function handleImportProviderProducts(user, body, env) {
   await requireAdmin(user, env);
-
   const providerId = String(body.provider_id || '').trim();
   const items = Array.isArray(body.items) ? body.items.slice(0, 100) : [];
 
-  if (!providerId) throw httpError(400, 'معرّف المزود مفقود');
+  if (!providerId) throw httpError(400, 'معرّف مفقود');
   if (!items.length) throw httpError(400, 'لا منتجات مختارة');
 
   const provider = await fsGet(env, `providers/${providerId}`);
-  if (!provider) throw httpError(404, 'المزود غير موجود');
+  if (!provider) throw httpError(404, 'غير موجود');
 
   const results = { created: 0, skipped: 0, failed: 0, errors: [] };
 
@@ -1954,11 +1432,10 @@ async function handleImportProviderProducts(user, body, env) {
 
       if (!name || !priceLyd) {
         results.failed++;
-        results.errors.push(`تخطي ${pid}: الاسم أو السعر مفقود`);
+        results.errors.push(`${pid}: الاسم أو السعر مفقود`);
         continue;
       }
 
-      // التحقق من عدم وجوده مسبقًا (نفس provider_product_id)
       const existing = await fsQuery(env, {
         from: [{ collectionId: 'products' }],
         where: {
@@ -1975,62 +1452,44 @@ async function handleImportProviderProducts(user, body, env) {
         limit: 1,
       });
 
-      if (existing.length) {
-        results.skipped++;
-        continue;
-      }
+      if (existing.length) { results.skipped++; continue; }
 
-      // تحديد نوع التسليم في نظامنا
       const kind = (deliveryType === 'STOCK_CODE' || deliveryType === 'GIFT_CODE')
-        ? 'stock'
-        : 'manual';
+        ? 'stock' : 'manual';
 
-      // الحقول الافتراضية حسب نوع الخدمة
       let productFields = fields;
       if (!productFields.length) {
         if (deliveryType === 'API_DIRECT_TOPUP') {
           productFields = [
-            { key: 'player_id', label: 'رقم اللاعب', type: 'text',
-              required: true, hint: '' },
+            { key: 'player_id', label: 'رقم اللاعب', type: 'text', required: true, hint: '' },
           ];
         } else if (deliveryType === 'GIFT_CODE' || deliveryType === 'STOCK_CODE') {
           productFields = [
-            { key: 'email', label: 'بريدك الإلكتروني', type: 'email',
-              required: true, hint: '' },
+            { key: 'email', label: 'بريدك الإلكتروني', type: 'email', required: true, hint: '' },
           ];
         }
       }
 
-      // إنشاء المنتج
       const docId = `p_${providerId}_${pid}_${Date.now()}${randomSuffix(3)}`;
-
       await fsSet(env, `products/${docId}`, {
         name,
         name_ar: String(item.name_ar || '').slice(0, 120),
         name_en: String(item.name_en || '').slice(0, 120),
-        desc,
-        image,
-        cat: catId,
+        desc, image, cat: catId,
         price: priceLyd,
         old_price: round2(num(item.old_price, 0)),
-        cost_usd: costUsd,
-        kind,
-        delivery_type: deliveryType,
+        cost_usd: costUsd, kind, delivery_type: deliveryType,
         provider_id: providerId,
         provider_name: String(provider.name || ''),
         provider_product_id: pid,
         fields: productFields,
         note: String(item.note || '').slice(0, 200),
-        featured,
-        active: true,
-        sort: num(item.sort, 99),
+        featured, active: true, sort: num(item.sort, 99),
         stock_count: 0,
-        created_at: nowIso(),
-        updated_at: nowIso(),
+        created_at: nowIso(), updated_at: nowIso(),
       });
 
       results.created++;
-
     } catch (e) {
       results.failed++;
       results.errors.push(`${item.name || '?'}: ${e.message}`);
@@ -2038,8 +1497,7 @@ async function handleImportProviderProducts(user, body, env) {
   }
 
   return {
-    success: true,
-    results,
+    success: true, results,
     message: `تم استيراد ${results.created} منتج، تخطي ${results.skipped}، فشل ${results.failed}`,
   };
-                    }
+}
