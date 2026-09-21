@@ -10,30 +10,14 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Tajawal:wght@400;500;700;800;900&family=IBM+Plex+Mono:wght@400;500&display=swap">
 <style>
-:root{
-  --bg:#020617;--s1:#0D1421;--s2:#131C2C;--s3:#1A2436;--s4:#232F45;
-  --line:rgba(255,255,255,.07);--line-2:rgba(255,255,255,.13);
-  --tx:#F8FAFC;--tx-2:#94A3B8;--tx-3:#5F6E88;
-  --g:#10B981;--g-2:#0E9E70;--g-3:#34D399;
-  --g-soft:rgba(16,185,129,.10);--g-line:rgba(16,185,129,.30);
-  --bad:#EF5F5F;--bad-soft:rgba(239,95,95,.10);--bad-line:rgba(239,95,95,.30);
-  --warn:#F59E0B;--warn-soft:rgba(245,158,11,.10);
-  --info:#4A9EFF;--info-soft:rgba(74,158,255,.10);
-  --spring:cubic-bezier(.34,1.4,.44,1);
-  --ease:cubic-bezier(.22,1,.36,1);
-  --swift:cubic-bezier(.4,0,.2,1);
-  --rail:260px;--bar-h:64px;--dock-h:68px;
-}
+:root{--bg:#020617;--s1:#0D1421;--s2:#131C2C;--s3:#1A2436;--s4:#232F45;--line:rgba(255,255,255,.07);--line-2:rgba(255,255,255,.13);--tx:#F8FAFC;--tx-2:#94A3B8;--tx-3:#5F6E88;--g:#10B981;--g-2:#0E9E70;--g-3:#34D399;--g-soft:rgba(16,185,129,.10);--g-line:rgba(16,185,129,.30);--bad:#EF5F5F;--bad-soft:rgba(239,95,95,.10);--bad-line:rgba(239,95,95,.30);--warn:#F59E0B;--warn-soft:rgba(245,158,11,.10);--spring:cubic-bezier(.34,1.4,.44,1);--ease:cubic-bezier(.22,1,.36,1);--swift:cubic-bezier(.4,0,.2,1);--rail:260px;--bar-h:64px;--dock-h:68px}
 *{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
-html{-webkit-text-size-adjust:100%}
-body{font-family:'Tajawal','IBM Plex Sans Arabic',system-ui,-apple-system,sans-serif;font-feature-settings:'lnum' 1,'tnum' 1;background:var(--bg);color:var(--tx);font-size:15px;line-height:1.6;-webkit-font-smoothing:antialiased;min-height:100vh}
-body::before{content:'';position:fixed;inset:0;pointer-events:none;z-index:0;background:radial-gradient(70vw 55vh at 88% -8%, rgba(16,185,129,.07), transparent 60%),radial-gradient(60vw 45vh at -8% 4%, rgba(52,211,153,.04), transparent 58%)}
+body{font-family:'Tajawal',system-ui,sans-serif;background:var(--bg);color:var(--tx);font-size:15px;line-height:1.6;-webkit-font-smoothing:antialiased;min-height:100vh}
+body::before{content:'';position:fixed;inset:0;pointer-events:none;z-index:0;background:radial-gradient(70vw 55vh at 88% -8%,rgba(16,185,129,.07),transparent 60%),radial-gradient(60vw 45vh at -8% 4%,rgba(52,211,153,.04),transparent 58%)}
 button{font:inherit;color:inherit;background:none;border:none;cursor:pointer}
-input,select,textarea{font:inherit;color:inherit;width:100%}
+input,textarea{font:inherit;color:inherit;width:100%}
 a{color:inherit;text-decoration:none}
-img{max-width:100%;display:block}
 :focus-visible{outline:2px solid var(--g);outline-offset:3px;border-radius:8px}
-::selection{background:var(--g);color:#04121B}
 ::-webkit-scrollbar{width:8px;height:8px}
 ::-webkit-scrollbar-thumb{background:var(--s4);border-radius:8px}
 svg{width:19px;height:19px;flex:none;display:inline-block;vertical-align:middle}
@@ -42,32 +26,29 @@ svg{width:19px;height:19px;flex:none;display:inline-block;vertical-align:middle}
 .hidden{display:none!important}
 .shell{display:grid;grid-template-columns:1fr;min-height:100vh;position:relative;z-index:1}
 @media(min-width:1024px){.shell{grid-template-columns:1fr var(--rail)}}
-.rail{display:none;grid-column:2;position:sticky;top:0;height:100vh;flex-direction:column;padding:22px 14px;border-inline-start:1px solid var(--line);background:linear-gradient(180deg,rgba(13,20,33,.6) 0%,rgba(2,6,23,.95) 100%);backdrop-filter:blur(20px) saturate(160%);-webkit-backdrop-filter:blur(20px) saturate(160%);overflow-y:auto}
+.rail{display:none;grid-column:2;position:sticky;top:0;height:100vh;flex-direction:column;padding:22px 14px;border-inline-start:1px solid var(--line);background:linear-gradient(180deg,rgba(13,20,33,.6),rgba(2,6,23,.95));backdrop-filter:blur(20px);overflow-y:auto}
 @media(min-width:1024px){.rail{display:flex}}
 .main{grid-column:1;min-width:0;padding-bottom:calc(var(--dock-h) + env(safe-area-inset-bottom) + 16px)}
 @media(min-width:1024px){.main{padding-bottom:32px}}
 .wrap{padding:20px 16px;max-width:1280px;margin:0 auto}
 @media(min-width:640px){.wrap{padding:28px}}
-.bar{position:sticky;top:0;z-index:40;height:var(--bar-h);display:flex;align-items:center;gap:12px;padding:0 16px;background:rgba(2,6,23,.82);backdrop-filter:blur(20px) saturate(180%);-webkit-backdrop-filter:blur(20px) saturate(180%);border-bottom:1px solid var(--line)}
-@media(min-width:1024px){.bar{padding:0 28px}}
-.bar-title{font-size:17px;font-weight:800;letter-spacing:-.025em;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.bar-actions{margin-inline-start:auto;display:flex;align-items:center;gap:8px}
-.iconbtn{width:40px;height:40px;border-radius:11px;flex:none;display:grid;place-items:center;color:var(--tx-2);border:1px solid transparent;transition:all .18s var(--swift);position:relative}
+.bar{position:sticky;top:0;z-index:40;height:var(--bar-h);display:flex;align-items:center;gap:12px;padding:0 16px;background:rgba(2,6,23,.82);backdrop-filter:blur(20px);border-bottom:1px solid var(--line)}
+.bar-title{font-size:17px;font-weight:800;letter-spacing:-.025em}
+.bar-actions{margin-inline-start:auto;display:flex;gap:8px}
+.iconbtn{width:40px;height:40px;border-radius:11px;flex:none;display:grid;place-items:center;color:var(--tx-2);border:1px solid transparent;transition:all .18s}
 .iconbtn:hover{background:var(--s2);color:var(--tx);border-color:var(--line)}
-.iconbtn:active{transform:scale(.92)}
 .brand{display:flex;align-items:center;gap:11px;padding:0 6px;margin-bottom:22px}
 .brand .en{font-size:19px;font-weight:800;letter-spacing:-.03em;line-height:1.1}
 .brand .ar{font-size:11px;color:var(--tx-3)}
-.nav-group{margin-top:16px;margin-bottom:8px;padding:0 12px;font-size:10.5px;font-weight:800;letter-spacing:.14em;color:var(--tx-3);text-transform:uppercase;opacity:.65}
-.nav{display:flex;align-items:center;gap:12px;width:100%;padding:11px 12px;border-radius:11px;color:var(--tx-2);font-size:14px;font-weight:600;position:relative;margin-bottom:3px;transition:all .16s var(--swift)}
+.nav-group{margin:16px 0 8px;padding:0 12px;font-size:10.5px;font-weight:800;letter-spacing:.14em;color:var(--tx-3);text-transform:uppercase;opacity:.65}
+.nav{display:flex;align-items:center;gap:12px;width:100%;padding:11px 12px;border-radius:11px;color:var(--tx-2);font-size:14px;font-weight:600;position:relative;margin-bottom:3px;transition:all .16s}
 .nav:hover{background:var(--s1);color:var(--tx)}
 .nav.on{background:var(--s2);color:var(--tx)}
-.nav.on::before{content:'';position:absolute;inset-inline-start:0;top:24%;bottom:24%;width:3px;border-radius:99px;background:var(--g);box-shadow:0 0 12px var(--g)}
+.nav.on::before{content:'';position:absolute;inset-inline-start:0;top:24%;bottom:24%;width:3px;border-radius:99px;background:var(--g)}
 .nav.on svg{color:var(--g)}
-.nav .cnt{margin-inline-start:auto;min-width:20px;height:20px;padding:0 6px;border-radius:99px;background:var(--g);color:#04121B;font-size:11px;font-weight:800;display:grid;place-items:center}
 .rail-foot{margin-top:auto;padding-top:16px;border-top:1px solid var(--line)}
 .rail-user{display:flex;align-items:center;gap:11px;padding:0 4px 12px}
-.rail-av{width:36px;height:36px;border-radius:11px;flex:none;background:var(--g-soft);color:var(--g);display:grid;place-items:center;font-weight:800;font-size:14px}
+.rail-av{width:36px;height:36px;border-radius:11px;background:var(--g-soft);color:var(--g);display:grid;place-items:center;font-weight:800}
 .rail-name{font-size:13px;font-weight:700;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .rail-role{font-size:11px;color:var(--tx-3)}
 .h1{font-size:26px;font-weight:800;letter-spacing:-.035em;line-height:1.2}
@@ -75,126 +56,91 @@ svg{width:19px;height:19px;flex:none;display:inline-block;vertical-align:middle}
 .h3{font-size:14.5px;font-weight:700}
 .sub{color:var(--tx-2);font-size:13.5px;line-height:1.6}
 .sec-head{display:flex;justify-content:space-between;align-items:baseline;margin:26px 0 14px;gap:12px}
-.sec-head:first-child{margin-top:0}
-.box{background:linear-gradient(180deg,var(--s1) 0%,rgba(2,6,23,.75) 100%);border:1px solid var(--line);border-radius:16px;padding:20px;box-shadow:0 1px 0 rgba(255,255,255,.03) inset,0 10px 30px -20px rgba(0,0,0,.85);margin-bottom:16px;transition:border-color .25s}
+.box{background:linear-gradient(180deg,var(--s1),rgba(2,6,23,.75));border:1px solid var(--line);border-radius:16px;padding:20px;margin-bottom:16px;transition:border-color .25s}
 .box:hover{border-color:var(--line-2)}
 .kpis{display:grid;gap:12px;grid-template-columns:repeat(2,1fr);margin-bottom:18px}
 @media(min-width:720px){.kpis{grid-template-columns:repeat(3,1fr)}}
-.kpi{background:linear-gradient(180deg,var(--s1) 0%,rgba(2,6,23,.5) 100%);border:1px solid var(--line);border-radius:14px;padding:16px;position:relative;overflow:hidden;transition:border-color .25s,transform .25s var(--spring);opacity:0;animation:kpiIn .5s var(--ease) forwards}
-.kpi:nth-child(1){animation-delay:.04s}
-.kpi:nth-child(2){animation-delay:.08s}
-.kpi:nth-child(3){animation-delay:.12s}
-@keyframes kpiIn{from{opacity:0;transform:translateY(12px)}to{opacity:1;transform:none}}
-.kpi:hover{border-color:var(--g-line);transform:translateY(-2px)}
+.kpi{background:linear-gradient(180deg,var(--s1),rgba(2,6,23,.5));border:1px solid var(--line);border-radius:14px;padding:16px;transition:border-color .25s}
+.kpi:hover{border-color:var(--g-line)}
 .kpi-i{width:36px;height:36px;border-radius:11px;display:grid;place-items:center;margin-bottom:12px}
 .kpi-v{font-size:22px;font-weight:800;letter-spacing:-.03em;line-height:1.15}
 .kpi-k{font-size:11.5px;color:var(--tx-3);margin-top:4px}
-.btn{display:inline-flex;align-items:center;justify-content:center;gap:8px;padding:11px 18px;border-radius:11px;font-weight:700;font-size:13.5px;font-family:inherit;background:linear-gradient(135deg,var(--g) 0%,var(--g-2) 100%);color:#04121B;box-shadow:0 1px 0 rgba(255,255,255,.15) inset,0 8px 18px -8px rgba(16,185,129,.55);transition:transform .18s var(--spring),box-shadow .18s;position:relative;overflow:hidden}
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:8px;padding:11px 18px;border-radius:11px;font-weight:700;font-size:13.5px;font-family:inherit;background:linear-gradient(135deg,var(--g),var(--g-2));color:#04121B;box-shadow:0 8px 18px -8px rgba(16,185,129,.55);transition:transform .18s;position:relative;overflow:hidden}
 .btn:hover:not(:disabled){transform:translateY(-2px)}
 .btn:active:not(:disabled){transform:translateY(0) scale(.98)}
 .btn:disabled{opacity:.42;cursor:not-allowed;background:var(--s3);color:var(--tx-3);box-shadow:none}
 .btn svg{width:16px;height:16px}
 .btn.line{background:transparent;border:1px solid var(--line-2);color:var(--tx);box-shadow:none}
-.btn.line:hover:not(:disabled){background:var(--s2);border-color:var(--tx-3)}
+.btn.line:hover:not(:disabled){background:var(--s2)}
 .btn.ghost{background:var(--s2);color:var(--tx);box-shadow:none}
 .btn.dark{background:var(--s1);border:1px solid var(--line-2);color:var(--tx);box-shadow:none}
 .btn.dark:hover:not(:disabled){border-color:var(--g);color:var(--g)}
-.btn.bad{background:transparent;border:1px solid rgba(239,95,95,.35);color:var(--bad);box-shadow:none}
 .btn.sm{padding:8px 13px;font-size:12.5px;border-radius:10px}
-.btn.sm svg{width:14px;height:14px}
 .btn.wide{width:100%}
 .btn.loading{color:transparent;pointer-events:none}
 .btn.loading::after{content:'';position:absolute;width:16px;height:16px;border:2.5px solid rgba(4,18,27,.3);border-top-color:#04121B;border-radius:50%;animation:spin .7s linear infinite}
 @keyframes spin{to{transform:rotate(360deg)}}
-.inp{background:var(--s2);border:1.5px solid var(--line-2);border-radius:12px;padding:12px 14px;color:var(--tx);font-size:14px;transition:border-color .16s,background .16s,box-shadow .16s;font-family:inherit}
-.inp::placeholder{color:var(--tx-3)}
+.inp{background:var(--s2);border:1.5px solid var(--line-2);border-radius:12px;padding:12px 14px;color:var(--tx);font-size:14px;font-family:inherit}
 .inp:focus{outline:none;border-color:var(--g);background:var(--s3);box-shadow:0 0 0 3px var(--g-soft)}
-.chip{display:inline-flex;align-items:center;gap:5px;padding:4px 10px;border-radius:99px;font-size:11px;font-weight:700;white-space:nowrap}
+.chip{display:inline-flex;align-items:center;padding:4px 10px;border-radius:99px;font-size:11px;font-weight:700;white-space:nowrap}
 .chip.ok{background:var(--g-soft);color:var(--g)}
 .chip.wait{background:var(--warn-soft);color:var(--warn)}
 .chip.bad{background:var(--bad-soft);color:var(--bad)}
-.chip.info{background:var(--info-soft);color:var(--info)}
 .chip.off{background:var(--s3);color:var(--tx-3)}
 .empty{text-align:center;padding:46px 20px;color:var(--tx-2)}
 .empty .ei{width:64px;height:64px;border-radius:18px;margin:0 auto 16px;display:grid;place-items:center;background:var(--s2);color:var(--tx-3)}
-.empty .ei svg{width:28px;height:28px}
 .empty .et{font-weight:800;color:var(--tx);font-size:15px;margin-bottom:6px}
-.empty p{font-size:13.5px}
-.note{background:var(--warn-soft);border:1px solid rgba(245,158,11,.28);color:#F0C878;padding:12px 15px;border-radius:12px;font-size:13px;line-height:1.6;margin-bottom:14px}
+.note{background:var(--warn-soft);border:1px solid rgba(245,158,11,.28);color:#F0C878;padding:12px 15px;border-radius:12px;font-size:13px;margin-bottom:14px}
 .note.ok{background:var(--g-soft);border-color:var(--g-line);color:var(--g-3)}
-.note.bad{background:var(--bad-soft);border-color:var(--bad-line);color:#F5A0A0}
 .grid2{display:grid;grid-template-columns:1fr;gap:12px}
 @media(min-width:640px){.grid2{grid-template-columns:1fr 1fr}}
 .grid3{display:grid;grid-template-columns:1fr;gap:12px}
 @media(min-width:720px){.grid3{grid-template-columns:repeat(3,1fr)}}
 .flex-b{display:flex;justify-content:space-between;align-items:center;gap:12px}
-.flex{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
-/* بطاقة VISA */
-.vcard{aspect-ratio:1.586;border-radius:18px;background:linear-gradient(135deg,#0F172A 0%,#1A2436 55%,#0D1421 100%);border:1px solid rgba(255,255,255,.10);padding:20px;position:relative;overflow:hidden;box-shadow:0 20px 40px -20px rgba(0,0,0,.8),0 0 60px -30px rgba(16,185,129,.3)}
-.vcard::before{content:'';position:absolute;inset:0;background:radial-gradient(80% 60% at 100% 0%, rgba(16,185,129,.20), transparent 55%),radial-gradient(60% 50% at 0% 100%, rgba(52,211,153,.08), transparent 60%);pointer-events:none}
-.vcard::after{content:'';position:absolute;inset:0;background-image:linear-gradient(rgba(255,255,255,.025) 1px,transparent 1px),linear-gradient(90deg,rgba(255,255,255,.025) 1px,transparent 1px);background-size:28px 28px;pointer-events:none;mask-image:radial-gradient(circle at 30% 30%, #000 20%, transparent 70%);-webkit-mask-image:radial-gradient(circle at 30% 30%, #000 20%, transparent 70%)}
+.vcard{aspect-ratio:1.586;border-radius:18px;background:linear-gradient(135deg,#0F172A,#1A2436 55%,#0D1421);border:1px solid rgba(255,255,255,.10);padding:20px;position:relative;overflow:hidden;display:flex;flex-direction:column;cursor:pointer}
+.vcard::before{content:'';position:absolute;inset:0;background:radial-gradient(80% 60% at 100% 0%,rgba(16,185,129,.20),transparent 55%);pointer-events:none}
 .vcard-top{display:flex;justify-content:space-between;align-items:flex-start;position:relative;z-index:1}
-.vcard-brand{font-size:15px;font-weight:800;letter-spacing:-.02em;line-height:1;color:#F8FAFC}
+.vcard-brand{font-size:15px;font-weight:800;color:#F8FAFC}
 .vcard-brand small{font-size:8px;color:var(--tx-3);letter-spacing:.08em;display:block;margin-top:2px}
-.vcard-chip{width:38px;height:30px;border-radius:6px;background:linear-gradient(135deg,#D4AF37,#F4E5A8 45%,#B8860B);box-shadow:0 2px 6px rgba(0,0,0,.5) inset,0 0 12px rgba(212,175,55,.2)}
-.vcard-num{font-family:'IBM Plex Mono',monospace;font-size:16px;letter-spacing:.12em;color:#F1F5F9;margin-top:auto;position:relative;z-index:1;text-shadow:0 1px 0 rgba(0,0,0,.4)}
+.vcard-chip{width:38px;height:30px;border-radius:6px;background:linear-gradient(135deg,#D4AF37,#F4E5A8 45%,#B8860B)}
+.vcard-num{font-family:'IBM Plex Mono',monospace;font-size:16px;letter-spacing:.12em;color:#F1F5F9;margin-top:auto;position:relative;z-index:1}
 .vcard-bot{display:flex;justify-content:space-between;align-items:flex-end;margin-top:12px;position:relative;z-index:1}
 .vcard-lbl{font-size:8px;color:var(--tx-3);letter-spacing:.14em;text-transform:uppercase;margin-bottom:2px}
 .vcard-val{font-size:11.5px;font-weight:600;color:#E2E8F0}
 .vcard-logo{font-size:18px;font-weight:900;font-style:italic;color:#F8FAFC}
-.vcard-logo small{font-size:9px;vertical-align:super}
-/* Sheet */
-.ov{position:fixed;inset:0;z-index:120;background:rgba(2,6,23,.72);display:none;align-items:flex-end;justify-content:center;backdrop-filter:blur(4px);-webkit-backdrop-filter:blur(4px)}
-.ov.show{display:flex;animation:ovIn .25s var(--ease)}
-@keyframes ovIn{from{opacity:0}to{opacity:1}}
-.ov.closing{animation:ovOut .22s var(--ease) forwards}
-@keyframes ovOut{to{opacity:0}}
+.ov{position:fixed;inset:0;z-index:120;background:rgba(2,6,23,.72);display:none;align-items:flex-end;justify-content:center;backdrop-filter:blur(4px)}
+.ov.show{display:flex}
 @media(min-width:640px){.ov{align-items:center}}
-.sheet{background:var(--s1);border:1px solid var(--line);border-bottom:none;width:100%;max-width:540px;border-radius:24px 24px 0 0;padding:22px;max-height:92vh;overflow-y:auto;box-shadow:0 -10px 44px -14px rgba(0,0,0,.9),0 0 80px -40px rgba(16,185,129,.2);animation:sheetUp .4s var(--ease)}
-@keyframes sheetUp{from{transform:translateY(100%);opacity:.4}to{transform:none;opacity:1}}
-@media(min-width:640px){.sheet{border-radius:20px;border-bottom:1px solid var(--line)}}
-.sheet::before{content:'';display:block;width:38px;height:4px;border-radius:99px;background:var(--line-2);margin:-6px auto 16px}
-@media(min-width:640px){.sheet::before{display:none}}
-.sheet-head{display:flex;align-items:center;gap:12px;margin-bottom:18px;padding-bottom:14px;border-bottom:1px solid var(--line)}
+.sheet{background:var(--s1);border:1px solid var(--line);border-bottom:none;width:100%;max-width:540px;border-radius:24px 24px 0 0;padding:22px;max-height:92vh;overflow-y:auto}
+@media(min-width:640px){.sheet{border-radius:20px}}
+.sheet-head{display:flex;gap:12px;margin-bottom:18px;padding-bottom:14px;border-bottom:1px solid var(--line)}
 #toasts{position:fixed;top:14px;left:50%;transform:translateX(-50%);z-index:200;display:flex;flex-direction:column;gap:8px;width:min(92vw,400px);pointer-events:none}
-.toast{background:var(--s3);border:1px solid var(--line-2);padding:13px 15px;border-radius:12px;font-size:13.5px;font-weight:600;display:flex;gap:10px;align-items:flex-start;box-shadow:0 20px 44px -16px rgba(0,0,0,.9);animation:toastIn .35s var(--spring);pointer-events:auto;backdrop-filter:blur(16px)}
+.toast{background:var(--s3);border:1px solid var(--line-2);padding:13px 15px;border-radius:12px;font-size:13.5px;font-weight:600;display:flex;gap:10px;box-shadow:0 20px 44px -16px rgba(0,0,0,.9);pointer-events:auto}
 .toast.ok{border-color:var(--g-line);background:linear-gradient(180deg,rgba(16,185,129,.15),rgba(13,20,33,.95))}
-.toast.ok svg{color:var(--g)}
 .toast.bad{border-color:var(--bad-line);background:linear-gradient(180deg,rgba(239,95,95,.15),rgba(13,20,33,.95))}
-.toast.bad svg{color:var(--bad)}
-.toast svg{width:18px;height:18px;flex:none;margin-top:1px}
-@keyframes toastIn{from{opacity:0;transform:translateY(-14px) scale(.96)}to{opacity:1;transform:none}}
-/* Dock */
-.dock{position:fixed;inset:auto 0 0 0;z-index:50;display:grid;height:var(--dock-h);padding-bottom:env(safe-area-inset-bottom);background:rgba(2,6,23,.94);backdrop-filter:blur(20px) saturate(180%);-webkit-backdrop-filter:blur(20px) saturate(180%);border-top:1px solid var(--line)}
+.toast svg{width:18px;height:18px;flex:none}
+.dock{position:fixed;inset:auto 0 0 0;z-index:50;display:grid;height:var(--dock-h);padding-bottom:env(safe-area-inset-bottom);background:rgba(2,6,23,.94);backdrop-filter:blur(20px);border-top:1px solid var(--line)}
 @media(min-width:1024px){.dock{display:none}}
-.dk{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;font-size:10px;font-weight:700;color:var(--tx-3);transition:color .16s;padding:0 4px;position:relative}
+.dk{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;font-size:10px;font-weight:700;color:var(--tx-3);padding:0 4px;position:relative}
 .dk.on{color:var(--g)}
-.dk.on::before{content:'';position:absolute;top:0;left:50%;width:22px;height:2.5px;border-radius:0 0 4px 4px;background:var(--g);transform:translateX(-50%);box-shadow:0 0 10px rgba(16,185,129,.5)}
+.dk.on::before{content:'';position:absolute;top:0;left:50%;width:22px;height:2.5px;border-radius:0 0 4px 4px;background:var(--g);transform:translateX(-50%)}
 .dk svg{width:20px;height:20px}
-.dk .cnt{position:absolute;top:6px;inset-inline-end:14px;min-width:15px;height:15px;padding:0 4px;border-radius:99px;background:var(--bad);color:#fff;font-size:9px;font-weight:800;display:grid;place-items:center}
-/* Login gate */
-#gate{min-height:100vh;display:none;place-items:center;padding:20px;position:relative;z-index:1}
+#gate{min-height:100vh;display:none;place-items:center;padding:20px}
 #gate.show{display:grid}
-.gate-card{background:linear-gradient(180deg,var(--s1),rgba(2,6,23,.9));border:1px solid var(--line);border-radius:22px;padding:30px 26px;width:min(100%,400px);text-align:center;box-shadow:0 30px 80px -30px rgba(0,0,0,.9)}
-.gate-card h2{font-size:20px;font-weight:800;margin-bottom:10px}
-.gate-card p{color:var(--tx-2);font-size:13.5px;margin-bottom:22px;line-height:1.7}
-@media(prefers-reduced-motion:reduce){*,*::before,*::after{animation-duration:.01ms!important;transition-duration:.01ms!important}}
+.gate-card{background:var(--s1);border:1px solid var(--line);border-radius:22px;padding:30px 26px;width:min(100%,400px);text-align:center}
 </style>
 </head>
 <body>
 
-<!-- Gate -->
 <div id="gate">
   <div class="gate-card">
-    <h2>جاري التحقق…</h2>
-    <p id="gateMsg">يتم التحقق من حسابك</p>
+    <h2 style="font-size:20px;font-weight:800;margin-bottom:10px">جاري التحقق…</h2>
+    <p class="sub">يتم التحقق من حسابك</p>
   </div>
 </div>
 
-<!-- App -->
 <div id="app" style="display:none">
 <div class="shell">
-
   <aside class="rail">
     <div class="brand">
       <span id="railMark"></span>
@@ -212,12 +158,11 @@ svg{width:19px;height:19px;flex:none;display:inline-block;vertical-align:middle}
       <button class="nav" id="railOut"></button>
     </div>
   </aside>
-
   <div class="main">
     <header class="bar">
       <div class="bar-title" id="barTitle">الرئيسية</div>
       <div class="bar-actions">
-        <button class="iconbtn" id="refreshBtn" aria-label="تحديث">
+        <button class="iconbtn" id="refreshBtn">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 1 1-3-6.7M21 4v5h-5"/></svg>
         </button>
       </div>
@@ -234,7 +179,7 @@ svg{width:19px;height:19px;flex:none;display:inline-block;vertical-align:middle}
 <script type="module">
 import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js';
 import { getAuth, onAuthStateChanged, signOut } from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js';
-import { getFirestore, doc, getDoc, collection, query, where, onSnapshot, orderBy, limit } from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js';
+import { getFirestore, doc, getDoc, collection, query, where, onSnapshot, limit } from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js';
 
 const API_BASE = 'https://kardo.sdkhyrallh08.workers.dev';
 const firebaseConfig = {
@@ -255,13 +200,9 @@ const n = v => { const x = parseFloat(v); return Number.isFinite(x) ? x : 0; };
 const usd = v => '$' + Number(v || 0).toFixed(2);
 const lyd = v => Number(v || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + ' د.ل';
 const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
-const dt = v => {
-  if(!v) return '—';
-  const d = v.toDate ? v.toDate() : new Date(v);
-  return isNaN(d) ? '—' : d.toLocaleDateString('ar-LY', { day: '2-digit', month: 'short' }) + ' · ' + d.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' });
-};
+const dt = v => { if(!v) return '—'; const d = v.toDate ? v.toDate() : new Date(v); return isNaN(d) ? '—' : d.toLocaleDateString('ar-LY', { day: '2-digit', month: 'short' }) + ' · ' + d.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' }); };
 
-const S = { user: null, page: 'home', unsub: [], myCards: [], myOrders: [], myDeps: [], myTickets: [], mySubs: [], vipPlans: [], settings: {}, loading: true };
+const S = { user: null, me: null, page: 'home', unsub: [], myCards: [], myOrders: [], myDeps: [], myTickets: [], vipPlans: [], settings: {}, newKind: 'new' };
 
 const I = {
   home:'<path d="M3 10.4 12 3.2l9 7.2V20a1 1 0 0 1-1 1h-5v-6.5H9V21H4a1 1 0 0 1-1-1z"/>',
@@ -274,11 +215,9 @@ const I = {
   check:'<path d="M20 6 9 17l-5-5"/>',
   clock:'<circle cx="12" cy="12" r="9"/><path d="M12 7v5.2l3.2 2"/>',
   out:'<path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4M16 17l5-5-5-5M21 12H9"/>',
-  eye:'<path d="M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7-10-7-10-7"/><circle cx="12" cy="12" r="3"/>',
   copy:'<rect x="9" y="9" width="12" height="12" rx="2.5"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/>',
   warn:'<path d="M12 9v4M12 17h.01"/><path d="M10.3 3.9 2 18a2 2 0 0 0 1.7 3h16.6A2 2 0 0 0 22 18L13.7 3.9a2 2 0 0 0-3.4 0z"/>',
-  up:'<path d="M12 19V5M5.5 11.5 12 5l6.5 6.5"/>',
-  down:'<path d="M12 5v14M18.5 12.5 12 19l-6.5-6.5"/>'
+  up:'<path d="M12 19V5M5.5 11.5 12 5l6.5 6.5"/>'
 };
 const svg = (d, w = 1.8) => `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="${w}" stroke-linecap="round" stroke-linejoin="round">${d}</svg>`;
 
@@ -286,28 +225,24 @@ function mark(size = 32) {
   return `<svg width="${size}" height="${size}" viewBox="0 0 40 40" style="flex:none">
     <defs><linearGradient id="k${size}" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#10B981"/><stop offset="1" stop-color="#34D399"/></linearGradient></defs>
     <rect width="40" height="40" rx="11" fill="#0D1421"/>
-    <rect x="0.5" y="0.5" width="39" height="39" rx="10.5" fill="none" stroke="rgba(16,185,129,.28)"/>
     <path d="M11 9h4.4v22H11z" fill="url(#k${size})"/>
     <path d="M17 20.2 27.5 9H33L22.4 20.2 33 31h-5.6z" fill="url(#k${size})"/>
     <rect x="19" y="15.6" width="12.4" height="8.8" rx="2.2" fill="#F8FAFC" opacity=".95"/>
-    <rect x="21" y="18.4" width="3.4" height="2.6" rx=".7" fill="#0D1421" opacity=".6"/>
   </svg>`;
 }
-
 $('#railMark').innerHTML = mark(32);
 $('#railOut').innerHTML = svg(I.out) + '<span>تسجيل الخروج</span>';
 
 function toast(msg, kind = '') {
   const el = document.createElement('div');
   el.className = 'toast ' + kind;
-  const ic = kind === 'ok' ? svg(I.check, 2.4) : kind === 'bad' ? svg(I.warn, 2) : '';
-  el.innerHTML = ic + `<span>${esc(msg)}</span>`;
+  el.innerHTML = (kind === 'ok' ? svg(I.check, 2.4) : kind === 'bad' ? svg(I.warn, 2) : '') + `<span>${esc(msg)}</span>`;
   $('#toasts').appendChild(el);
   setTimeout(() => { el.style.opacity = '0'; el.style.transition = '.28s'; setTimeout(() => el.remove(), 280); }, 3600);
 }
 
 function sheet(html) { $('#sheet').innerHTML = html; $('#ov').classList.add('show'); }
-window.closeSheet = () => { const ov = $('#ov'); if(!ov.classList.contains('show')) return; ov.classList.add('closing'); setTimeout(() => ov.classList.remove('show', 'closing'), 220); };
+window.closeSheet = () => { $('#ov').classList.remove('show'); };
 $('#ov').addEventListener('click', e => { if(e.target.id === 'ov') closeSheet(); });
 document.addEventListener('keydown', e => { if(e.key === 'Escape') closeSheet(); });
 
@@ -328,22 +263,23 @@ onAuthStateChanged(auth, async user => {
   S.unsub.forEach(u => { try { u(); } catch {} });
   S.unsub = [];
 
-  if(!user) {
-    location.replace('login.html');
-    return;
-  }
+  if(!user) { location.replace('login.html'); return; }
 
-  // فحص الأدمن — إذا كان أدمن، وجّهه للوحة التحكم
-  const adminSnap = await getDoc(doc(db, 'admins', user.uid)).catch(() => null);
-  if(adminSnap && adminSnap.exists()) {
-    location.replace('admin.html');
-    return;
-  }
+  let isAdmin = false;
+  try {
+    const snap = await getDoc(doc(db, 'users', user.uid));
+    if (snap.exists()) {
+      S.me = { id: snap.id, ...snap.data() };
+      if (S.me.role === 'admin') isAdmin = true;
+    }
+  } catch (e) {}
+
+  if (isAdmin) { location.replace('admin.html'); return; }
 
   S.user = user;
   $('#gate').classList.remove('show');
   $('#app').style.display = 'block';
-  $('#railName').textContent = user.displayName || user.email.split('@')[0];
+  $('#railName').textContent = user.displayName || (S.me && S.me.name) || user.email.split('@')[0];
   $('#railAv').textContent = (user.displayName || user.email).charAt(0).toUpperCase();
 
   subscribe();
@@ -363,41 +299,35 @@ function sub(q, key) {
   S.unsub.push(onSnapshot(q, s => {
     S[key] = s.docs.map(d => ({ id: d.id, ...d.data() }));
     render();
-  }, err => { console.warn(key, err.code); }));
+  }, err => console.warn(key, err.code)));
 }
 
 function subscribe() {
   const uid = S.user.uid;
-  // بيانات المستخدم نفسه
   S.unsub.push(onSnapshot(doc(db, 'users', uid), s => {
-    if(s.exists()) S.me = { id: s.id, ...s.data() };
-    render();
-  }, err => { console.warn('user', err.code); }));
+    if(s.exists()) { S.me = { id: s.id, ...s.data() }; render(); }
+  }, err => console.warn('user', err.code)));
 
   sub(query(collection(db, 'manual_cards'), where('uid', '==', uid), limit(100)), 'myCards');
   sub(query(collection(db, 'manual_card_orders'), where('uid', '==', uid), limit(100)), 'myOrders');
   sub(query(collection(db, 'wallet_deposits'), where('uid', '==', uid), limit(100)), 'myDeps');
   sub(query(collection(db, 'tickets'), where('uid', '==', uid), limit(50)), 'myTickets');
-  sub(query(collection(db, 'subscriptions'), where('uid', '==', uid), limit(50)), 'mySubs');
-
-  // عامة
   sub(query(collection(db, 'vip_plans'), where('active', '==', true)), 'vipPlans');
 
-  // إعدادات عامة
   getDoc(doc(db, 'settings', 'public')).then(s => {
     if(s.exists()) { S.settings = s.data(); render(); }
   }).catch(() => {});
 }
 
-/* ═══ Navigation ═══ */
+/* ═══ Nav ═══ */
 const PAGES = [
-  { k: 'home',     t: 'الرئيسية',  i: I.home,  g: 'الرئيسية' },
-  { k: 'wallet',   t: 'محفظتي',    i: I.cash,  g: 'المال' },
-  { k: 'cards',    t: 'بطاقاتي',   i: I.card,  g: 'المال' },
-  { k: 'new',      t: 'بطاقة جديدة',i: I.plus,  g: 'الإجراءات' },
-  { k: 'vip',      t: 'VIP',       i: I.award, g: 'الإجراءات' },
-  { k: 'support',  t: 'الدعم',     i: I.help,  g: 'الإجراءات' },
-  { k: 'settings', t: 'الإعدادات', i: I.gear,  g: 'الحساب' }
+  { k: 'home',     t: 'الرئيسية',    i: I.home,  g: 'الرئيسية' },
+  { k: 'wallet',   t: 'محفظتي',      i: I.cash,  g: 'المال' },
+  { k: 'cards',    t: 'بطاقاتي',     i: I.card,  g: 'المال' },
+  { k: 'new',      t: 'بطاقة جديدة', i: I.plus,  g: 'الإجراءات' },
+  { k: 'vip',      t: 'VIP',         i: I.award, g: 'الإجراءات' },
+  { k: 'support',  t: 'الدعم',       i: I.help,  g: 'الإجراءات' },
+  { k: 'settings', t: 'الإعدادات',   i: I.gear,  g: 'الحساب' }
 ];
 const DOCK = ['home', 'wallet', 'cards', 'vip', 'settings'];
 
@@ -408,20 +338,13 @@ function buildNav() {
   for(const [g, items] of Object.entries(groups)) {
     rail += `<div class="nav-group">${g}</div>`;
     items.forEach(p => {
-      rail += `<button class="nav ${S.page === p.k ? 'on' : ''}" data-nav="${p.k}">
-        ${svg(p.i)}<span>${p.t}</span>
-      </button>`;
+      rail += `<button class="nav ${S.page === p.k ? 'on' : ''}" data-nav="${p.k}">${svg(p.i)}<span>${p.t}</span></button>`;
     });
   }
   $('#navRail').innerHTML = rail;
-
   const dk = DOCK.map(k => PAGES.find(p => p.k === k)).filter(Boolean);
   $('#navDock').style.gridTemplateColumns = `repeat(${dk.length}, 1fr)`;
-  $('#navDock').innerHTML = dk.map(p => `
-    <button class="dk ${S.page === p.k ? 'on' : ''}" data-nav="${p.k}">
-      ${svg(p.i)}<span>${p.t}</span>
-    </button>`).join('');
-
+  $('#navDock').innerHTML = dk.map(p => `<button class="dk ${S.page === p.k ? 'on' : ''}" data-nav="${p.k}">${svg(p.i)}<span>${p.t}</span></button>`).join('');
   $$('[data-nav]').forEach(b => b.onclick = () => go(b.dataset.nav));
 }
 
@@ -443,26 +366,22 @@ function paint() {
   bind();
 }
 
-/* ═══ Pages ═══ */
+/* ═══ Home ═══ */
 function vHome() {
   const me = S.me || {};
   const cards = S.myCards;
   const pending = S.myOrders.filter(o => o.status === 'pending').length;
   const recent = S.myOrders.slice(0, 5);
-
   return `
   <div class="h1" style="margin-bottom:4px">مرحبًا، ${esc((me.name || '').split(' ')[0] || 'صديقنا')} 👋</div>
   <p class="sub" style="margin-bottom:20px">هذه لمحة سريعة عن حسابك</p>
-
   <div class="kpis">
     ${kpi(I.cash, usd(me.wallet_balance), 'رصيد المحفظة', '#ECFDF5', '#059669')}
     ${kpi(I.card, cards.length, 'بطاقاتي النشطة', '#EFF6FF', '#2563EB')}
     ${kpi(I.clock, pending, 'طلبات قيد التنفيذ', '#FEF3C7', '#B45309')}
   </div>
-
   ${cards.length ? `
-    <div class="sec-head"><div class="h2">بطاقتي الرئيسية</div>
-      <button class="btn ghost sm" data-nav="cards">عرض الكل</button></div>
+    <div class="sec-head"><div class="h2">بطاقتي الرئيسية</div><button class="btn ghost sm" data-nav="cards">عرض الكل</button></div>
     <div class="grid2" style="margin-bottom:16px">
       ${cards.slice(0, 1).map(c => cardHTML(c)).join('')}
       <div class="box">
@@ -475,340 +394,193 @@ function vHome() {
       </div>
     </div>
   ` : `
-    <div class="note ok" style="margin-bottom:16px">
-      🎉 بطاقتك الأولى <strong>مجانية</strong>! ابدأ الآن بإصدار أول بطاقة.
-    </div>
-    <div class="box" style="text-align:center;padding:36px 20px">
-      <div class="empty">
-        <div class="ei">${svg(I.card, 1.6)}</div>
-        <div class="et">لا بطاقات بعد</div>
-        <p style="margin-bottom:16px">أصدر بطاقتك الأولى الآن مجانًا</p>
-        <button class="btn" data-nav="new">${svg(I.plus, 2)} إصدار بطاقة</button>
-      </div>
-    </div>
+    <div class="note ok" style="margin-bottom:16px">🎉 بطاقتك الأولى <strong>مجانية</strong>! ابدأ الآن.</div>
+    <div class="box"><div class="empty">
+      <div class="ei">${svg(I.card, 1.6)}</div>
+      <div class="et">لا بطاقات بعد</div>
+      <p style="margin-bottom:16px">أصدر بطاقتك الأولى مجانًا</p>
+      <button class="btn" data-nav="new">${svg(I.plus, 2)} إصدار بطاقة</button>
+    </div></div>
   `}
-
-  <div class="sec-head" style="margin-top:16px">
-    <div class="h2">آخر الطلبات</div>
-    <button class="btn ghost sm" data-nav="cards">عرض الكل</button>
-  </div>
-  ${recent.length ? `
-    <div class="box" style="padding:0;overflow:hidden">
-      ${recent.map(o => orderRowHTML(o)).join('')}
-    </div>` : `<div class="box"><div class="empty">
-      <div class="ei">${svg(I.clock, 1.6)}</div>
-      <div class="et">لا طلبات بعد</div>
-    </div></div>`}
+  <div class="sec-head"><div class="h2">آخر الطلبات</div><button class="btn ghost sm" data-nav="cards">عرض الكل</button></div>
+  ${recent.length ? `<div class="box" style="padding:0;overflow:hidden">${recent.map(o => orderRowHTML(o)).join('')}</div>`
+   : `<div class="box"><div class="empty"><div class="ei">${svg(I.clock, 1.6)}</div><div class="et">لا طلبات بعد</div></div></div>`}
   `;
 }
 
 function kpi(icon, val, label, bg, fg) {
-  return `<div class="kpi">
-    <div class="kpi-i" style="background:${bg};color:${fg}">${svg(icon, 1.9)}</div>
-    <div class="kpi-v num">${val}</div>
-    <div class="kpi-k">${label}</div>
-  </div>`;
+  return `<div class="kpi"><div class="kpi-i" style="background:${bg};color:${fg}">${svg(icon, 1.9)}</div><div class="kpi-v num">${val}</div><div class="kpi-k">${label}</div></div>`;
 }
 
 function cardHTML(c) {
   const num = c.card_number ? String(c.card_number).replace(/(.{4})/g, '$1 ').trim() : '•••• •••• •••• ' + String(c.id || '').slice(-4);
-  return `<div class="vcard" style="cursor:pointer" data-card="${esc(c.id)}">
-    <div class="vcard-top">
-      <div class="vcard-brand">KARDO<small>كاردو</small></div>
-      <div class="vcard-chip"></div>
-    </div>
-    <div style="margin-top:auto;padding-top:16px">
-      <div class="vcard-num">${esc(num)}</div>
-    </div>
+  return `<div class="vcard" data-card="${esc(c.id)}">
+    <div class="vcard-top"><div class="vcard-brand">KARDO<small>كاردو</small></div><div class="vcard-chip"></div></div>
+    <div class="vcard-num">${esc(num)}</div>
     <div class="vcard-bot">
-      <div>
-        <div class="vcard-lbl">Holder</div>
-        <div class="vcard-val">${esc(c.name_on_card || 'KARDO USER').toUpperCase()}</div>
-      </div>
-      <div>
-        <div class="vcard-lbl">Expires</div>
-        <div class="vcard-val mono">${esc(c.expiry || '••/••')}</div>
-      </div>
-      <div class="vcard-logo">VISA<small>®</small></div>
+      <div><div class="vcard-lbl">Holder</div><div class="vcard-val">${esc(c.name_on_card || 'KARDO USER').toUpperCase()}</div></div>
+      <div><div class="vcard-lbl">Expires</div><div class="vcard-val mono">${esc(c.expiry || '••/••')}</div></div>
+      <div class="vcard-logo">VISA</div>
     </div>
   </div>`;
 }
 
 function orderRowHTML(o) {
-  const st = o.status === 'completed' ? ['ok', 'مكتمل']
-    : o.status === 'pending' ? ['wait', 'قيد التنفيذ']
-    : o.status === 'rejected' ? ['bad', 'مرفوض'] : ['off', '—'];
+  const st = o.status === 'completed' ? ['ok', 'مكتمل'] : o.status === 'pending' ? ['wait', 'قيد التنفيذ'] : o.status === 'rejected' ? ['bad', 'مرفوض'] : ['off', '—'];
   const type = o.kind === 'topup' ? 'إعادة شحن' : 'بطاقة جديدة';
   return `<div style="display:flex;justify-content:space-between;align-items:center;padding:14px 16px;border-bottom:1px solid var(--line)">
-    <div>
-      <div style="font-weight:700;font-size:14px">${type}</div>
-      <div class="sub" style="font-size:11.5px;margin-top:2px">${dt(o.created_at)} · ${esc(String(o.id).slice(-8))}</div>
-    </div>
-    <div style="text-align:end">
-      <div class="num" style="font-weight:800">${usd(o.total)}</div>
-      <span class="chip ${st[0]}" style="margin-top:4px">${st[1]}</span>
-    </div>
+    <div><div style="font-weight:700;font-size:14px">${type}</div><div class="sub" style="font-size:11.5px;margin-top:2px">${dt(o.created_at)}</div></div>
+    <div style="text-align:end"><div class="num" style="font-weight:800">${usd(o.total)}</div><span class="chip ${st[0]}" style="margin-top:4px">${st[1]}</span></div>
   </div>`;
 }
 
+/* ═══ Wallet ═══ */
 function vWallet() {
   const me = S.me || {};
   const deps = S.myDeps.slice(0, 20);
-  const tx = (S.myTransactions || []).slice(0, 20);
-
   return `
   <div class="h1" style="margin-bottom:20px">محفظتي</div>
-
-  <div class="box" style="background:linear-gradient(135deg,rgba(16,185,129,.14) 0%,rgba(2,6,23,.8) 100%);border-color:var(--g-line)">
+  <div class="box" style="background:linear-gradient(135deg,rgba(16,185,129,.14),rgba(2,6,23,.8));border-color:var(--g-line)">
     <div class="sub" style="font-size:12px;margin-bottom:6px">الرصيد المتاح</div>
     <div style="font-size:40px;font-weight:900;letter-spacing:-.04em;color:var(--g);line-height:1">${usd(me.wallet_balance)}</div>
-    <div class="sub" style="font-size:12px;margin-top:8px">ما يعادل ${lyd(n(me.wallet_balance) * n(S.settings.rate_libyana || 11.8))}</div>
-    <div style="display:flex;gap:8px;margin-top:20px">
-      <button class="btn" id="depBtn">${svg(I.up, 2)} إيداع</button>
-    </div>
+    <div class="sub" style="font-size:12px;margin-top:8px">≈ ${lyd(n(me.wallet_balance) * n(S.settings.rate_libyana || 11.8))}</div>
+    <div style="margin-top:20px"><button class="btn" id="depBtn">${svg(I.up, 2)} إيداع</button></div>
   </div>
-
   <div class="sec-head"><div class="h2">سجل الإيداعات</div></div>
-  ${deps.length ? `
-    <div class="box" style="padding:0;overflow:hidden">
-      ${deps.map(d => {
-        const st = d.status === 'approved' ? ['ok', 'مقبول']
-          : d.status === 'pending' ? ['wait', 'معلّق'] : ['bad', 'مرفوض'];
-        return `<div style="display:flex;justify-content:space-between;align-items:center;padding:14px 16px;border-bottom:1px solid var(--line)">
-          <div>
-            <div style="font-weight:700;font-size:14px">${esc(d.method || 'إيداع')}</div>
-            <div class="sub" style="font-size:11.5px;margin-top:2px">${dt(d.created_at)}</div>
-          </div>
-          <div style="text-align:end">
-            <div class="num" style="font-weight:800">${usd(d.amount_usd)}</div>
-            <span class="chip ${st[0]}" style="margin-top:4px">${st[1]}</span>
-          </div>
-        </div>`;
-      }).join('')}
-    </div>` : `<div class="box"><div class="empty">
-      <div class="ei">${svg(I.cash, 1.6)}</div>
-      <div class="et">لا إيداعات بعد</div>
-    </div></div>`}
+  ${deps.length ? `<div class="box" style="padding:0;overflow:hidden">${deps.map(d => {
+    const st = d.status === 'approved' ? ['ok', 'مقبول'] : d.status === 'pending' ? ['wait', 'معلّق'] : ['bad', 'مرفوض'];
+    return `<div style="display:flex;justify-content:space-between;align-items:center;padding:14px 16px;border-bottom:1px solid var(--line)">
+      <div><div style="font-weight:700;font-size:14px">${esc(d.method || 'إيداع')}</div><div class="sub" style="font-size:11.5px;margin-top:2px">${dt(d.created_at)}</div></div>
+      <div style="text-align:end"><div class="num" style="font-weight:800">${usd(d.amount_usd)}</div><span class="chip ${st[0]}" style="margin-top:4px">${st[1]}</span></div>
+    </div>`;
+  }).join('')}</div>` : `<div class="box"><div class="empty"><div class="ei">${svg(I.cash, 1.6)}</div><div class="et">لا إيداعات</div></div></div>`}
   `;
 }
 
+/* ═══ Cards ═══ */
 function vCards() {
   const cards = S.myCards;
   const orders = S.myOrders;
-
   return `
   <div class="flex-b" style="margin-bottom:20px">
     <div><div class="h1">بطاقاتي</div><p class="sub">${cards.length} بطاقة</p></div>
     <button class="btn" data-nav="new">${svg(I.plus, 2)} جديدة</button>
   </div>
-
-  ${cards.length ? `
-    <div class="grid2" style="margin-bottom:24px">
-      ${cards.map(c => cardHTML(c)).join('')}
-    </div>` : `<div class="box"><div class="empty">
-      <div class="ei">${svg(I.card, 1.6)}</div>
-      <div class="et">لا بطاقات بعد</div>
-      <p style="margin-bottom:16px">أصدر بطاقتك الأولى مجانًا</p>
-      <button class="btn" data-nav="new">${svg(I.plus, 2)} إصدار بطاقة</button>
-    </div></div>`}
-
+  ${cards.length ? `<div class="grid2" style="margin-bottom:24px">${cards.map(c => cardHTML(c)).join('')}</div>`
+   : `<div class="box"><div class="empty"><div class="ei">${svg(I.card, 1.6)}</div><div class="et">لا بطاقات</div><p style="margin-bottom:16px">أصدر بطاقتك الأولى</p><button class="btn" data-nav="new">${svg(I.plus, 2)} إصدار</button></div></div>`}
   <div class="sec-head"><div class="h2">سجل الطلبات</div></div>
-  ${orders.length ? `
-    <div class="box" style="padding:0;overflow:hidden">
-      ${orders.map(o => orderRowHTML(o)).join('')}
-    </div>` : `<div class="box"><div class="empty">
-      <div class="ei">${svg(I.clock, 1.6)}</div>
-      <div class="et">لا طلبات</div>
-    </div></div>`}
+  ${orders.length ? `<div class="box" style="padding:0;overflow:hidden">${orders.map(o => orderRowHTML(o)).join('')}</div>`
+   : `<div class="box"><div class="empty"><div class="ei">${svg(I.clock, 1.6)}</div><div class="et">لا طلبات</div></div></div>`}
   `;
 }
 
+/* ═══ New Card ═══ */
 function vNew() {
   return `
   <div class="h1" style="margin-bottom:8px">بطاقة جديدة</div>
   <p class="sub" style="margin-bottom:20px">املأ البيانات واطلب بطاقتك</p>
-
-  <div class="note">
-    📌 الإصدار اليدوي عبر Zid Cash — يستغرق 1-4 ساعات
-  </div>
-
+  <div class="note">📌 الإصدار اليدوي عبر Zid Cash — يستغرق 1-4 ساعات</div>
   <div class="box">
     <label class="h3" style="display:block;margin-bottom:8px">اسم حامل البطاقة (بالإنجليزية)</label>
     <input class="inp mono" id="ncName" dir="ltr" placeholder="AHMED MOHAMED" style="margin-bottom:14px" maxlength="24">
-
     <label class="h3" style="display:block;margin-bottom:8px">المبلغ المطلوب (USD)</label>
     <input class="inp num" id="ncAmount" type="number" min="10" max="200" step="5" value="20" style="margin-bottom:14px">
-
     <label class="h3" style="display:block;margin-bottom:8px">نوع الطلب</label>
     <div style="display:flex;gap:8px;margin-bottom:18px">
       <button class="btn dark" id="kindNew" style="flex:1" data-kind="new">بطاقة جديدة</button>
       <button class="btn line" id="kindTopup" style="flex:1" data-kind="topup">إعادة شحن</button>
     </div>
-
     <button class="btn wide" id="ncGo">${svg(I.plus, 2.2)} تأكيد الطلب</button>
   </div>
   `;
 }
 
+/* ═══ VIP ═══ */
 function vVip() {
   const plans = S.vipPlans;
   const me = S.me || {};
   const active = me.vip_status === 'active';
-
   return `
   <div class="h1" style="margin-bottom:6px">VIP</div>
-  <p class="sub" style="margin-bottom:20px">${active ? `اشتراكك نشط — ${esc(me.vip_expires_at ? dt(me.vip_expires_at) : '')}` : 'ارتقِ للحصول على ميزات أكثر'}</p>
-
-  ${plans.length ? `
-    <div class="grid3">
-      ${plans.sort((a, b) => n(a.order, 99) - n(b.order, 99)).map(p => `
-        <div class="box" style="position:relative;${p.popular ? 'border-color:var(--g-line);box-shadow:0 0 60px -20px rgba(16,185,129,.4)' : ''}">
-          ${p.popular ? `<span class="chip ok" style="position:absolute;top:12px;inset-inline-end:12px">الأكثر طلبًا</span>` : ''}
-          <div style="font-size:11.5px;font-weight:800;letter-spacing:.12em;color:var(--g);text-transform:uppercase;margin-bottom:6px">${esc(p.name_en || '')}</div>
-          <div class="h2" style="margin-bottom:12px">${esc(p.name || '')}</div>
-          <div class="num" style="font-size:32px;font-weight:900;color:var(--g);letter-spacing:-.04em;margin-bottom:4px">${usd(p.price_usd)}<span style="font-size:12px;color:var(--tx-3);font-weight:400">/ شهر</span></div>
-          <div class="sub" style="font-size:12px;margin-bottom:16px">حتى ${n(p.cards_count, 0)} بطاقات نشطة</div>
-          ${(p.features || []).length ? `<div style="margin-bottom:16px">
-            ${p.features.map(f => `<div style="display:flex;gap:8px;font-size:12.5px;margin-bottom:6px;color:var(--tx-2)"><span style="color:var(--g)">✓</span><span>${esc(f)}</span></div>`).join('')}
-          </div>` : ''}
-          <button class="btn ${p.popular ? '' : 'line'} wide" data-vip="${esc(p.id)}">
-            ${active ? 'تجديد' : 'اشترك'}
-          </button>
-        </div>`).join('')}
-    </div>
-  ` : `<div class="box"><div class="empty">
-      <div class="ei">${svg(I.award, 1.6)}</div>
-      <div class="et">لا باقات متاحة</div>
-      <p>سيتم إضافة الباقات قريبًا</p>
-    </div></div>`}
+  <p class="sub" style="margin-bottom:20px">${active ? `اشتراكك نشط` : 'ارتقِ للحصول على ميزات أكثر'}</p>
+  ${plans.length ? `<div class="grid3">${plans.sort((a, b) => n(a.order, 99) - n(b.order, 99)).map(p => `
+    <div class="box" style="position:relative;${p.popular ? 'border-color:var(--g-line)' : ''}">
+      ${p.popular ? `<span class="chip ok" style="position:absolute;top:12px;inset-inline-end:12px">الأكثر طلبًا</span>` : ''}
+      <div style="font-size:11.5px;font-weight:800;letter-spacing:.12em;color:var(--g);text-transform:uppercase;margin-bottom:6px">${esc(p.name_en || '')}</div>
+      <div class="h2" style="margin-bottom:12px">${esc(p.name || '')}</div>
+      <div class="num" style="font-size:32px;font-weight:900;color:var(--g);margin-bottom:4px">${usd(p.price_usd)}<span style="font-size:12px;color:var(--tx-3);font-weight:400">/ شهر</span></div>
+      <div class="sub" style="font-size:12px;margin-bottom:16px">حتى ${n(p.cards_count, 0)} بطاقات</div>
+      ${(p.features || []).length ? `<div style="margin-bottom:16px">${p.features.map(f => `<div style="display:flex;gap:8px;font-size:12.5px;margin-bottom:6px;color:var(--tx-2)"><span style="color:var(--g)">✓</span><span>${esc(f)}</span></div>`).join('')}</div>` : ''}
+      <button class="btn ${p.popular ? '' : 'line'} wide" data-vip="${esc(p.id)}">${active ? 'تجديد' : 'اشترك'}</button>
+    </div>`).join('')}</div>`
+   : `<div class="box"><div class="empty"><div class="ei">${svg(I.award, 1.6)}</div><div class="et">لا باقات متاحة</div></div></div>`}
   `;
 }
 
+/* ═══ Support ═══ */
 function vSupport() {
   return `
   <div class="flex-b" style="margin-bottom:20px">
     <div><div class="h1">الدعم</div><p class="sub">تواصل معنا</p></div>
     <button class="btn" id="newTicket">${svg(I.plus, 2)} تذكرة جديدة</button>
   </div>
-
-  ${S.myTickets.length ? `
-    <div style="display:flex;flex-direction:column;gap:10px">
-      ${S.myTickets.slice(0, 30).map(t => {
-        const st = t.status === 'open' ? ['wait', 'مفتوحة']
-          : t.status === 'answered' ? ['ok', 'تم الرد'] : ['off', 'مغلقة'];
-        return `<div class="box" style="padding:16px">
-          <div class="flex-b" style="margin-bottom:6px">
-            <div style="font-weight:700;font-size:14px">${esc(t.subject)}</div>
-            <span class="chip ${st[0]}">${st[1]}</span>
-          </div>
-          <div class="sub" style="font-size:11.5px">${dt(t.updated_at || t.created_at)}</div>
-        </div>`;
-      }).join('')}
-    </div>` : `<div class="box"><div class="empty">
-      <div class="ei">${svg(I.help, 1.6)}</div>
-      <div class="et">لا تذاكر</div>
-      <p style="margin-bottom:16px">هل تحتاج مساعدة؟</p>
-      <button class="btn" id="newTicket2">${svg(I.plus, 2)} تذكرة جديدة</button>
-    </div></div>`}
-
-  ${S.settings.support_url ? `
-    <div style="text-align:center;margin-top:24px">
-      <a href="${esc(S.settings.support_url)}" target="_blank" rel="noopener" class="btn line">
-        ${svg(I.help, 2)} تواصل عبر واتساب
-      </a>
-    </div>` : ''}
+  ${S.myTickets.length ? `<div style="display:flex;flex-direction:column;gap:10px">${S.myTickets.slice(0, 30).map(t => {
+    const st = t.status === 'open' ? ['wait', 'مفتوحة'] : t.status === 'answered' ? ['ok', 'تم الرد'] : ['off', 'مغلقة'];
+    return `<div class="box" style="padding:16px"><div class="flex-b" style="margin-bottom:6px"><div style="font-weight:700;font-size:14px">${esc(t.subject)}</div><span class="chip ${st[0]}">${st[1]}</span></div><div class="sub" style="font-size:11.5px">${dt(t.updated_at || t.created_at)}</div></div>`;
+  }).join('')}</div>`
+   : `<div class="box"><div class="empty"><div class="ei">${svg(I.help, 1.6)}</div><div class="et">لا تذاكر</div><p style="margin-bottom:16px">هل تحتاج مساعدة؟</p><button class="btn" id="newTicket2">${svg(I.plus, 2)} تذكرة جديدة</button></div></div>`}
   `;
 }
 
+/* ═══ Settings ═══ */
 function vSettings() {
   const me = S.me || {};
   return `
   <div class="h1" style="margin-bottom:20px">الإعدادات</div>
-
   <div class="box">
     <div class="h2" style="margin-bottom:16px">الملف الشخصي</div>
-    <div class="flex-b" style="padding:8px 0;border-bottom:1px solid var(--line)">
-      <span class="sub">الاسم</span><span style="font-weight:700">${esc(me.name || '—')}</span>
-    </div>
-    <div class="flex-b" style="padding:8px 0;border-bottom:1px solid var(--line)">
-      <span class="sub">البريد</span><span class="mono" dir="ltr" style="font-size:12px">${esc(me.email || '—')}</span>
-    </div>
-    <div class="flex-b" style="padding:8px 0;border-bottom:1px solid var(--line)">
-      <span class="sub">الهاتف</span><span class="mono" dir="ltr">${esc(me.phone || '—')}</span>
-    </div>
-    <div class="flex-b" style="padding:8px 0">
-      <span class="sub">الحالة</span><span class="chip ok">نشط</span>
-    </div>
+    <div class="flex-b" style="padding:8px 0;border-bottom:1px solid var(--line)"><span class="sub">الاسم</span><span style="font-weight:700">${esc(me.name || '—')}</span></div>
+    <div class="flex-b" style="padding:8px 0;border-bottom:1px solid var(--line)"><span class="sub">البريد</span><span class="mono" dir="ltr" style="font-size:12px">${esc(me.email || '—')}</span></div>
+    <div class="flex-b" style="padding:8px 0;border-bottom:1px solid var(--line)"><span class="sub">الهاتف</span><span class="mono" dir="ltr">${esc(me.phone || '—')}</span></div>
+    <div class="flex-b" style="padding:8px 0"><span class="sub">الحالة</span><span class="chip ok">نشط</span></div>
   </div>
-
   <div class="box">
     <div class="h2" style="margin-bottom:16px">الإجراءات</div>
-    <button class="btn line wide" style="margin-bottom:10px" onclick="logoutNow()">
-      ${svg(I.out, 2)} تسجيل الخروج
-    </button>
+    <button class="btn line wide" onclick="logoutNow()">${svg(I.out, 2)} تسجيل الخروج</button>
   </div>
   `;
 }
-
 window.logoutNow = async () => { await signOut(auth); };
 
 /* ═══ Bind ═══ */
 function bind() {
   $$('[data-nav]').forEach(b => b.onclick = () => go(b.dataset.nav));
-
   const r = $('#refreshBtn');
-  if(r) r.onclick = () => { r.style.transform = 'rotate(360deg)'; r.style.transition = 'transform .5s'; setTimeout(() => { r.style.transform = ''; r.style.transition = ''; }, 500); render(); };
-
-  // Wallet
+  if(r) r.onclick = () => render();
   const dep = $('#depBtn');
   if(dep) dep.onclick = openDepositSheet;
-
-  // New card
   const nc = $('#ncGo');
   if(nc) nc.onclick = submitNewCard;
-  ['#kindNew', '#kindTopup'].forEach(s => {
-    const el = $(s);
-    if(el) el.onclick = () => {
-      $$('#kindNew, #kindTopup').forEach(x => x.classList.remove('btn', 'dark'));
-      $$('#kindNew, #kindTopup').forEach(x => x.classList.add('btn'));
-      $('#kindNew').classList.toggle('dark', el.id === 'kindNew');
-      $('#kindNew').classList.toggle('line', el.id !== 'kindNew');
-      $('#kindTopup').classList.toggle('dark', el.id === 'kindTopup');
-      $('#kindTopup').classList.toggle('line', el.id !== 'kindTopup');
-    };
+  $$('[data-kind]').forEach(b => b.onclick = () => {
+    S.newKind = b.dataset.kind;
+    $('#kindNew').className = 'btn ' + (S.newKind === 'new' ? 'dark' : 'line');
+    $('#kindTopup').className = 'btn ' + (S.newKind === 'topup' ? 'dark' : 'line');
+    $('#kindNew').style.flex = '1'; $('#kindTopup').style.flex = '1';
   });
-
-  // VIP
   $$('[data-vip]').forEach(b => b.onclick = () => openVipSheet(b.dataset.vip));
-
-  // Cards — view details
   $$('[data-card]').forEach(b => b.onclick = () => openCardSheet(b.dataset.card));
-
-  // Support
-  ['#newTicket', '#newTicket2'].forEach(s => {
-    const el = $(s);
-    if(el) el.onclick = openTicketSheet;
-  });
+  ['#newTicket', '#newTicket2'].forEach(s => { const el = $(s); if(el) el.onclick = openTicketSheet; });
 }
 
 /* ═══ Actions ═══ */
 function openDepositSheet() {
-  sheet(`
-    <div class="sheet-head"><div style="flex:1"><div class="h2">إيداع في المحفظة</div><div class="sub">اختر طريقة الدفع</div></div></div>
+  sheet(`<div class="sheet-head"><div style="flex:1"><div class="h2">إيداع</div><div class="sub">اختر طريقة الدفع</div></div></div>
     <div style="display:grid;gap:10px;margin-bottom:16px">
-      <button class="btn dark" style="justify-content:space-between;padding:16px" data-method="libyana">
-        <span>ليبيانا</span><span class="num">${n(S.settings.rate_libyana || 11.8).toFixed(2)} د.ل/$</span>
-      </button>
-      <button class="btn dark" style="justify-content:space-between;padding:16px" data-method="almadar">
-        <span>المدار</span><span class="num">${n(S.settings.rate_almadar || 12.5).toFixed(2)} د.ل/$</span>
-      </button>
-      <button class="btn dark" style="justify-content:space-between;padding:16px" data-method="usdt">
-        <span>USDT (TRC20)</span><span class="num">1:1</span>
-      </button>
+      <button class="btn dark" style="justify-content:space-between;padding:16px" data-method="libyana"><span>ليبيانا</span><span class="num">${n(S.settings.rate_libyana || 11.8).toFixed(2)} د.ل/$</span></button>
+      <button class="btn dark" style="justify-content:space-between;padding:16px" data-method="almadar"><span>المدار</span><span class="num">${n(S.settings.rate_almadar || 12.5).toFixed(2)} د.ل/$</span></button>
+      <button class="btn dark" style="justify-content:space-between;padding:16px" data-method="usdt"><span>USDT</span><span class="num">1:1</span></button>
     </div>
-    <button class="btn line wide" onclick="closeSheet()">إلغاء</button>
-  `);
-
+    <button class="btn line wide" onclick="closeSheet()">إلغاء</button>`);
   $$('[data-method]').forEach(b => b.onclick = () => openDepositForm(b.dataset.method));
 }
 
@@ -817,85 +589,69 @@ function openDepositForm(method) {
   const phone = method === 'libyana' ? S.settings.m_libyana_phone : S.settings.m_almadar_phone;
   const rate = method === 'libyana' ? n(S.settings.rate_libyana, 11.8) : method === 'almadar' ? n(S.settings.rate_almadar, 12.5) : 1;
   const addr = S.settings.usdt_address || '';
-
-  sheet(`
-    <div class="sheet-head"><div style="flex:1"><div class="h2">إيداع ${method === 'libyana' ? 'ليبيانا' : method === 'almadar' ? 'المدار' : 'USDT'}</div></div></div>
-    ${!isUsdt ? `
-      <div class="note ok">حوّل المبلغ إلى الرقم أدناه ثم أدخل بيانات التحويل</div>
+  sheet(`<div class="sheet-head"><div style="flex:1"><div class="h2">إيداع</div></div></div>
+    ${!isUsdt ? `<div class="note ok">حوّل إلى الرقم أدناه</div>
       <div class="box" style="background:var(--s2);margin-bottom:14px;cursor:pointer" onclick="copyText('${esc(phone || '')}')">
         <div class="sub" style="font-size:11.5px;margin-bottom:4px">رقم التحويل</div>
         <div class="mono" style="font-size:18px;font-weight:800" dir="ltr">${esc(phone || 'لم يُحدد')}</div>
-      </div>
-    ` : `
-      <div class="note ok">أرسل USDT على شبكة TRC20</div>
+      </div>`
+     : `<div class="note ok">أرسل على TRC20</div>
       <div class="box" style="background:var(--s2);margin-bottom:14px;cursor:pointer;word-break:break-all" onclick="copyText('${esc(addr)}')">
-        <div class="sub" style="font-size:11.5px;margin-bottom:4px">عنوان المحفظة</div>
+        <div class="sub" style="font-size:11.5px;margin-bottom:4px">العنوان</div>
         <div class="mono" style="font-size:12px;font-weight:700" dir="ltr">${esc(addr || 'لم يُحدد')}</div>
-      </div>
-    `}
-    <label class="lbl">المبلغ بالدولار</label>
+      </div>`}
+    <label class="lbl" style="display:block;font-size:12.5px;font-weight:700;color:var(--tx-2);margin-bottom:8px">المبلغ بالدولار</label>
     <input class="inp num" id="depAmt" type="number" min="5" step="1" value="10" style="margin-bottom:8px">
     <div class="sub" style="font-size:11.5px;margin-bottom:14px" id="depCalc">= ${lyd(10 * rate)}</div>
-
-    <label class="lbl">رقم هاتفك المُحوِّل منه</label>
+    <label class="lbl" style="display:block;font-size:12.5px;font-weight:700;color:var(--tx-2);margin-bottom:8px">رقم هاتفك</label>
     <input class="inp mono" id="depPhone" dir="ltr" placeholder="0912345678" style="margin-bottom:14px">
-
-    <button class="btn wide" id="depGo">تأكيد الإيداع</button>
-    <button class="btn line wide" style="margin-top:10px" onclick="closeSheet()">إلغاء</button>
-  `);
+    <button class="btn wide" id="depGo">تأكيد</button>
+    <button class="btn line wide" style="margin-top:10px" onclick="closeSheet()">إلغاء</button>`);
 
   const amt = $('#depAmt');
-  amt.oninput = () => {
-    const v = n(amt.value);
-    $('#depCalc').textContent = '= ' + lyd(v * rate);
-  };
+  amt.oninput = () => { $('#depCalc').textContent = '= ' + lyd(n(amt.value) * rate); };
 
   $('#depGo').onclick = async () => {
     const v = n($('#depAmt').value);
     const ph = $('#depPhone').value.trim();
     if(v < 5) return toast('الحد الأدنى $5', 'bad');
-    if(!isUsdt && ph.length < 9) return toast('رقم الهاتف غير صحيح', 'bad');
+    if(!isUsdt && ph.length < 9) return toast('رقم غير صحيح', 'bad');
     const btn = $('#depGo');
     btn.disabled = true; btn.classList.add('loading');
     try {
       await api('/api/deposits/create', { method, amount_usd: v, claim_phone: ph });
-      toast('تم إرسال طلب الإيداع — بانتظار المراجعة', 'ok');
+      toast('تم الإرسال — بانتظار المراجعة', 'ok');
       closeSheet();
     } catch(e) { toast(e.message, 'bad'); btn.disabled = false; btn.classList.remove('loading'); }
   };
 }
 
-window.copyText = (txt) => {
-  if(!txt) return;
-  navigator.clipboard.writeText(txt).then(() => toast('تم النسخ', 'ok')).catch(() => toast('تعذر النسخ', 'bad'));
-};
+window.copyText = (txt) => { if(!txt) return; navigator.clipboard.writeText(txt).then(() => toast('تم النسخ', 'ok')).catch(() => toast('تعذر النسخ', 'bad')); };
 
 function submitNewCard() {
   const name = $('#ncName').value.trim();
   const amount = n($('#ncAmount').value);
-  const kind = $('#kindTopup').classList.contains('dark') ? 'topup' : 'new';
-  if(!name || name.length < 3) return toast('أدخل اسم حامل البطاقة', 'bad');
+  const kind = S.newKind;
+  if(!name || name.length < 3) return toast('أدخل اسم الحامل', 'bad');
   if(amount < 10) return toast('الحد الأدنى $10', 'bad');
   if(amount > 200) return toast('الحد الأقصى $200', 'bad');
 
-  sheet(`
-    <div class="sheet-head"><div style="flex:1"><div class="h2">تأكيد الطلب</div></div></div>
+  sheet(`<div class="sheet-head"><div style="flex:1"><div class="h2">تأكيد الطلب</div></div></div>
     <div class="box" style="background:var(--s2);margin-bottom:16px">
       <div class="flex-b" style="padding:8px 0;border-bottom:1px solid var(--line)"><span class="sub">النوع</span><span>${kind === 'topup' ? 'إعادة شحن' : 'بطاقة جديدة'}</span></div>
-      <div class="flex-b" style="padding:8px 0;border-bottom:1px solid var(--line)"><span class="sub">اسم الحامل</span><span class="mono" dir="ltr">${esc(name)}</span></div>
-      <div class="flex-b" style="padding:8px 0;border-bottom:1px solid var(--line)"><span class="sub">المبلغ</span><span class="num">${usd(amount)}</span></div>
+      <div class="flex-b" style="padding:8px 0;border-bottom:1px solid var(--line)"><span class="sub">الاسم</span><span class="mono" dir="ltr">${esc(name)}</span></div>
+      <div class="flex-b" style="padding:8px 0"><span class="sub">المبلغ</span><span class="num">${usd(amount)}</span></div>
     </div>
-    <div class="note">سيتم خصم المبلغ من محفظتك</div>
+    <div class="note">سيُخصم المبلغ من محفظتك</div>
     <button class="btn wide" id="cnfGo">تأكيد</button>
-    <button class="btn line wide" style="margin-top:10px" onclick="closeSheet()">إلغاء</button>
-  `);
+    <button class="btn line wide" style="margin-top:10px" onclick="closeSheet()">إلغاء</button>`);
 
   $('#cnfGo').onclick = async () => {
     const btn = $('#cnfGo');
     btn.disabled = true; btn.classList.add('loading');
     try {
       await api('/api/mcard/request', { kind, name_on_card: name, amount });
-      toast('تم إرسال الطلب بنجاح', 'ok');
+      toast('تم إرسال الطلب', 'ok');
       closeSheet();
       go('cards');
     } catch(e) { toast(e.message, 'bad'); btn.disabled = false; btn.classList.remove('loading'); }
@@ -905,22 +661,20 @@ function submitNewCard() {
 function openVipSheet(planId) {
   const p = S.vipPlans.find(x => x.id === planId);
   if(!p) return;
-  sheet(`
-    <div class="sheet-head"><div style="flex:1"><div class="h2">${esc(p.name || '')}</div><div class="sub">${usd(p.price_usd)} / شهر</div></div></div>
+  sheet(`<div class="sheet-head"><div style="flex:1"><div class="h2">${esc(p.name || '')}</div><div class="sub">${usd(p.price_usd)} / شهر</div></div></div>
     <div class="box" style="background:var(--s2);margin-bottom:16px">
-      <div class="flex-b" style="padding:8px 0;border-bottom:1px solid var(--line)"><span class="sub">البطاقات المسموحة</span><span class="num">${n(p.cards_count, 0)}</span></div>
+      <div class="flex-b" style="padding:8px 0;border-bottom:1px solid var(--line)"><span class="sub">البطاقات</span><span class="num">${n(p.cards_count, 0)}</span></div>
       <div class="flex-b" style="padding:8px 0"><span class="sub">المدة</span><span class="num">${n(p.duration_days, 30)} يوم</span></div>
     </div>
     <div class="note ok">سيُخصم ${usd(p.price_usd)} من محفظتك</div>
-    <button class="btn wide" id="vipGo">تأكيد الاشتراك</button>
-    <button class="btn line wide" style="margin-top:10px" onclick="closeSheet()">إلغاء</button>
-  `);
+    <button class="btn wide" id="vipGo">تأكيد</button>
+    <button class="btn line wide" style="margin-top:10px" onclick="closeSheet()">إلغاء</button>`);
   $('#vipGo').onclick = async () => {
     const btn = $('#vipGo');
     btn.disabled = true; btn.classList.add('loading');
     try {
       await api('/api/vip/subscribe', { plan_id: planId });
-      toast('تم الاشتراك بنجاح', 'ok');
+      toast('تم الاشتراك', 'ok');
       closeSheet();
     } catch(e) { toast(e.message, 'bad'); btn.disabled = false; btn.classList.remove('loading'); }
   };
@@ -930,31 +684,25 @@ function openCardSheet(cardId) {
   const c = S.myCards.find(x => x.id === cardId);
   if(!c) return;
   const revealed = c.card_number && c.cvv;
-  sheet(`
-    <div class="sheet-head"><div style="flex:1"><div class="h2">تفاصيل البطاقة</div></div></div>
+  sheet(`<div class="sheet-head"><div style="flex:1"><div class="h2">تفاصيل البطاقة</div></div></div>
     <div style="margin-bottom:16px">${cardHTML(c)}</div>
     <div class="box" style="background:var(--s2)">
-      <div class="flex-b" style="padding:8px 0;border-bottom:1px solid var(--line)"><span class="sub">رقم البطاقة</span><span class="mono" dir="ltr" style="font-size:12px">${revealed ? esc(c.card_number) : '•••• •••• •••• ' + String(c.id).slice(-4)}</span></div>
-      <div class="flex-b" style="padding:8px 0;border-bottom:1px solid var(--line)"><span class="sub">تاريخ الانتهاء</span><span class="mono">${esc(c.expiry || '••/••')}</span></div>
+      <div class="flex-b" style="padding:8px 0;border-bottom:1px solid var(--line)"><span class="sub">الرقم</span><span class="mono" dir="ltr" style="font-size:12px">${revealed ? esc(c.card_number) : '•••• •••• •••• ' + String(c.id).slice(-4)}</span></div>
+      <div class="flex-b" style="padding:8px 0;border-bottom:1px solid var(--line)"><span class="sub">الانتهاء</span><span class="mono">${esc(c.expiry || '••/••')}</span></div>
       <div class="flex-b" style="padding:8px 0"><span class="sub">CVV</span><span class="mono">${esc(c.cvv || '•••')}</span></div>
     </div>
-    ${revealed ? `<button class="btn wide" style="margin-top:16px" onclick="copyText('${esc(c.card_number)}|${esc(c.expiry)}|${esc(c.cvv)}')">
-      ${svg(I.copy, 2)} نسخ البيانات
-    </button>` : `<div class="note">لا تتوفر بيانات كاملة بعد</div>`}
-    <button class="btn line wide" style="margin-top:10px" onclick="closeSheet()">إغلاق</button>
-  `);
+    ${revealed ? `<button class="btn wide" style="margin-top:16px" onclick="copyText('${esc(c.card_number)}|${esc(c.expiry)}|${esc(c.cvv)}')">${svg(I.copy, 2)} نسخ البيانات</button>` : `<div class="note">لا تتوفر بيانات كاملة بعد</div>`}
+    <button class="btn line wide" style="margin-top:10px" onclick="closeSheet()">إغلاق</button>`);
 }
 
 function openTicketSheet() {
-  sheet(`
-    <div class="sheet-head"><div style="flex:1"><div class="h2">تذكرة جديدة</div></div></div>
-    <label class="lbl">الموضوع</label>
+  sheet(`<div class="sheet-head"><div style="flex:1"><div class="h2">تذكرة جديدة</div></div></div>
+    <label class="lbl" style="display:block;font-size:12.5px;font-weight:700;color:var(--tx-2);margin-bottom:8px">الموضوع</label>
     <input class="inp" id="tkSub" placeholder="مثال: مشكلة في الإيداع" style="margin-bottom:14px">
-    <label class="lbl">الرسالة</label>
-    <textarea class="inp" id="tkMsg" rows="4" placeholder="اشرح مشكلتك بالتفصيل" style="margin-bottom:14px"></textarea>
+    <label class="lbl" style="display:block;font-size:12.5px;font-weight:700;color:var(--tx-2);margin-bottom:8px">الرسالة</label>
+    <textarea class="inp" id="tkMsg" rows="4" placeholder="اشرح مشكلتك" style="margin-bottom:14px"></textarea>
     <button class="btn wide" id="tkGo">إرسال</button>
-    <button class="btn line wide" style="margin-top:10px" onclick="closeSheet()">إلغاء</button>
-  `);
+    <button class="btn line wide" style="margin-top:10px" onclick="closeSheet()">إلغاء</button>`);
   $('#tkGo').onclick = async () => {
     const subj = $('#tkSub').value.trim();
     const msg = $('#tkMsg').value.trim();
@@ -970,8 +718,6 @@ function openTicketSheet() {
   };
 }
 
-/* ═══ Start ═══ */
-// gate يظهر حتى يتحقق onAuthStateChanged
 $('#gate').classList.add('show');
 </script>
 </body>
