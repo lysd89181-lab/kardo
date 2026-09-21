@@ -1,6 +1,6 @@
 /* ═══════════════════════════════════════════════════════════
-   KARDO — Admin Dashboard JS
-   Firebase Auth + Firestore + Cloudflare Worker
+   KARDO — Admin Dashboard v2
+   يعمل مع worker.js الجديد
    ═══════════════════════════════════════════════════════════ */
 
 import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js';
@@ -62,22 +62,17 @@ const I = {
   refresh:'<path d="M21 12a9 9 0 1 1-3-6.7M21 4v5h-5"/>',
   cloud:'<path d="M17.5 19a4.5 4.5 0 0 0 .5-9 6 6 0 0 0-11.6 1.5A3.8 3.8 0 0 0 7 19z"/>',
   bell:'<path d="M18 8.5a6 6 0 1 0-12 0c0 6-2.5 7.5-2.5 7.5h17S18 14.5 18 8.5"/><path d="M13.7 20a2 2 0 0 1-3.4 0"/>',
-  menu:'<path d="M4 7h16M4 12h16M4 17h16"/>'
+  menu:'<path d="M4 7h16M4 12h16M4 17h16"/>',
+  download:'<path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 10l5 5 5-5M12 15V3"/>'
 };
 const svg = (d, w = 1.8) =>
   `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="${w}" stroke-linecap="round" stroke-linejoin="round">${d}</svg>`;
 
 function mark(size = 32) {
   return `<svg width="${size}" height="${size}" viewBox="0 0 40 40" style="flex:none">
-    <defs><linearGradient id="akg${size}" x1="0" y1="0" x2="1" y2="1">
-      <stop offset="0" stop-color="#10B981"/>
-      <stop offset="1" stop-color="#34D399"/>
-    </linearGradient></defs>
     <rect width="40" height="40" rx="11" fill="#131C2C"/>
-    <rect x="0.5" y="0.5" width="39" height="39" rx="10.5"
-          fill="none" stroke="rgba(16,185,129,.25)"/>
-    <path d="M11 9h4.4v22H11z" fill="url(#akg${size})"/>
-    <path d="M17 20.2 27.5 9H33L22.4 20.2 33 31h-5.6z" fill="url(#akg${size})"/>
+    <path d="M11 9h4.4v22H11z" fill="#10B981"/>
+    <path d="M17 20.2 27.5 9H33L22.4 20.2 33 31h-5.6z" fill="#10B981"/>
     <rect x="19" y="15.6" width="12.4" height="8.8" rx="2.2" fill="#EEF2F8" opacity=".95"/>
     <rect x="21" y="18.4" width="3.4" height="2.6" rx=".7" fill="#131C2C" opacity=".6"/>
   </svg>`;
@@ -104,11 +99,8 @@ const dt = v => {
 function toast(msg, kind = '') {
   const el = document.createElement('div');
   el.className = 'toast ' + kind;
-  const ic = kind === 'ok'
-    ? svg(I.check, 2.4)
-    : kind === 'bad'
-    ? svg(I.warn, 2)
-    : '';
+  const ic = kind === 'ok' ? svg(I.check, 2.4)
+           : kind === 'bad' ? svg(I.warn, 2) : '';
   el.innerHTML = ic + `<span>${esc(msg)}</span>`;
   $('#toasts').appendChild(el);
   setTimeout(() => {
@@ -231,6 +223,7 @@ function subscribe() {
   sub(query(collection(db,'withdrawals'), orderBy('created_at','desc'), limit(100)),'withdrawals');
   sub(query(collection(db,'tickets'), orderBy('updated_at','desc'), limit(80)),'tickets');
   sub(query(collection(db,'coupons')),'coupons');
+  sub(query(collection(db,'providers')),'providers');
   sub(query(collection(db,'sms_transactions'), orderBy('created_at','desc'), limit(100)),'sms');
 
   S.unsub.push(onSnapshot(doc(db,'card_settings','pricing'), s => {
@@ -258,7 +251,8 @@ const PAGES = [
   { k:'settings',   t:'الإعدادات',  i:I.gear,   g:'النظام' },
   { k:'sms',        t:'الرسائل',    i:I.bell,   g:'النظام' }
 ];
-const DOCK = ['home','orders','products','users','settings'];
+/* ⚠️ القائمة السفلية تحتوي الآن على المزودين */
+const DOCK = ['home','orders','products','providers','settings'];
 
 const badges = {
   pendingOrders:   () => S.orders.filter(o => o.status === 'pending').length,
@@ -370,9 +364,6 @@ function vHome() {
   return `
   ${float < thresh ? `<div class="note bad">
     ${svg(I.warn)}<strong>رصيد المزود منخفض — ${usd(float)}</strong>
-    <div style="margin-top:4px;font-size:12px">
-      عبّئ رصيد USDT عند المزود لتجنّب فشل الطلبات.
-    </div>
   </div>` : ''}
 
   <div class="h1" style="margin-bottom:4px">مرحبًا</div>
@@ -384,20 +375,16 @@ function vHome() {
     ${kpi(I.bag, S.orders.length, 'إجمالي الطلبات', '#FEF3C7', '#B45309',
       '', pending ? pending + ' قيد التنفيذ' : '')}
     ${kpi(I.users, S.users.length, 'المستخدمون', '#F1F5F9', '#475569', '', '')}
-    ${kpi(I.cloud, usd(float), 'رصيد المزود', '#ECFDF5', '#059669',
-      float < thresh ? 'down' : '', float < thresh ? 'منخفض' : 'جيد')}
+    ${kpi(I.cloud, S.providers.length, 'المزودون', '#ECFDF5', '#059669', '', '')}
     ${kpi(I.warn, failed, 'عمليات فاشلة', '#FEE2E2', '#B91C1C', '', '')}
   </div>
 
   <div class="grid2" style="margin-bottom:14px">
     <div class="box">
-      <div style="display:flex;justify-content:space-between;align-items:baseline;
-           margin-bottom:14px">
-        <div>
-          <div class="h2">الإيرادات — 14 يومًا</div>
-          <div class="sub" style="font-size:12px;margin-top:2px">
-            المجموع ${lyd(weekRev)}
-          </div>
+      <div style="margin-bottom:14px">
+        <div class="h2">الإيرادات — 14 يومًا</div>
+        <div class="sub" style="font-size:12px;margin-top:2px">
+          المجموع ${lyd(weekRev)}
         </div>
       </div>
       <div class="spark">
@@ -416,9 +403,9 @@ function vHome() {
       <div class="h2" style="margin-bottom:12px">إجراءات سريعة</div>
       <div style="display:grid;gap:8px">
         ${[
+          ['providers', I.cloud, 'إدارة المزودين'],
           ['products', I.plus, 'إضافة منتج جديد'],
           ['categories', I.tag, 'إدارة الأقسام'],
-          ['users', I.users, 'مراجعة العملاء'],
           ['settings', I.gear, 'إعدادات المتجر']
         ].map(([k, ic, t]) => `
           <button class="btn dark" data-nav="${k}"
@@ -532,7 +519,6 @@ function vOrders() {
     : `<div class="box"><div class="empty">
         <div class="ei">${svg(I.bag,1.6)}</div>
         <div class="et">لا طلبات</div>
-        <p>لم تصل أي طلبات بعد.</p>
       </div></div>`}`;
 }
 
@@ -579,12 +565,6 @@ window.openOrder = id => {
         <span class="pk">الإجمالي</span>
         <span class="pv">${lyd(o.total_lyd)}</span></div>
     </div>
-
-    ${o.codes ? `<div class="box" style="background:var(--s2);margin-bottom:12px">
-      <div class="h3" style="margin-bottom:8px">الأكواد</div>
-      <div class="mono" style="font-size:12px;word-break:break-all"
-        dir="ltr">${esc(o.codes)}</div>
-    </div>` : ''}
 
     ${pend ? `
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;
@@ -728,12 +708,6 @@ window.openDeposit = id => {
           ${esc(d.method || '—')}</span></div>
     </div>
 
-    ${d.proof_url ? `<div class="box" style="background:var(--s2);margin-bottom:12px">
-      <div class="h3" style="margin-bottom:8px">إثبات التحويل</div>
-      <img src="${esc(d.proof_url)}" alt="" style="border-radius:10px;
-           max-height:300px;object-fit:contain">
-    </div>` : ''}
-
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
       <button class="btn" id="dOk">قبول وإضافة</button>
       <button class="btn bad" id="dNo">رفض</button>
@@ -845,8 +819,7 @@ window.openWithdrawal = id => {
         <span class="pv" style="font-family:inherit;color:var(--tx)">
           ${esc(w.method || '—')}</span></div>
       <div class="prow"><span class="pk">الوجهة</span>
-        <span class="pv mono" style="font-family:inherit;color:var(--tx)"
-          dir="ltr">${esc(w.destination || '—')}</span></div>
+        <span class="pv mono" dir="ltr">${esc(w.destination || '—')}</span></div>
     </div>
 
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
@@ -884,9 +857,7 @@ window.openWithdrawal = id => {
   };
 };
 /* ═══════════════════════════════════════════════════════════
-   admin.js — الجزء 2 (تابع من الجزء 1)
-   Products · Categories · Users · Tickets · Providers ·
-   Settings · Coupons · SMS · Bind · Boot
+   PART 2 — Products, Categories, Users, Tickets, Providers
    ═══════════════════════════════════════════════════════════ */
 
 /* ═══ Products ═══ */
@@ -949,8 +920,6 @@ window.openProduct = id => {
         kind:'manual', cat:'', fields:[], stock_count:0,
         active:true, featured:false, note:'' };
 
-  const cats = S.cats;
-
   sheet(`
     <div class="sheet-head">
       <div style="flex:1">
@@ -964,16 +933,16 @@ window.openProduct = id => {
 
     <label class="lbl" style="margin-top:12px">الوصف</label>
     <textarea class="inp" id="pDesc" rows="2"
-      placeholder="شرح مختصر للمنتج">${esc(p.desc)}</textarea>
+      placeholder="شرح مختصر">${esc(p.desc)}</textarea>
 
     <label class="lbl" style="margin-top:12px">رابط الصورة</label>
     <input class="inp" id="pImg" value="${esc(p.image)}"
-           placeholder="https://... أو اتركه فارغًا">
+           placeholder="https://...">
 
     <label class="lbl" style="margin-top:12px">القسم</label>
     <select class="inp" id="pCat">
       <option value="">— اختر قسمًا —</option>
-      ${cats.map(c => `<option value="${esc(c.id)}"
+      ${S.cats.map(c => `<option value="${esc(c.id)}"
         ${c.id === p.cat ? 'selected' : ''}>${esc(c.name)}</option>`).join('')}
     </select>
 
@@ -993,11 +962,9 @@ window.openProduct = id => {
     <label class="lbl" style="margin-top:12px">نوع التسليم</label>
     <select class="inp" id="pKind">
       <option value="manual" ${p.kind !== 'stock' ? 'selected' : ''}>
-        تنفيذ يدوي (تشغله أنت)
-      </option>
+        تنفيذ يدوي</option>
       <option value="stock" ${p.kind === 'stock' ? 'selected' : ''}>
-        كود فوري (يُسلَّم من المخزون)
-      </option>
+        كود فوري من المخزون</option>
     </select>
 
     <div id="stockBox" style="display:${p.kind === 'stock' ? 'block' : 'none'};
@@ -1010,23 +977,17 @@ window.openProduct = id => {
             المخزون الحالي: ${n(p.stock_count)} كود</p>` : ''}
     </div>
 
-    <label class="lbl" style="margin-top:12px">ملاحظة تحذيرية</label>
+    <label class="lbl" style="margin-top:12px">ملاحظة</label>
     <input class="inp" id="pNote" value="${esc(p.note)}"
-           placeholder="تأكد من رقم حسابك قبل الشراء">
+           placeholder="ملاحظة تظهر للعميل">
 
     <div class="sw-row" style="margin-top:12px">
-      <div>
-        <div class="sw-lbl">ظاهر للعملاء</div>
-        <div class="sw-desc">إخفاؤه يمنع الشراء</div>
-      </div>
+      <div><div class="sw-lbl">ظاهر للعملاء</div></div>
       <div class="sw ${p.active !== false ? 'on' : ''}" id="pActive"></div>
     </div>
 
     <div class="sw-row">
-      <div>
-        <div class="sw-lbl">منتج مميز</div>
-        <div class="sw-desc">يظهر في الصفحة الرئيسية</div>
-      </div>
+      <div><div class="sw-lbl">منتج مميز</div></div>
       <div class="sw ${p.featured ? 'on' : ''}" id="pFeat"></div>
     </div>
 
@@ -1151,7 +1112,6 @@ window.openProduct = id => {
         pid = ref.id;
       }
 
-      // إضافة أكواد المخزون إن كانت مدخلة
       const codes = ($('#pStock') ? $('#pStock').value : '')
         .split('\n').map(x => x.trim()).filter(Boolean);
 
@@ -1180,7 +1140,7 @@ window.openProduct = id => {
       sheet(`
         <div class="h2" style="margin-bottom:8px">حذف المنتج</div>
         <p class="sub" style="margin-bottom:16px">
-          سيُحذف «${esc(p.name)}» نهائيًا. لا يمكن التراجع.</p>
+          سيُحذف «${esc(p.name)}» نهائيًا.</p>
         <button class="btn bad wide" id="delOk">تأكيد الحذف</button>
         <button class="btn line wide" style="margin-top:8px"
                 onclick="openProduct('${esc(id)}')">رجوع</button>`);
@@ -1212,11 +1172,10 @@ function vCategories() {
     <div class="scrollx">
       <table class="tbl">
         <thead><tr>
-          <th>القسم</th><th>القسم الأب</th><th>الأيقونة</th>
+          <th>القسم</th><th>الأب</th><th>الأيقونة</th>
           <th>الترتيب</th><th>الحالة</th><th></th>
         </tr></thead>
-        <tbody>${S.cats
-          .sort((a,b) => n(a.sort,99) - n(b.sort,99))
+        <tbody>${[...S.cats].sort((a,b) => n(a.sort,99) - n(b.sort,99))
           .map(c => {
             const parent = c.parent
               ? S.cats.find(x => x.id === c.parent) : null;
@@ -1293,16 +1252,14 @@ window.openCategory = id => {
            value="${n(c.sort, 10)}" min="0" max="99">
 
     <div class="sw-row" style="margin-top:12px">
-      <div>
-        <div class="sw-lbl">ظاهر للعملاء</div>
-      </div>
+      <div><div class="sw-lbl">ظاهر للعملاء</div></div>
       <div class="sw ${c.active !== false ? 'on' : ''}" id="cActive"></div>
     </div>
 
     <div class="sw-row">
       <div>
         <div class="sw-lbl">شارة «قريبًا»</div>
-        <div class="sw-desc">يمنع الشراء حتى تفعّله</div>
+        <div class="sw-desc">يمنع الشراء</div>
       </div>
       <div class="sw ${c.soon ? 'on' : ''}" id="cSoon"></div>
     </div>
@@ -1454,9 +1411,7 @@ window.openUser = uid => {
         <span class="pv" style="font-family:inherit;color:var(--tx)"
           dir="ltr">${esc(u.phone||'—')}</span></div>
       <div class="prow"><span class="pk">عدد الطلبات</span>
-        <span class="pv">${
-          S.orders.filter(o => o.uid === uid).length
-        }</span></div>
+        <span class="pv">${S.orders.filter(o => o.uid === uid).length}</span></div>
     </div>
 
     <label class="lbl">تعديل الرصيد</label>
@@ -1471,9 +1426,6 @@ window.openUser = uid => {
     <div class="sw-row" style="margin-top:16px">
       <div>
         <div class="sw-lbl">${u.banned ? 'إلغاء الإيقاف' : 'إيقاف الحساب'}</div>
-        <div class="sw-desc">${
-          u.banned ? 'سيعود للعمل بشكل طبيعي'
-                   : 'يمنعه من الشراء'}</div>
       </div>
       <div class="sw ${u.banned ? 'on' : ''}" id="uBan"></div>
     </div>
@@ -1630,7 +1582,7 @@ window.openTicket = id => {
   };
 };
 
-/* ═══ Providers ═══ */
+/* ═══ Providers — نظام المزودين ═══ */
 function vProviders() {
   return `
   <div class="flex-b" style="margin-bottom:16px">
@@ -1658,12 +1610,16 @@ function vProviders() {
           <div class="prow"><span class="pk">الرابط</span>
             <span class="pv mono" style="font-size:11px;color:var(--tx-2)">
               ${esc(String(p.api_url||'').slice(0, 30))}…</span></div>
-          ${p.balance !== undefined ? `
-            <div class="prow"><span class="pk">الرصيد</span>
-              <span class="pv">${usd(p.balance)}</span></div>` : ''}
+          ${p.products_count ? `
+            <div class="prow"><span class="pk">الخدمات</span>
+              <span class="pv">${n(p.products_count)}</span></div>` : ''}
+          ${p.last_test_ok ? `
+            <div class="prow"><span class="pk">آخر اختبار</span>
+              <span class="pv" style="color:var(--g)">✓ ناجح</span></div>` : ''}
           <div class="pacts">
             <button class="btn ghost sm" data-ep="${esc(p.id)}">تعديل</button>
             <button class="btn ghost sm" data-tp="${esc(p.id)}">اختبار</button>
+            <button class="btn sm" data-fp="${esc(p.id)}">جلب الخدمات</button>
           </div>
         </div>`).join('')}
     </div>`
@@ -1676,7 +1632,7 @@ function vProviders() {
 
 window.openProvider = id => {
   const p = id ? S.providers.find(x => x.id === id)
-    : { name:'', type:'manual', api_url:'', api_key:'', api_secret:'',
+    : { name:'', type:'libyaplay', api_url:'', api_key:'', email:'',
         active:true };
 
   sheet(`
@@ -1688,43 +1644,46 @@ window.openProvider = id => {
 
     <label class="lbl">اسم المزود</label>
     <input class="inp" id="pvName" value="${esc(p.name)}"
-           placeholder="WDGZone">
+           placeholder="Libya Play">
 
     <label class="lbl" style="margin-top:12px">النوع</label>
     <select class="inp" id="pvType">
-      ${['manual','wdgzone','libyaplay','custom'].map(t =>
-        `<option value="${t}" ${p.type===t?'selected':''}>
-          ${t === 'manual' ? 'تنفيذ يدوي' :
-            t === 'wdgzone' ? 'WDGZone' :
-            t === 'libyaplay' ? 'Libya Play' : 'مخصص'}
-        </option>`).join('')}
+      ${[
+        ['manual', 'تنفيذ يدوي'],
+        ['libyaplay', 'Libya Play (API)'],
+        ['wdgzone', 'WDGZone (API)'],
+        ['custom', 'مخصص (API)']
+      ].map(([k, t]) => `
+        <option value="${k}" ${p.type===k?'selected':''}>${t}</option>`).join('')}
     </select>
 
     <label class="lbl" style="margin-top:12px">رابط الـAPI</label>
     <input class="inp mono" id="pvUrl" value="${esc(p.api_url)}"
-           placeholder="https://api.example.com" dir="ltr">
+           placeholder="https://api.libyaplay.com/portal" dir="ltr">
 
     <label class="lbl" style="margin-top:12px">API Key</label>
     <input class="inp mono" id="pvKey" value="${esc(p.api_key)}"
-           placeholder="xxx" dir="ltr">
+           placeholder="المفتاح من المزود" dir="ltr">
 
-    <label class="lbl" style="margin-top:12px">API Secret</label>
-    <input class="inp mono" id="pvSecret" value="${esc(p.api_secret)}"
-           placeholder="yyy" dir="ltr">
+    <label class="lbl" style="margin-top:12px">البريد الإلكتروني (اختياري)</label>
+    <input class="inp mono" id="pvEmail" value="${esc(p.email)}"
+           placeholder="email@example.com" dir="ltr">
 
     <div class="sw-row" style="margin-top:12px">
-      <div>
-        <div class="sw-lbl">نشط</div>
-        <div class="sw-desc">جلب الخدمات منه</div>
-      </div>
+      <div><div class="sw-lbl">نشط</div></div>
       <div class="sw ${p.active !== false ? 'on' : ''}" id="pvActive"></div>
     </div>
 
     <button class="btn wide" id="pvSave" style="margin-top:16px">
       ${id ? 'حفظ التعديلات' : 'إضافة المزود'}</button>
 
-    ${id ? `<button class="btn bad wide" style="margin-top:8px" id="pvDel">
-      حذف المزود</button>` : ''}
+    ${id ? `
+      <button class="btn dark wide" style="margin-top:8px" id="pvTest">
+        اختبار الاتصال</button>
+      <button class="btn wide" style="margin-top:8px" id="pvFetch">
+        جلب الخدمات</button>
+      <button class="btn bad wide" style="margin-top:8px" id="pvDel">
+        حذف المزود</button>` : ''}
 
     <button class="btn line wide" style="margin-top:8px"
             onclick="closeSheet()">إلغاء</button>`);
@@ -1741,18 +1700,26 @@ window.openProvider = id => {
       type: $('#pvType').value,
       api_url: $('#pvUrl').value.trim(),
       api_key: $('#pvKey').value.trim(),
-      api_secret: $('#pvSecret').value.trim(),
+      email: $('#pvEmail').value.trim(),
       active: $('#pvActive').classList.contains('on'),
       updated_at: new Date().toISOString()
     };
 
     btn.disabled = true; btn.classList.add('loading');
     try {
-      if(id) await setDoc(doc(db, 'providers', id), data, { merge: true });
-      else await addDoc(collection(db, 'providers'), {
-        ...data, created_at: new Date().toISOString()
-      });
-      toast(id ? 'تم حفظ التعديلات' : 'تم إضافة المزود', 'ok');
+      if(id) {
+        await setDoc(doc(db, 'providers', id), data, { merge: true });
+        toast('تم حفظ التعديلات', 'ok');
+      } else {
+        const ref = await addDoc(collection(db, 'providers'), {
+          ...data,
+          products_count: 0,
+          created_at: new Date().toISOString()
+        });
+        toast('تم إضافة المزود', 'ok');
+        // افتح لوحة المزود الجديد لاختباره
+        setTimeout(() => openProvider(ref.id), 400);
+      }
       closeSheet();
     } catch(e) {
       toast(e.message, 'bad');
@@ -1760,13 +1727,49 @@ window.openProvider = id => {
     }
   };
 
+  const testBtn = $('#pvTest');
+  if(testBtn) testBtn.onclick = async () => {
+    testBtn.disabled = true; testBtn.classList.add('loading');
+    try {
+      const r = await api('/api/admin/provider/test', { provider_id: id });
+      toast(r.message || 'الاتصال ناجح', 'ok');
+      testBtn.disabled = false; testBtn.classList.remove('loading');
+    } catch(e) {
+      toast(e.message, 'bad');
+      testBtn.disabled = false; testBtn.classList.remove('loading');
+    }
+  };
+
+  const fetchBtn = $('#pvFetch');
+  if(fetchBtn) fetchBtn.onclick = async () => {
+    fetchBtn.disabled = true; fetchBtn.classList.add('loading');
+    try {
+      const r = await api('/api/admin/provider/fetch', { provider_id: id });
+      toast(`تم جلب ${r.count} خدمة`, 'ok');
+      setTimeout(() => openImportSheet(id, r.products), 300);
+    } catch(e) {
+      toast(e.message, 'bad');
+      fetchBtn.disabled = false; fetchBtn.classList.remove('loading');
+    }
+  };
+
   if(id) {
-    $('#pvDel').onclick = async () => {
-      try {
-        await deleteDoc(doc(db, 'providers', id));
-        toast('تم حذف المزود', 'ok');
-        closeSheet();
-      } catch(e) { toast(e.message, 'bad'); }
+    const del = $('#pvDel');
+    if(del) del.onclick = async () => {
+      sheet(`
+        <div class="h2" style="margin-bottom:8px">حذف المزود</div>
+        <p class="sub" style="margin-bottom:16px">
+          سيُحذف «${esc(p.name)}» نهائيًا.</p>
+        <button class="btn bad wide" id="delOk">تأكيد الحذف</button>
+        <button class="btn line wide" style="margin-top:8px"
+                onclick="openProvider('${esc(id)}')">رجوع</button>`);
+      $('#delOk').onclick = async () => {
+        try {
+          await deleteDoc(doc(db, 'providers', id));
+          toast('تم حذف المزود', 'ok');
+          closeSheet();
+        } catch(e) { toast(e.message, 'bad'); }
+      };
     };
   }
 };
@@ -1775,16 +1778,153 @@ window.testProvider = async id => {
   const btn = document.querySelector(`[data-tp="${id}"]`);
   if(!btn) return;
   btn.disabled = true;
+  const orig = btn.textContent;
   btn.textContent = '...';
   try {
-    const r = await api('/api/admin/providers/' + id + '/test-connection', {});
-    toast('اتصال ناجح', 'ok');
+    const r = await api('/api/admin/provider/test', { provider_id: id });
+    toast(r.message || 'الاتصال ناجح', 'ok');
   } catch(e) {
     toast(e.message, 'bad');
   }
   btn.disabled = false;
-  btn.textContent = 'اختبار';
+  btn.textContent = orig;
 };
+
+window.fetchProviderProducts = async id => {
+  const btn = document.querySelector(`[data-fp="${id}"]`);
+  if(!btn) return;
+  btn.disabled = true;
+  const orig = btn.textContent;
+  btn.textContent = '...';
+  try {
+    const r = await api('/api/admin/provider/fetch', { provider_id: id });
+    toast(`تم جلب ${r.count} خدمة`, 'ok');
+    setTimeout(() => openImportSheet(id, r.products), 300);
+  } catch(e) {
+    toast(e.message, 'bad');
+  }
+  btn.disabled = false;
+  btn.textContent = orig;
+};
+
+/* ═══ Import Sheet — قائمة الخدمات للاستيراد ═══ */
+window.openImportSheet = (providerId, products) => {
+  const cats = S.cats;
+
+  const html = `
+    <div class="sheet-head">
+      <div style="flex:1">
+        <div class="h2">استيراد الخدمات</div>
+        <div class="sub">${products.length} خدمة من المزود</div>
+      </div>
+    </div>
+
+    <div class="box" style="background:var(--s2);margin-bottom:12px">
+      <label class="lbl">القسم للمنتجات المستوردة</label>
+      <select class="inp" id="impCat">
+        <option value="">— بدون قسم —</option>
+        ${cats.map(c => `<option value="${esc(c.id)}">${esc(c.name)}</option>`).join('')}
+      </select>
+
+      <label class="lbl" style="margin-top:12px">معامل الربح</label>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
+        <div>
+          <input class="inp num" id="impProfit" type="number" step="0.5"
+                 value="5" placeholder="ربح ثابت">
+          <div style="font-size:11px;color:var(--tx-3);margin-top:4px">
+            ربح ثابت (د.ل)</div>
+        </div>
+        <div>
+          <input class="inp num" id="impPct" type="number" step="1"
+                 value="20" placeholder="نسبة %">
+          <div style="font-size:11px;color:var(--tx-3);margin-top:4px">
+            نسبة ربح (%)</div>
+        </div>
+      </div>
+    </div>
+
+    <div style="max-height:50vh;overflow-y:auto;margin-bottom:12px">
+      <div class="flex-b" style="margin-bottom:8px;position:sticky;top:0;
+           background:var(--s1);padding:6px 0;z-index:2">
+        <button class="btn ghost sm" id="impAll">تحديد الكل</button>
+        <button class="btn ghost sm" id="impNone">إلغاء الكل</button>
+      </div>
+      ${products.map((p, i) => `
+        <label style="display:flex;align-items:flex-start;gap:10px;
+             padding:10px;border:1px solid var(--line);border-radius:10px;
+             background:var(--s2);margin-bottom:6px;cursor:pointer">
+          <input type="checkbox" class="imp-chk" data-i="${i}"
+                 style="width:18px;height:18px;accent-color:var(--g);margin-top:2px">
+          <div style="flex:1;min-width:0">
+            <div style="font-size:13px;font-weight:700">
+              ${esc(p.name)}</div>
+            <div style="font-size:11.5px;color:var(--tx-3);margin-top:2px">
+              ${esc(p.delivery_type)} · تكلفة: ${usd(p.cost_usd)}
+            </div>
+            <div style="font-size:11px;color:var(--tx-3)">
+              معرّف: ${esc(p.provider_product_id)}
+            </div>
+          </div>
+        </label>`).join('')}
+    </div>
+
+    <button class="btn wide" id="impGo">استيراد المحدد</button>
+    <button class="btn line wide" style="margin-top:8px"
+            onclick="closeSheet()">إلغاء</button>`;
+
+  sheet(html);
+
+  $$('#impAll, #impNone').forEach(b => b.onclick = () => {
+    const on = b.id === 'impAll';
+    $$('.imp-chk').forEach(c => c.checked = on);
+  });
+
+  $('#impGo').onclick = async () => {
+    const selected = [...document.querySelectorAll('.imp-chk:checked')]
+      .map(c => +c.dataset.i);
+    if(!selected.length) return toast('اختر خدمة واحدة على الأقل', 'bad');
+
+    const catId = $('#impCat').value;
+    const profit = n($('#impProfit').value);
+    const pct = n($('#impPct').value);
+
+    const items = selected.map(i => {
+      const p = products[i];
+      // حساب السعر: التكلفة بالدولار → نحولها لدينار → نضيف الربح
+      const rateLyd = n(S.pricing.usd_to_lyd) || 11.8;
+      const costLyd = p.cost_usd * rateLyd;
+      const priceLyd = Math.round((costLyd + profit + costLyd * pct / 100) * 100) / 100;
+
+      return {
+        id: p.provider_product_id,
+        name: p.name,
+        cat: catId,
+        price_lyd: priceLyd,
+        cost_usd: p.cost_usd,
+        delivery_type: p.delivery_type,
+        image: p.image
+      };
+    });
+
+    const btn = $('#impGo');
+    btn.disabled = true; btn.classList.add('loading');
+
+    try {
+      const r = await api('/api/admin/provider/import', {
+        provider_id: providerId,
+        items
+      });
+      toast(r.message || 'تم الاستيراد', 'ok');
+      closeSheet();
+    } catch(e) {
+      toast(e.message, 'bad');
+      btn.disabled = false; btn.classList.remove('loading');
+    }
+  };
+};
+/* ═══════════════════════════════════════════════════════════
+   PART 3 — Coupons, SMS, Settings, Bind, Boot
+   ═══════════════════════════════════════════════════════════ */
 
 /* ═══ Coupons ═══ */
 function vCoupons() {
@@ -2115,17 +2255,13 @@ function settingsOps() {
     </div>
 
     <div class="sw-row">
-      <div>
-        <div class="sw-lbl">الكوبونات فعّالة</div>
-      </div>
+      <div><div class="sw-lbl">الكوبونات فعّالة</div></div>
       <div class="sw ${o.coupons_enabled !== false ? 'on' : ''}"
            id="stCoupons" data-key="coupons_enabled"></div>
     </div>
 
     <div class="sw-row">
-      <div>
-        <div class="sw-lbl">تذاكر الدعم مفتوحة</div>
-      </div>
+      <div><div class="sw-lbl">تذاكر الدعم مفتوحة</div></div>
       <div class="sw ${o.tickets_enabled !== false ? 'on' : ''}"
            id="stTickets" data-key="tickets_enabled"></div>
     </div>
@@ -2322,7 +2458,7 @@ function bind() {
     q._t = setTimeout(() => render(), 250);
   };
 
-  // Orders actions
+  // Orders
   $$('[data-ord]').forEach(b =>
     b.onclick = () => openOrder(b.dataset.ord));
 
@@ -2337,8 +2473,11 @@ function bind() {
   // Products
   const addProd = $('#addProd');
   if(addProd) addProd.onclick = () => openProduct(null);
-  $$('[data-ep]').forEach(b =>
-    b.onclick = () => openProduct(b.dataset.ep));
+  $$('[data-ep]').forEach(b => {
+    // نتجنب الالتباس مع أزرار تعديل المزودين
+    if(b.closest('.pcard')) return;
+    if(b.dataset.ep) b.onclick = () => openProduct(b.dataset.ep);
+  });
 
   // Categories
   const addCat = $('#addCat');
@@ -2357,12 +2496,12 @@ function bind() {
   // Providers
   const addProv = $('#addProv');
   if(addProv) addProv.onclick = () => openProvider(null);
-  $$('[data-ep]').forEach(b => {
-    if(b.dataset.ep && b.closest('.pcard'))
-      b.onclick = () => openProvider(b.dataset.ep);
-  });
+  $$('.pcard [data-ep]').forEach(b =>
+    b.onclick = () => openProvider(b.dataset.ep));
   $$('[data-tp]').forEach(b =>
     b.onclick = () => testProvider(b.dataset.tp));
+  $$('[data-fp]').forEach(b =>
+    b.onclick = () => fetchProviderProducts(b.dataset.fp));
 
   // Coupons
   const addCoupon = $('#addCoupon');
@@ -2397,6 +2536,40 @@ function bind() {
 
   const saveLimits = $('#saveLimits');
   if(saveLimits) saveLimits.onclick = () => saveSettings('limits');
+
+  // Menu button (للجوال)
+  const menuBtn = $('#menuBtn');
+  if(menuBtn) menuBtn.onclick = openMobileMenu;
+}
+
+/* ═══ Menu للجوال ═══ */
+function openMobileMenu() {
+  const groups = {};
+  PAGES.forEach(p => {
+    if(!groups[p.g]) groups[p.g] = [];
+    groups[p.g].push(p);
+  });
+
+  let html = '<div class="h2" style="margin-bottom:16px">القائمة</div>';
+  for(const [g, items] of Object.entries(groups)) {
+    html += `<div class="nav-group" style="margin-top:14px">${g}</div>`;
+    items.forEach(p => {
+      const c = p.badge ? badges[p.badge]() : 0;
+      html += `<button class="nav ${S.page === p.k ? 'on' : ''}"
+        data-mob-nav="${p.k}" style="margin-bottom:4px">
+        ${svg(p.i)}<span>${p.t}</span>
+        ${c ? `<span class="cnt">${c}</span>` : ''}
+      </button>`;
+    });
+  }
+  html += `<button class="btn line wide" style="margin-top:16px"
+    onclick="closeSheet()">إغلاق</button>`;
+
+  sheet(html);
+  $$('[data-mob-nav]').forEach(b => b.onclick = () => {
+    closeSheet();
+    go(b.dataset.mobNav);
+  });
 }
 
 async function saveSettings(kind) {
@@ -2409,21 +2582,18 @@ async function saveSettings(kind) {
   const payloadOps = {};
   const payloadPricing = {};
 
-  // Ops fields
   $$('[data-ops]').forEach(el => {
     const k = el.dataset.ops;
     if(!k) return;
     payloadOps[k] = el.type === 'number' ? n(el.value) : el.value;
   });
 
-  // Pricing fields
   $$('[data-pricing]').forEach(el => {
     const k = el.dataset.pricing;
     if(!k) return;
     payloadPricing[k] = n(el.value);
   });
 
-  // Switches
   $$('[data-key]').forEach(el => {
     const k = el.dataset.key;
     if(!k) return;
@@ -2432,7 +2602,6 @@ async function saveSettings(kind) {
     payloadOps[k] = v;
   });
 
-  // Payment methods
   $$('[data-method]').forEach(el => {
     const k = el.dataset.method;
     if(!k) return;
@@ -2452,5 +2621,5 @@ async function saveSettings(kind) {
 }
 
 /* ═══ Boot ═══ */
-// (auth state already wired at top of file)
-console.log('%cKARDO Admin', 'background:#10B981;color:#04121B;padding:4px 10px;border-radius:6px;font-weight:800');
+console.log('%cKARDO Admin v2',
+  'background:#10B981;color:#04121B;padding:4px 10px;border-radius:6px;font-weight:800');
