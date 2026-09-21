@@ -1,15 +1,7 @@
 /**
  * ═══════════════════════════════════════════════════════════
- *  KARDO — Cloudflare Worker Backend (Unified v2)
- *  نسخة موحّدة — كل شيء في ملف واحد
- * ═══════════════════════════════════════════════════════════
- *
- *  السرّيات:
- *   FIREBASE_PROJECT_ID    kardo-1c657
- *   FIREBASE_CLIENT_EMAIL  من service account
- *   FIREBASE_PRIVATE_KEY   من service account
- *   ALLOWED_ORIGIN         https://kardo.ly
- *   SMS_WEBHOOK_SECRET     سلسلة عشوائية
+ *  KARDO — Cloudflare Worker Backend
+ *  نسخة موحّدة — مع Libya Play
  * ═══════════════════════════════════════════════════════════
  */
 
@@ -65,6 +57,8 @@ async function route(path, request, url, env) {
     case '/api/ref/code':            return handleRefCode(user, body, env);
     case '/api/ref/claim':           return handleRefClaim(user, body, env);
     case '/api/activity/ping':       return handleActivityPing(user, body, env, request);
+    case '/api/wallet/usdt/invoice': return handleUsdtInvoice(user, body, env);
+    case '/api/wallet/usdt/verify':  return handleUsdtVerify(user, body, env);
 
     case '/api/admin/settings':      return handleAdminSettings(user, body, env);
     case '/api/admin/deposit':       return handleAdminDeposit(user, body, env);
@@ -1338,6 +1332,7 @@ async function handleFetchProviderProducts(user, body, env) {
   return { success: true, products, count: products.length };
 }
 
+/* ═══ جلب منتجات Libya Play — الـendpoint الصحيح ═══ */
 async function fetchLibyaPlayProducts(provider) {
   const baseUrl = String(provider.api_url || 'https://api.libyaplay.com/portal')
     .trim().replace(/\/+$/, '');
@@ -1352,46 +1347,58 @@ async function fetchLibyaPlayProducts(provider) {
     ...(email ? { 'x-email': email } : {}),
   };
 
-  const endpoints = ['/services', '/products', '/general/services',
-    '/general/products', '/store/products', '/store/services'];
+  // الـendpoint الصحيح من وثائق Libya Play
+  const url = `${baseUrl}/digital-products/clone`
+    + `?pro_type=auto&category_type=games,cards`;
 
-  let found = null;
-  let lastError = '';
-
-  for (const ep of endpoints) {
-    try {
-      const res = await fetch(baseUrl + ep, { method: 'GET', headers });
-      if (res.status === 404) continue;
-
-      const data = await res.json().catch(() => null);
-      if (!data) continue;
-
-      if (data.status === true && Array.isArray(data.data)) { found = data.data; break; }
-      if (Array.isArray(data)) { found = data; break; }
-      if (data.data && Array.isArray(data.data.services)) { found = data.data.services; break; }
-      if (data.data && Array.isArray(data.data.products)) { found = data.data.products; break; }
-    } catch (e) { lastError = e.message; continue; }
+  let data;
+  try {
+    const res = await fetch(url, { method: 'GET', headers });
+    if (!res.ok) {
+      const txt = await res.text().catch(() => '');
+      throw new Error(`HTTP ${res.status}: ${txt.slice(0, 200)}`);
+    }
+    data = await res.json();
+  } catch (e) {
+    throw httpError(502, `تعذّر الاتصال بـLibya Play: ${e.message}`);
   }
 
-  if (!found) {
-    throw httpError(404,
-      'لم نجد endpoint لخدمات Libya Play. تواصل مع دعم المزود.' +
-      (lastError ? ` (${lastError})` : ''));
+  // الرد قد يكون: { status, data: [...] } أو مصفوفة مباشرة
+  let categories = [];
+  if (Array.isArray(data)) categories = data;
+  else if (data && Array.isArray(data.data)) categories = data.data;
+  else if (data && Array.isArray(data.products)) categories = data.products;
+  else throw httpError(502, 'رد غير مفهوم من Libya Play');
+
+  // نحوّل البنية إلى قائمة منتجات مسطّحة
+  const out = [];
+
+  for (const cat of categories) {
+    if (!cat || !Array.isArray(cat.sub_categories)) continue;
+
+    for (const sub of cat.sub_categories) {
+      if (!sub || !Array.isArray(sub.products)) continue;
+
+      for (const p of sub.products) {
+        const cost = num(p.price || p.economicalPrice || p.cost || 0);
+        out.push({
+          provider_product_id: String(p.id || p.product_id || ''),
+          name: String(p.name || sub.name || ''),
+          cost_usd: round2(cost),
+          currency: String(p.currency || 'USD'),
+          category: String(cat.name || ''),
+          sub_category: String(sub.name || ''),
+          delivery_type: mapDeliveryType(p),
+          available: (p.show !== 0) && (p.status !== 'off'),
+          image: String(p.image || sub.image || cat.image || ''),
+          description: String(p.description || sub.description || ''),
+          raw: p,
+        });
+      }
+    }
   }
 
-  return found.slice(0, 500).map(p => ({
-    provider_product_id: String(p.id || p.product_id || p.service_id || ''),
-    name: String(p.name || p.title || p.service_name || ''),
-    cost_usd: round2(num(p.price || p.cost || p.price_usd, 0)),
-    currency: String(p.currency || 'USD'),
-    category: String(p.category || p.category_name || ''),
-    delivery_type: mapDeliveryType(p),
-    available: (p.available !== false) && (p.status !== 'off') && (p.status !== 0),
-    image: String(p.image || p.image_url || p.thumbnail || ''),
-    min_amount: num(p.min_amount, 0),
-    max_amount: num(p.max_amount, 0),
-    raw: p,
-  })).filter(p => p.provider_product_id && p.name);
+  return out.filter(p => p.provider_product_id && p.name);
 }
 
 function mapDeliveryType(p) {
