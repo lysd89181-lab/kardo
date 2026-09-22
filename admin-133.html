@@ -1,0 +1,301 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#020617">
+<title>كاردو — لوحة التحكم</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Tajawal:wght@400;500;700;800;900&display=swap">
+<style>
+:root{--bg:#020617;--s1:#0D1421;--s2:#131C2C;--s3:#1A2436;--line:rgba(255,255,255,.07);--tx:#F8FAFC;--tx-2:#94A3B8;--tx-3:#5F6E88;--g:#10B981;--g-2:#0E9E70}*{box-sizing:border-box;margin:0;padding:0}body{font-family:'Tajawal',system-ui,sans-serif;background:var(--bg);color:var(--tx);font-size:15px;line-height:1.6;min-height:100vh;position:relative;z-index:1}body::before{content:'';position:fixed;inset:0;pointer-events:none;z-index:-1;background:radial-gradient(70vw 55vh at 88% -8%,rgba(16,185,129,.07),transparent 60%)}button{font:inherit;color:inherit;background:none;border:none;cursor:pointer}input{font:inherit;color:inherit}.shell{display:grid;grid-template-columns:1fr;min-height:100vh}@media(min-width:1024px){.shell{grid-template-columns:1fr 280px}}.rail{display:none;grid-column:2;position:sticky;top:0;height:100vh;flex-direction:column;padding:22px 14px;border-left:1px solid var(--line);background:linear-gradient(180deg,rgba(13,20,33,.6),rgba(2,6,23,.95));overflow-y:auto}@media(min-width:1024px){.rail{display:flex}}.main{grid-column:1;min-width:0;padding-bottom:100px}.wrap{padding:20px 16px;max-width:1440px;margin:0 auto}@media(min-width:640px){.wrap{padding:28px}}.bar{position:sticky;top:0;z-index:40;height:64px;display:flex;align-items:center;justify-content:space-between;padding:0 16px;background:rgba(2,6,23,.82);border-bottom:1px solid var(--line)}@media(min-width:640px){.bar{padding:0 28px}}.bar-title{font-size:17px;font-weight:800}.bar-actions{display:flex;gap:8px}.btn{display:inline-flex;align-items:center;justify-content:center;gap:8px;padding:11px 18px;border-radius:11px;font-weight:700;font-size:13.5px;background:linear-gradient(135deg,var(--g),var(--g-2));color:#04121B;border:none;cursor:pointer;transition:transform .18s}.btn:hover:not(:disabled){transform:translateY(-2px)}.btn:disabled{opacity:.42;cursor:not-allowed}.btn.line{background:transparent;border:1px solid var(--line);color:var(--tx)}.btn.line:hover{background:var(--s2)}.inp{background:var(--s2);border:1.5px solid var(--line);border-radius:12px;padding:12px 14px;color:var(--tx);font-size:14px;width:100%}.inp:focus{outline:none;border-color:var(--g);background:var(--s3)}.box{background:linear-gradient(180deg,var(--s1),rgba(2,6,23,.75));border:1px solid var(--line);border-radius:16px;padding:20px;margin-bottom:16px}.kpis{display:grid;gap:12px;grid-template-columns:repeat(2,1fr);margin-bottom:18px}@media(min-width:720px){.kpis{grid-template-columns:repeat(3,1fr)}}@media(min-width:1100px){.kpis{grid-template-columns:repeat(6,1fr)}}.kpi{background:linear-gradient(180deg,var(--s1),rgba(2,6,23,.5));border:1px solid var(--line);border-radius:14px;padding:16px}.kpi-v{font-size:20px;font-weight:800}.kpi-k{font-size:11.5px;color:var(--tx-3);margin-top:4px}.h1{font-size:26px;font-weight:800;margin-bottom:18px}.h2{font-size:17px;font-weight:800;margin-bottom:16px}.nav{display:flex;align-items:center;gap:12px;width:100%;padding:11px 12px;border-radius:11px;color:var(--tx-2);font-size:14px;font-weight:600;cursor:pointer;margin-bottom:3px;transition:all .16s}.nav:hover{background:var(--s1);color:var(--tx)}.nav.on{background:var(--s2);color:var(--tx)}.nav.on::before{content:'';position:absolute;right:0;top:24%;bottom:24%;width:3px;background:var(--g)}.brand{display:flex;align-items:center;gap:11px;padding:0 6px;margin-bottom:22px}.brand .en{font-size:19px;font-weight:800}.brand .ar{font-size:11px;color:var(--tx-3)}.sw-row{display:flex;justify-content:space-between;align-items:center;padding:13px 0;border-bottom:1px solid var(--line)}.sw{width:46px;height:26px;border-radius:99px;background:var(--line);cursor:pointer;flex:none;position:relative}.sw::after{content:'';position:absolute;top:3px;left:3px;width:20px;height:20px;border-radius:50%;background:#fff;transition:left .24s}.sw.on{background:var(--g)}.sw.on::after{left:23px}.loader{width:40px;height:40px;border:3px solid var(--line);border-top-color:var(--g);border-radius:50%;animation:spin 1s linear infinite;margin:20px auto}@keyframes spin{to{transform:rotate(360deg)}}.empty{text-align:center;padding:30px 20px;color:var(--tx-2);font-size:13px}
+</style>
+</head>
+<body>
+
+<div id="login-screen" class="shell" style="place-items:center">
+  <div style="background:var(--s1);border:1px solid var(--line);border-radius:22px;padding:30px 26px;width:min(100%,400px);text-align:center">
+    <div class="h1" style="margin-bottom:20px;font-size:22px">كاردو</div>
+    <div style="color:var(--tx-2);font-size:13.5px;margin-bottom:22px">لوحة التحكم الإدارية</div>
+    <input type="email" id="email" class="inp" placeholder="البريد الإلكتروني" style="margin-bottom:12px;direction:ltr;text-align:left">
+    <input type="password" id="password" class="inp" placeholder="كلمة المرور" style="margin-bottom:16px;direction:ltr;text-align:left">
+    <button class="btn" id="login-btn" style="width:100%">دخول</button>
+    <div id="login-error" style="color:#EF5F5F;font-size:12px;margin-top:12px;display:none"></div>
+  </div>
+</div>
+
+<div id="app" style="display:none">
+  <div class="shell">
+    <div class="rail">
+      <div class="brand">
+        <div class="en">Kardo</div>
+        <div class="ar">كاردو</div>
+      </div>
+      <nav id="nav-menu"></nav>
+      <div style="margin-top:auto;padding-top:16px;border-top:1px solid var(--line)">
+        <button class="btn line" id="logout-btn" style="width:100%;font-size:12px">تسجيل الخروج</button>
+      </div>
+    </div>
+    <div class="main">
+      <div class="bar">
+        <div class="bar-title" id="page-title">لوحة التحكم</div>
+        <div class="bar-actions">
+          <button class="btn line" id="refresh-btn">تحديث</button>
+        </div>
+      </div>
+      <div class="wrap">
+        <div id="content"></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script type="module">
+import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js';
+import { getAuth, signInWithEmailAndPassword, signOut, onAuthStateChanged } from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js';
+import { getFirestore, doc, getDoc, collection, query, limit, getDocs, orderBy } from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js';
+
+const firebaseConfig = {
+  apiKey: "AIzaSyC-GntWur6r_Ow_v0wTNymQqQa6brzgvW8",
+  authDomain: "kardo-1c657.firebaseapp.com",
+  projectId: "kardo-1c657",
+  storageBucket: "kardo-1c657.firebasestorage.app",
+  messagingSenderId: "593934928630",
+  appId: "1:593934928630:web:d36ea455a284e974043ad7"
+};
+
+const app = initializeApp(firebaseConfig);
+const auth = getAuth(app);
+const db = getFirestore(app);
+
+const state = {
+  currentUser: null,
+  currentPage: 'home',
+  stats: null,
+  users: [],
+  cards: []
+};
+
+const pages = {
+  home: 'الرئيسية',
+  users: 'المستخدمون',
+  cards: 'البطاقات',
+  settings: 'الإعدادات'
+};
+
+function $(sel) { return document.querySelector(sel); }
+function $$(sel) { return document.querySelectorAll(sel); }
+
+async function loadStats() {
+  try {
+    const snap = await getDoc(doc(db, 'admin', 'stats'));
+    state.stats = snap.exists() ? snap.data() : null;
+  } catch (e) {
+    console.error('Stats error:', e);
+  }
+}
+
+async function loadUsers() {
+  try {
+    const q = query(collection(db, 'users'), limit(50));
+    const snaps = await getDocs(q);
+    state.users = snaps.docs.map(d => ({ id: d.id, ...d.data() }));
+  } catch (e) {
+    console.error('Users error:', e);
+    state.users = [];
+  }
+}
+
+async function loadCards() {
+  try {
+    const q = query(collection(db, 'cards'), limit(100));
+    const snaps = await getDocs(q);
+    state.cards = snaps.docs.map(d => ({ id: d.id, ...d.data() }));
+  } catch (e) {
+    console.error('Cards error:', e);
+    state.cards = [];
+  }
+}
+
+async function login() {
+  const email = $('#email').value.trim();
+  const password = $('#password').value.trim();
+  
+  if (!email || !password) {
+    $('#login-error').textContent = 'أدخل البريد وكلمة المرور';
+    $('#login-error').style.display = 'block';
+    return;
+  }
+
+  $('#login-btn').disabled = true;
+  try {
+    await signInWithEmailAndPassword(auth, email, password);
+  } catch (e) {
+    $('#login-error').textContent = 'خطأ في البيانات';
+    $('#login-error').style.display = 'block';
+    $('#login-btn').disabled = false;
+  }
+}
+
+function renderNav() {
+  const nav = $('#nav-menu');
+  nav.innerHTML = Object.entries(pages).map(([page, label]) => 
+    `<button class="nav ${state.currentPage === page ? 'on' : ''}" data-page="${page}">${label}</button>`
+  ).join('');
+  
+  $$('[data-page]').forEach(el => {
+    el.onclick = () => { state.currentPage = el.dataset.page; render(); };
+  });
+}
+
+function renderHome() {
+  if (!state.stats) return '<div class="loader"></div>';
+  const s = state.stats;
+  return `
+    <div class="h1">لوحة التحكم</div>
+    <div class="kpis">
+      <div class="kpi">
+        <div class="kpi-v">${s.totalUsers || 0}</div>
+        <div class="kpi-k">إجمالي المستخدمين</div>
+      </div>
+      <div class="kpi">
+        <div class="kpi-v">${s.totalCards || 0}</div>
+        <div class="kpi-k">إجمالي البطاقات</div>
+      </div>
+      <div class="kpi">
+        <div class="kpi-v">$${(s.totalDeposits || 0).toFixed(2)}</div>
+        <div class="kpi-k">إجمالي الإيداعات</div>
+      </div>
+      <div class="kpi">
+        <div class="kpi-v">${s.activeUsers || 0}</div>
+        <div class="kpi-k">المستخدمون النشطون</div>
+      </div>
+      <div class="kpi">
+        <div class="kpi-v">${s.pendingOrders || 0}</div>
+        <div class="kpi-k">الطلبات المعلقة</div>
+      </div>
+      <div class="kpi">
+        <div class="kpi-v">$${(s.monthlyRevenue || 0).toFixed(2)}</div>
+        <div class="kpi-k">الإيرادات الشهرية</div>
+      </div>
+    </div>
+  `;
+}
+
+function renderUsers() {
+  if (state.users.length === 0) return '<div class="h1">المستخدمون</div><div class="empty">لا توجد بيانات</div>';
+  
+  return `
+    <div class="h1">المستخدمون</div>
+    <div class="box">
+      <table style="width:100%;border-collapse:collapse;font-size:13px">
+        <thead>
+          <tr style="border-bottom:1px solid var(--line)">
+            <th style="text-align:right;padding:12px">الاسم</th>
+            <th style="text-align:right;padding:12px">البريد</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${state.users.map(u => `
+            <tr style="border-bottom:1px solid var(--line)">
+              <td style="padding:12px">${u.name || 'غير محدد'}</td>
+              <td style="padding:12px;font-family:monospace;font-size:11px">${u.email || ''}</td>
+            </tr>
+          `).join('')}
+        </tbody>
+      </table>
+    </div>
+  `;
+}
+
+function renderCards() {
+  if (state.cards.length === 0) return '<div class="h1">البطاقات</div><div class="empty">لا توجد بطاقات</div>';
+  
+  return `
+    <div class="h1">البطاقات</div>
+    <div class="box">
+      <table style="width:100%;border-collapse:collapse;font-size:13px">
+        <thead>
+          <tr style="border-bottom:1px solid var(--line)">
+            <th style="text-align:right;padding:12px">رقم البطاقة</th>
+            <th style="text-align:right;padding:12px">المستخدم</th>
+            <th style="text-align:right;padding:12px">الرصيد</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${state.cards.map(c => `
+            <tr style="border-bottom:1px solid var(--line)">
+              <td style="padding:12px;font-family:monospace;font-size:11px">${c.cardNumber || 'N/A'}</td>
+              <td style="padding:12px">${c.userId || ''}</td>
+              <td style="padding:12px">$${(c.balance || 0).toFixed(2)}</td>
+            </tr>
+          `).join('')}
+        </tbody>
+      </table>
+    </div>
+  `;
+}
+
+function renderSettings() {
+  return `
+    <div class="h1">الإعدادات</div>
+    <div class="box">
+      <div class="sw-row">
+        <div>المنصة مفعّلة</div>
+        <div class="sw on"></div>
+      </div>
+      <div style="padding:12px 0;border-bottom:1px solid var(--line)">
+        <div style="font-size:13.5px;font-weight:600;margin-bottom:8px">أقصى مبلغ يومي</div>
+        <input type="number" class="inp" value="500">
+      </div>
+    </div>
+    <button class="btn" style="margin-top:16px;width:100%">حفظ الإعدادات</button>
+  `;
+}
+
+async function render() {
+  $('#page-title').textContent = pages[state.currentPage] || 'لوحة التحكم';
+  renderNav();
+  
+  let content = '<div class="loader"></div>';
+  
+  if (state.currentPage === 'home') {
+    await loadStats();
+    content = renderHome();
+  } else if (state.currentPage === 'users') {
+    await loadUsers();
+    content = renderUsers();
+  } else if (state.currentPage === 'cards') {
+    await loadCards();
+    content = renderCards();
+  } else if (state.currentPage === 'settings') {
+    content = renderSettings();
+  }
+  
+  $('#content').innerHTML = content;
+}
+
+onAuthStateChanged(auth, user => {
+  if (!user) {
+    $('#login-screen').style.display = 'grid';
+    $('#app').style.display = 'none';
+    return;
+  }
+
+  state.currentUser = user;
+  $('#login-screen').style.display = 'none';
+  $('#app').style.display = 'block';
+  render();
+});
+
+$('#login-btn').onclick = login;
+$('#email').onkeypress = e => e.key === 'Enter' && login();
+$('#password').onkeypress = e => e.key === 'Enter' && login();
+$('#logout-btn').onclick = () => { signOut(auth); location.reload(); };
+$('#refresh-btn').onclick = render;
+
+</script>
+
+</body>
+</html>
