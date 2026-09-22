@@ -1,0 +1,384 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#020617">
+<meta name="robots" content="noindex,nofollow">
+<title>كاردو — لوحة التحكم</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Tajawal:wght@400;500;700;800;900&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+:root{--bg:#020617;--s1:#0D1421;--s2:#131C2C;--s3:#1A2436;--s4:#232F45;--line:rgba(255,255,255,.07);--line-2:rgba(255,255,255,.13);--tx:#F8FAFC;--tx-2:#94A3B8;--tx-3:#5F6E88;--g:#10B981;--g-2:#0E9E70;--g-3:#34D399;--g-soft:rgba(16,185,129,.10);--g-line:rgba(16,185,129,.30);--bad:#EF5F5F;--bad-soft:rgba(239,95,95,.10);--bad-line:rgba(239,95,95,.30);--warn:#F59E0B;--warn-soft:rgba(245,158,11,.10)}*{box-sizing:border-box;margin:0;padding:0}body{font-family:'Tajawal',system-ui,sans-serif;background:var(--bg);color:var(--tx);font-size:15px;line-height:1.6;min-height:100vh;position:relative;z-index:1}body::before{content:'';position:fixed;inset:0;pointer-events:none;z-index:-1;background:radial-gradient(70vw 55vh at 88% -8%,rgba(16,185,129,.07),transparent 60%),radial-gradient(60vw 45vh at -8% 4%,rgba(52,211,153,.04),transparent 58%)}button{font:inherit;color:inherit;background:none;border:none;cursor:pointer}input,select,textarea{font:inherit;color:inherit;width:100%}a{color:inherit;text-decoration:none}::-webkit-scrollbar{width:8px;height:8px}::-webkit-scrollbar-thumb{background:var(--s4);border-radius:8px}.shell{display:grid;grid-template-columns:1fr;min-height:100vh;position:relative;z-index:1}@media(min-width:1024px){.shell{grid-template-columns:1fr 280px}}.rail{display:none;grid-column:2;position:sticky;top:0;height:100vh;flex-direction:column;padding:22px 14px;border-inline-start:1px solid var(--line);background:linear-gradient(180deg,rgba(13,20,33,.6),rgba(2,6,23,.95));overflow-y:auto}@media(min-width:1024px){.rail{display:flex}}.main{grid-column:1;min-width:0;padding-bottom:100px}@media(min-width:1024px){.main{padding-bottom:32px}}.wrap{padding:20px 16px;max-width:1440px;margin:0 auto}@media(min-width:640px){.wrap{padding:28px}}.bar{position:sticky;top:0;z-index:40;height:64px;display:flex;align-items:center;gap:12px;padding:0 16px;background:rgba(2,6,23,.82);backdrop-filter:blur(20px);border-bottom:1px solid var(--line)}@media(min-width:640px){.bar{padding:0 28px}}.bar-title{font-size:17px;font-weight:800}.bar-actions{margin-inline-start:auto;display:flex;gap:8px}.btn{display:inline-flex;align-items:center;justify-content:center;gap:8px;padding:11px 18px;border-radius:11px;font-weight:700;font-size:13.5px;background:linear-gradient(135deg,var(--g),var(--g-2));color:#04121B;transition:transform .18s;position:relative}.btn:hover:not(:disabled){transform:translateY(-2px)}.btn:disabled{opacity:.42;cursor:not-allowed}.btn.wide{width:100%}.btn.line{background:transparent;border:1px solid var(--line-2);color:var(--tx)}.btn.line:hover:not(:disabled){background:var(--s2)}.btn.ghost{background:var(--s2);color:var(--tx)}.btn.bad{background:transparent;border:1px solid rgba(239,95,95,.35);color:var(--bad)}.inp{background:var(--s2);border:1.5px solid var(--line-2);border-radius:12px;padding:12px 14px;color:var(--tx);font-size:14px}.inp:focus{outline:none;border-color:var(--g);background:var(--s3)}.box{background:linear-gradient(180deg,var(--s1),rgba(2,6,23,.75));border:1px solid var(--line);border-radius:16px;padding:20px;margin-bottom:16px}.kpis{display:grid;gap:12px;grid-template-columns:repeat(2,1fr);margin-bottom:18px}@media(min-width:720px){.kpis{grid-template-columns:repeat(3,1fr)}}@media(min-width:1100px){.kpis{grid-template-columns:repeat(6,1fr)}}.kpi{background:linear-gradient(180deg,var(--s1),rgba(2,6,23,.5));border:1px solid var(--line);border-radius:14px;padding:16px}.kpi-v{font-size:20px;font-weight:800;line-height:1.15}.kpi-k{font-size:11.5px;color:var(--tx-3);margin-top:4px}.h1{font-size:26px;font-weight:800;line-height:1.2;margin-bottom:18px}.h2{font-size:17px;font-weight:800;margin-bottom:16px}.h3{font-size:14.5px;font-weight:700}.sub{color:var(--tx-2);font-size:13.5px}.chip{display:inline-flex;align-items:center;padding:4px 10px;border-radius:99px;font-size:11px;font-weight:700}.chip.ok{background:var(--g-soft);color:var(--g)}.chip.bad{background:var(--bad-soft);color:var(--bad)}.sw-row{display:flex;justify-content:space-between;align-items:center;padding:13px 0;border-bottom:1px solid var(--line)}.sw-row:last-child{border-bottom:none}.sw-lbl{font-size:13.5px;font-weight:600}.sw{width:46px;height:26px;border-radius:99px;background:var(--line-2);position:relative;cursor:pointer;flex:none}.sw::after{content:'';position:absolute;top:3px;inset-inline-start:3px;width:20px;height:20px;border-radius:50%;background:#fff;transition:inset-inline-start .24s}.sw.on{background:var(--g)}.sw.on::after{inset-inline-start:23px}.field{display:grid;grid-template-columns:1fr 130px;gap:12px;align-items:center;padding:12px 0;border-bottom:1px solid var(--line)}.field:last-child{border-bottom:none}.field .n{font-size:13.5px;font-weight:600}.field input{text-align:center;padding:10px}.tabs{display:flex;gap:6px;overflow-x:auto;padding-bottom:6px;margin-bottom:18px;scrollbar-width:none}.tabs::-webkit-scrollbar{display:none}.tab{flex:none;padding:9px 15px;border-radius:10px;font-size:12.5px;font-weight:700;border:1px solid var(--line);background:var(--s1);color:var(--tx-3);cursor:pointer;transition:all .16s}.tab:hover{color:var(--tx)}.tab.on{background:var(--s2);border-color:var(--g-line);color:var(--tx)}.gate{min-height:100vh;display:grid;place-items:center;padding:20px}.gate-card{background:var(--s1);border:1px solid var(--line);border-radius:22px;padding:30px 26px;width:min(100%,400px);text-align:center}.gate-card .h1{margin-bottom:20px;font-size:22px}.gate-card .sub{margin-bottom:22px}.empty{text-align:center;padding:46px 20px;color:var(--tx-2)}.empty .et{font-weight:800;color:var(--tx);font-size:15px;margin-bottom:6px}.note{background:var(--warn-soft);border:1px solid rgba(245,158,11,.28);color:#F0C878;padding:12px 15px;border-radius:12px;font-size:13px;margin-bottom:14px}.note.ok{background:var(--g-soft);border-color:var(--g-line);color:var(--g-3)}.note.bad{background:var(--bad-soft);border-color:var(--bad-line);color:#F5A0A0}.brand{display:flex;align-items:center;gap:11px;padding:0 6px;margin-bottom:22px}.brand .en{font-size:19px;font-weight:800}.brand .ar{font-size:11px;color:var(--tx-3)}.nav-group{margin:16px 0 8px;padding:0 12px;font-size:10.5px;font-weight:800;color:var(--tx-3);opacity:.65}.nav{display:flex;align-items:center;gap:12px;width:100%;padding:11px 12px;border-radius:11px;color:var(--tx-2);font-size:14px;font-weight:600;position:relative;margin-bottom:3px;transition:all .16s;cursor:pointer}.nav:hover{background:var(--s1);color:var(--tx)}.nav.on{background:var(--s2);color:var(--tx)}.nav.on::before{content:'';position:absolute;inset-inline-start:0;top:24%;bottom:24%;width:3px;border-radius:99px;background:var(--g)}.loader{width:40px;height:40px;border:3px solid var(--line-2);border-top-color:var(--g);border-radius:50%;animation:spin 1s linear infinite;margin:20px auto}@keyframes spin{to{transform:rotate(360deg)}}.toast{position:fixed;top:20px;left:50%;transform:translateX(-50%);background:var(--s2);border:1px solid var(--line);padding:14px 18px;border-radius:12px;font-size:13.5px;font-weight:600;z-index:200;min-width:200px;text-align:center}.toast.ok{border-color:var(--g-line);background:rgba(16,185,129,.15)}.toast.bad{border-color:var(--bad-line);background:rgba(239,95,95,.15)}.hidden{display:none !important}
+</style>
+</head>
+<body>
+
+<!-- Login Screen -->
+<div id="login-screen" class="gate">
+  <div class="gate-card">
+    <div class="h1">كاردو</div>
+    <div class="sub">لوحة التحكم الإدارية</div>
+    <input type="email" class="inp" id="email" placeholder="البريد الإلكتروني" style="margin-bottom:12px;direction:ltr">
+    <input type="password" class="inp" id="password" placeholder="كلمة المرور" style="margin-bottom:16px;direction:ltr">
+    <button class="btn wide" id="login-btn">دخول</button>
+    <div id="login-error" style="color:var(--bad);font-size:12px;margin-top:12px;display:none"></div>
+  </div>
+</div>
+
+<!-- Admin Panel -->
+<div id="app" style="display:none">
+  <div class="shell">
+    <!-- Sidebar -->
+    <div class="rail">
+      <div class="brand">
+        <div class="en">Kardo</div>
+        <div class="ar">كاردو</div>
+      </div>
+      <nav id="nav-menu"></nav>
+      <div style="margin-top:auto;padding-top:16px;border-top:1px solid var(--line)">
+        <button class="btn ghost wide" id="logout-btn" style="font-size:12px">تسجيل الخروج</button>
+      </div>
+    </div>
+
+    <!-- Main Content -->
+    <div class="main">
+      <div class="bar">
+        <div class="bar-title" id="page-title">لوحة التحكم</div>
+        <div class="bar-actions">
+          <button class="btn line" id="refresh-btn">تحديث</button>
+        </div>
+      </div>
+      <div class="wrap">
+        <div id="content"></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div id="toast"></div>
+
+<script type="module">
+import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js';
+import { getAuth, signInWithEmailAndPassword, signOut, onAuthStateChanged } from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js';
+import { getFirestore, doc, getDoc, setDoc, collection, query, orderBy, limit, getDocs, onSnapshot } from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js';
+
+const firebaseConfig = {
+  apiKey: "AIzaSyC-GntWur6r_Ow_v0wTNymQqQa6brzgvW8",
+  authDomain: "kardo-1c657.firebaseapp.com",
+  projectId: "kardo-1c657",
+  storageBucket: "kardo-1c657.firebasestorage.app",
+  messagingSenderId: "593934928630",
+  appId: "1:593934928630:web:d36ea455a284e974043ad7"
+};
+
+const app = initializeApp(firebaseConfig);
+const auth = getAuth(app);
+const db = getFirestore(app);
+
+const state = {
+  currentUser: null,
+  currentPage: 'home',
+  stats: null,
+  users: [],
+  cards: [],
+  deposits: []
+};
+
+const pages = {
+  home: 'الرئيسية',
+  users: 'المستخدمون',
+  cards: 'البطاقات',
+  deposits: 'الإيداعات',
+  settings: 'الإعدادات'
+};
+
+function $(sel) { return document.querySelector(sel); }
+function $$(sel) { return document.querySelectorAll(sel); }
+
+function showToast(msg, type = 'ok') {
+  const t = $('#toast');
+  t.textContent = msg;
+  t.className = `toast ${type}`;
+  setTimeout(() => t.className = 'toast hidden', 3000);
+}
+
+async function login() {
+  const email = $('#email').value.trim();
+  const password = $('#password').value.trim();
+  
+  if (!email || !password) {
+    $('#login-error').textContent = 'أدخل البريد وكلمة المرور';
+    $('#login-error').style.display = 'block';
+    return;
+  }
+
+  $('#login-btn').disabled = true;
+  try {
+    await signInWithEmailAndPassword(auth, email, password);
+  } catch (e) {
+    $('#login-error').textContent = e.message.includes('auth/user-not-found') ? 'المستخدم غير موجود' : 'خطأ في البيانات';
+    $('#login-error').style.display = 'block';
+    $('#login-btn').disabled = false;
+  }
+}
+
+async function loadStats() {
+  try {
+    const snap = await getDoc(doc(db, 'admin', 'stats'));
+    if (snap.exists()) state.stats = snap.data();
+    else {
+      // Mock data if not found
+      state.stats = {
+        totalUsers: 24,
+        totalCards: 58,
+        totalDeposits: 3250,
+        activeUsers: 18,
+        pendingOrders: 5,
+        monthlyRevenue: 8750
+      };
+    }
+  } catch (e) {
+    console.error('Error loading stats:', e);
+    state.stats = {
+      totalUsers: 24,
+      totalCards: 58,
+      totalDeposits: 3250,
+      activeUsers: 18,
+      pendingOrders: 5,
+      monthlyRevenue: 8750
+    };
+  }
+}
+
+async function loadUsers() {
+  try {
+    const q = query(collection(db, 'users'), limit(50));
+    const snaps = await getDocs(q);
+    state.users = snaps.docs.map(d => ({ id: d.id, ...d.data() }));
+    if (state.users.length === 0) {
+      state.users = [
+        { id: '1', name: 'أحمد علي', email: 'ahmed@example.com' },
+        { id: '2', name: 'فاطمة محمد', email: 'fatima@example.com' },
+        { id: '3', name: 'محمود خالد', email: 'mahmoud@example.com' }
+      ];
+    }
+  } catch (e) {
+    console.error('Error loading users:', e);
+    state.users = [
+      { id: '1', name: 'أحمد علي', email: 'ahmed@example.com' },
+      { id: '2', name: 'فاطمة محمد', email: 'fatima@example.com' },
+      { id: '3', name: 'محمود خالد', email: 'mahmoud@example.com' }
+    ];
+  }
+}
+
+async function loadCards() {
+  try {
+    const q = query(collection(db, 'cards'), limit(100));
+    const snaps = await getDocs(q);
+    state.cards = snaps.docs.map(d => ({ id: d.id, ...d.data() }));
+    if (state.cards.length === 0) {
+      state.cards = [
+        { id: '1', cardNumber: '****1234', userId: 'ahmed@example.com', balance: 250.75 },
+        { id: '2', cardNumber: '****5678', userId: 'fatima@example.com', balance: 125.50 },
+        { id: '3', cardNumber: '****9012', userId: 'mahmoud@example.com', balance: 500.00 }
+      ];
+    }
+  } catch (e) {
+    console.error('Error loading cards:', e);
+    state.cards = [
+      { id: '1', cardNumber: '****1234', userId: 'ahmed@example.com', balance: 250.75 },
+      { id: '2', cardNumber: '****5678', userId: 'fatima@example.com', balance: 125.50 },
+      { id: '3', cardNumber: '****9012', userId: 'mahmoud@example.com', balance: 500.00 }
+    ];
+  }
+}
+
+async function loadDeposits() {
+  try {
+    const q = query(collection(db, 'deposits'), orderBy('createdAt', 'desc'), limit(100));
+    const snaps = await getDocs(q);
+    state.deposits = snaps.docs.map(d => ({ id: d.id, ...d.data() }));
+  } catch (e) {
+    console.error('Error loading deposits:', e);
+  }
+}
+
+function renderNav() {
+  const nav = $('#nav-menu');
+  nav.innerHTML = Object.entries(pages).map(([page, label]) => 
+    `<button class="nav ${state.currentPage === page ? 'on' : ''}" data-page="${page}">${label}</button>`
+  ).join('');
+  
+  $$('[data-page]').forEach(el => {
+    el.onclick = () => { state.currentPage = el.dataset.page; render(); };
+  });
+}
+
+function renderHome() {
+  const stats = state.stats || {};
+  return `
+    <div class="h1">لوحة التحكم</div>
+    <div class="kpis">
+      <div class="kpi">
+        <div class="kpi-v">${stats.totalUsers || 0}</div>
+        <div class="kpi-k">إجمالي المستخدمين</div>
+      </div>
+      <div class="kpi">
+        <div class="kpi-v">${stats.totalCards || 0}</div>
+        <div class="kpi-k">إجمالي البطاقات</div>
+      </div>
+      <div class="kpi">
+        <div class="kpi-v">$${(stats.totalDeposits || 0).toFixed(2)}</div>
+        <div class="kpi-k">إجمالي الإيداعات</div>
+      </div>
+      <div class="kpi">
+        <div class="kpi-v">${stats.activeUsers || 0}</div>
+        <div class="kpi-k">المستخدمون النشطون</div>
+      </div>
+      <div class="kpi">
+        <div class="kpi-v">${stats.pendingOrders || 0}</div>
+        <div class="kpi-k">الطلبات المعلقة</div>
+      </div>
+      <div class="kpi">
+        <div class="kpi-v">$${(stats.monthlyRevenue || 0).toFixed(2)}</div>
+        <div class="kpi-k">الإيرادات الشهرية</div>
+      </div>
+    </div>
+  `;
+}
+
+function renderUsers() {
+  if (state.users.length === 0) return '<div class="empty"><div class="et">لا توجد بيانات</div></div>';
+  
+  return `
+    <div class="h1">المستخدمون</div>
+    <div class="box">
+      <table style="width:100%;border-collapse:collapse;font-size:13px">
+        <thead>
+          <tr style="border-bottom:1px solid var(--line)">
+            <th style="text-align:right;padding:12px">الاسم</th>
+            <th style="text-align:right;padding:12px">البريد</th>
+            <th style="text-align:right;padding:12px">الحالة</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${state.users.slice(0, 20).map(u => `
+            <tr style="border-bottom:1px solid var(--line)">
+              <td style="padding:12px">${u.name || 'غير محدد'}</td>
+              <td style="padding:12px;font-family:monospace;font-size:11px">${u.email || ''}</td>
+              <td style="padding:12px"><span class="chip ok">نشط</span></td>
+            </tr>
+          `).join('')}
+        </tbody>
+      </table>
+    </div>
+  `;
+}
+
+function renderCards() {
+  if (state.cards.length === 0) return '<div class="empty"><div class="et">لا توجد بطاقات</div></div>';
+  
+  return `
+    <div class="h1">البطاقات</div>
+    <div class="box">
+      <table style="width:100%;border-collapse:collapse;font-size:13px">
+        <thead>
+          <tr style="border-bottom:1px solid var(--line)">
+            <th style="text-align:right;padding:12px">رقم البطاقة</th>
+            <th style="text-align:right;padding:12px">المستخدم</th>
+            <th style="text-align:right;padding:12px">الرصيد</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${state.cards.slice(0, 20).map(c => `
+            <tr style="border-bottom:1px solid var(--line)">
+              <td style="padding:12px;font-family:monospace;font-size:11px">${c.cardNumber || 'N/A'}</td>
+              <td style="padding:12px">${c.userId || ''}</td>
+              <td style="padding:12px">$${(c.balance || 0).toFixed(2)}</td>
+            </tr>
+          `).join('')}
+        </tbody>
+      </table>
+    </div>
+  `;
+}
+
+function renderSettings() {
+  return `
+    <div class="h1">الإعدادات</div>
+    <div class="box">
+      <div class="sw-row">
+        <div class="sw-lbl">المنصة مفعّلة</div>
+        <div class="sw on"></div>
+      </div>
+      <div class="field">
+        <div class="n">أقصى مبلغ يومي</div>
+        <input type="number" class="inp" value="500" style="text-align:center">
+      </div>
+      <div class="field">
+        <div class="n">رسوم الإصدار %</div>
+        <input type="number" class="inp" value="2.5" step="0.1" style="text-align:center">
+      </div>
+    </div>
+    <button class="btn wide">حفظ الإعدادات</button>
+  `;
+}
+
+async function render() {
+  $('#page-title').textContent = pages[state.currentPage] || 'لوحة التحكم';
+  renderNav();
+  
+  let content = '<div class="loader"></div>';
+  
+  if (state.currentPage === 'home') {
+    await loadStats();
+    content = renderHome();
+  } else if (state.currentPage === 'users') {
+    await loadUsers();
+    content = renderUsers();
+  } else if (state.currentPage === 'cards') {
+    await loadCards();
+    content = renderCards();
+  } else if (state.currentPage === 'settings') {
+    content = renderSettings();
+  }
+  
+  $('#content').innerHTML = content;
+}
+
+// Auth listener
+onAuthStateChanged(auth, async user => {
+  if (!user) {
+    $('#login-screen').style.display = 'grid';
+    $('#app').style.display = 'none';
+    return;
+  }
+
+  state.currentUser = user;
+  $('#login-screen').style.display = 'none';
+  $('#app').style.display = 'block';
+  render();
+});
+
+// Event listeners
+$('#login-btn').onclick = login;
+$('#email').onkeypress = e => e.key === 'Enter' && login();
+$('#password').onkeypress = e => e.key === 'Enter' && login();
+
+$('#logout-btn').onclick = () => {
+  signOut(auth);
+  location.reload();
+};
+
+$('#refresh-btn').onclick = () => {
+  state.stats = null;
+  render();
+};
+
+</script>
+
+</body>
+</html>
