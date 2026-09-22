@@ -157,7 +157,7 @@ function fbMsg(code) {
 }
 
 /* ═══════════════════════════════════════════════════════════
-   التوجيه بعد تسجيل الدخول — الحل النهائي
+   التوجيه + إنشاء ملف المستخدم تلقائياً
    ═══════════════════════════════════════════════════════════ */
 let _redirecting = false;
 onAuthStateChanged(auth, async user => {
@@ -167,8 +167,36 @@ onAuthStateChanged(auth, async user => {
   let isAdmin = false;
   try {
     const snap = await getDoc(doc(db, 'users', user.uid));
-    if (snap.exists() && snap.data().role === 'admin') isAdmin = true;
-  } catch (e) {}
+
+    if (snap.exists()) {
+      // موجود → افحص الدور
+      if (snap.data().role === 'admin') isAdmin = true;
+    } else {
+      // ما موجود → أنشئه تلقائياً
+      try {
+        await setDoc(doc(db, 'users', user.uid), {
+          name: user.displayName || '',
+          email: user.email || '',
+          phone: '',
+          phone_key: '',
+          wallet_balance: 0,
+          total_spent: 0,
+          points: 0,
+          vip_status: 'none',
+          vip_cards_limit: 1,
+          cards_count: 0,
+          referrals_count: 0,
+          banned: false,
+          role: 'user',
+          created_at: serverTimestamp()
+        });
+      } catch (err) {
+        console.warn('create user doc:', err.code);
+      }
+    }
+  } catch (e) {
+    console.warn('user check:', e.code);
+  }
 
   location.replace(isAdmin ? 'admin.html' : 'dashboard.html');
 });
@@ -211,14 +239,18 @@ $('#fRegister').addEventListener('submit', async e => {
   try {
     const cred = await createUserWithEmailAndPassword(auth, email, pass);
     await updateProfile(cred.user, { displayName: name });
-    await setDoc(doc(db, 'users', cred.user.uid), {
-      name, email, phone, phone_key: pk,
-      wallet_balance: 0, total_spent: 0, points: 0,
-      vip_status: 'none', vip_cards_limit: 1,
-      cards_count: 0, referrals_count: 0, banned: false,
-      role: 'user',
-      created_at: serverTimestamp()
-    });
+    try {
+      await setDoc(doc(db, 'users', cred.user.uid), {
+        name, email, phone, phone_key: pk,
+        wallet_balance: 0, total_spent: 0, points: 0,
+        vip_status: 'none', vip_cards_limit: 1,
+        cards_count: 0, referrals_count: 0, banned: false,
+        role: 'user',
+        created_at: serverTimestamp()
+      });
+    } catch (err) {
+      console.warn('create user doc:', err.code);
+    }
     _redirecting = true;
     location.replace('dashboard.html');
   } catch(err) {
