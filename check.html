@@ -1,0 +1,229 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>فحص نظام كاردو</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Tajawal:wght@400;700;900&family=IBM+Plex+Mono&display=swap">
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:'Tajawal',sans-serif;background:#020617;color:#F8FAFC;padding:20px;min-height:100vh;line-height:1.6}
+.wrap{max-width:800px;margin:0 auto}
+h1{font-size:24px;margin-bottom:20px;color:#10B981}
+.card{background:#0D1421;border:1px solid rgba(255,255,255,.08);border-radius:14px;padding:18px;margin-bottom:14px}
+.card h2{font-size:16px;margin-bottom:12px;color:#34D399}
+.row{display:flex;justify-content:space-between;align-items:center;padding:10px 0;border-bottom:1px solid rgba(255,255,255,.05);font-size:14px}
+.row:last-child{border:none}
+.ok{color:#10B981;font-weight:700}
+.bad{color:#EF5F5F;font-weight:700}
+.warn{color:#F59E0B;font-weight:700}
+.mono{font-family:'IBM Plex Mono',monospace;font-size:12px;word-break:break-all;color:#94A3B8}
+.btn{background:#10B981;color:#04121B;padding:12px 20px;border:none;border-radius:10px;font-weight:700;font-size:14px;cursor:pointer;margin-top:12px;width:100%;font-family:inherit}
+.btn:disabled{opacity:.5;cursor:not-allowed}
+.info{background:rgba(16,185,129,.1);border:1px solid rgba(16,185,129,.3);padding:12px;border-radius:10px;font-size:13px;margin-bottom:14px;color:#34D399}
+.err{background:rgba(239,95,95,.1);border:1px solid rgba(239,95,95,.3);padding:12px;border-radius:10px;font-size:13px;margin-bottom:14px;color:#F5A0A0}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>🔍 فحص نظام كاردو</h1>
+
+  <div class="info">هذه الصفحة تفحص كل شي تلقائياً — بدون ما تسجّل دخول.</div>
+
+  <div class="card">
+    <h2>📡 1. الاتصال بـ Firebase</h2>
+    <div id="fb-status"><div class="row"><span>جاري الفحص…</span><span class="warn">⏳</span></div></div>
+  </div>
+
+  <div class="card">
+    <h2>👤 2. حساب المستخدم الحالي</h2>
+    <div id="user-status"><div class="row"><span>جاري الفحص…</span><span class="warn">⏳</span></div></div>
+  </div>
+
+  <div class="card">
+    <h2>📋 3. مستند المستخدم في Firestore</h2>
+    <div id="doc-status"><div class="row"><span>جاري الفحص…</span><span class="warn">⏳</span></div></div>
+  </div>
+
+  <div class="card">
+    <h2>🛡️ 4. فحص الصلاحيات</h2>
+    <div id="perm-status"><div class="row"><span>جاري الفحص…</span><span class="warn">⏳</span></div></div>
+  </div>
+
+  <div class="card">
+    <h2>🌐 5. الملفات الموجودة على GitHub</h2>
+    <div id="files-status"><div class="row"><span>جاري الفحص…</span><span class="warn">⏳</span></div></div>
+  </div>
+
+  <div class="card">
+    <h2>📊 النتيجة النهائية</h2>
+    <div id="final"><div class="row"><span>جاري التحليل…</span><span class="warn">⏳</span></div></div>
+  </div>
+</div>
+
+<script type="module">
+import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js';
+import { getAuth, onAuthStateChanged } from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js';
+import { getFirestore, doc, getDoc } from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js';
+
+const firebaseConfig = {
+  apiKey: "AIzaSyC-GntWur6r_Ow_v0wTNymQqQa6brzgvW8",
+  authDomain: "kardo-1c657.firebaseapp.com",
+  projectId: "kardo-1c657",
+  storageBucket: "kardo-1c657.firebasestorage.app",
+  messagingSenderId: "593934928630",
+  appId: "1:593934928630:web:d36ea455a284e974043ad7"
+};
+
+const results = { fb: null, user: null, doc: null, admin: null, files: [] };
+
+function row(label, status, value) {
+  const cls = status === 'ok' ? 'ok' : status === 'bad' ? 'bad' : 'warn';
+  const icon = status === 'ok' ? '✅' : status === 'bad' ? '❌' : '⚠️';
+  return `<div class="row"><span>${label}</span><span class="${cls}">${icon} ${value}</span></div>`;
+}
+
+// 1. Firebase
+try {
+  const app = initializeApp(firebaseConfig);
+  const auth = getAuth(app);
+  const db = getFirestore(app);
+  document.getElementById('fb-status').innerHTML = row('Firebase', 'ok', 'متصل');
+  results.fb = true;
+
+  // 2. User check
+  onAuthStateChanged(auth, async user => {
+    if (!user) {
+      document.getElementById('user-status').innerHTML = row('الحساب', 'bad', 'ما سجّلت دخول');
+      document.getElementById('doc-status').innerHTML = row('المستند', 'warn', 'لا يمكن الفحص');
+      document.getElementById('perm-status').innerHTML = row('الصلاحيات', 'warn', 'لا يمكن الفحص');
+      finalResult('سجّل دخول أولاً');
+      return;
+    }
+
+    // User info
+    document.getElementById('user-status').innerHTML = 
+      row('الحساب', 'ok', 'مسجّل') +
+      row('UID', 'ok', user.uid) +
+      row('البريد', 'ok', user.email || '—') +
+      row('الاسم', 'ok', user.displayName || '—');
+    results.user = user;
+
+    // 3. Doc check
+    try {
+      const snap = await getDoc(doc(db, 'users', user.uid));
+      if (!snap.exists()) {
+        document.getElementById('doc-status').innerHTML = 
+          row('المستند', 'bad', 'غير موجود في users') +
+          row('UID المطلوب', 'warn', user.uid);
+        results.doc = false;
+      } else {
+        const d = snap.data();
+        const role = d.role || 'user';
+        document.getElementById('doc-status').innerHTML = 
+          row('المستند', 'ok', 'موجود') +
+          row('role', role === 'admin' ? 'ok' : 'warn', role) +
+          row('name', 'ok', d.name || '—') +
+          row('wallet_balance', 'ok', d.wallet_balance || 0) +
+          row('banned', d.banned ? 'bad' : 'ok', d.banned ? 'نعم' : 'لا');
+        results.doc = true;
+        results.admin = role === 'admin';
+      }
+    } catch (e) {
+      document.getElementById('doc-status').innerHTML = 
+        row('المستند', 'bad', 'خطأ في القراءة') +
+        row('السبب', 'warn', e.code || e.message);
+      results.doc = false;
+    }
+
+    // 4. Permissions
+    try {
+      const testSnap = await getDoc(doc(db, 'vip_plans', 'test'));
+      document.getElementById('perm-status').innerHTML = 
+        row('قراءة vip_plans', 'ok', 'مسموح') +
+        row('قراءة users', results.doc ? 'ok' : 'bad', results.doc ? 'مسموح' : 'ممنوع أو ما فيه مستند');
+    } catch (e) {
+      document.getElementById('perm-status').innerHTML = 
+        row('قراءة vip_plans', 'warn', 'فاضي أو ممنوع') +
+        row('قراءة users', results.doc ? 'ok' : 'bad', results.doc ? 'مسموح' : 'ممنوع');
+    }
+
+    finalResult('');
+  });
+} catch (e) {
+  document.getElementById('fb-status').innerHTML = row('Firebase', 'bad', 'فشل الاتصال');
+  finalResult('مشكلة في Firebase');
+}
+
+// 5. Files check
+const files = ['index.html', 'login.html', 'dashboard.html', 'admin.html', 'worker.js'];
+const filesResults = [];
+
+async function checkFiles() {
+  for (const f of files) {
+    try {
+      const res = await fetch(f, { method: 'HEAD' });
+      filesResults.push({ name: f, ok: res.ok, status: res.status });
+    } catch (e) {
+      filesResults.push({ name: f, ok: false, status: 'error' });
+    }
+  }
+  document.getElementById('files-status').innerHTML = filesResults.map(f =>
+    row(f.name, f.ok ? 'ok' : 'bad', f.ok ? 'موجود' : 'غير موجود')
+  ).join('');
+}
+checkFiles();
+
+// Final
+function finalResult(msg) {
+  setTimeout(() => {
+    const el = document.getElementById('final');
+    let html = '';
+
+    if (!results.fb) {
+      html = row('Firebase', 'bad', 'فشل');
+    } else if (!results.user) {
+      html = `<div class="err">⚠️ ما سجلت دخول. روح kardo.ly/login.html وسجّل، ثم ارجع لهذي الصفحة.</div>`;
+    } else if (!results.doc) {
+      html = 
+        row('Firebase', 'ok', 'شغّال') +
+        row('الحساب', 'ok', 'مسجّل') +
+        row('المستند', 'bad', 'غير موجود') +
+        `<div class="err">
+          ❌ <strong>المشكلة:</strong> مستندك غير موجود في <code>users</code>.
+          <br><br>
+          <strong>الحل:</strong> روح Firebase → Firestore → users → أنشئ مستند بالـ UID:
+          <br>
+          <span class="mono">${results.user.uid}</span>
+        </div>`;
+    } else if (!results.admin) {
+      html = 
+        row('Firebase', 'ok', 'شغّال') +
+        row('الحساب', 'ok', 'مسجّل') +
+        row('المستند', 'ok', 'موجود') +
+        row('الدور', 'warn', 'مستخدم عادي — ليس أدمن') +
+        `<div class="err">
+          ❌ <strong>المشكلة:</strong> حسابك مسجّل كمستخدم عادي، ليس أدمن.
+          <br><br>
+          <strong>الحل:</strong> Firestore → users → افتح مستندك → عدّل حقل <code>role</code> إلى <code>admin</code>
+        </div>`;
+    } else {
+      html = 
+        row('Firebase', 'ok', 'شغّال') +
+        row('الحساب', 'ok', 'مسجّل') +
+        row('المستند', 'ok', 'موجود') +
+        row('الدور', 'ok', 'admin') +
+        `<div class="info">
+          ✅ <strong>كل شي تمام!</strong>
+          <br><br>
+          <a href="admin.html" style="color:#10B981;font-weight:700">افتح لوحة التحكم →</a>
+        </div>`;
+    }
+
+    el.innerHTML = html;
+  }, 2000);
+}
+</script>
+</body>
+</html>
