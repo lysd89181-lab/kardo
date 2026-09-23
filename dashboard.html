@@ -245,19 +245,24 @@ $('#ov').addEventListener('click', e => { if(e.target.id === 'ov') closeSheet();
 document.addEventListener('keydown', e => { if(e.key === 'Escape') closeSheet(); });
 
 /* ═══════════════════════════════════════════════════════
-   Firestore Operations — إنشاء مباشر بدون Worker
+   Firestore Operations
    ═══════════════════════════════════════════════════════ */
 
 async function createDepositFS(method, amount_usd, claim_phone) {
   const rate = method === 'libyana' ? n(S.settings.rate_libyana, 11.8)
              : method === 'almadar' ? n(S.settings.rate_almadar, 12.5) : 1;
+  const amountLyd = amount_usd * rate;
+
+  if(amount_usd < 5) throw new Error('الحد الأدنى $5');
+  if(amount_usd > 10000) throw new Error('الحد الأقصى $10000');
+
   await addDoc(collection(db, 'wallet_deposits'), {
     uid: S.user.uid,
     email: S.user.email,
     name: (S.me && S.me.name) || '',
     method,
     amount_usd,
-    amount_lyd: amount_usd * rate,
+    amount_lyd: amountLyd,
     claim_phone: claim_phone || '',
     status: 'pending',
     created_at: new Date()
@@ -265,35 +270,20 @@ async function createDepositFS(method, amount_usd, claim_phone) {
 }
 
 async function createCardOrderFS(kind, name_on_card, amount) {
-  const feeFixed = kind === 'topup'
-    ? n(S.settings.mcard_topup_fee_fixed || 2.5)
-    : n(S.settings.mcard_create_fee_fixed || 8);
-  const feePct = kind === 'topup'
-    ? n(S.settings.mcard_topup_fee_pct || 2.5)
-    : n(S.settings.mcard_create_fee_pct || 2.5);
-  const fee = feeFixed + (amount * feePct / 100);
-  const total = amount + fee;
-
-  if(n(S.me.wallet_balance) < total) throw new Error('رصيدك غير كافي — يحتاج ' + usd(total));
-
-  // خصم من المحفظة
-  await setDoc(doc(db, 'users', S.user.uid), {
-    wallet_balance: n(S.me.wallet_balance) - total
-  }, { merge: true });
-
-  // إنشاء الطلب
-  await addDoc(collection(db, 'manual_card_orders'), {
-    uid: S.user.uid,
-    email: S.user.email,
-    name: (S.me && S.me.name) || '',
-    kind,
-    name_on_card,
-    amount,
-    fee,
-    total,
-    status: 'pending',
-    created_at: new Date()
+  // ✅ نرسل للـ Worker — هو اللي يحسب الرسوم ويخصم الرصيد
+  const token = await auth.currentUser.getIdToken();
+  const path = kind === 'topup' ? '/api/mcard/topup-request' : '/api/mcard/request';
+  const res = await fetch('https://kardo.sdkhyrallh08.workers.dev' + path, {
+    method: 'POST',
+    headers: {
+      'content-type': 'application/json',
+      'authorization': 'Bearer ' + token
+    },
+    body: JSON.stringify({ kind, name_on_card, amount })
   });
+  const d = await res.json().catch(() => ({ success: false, error: 'رد غير مفهوم' }));
+  if(!d.success) throw new Error(d.error || 'فشلت العملية');
+  return d;
 }
 
 async function createTicketFS(subject, message) {
@@ -309,7 +299,7 @@ async function createTicketFS(subject, message) {
   });
 }
 
-/* ═══ Auth ═══ */
+/* ═══ Auth — نفحص admins/{uid} ═══ */
 onAuthStateChanged(auth, async user => {
   S.unsub.forEach(u => { try { u(); } catch {} });
   S.unsub = [];
@@ -321,8 +311,9 @@ onAuthStateChanged(auth, async user => {
     const snap = await getDoc(doc(db, 'users', user.uid));
     if (snap.exists()) {
       S.me = { id: snap.id, ...snap.data() };
-      if (S.me.role === 'admin') isAdmin = true;
     }
+    const adminSnap = await getDoc(doc(db, 'admins', user.uid));
+    if (adminSnap.exists()) isAdmin = true;
   } catch (e) {}
 
   if (isAdmin) { location.replace('admin.html'); return; }
@@ -365,13 +356,11 @@ function subscribe() {
   sub(query(collection(db, 'tickets'), where('uid', '==', uid), limit(50)), 'myTickets');
   sub(query(collection(db, 'vip_plans'), where('active', '==', true)), 'vipPlans');
 
-  // ✅ قراءة الإعدادات من settings/main
   S.unsub.push(onSnapshot(doc(db, 'settings', 'main'), s => {
     if(s.exists()) { S.settings = s.data(); render(); }
   }, err => console.warn('settings', err.code)));
 }
-
-/* ═══ Nav ═══ */
+  /* ═══ Nav ═══ */
 const PAGES = [
   { k: 'home',     t: 'الرئيسية',    i: I.home,  g: 'الرئيسية' },
   { k: 'wallet',   t: 'محفظتي',      i: I.cash,  g: 'المال' },
@@ -569,8 +558,7 @@ function vNew() {
   </div>
   `;
 }
-
-/* ═══ VIP ═══ */
+  /* ═══ VIP ═══ */
 function vVip() {
   const plans = S.vipPlans;
   const me = S.me || {};
