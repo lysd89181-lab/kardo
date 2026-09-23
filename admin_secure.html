@@ -1,0 +1,1113 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#020617">
+<meta name="robots" content="noindex,nofollow">
+<title>كاردو — لوحة التحكم</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Tajawal:wght@400;500;700;800;900&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+:root{--bg:#020617;--s1:#0D1421;--s2:#131C2C;--s3:#1A2436;--s4:#232F45;--line:rgba(255,255,255,.07);--line-2:rgba(255,255,255,.13);--tx:#F8FAFC;--tx-2:#94A3B8;--tx-3:#5F6E88;--g:#10B981;--g-2:#0E9E70;--g-3:#34D399;--g-soft:rgba(16,185,129,.10);--g-line:rgba(16,185,129,.30);--bad:#EF5F5F;--bad-soft:rgba(239,95,95,.10);--bad-line:rgba(239,95,95,.30);--warn:#F59E0B;--warn-soft:rgba(245,158,11,.10);--info:#4A9EFF;--info-soft:rgba(74,158,255,.10);--spring:cubic-bezier(.34,1.4,.44,1);--ease:cubic-bezier(.22,1,.36,1);--swift:cubic-bezier(.4,0,.2,1);--rail:280px;--bar-h:64px;--dock-h:68px}
+*{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
+body{font-family:'Tajawal',system-ui,sans-serif;background:var(--bg);color:var(--tx);font-size:15px;line-height:1.6;-webkit-font-smoothing:antialiased;min-height:100vh}
+body::before{content:'';position:fixed;inset:0;pointer-events:none;z-index:0;background:radial-gradient(70vw 55vh at 88% -8%,rgba(16,185,129,.07),transparent 60%),radial-gradient(60vw 45vh at -8% 4%,rgba(52,211,153,.04),transparent 58%)}
+button{font:inherit;color:inherit;background:none;border:none;cursor:pointer}
+input,select,textarea{font:inherit;color:inherit;width:100%}
+a{color:inherit;text-decoration:none}
+img{max-width:100%;display:block}
+:focus-visible{outline:2px solid var(--g);outline-offset:3px;border-radius:8px}
+::-webkit-scrollbar{width:8px;height:8px}
+::-webkit-scrollbar-thumb{background:var(--s4);border-radius:8px}
+svg{width:19px;height:19px;flex:none;display:inline-block;vertical-align:middle}
+.mono{font-family:'IBM Plex Mono',monospace}
+.num{font-variant-numeric:tabular-nums;letter-spacing:-.02em;font-weight:700}
+.hidden{display:none!important}
+.shell{display:grid;grid-template-columns:1fr;min-height:100vh;position:relative;z-index:1}
+@media(min-width:1024px){.shell{grid-template-columns:1fr var(--rail)}}
+.rail{display:none;grid-column:2;position:sticky;top:0;height:100vh;flex-direction:column;padding:22px 14px;border-inline-start:1px solid var(--line);background:linear-gradient(180deg,rgba(13,20,33,.6),rgba(2,6,23,.95));backdrop-filter:blur(20px);overflow-y:auto}
+@media(min-width:1024px){.rail{display:flex}}
+.main{grid-column:1;min-width:0;padding-bottom:calc(var(--dock-h) + env(safe-area-inset-bottom) + 16px)}
+@media(min-width:1024px){.main{padding-bottom:32px}}
+.wrap{padding:20px 16px;max-width:1440px;margin:0 auto}
+@media(min-width:640px){.wrap{padding:28px}}
+.bar{position:sticky;top:0;z-index:40;height:var(--bar-h);display:flex;align-items:center;gap:12px;padding:0 16px;background:rgba(2,6,23,.82);backdrop-filter:blur(20px);border-bottom:1px solid var(--line)}
+.bar-title{font-size:17px;font-weight:800;letter-spacing:-.025em}
+.bar-actions{margin-inline-start:auto;display:flex;gap:8px}
+.iconbtn{width:40px;height:40px;border-radius:11px;flex:none;display:grid;place-items:center;color:var(--tx-2);border:1px solid transparent;transition:all .18s}
+.iconbtn:hover{background:var(--s2);color:var(--tx);border-color:var(--line)}
+.brand{display:flex;align-items:center;gap:11px;padding:0 6px;margin-bottom:22px}
+.brand .en{font-size:19px;font-weight:800;letter-spacing:-.03em;line-height:1.1}
+.brand .ar{font-size:11px;color:var(--tx-3)}
+.nav-group{margin:16px 0 8px;padding:0 12px;font-size:10.5px;font-weight:800;letter-spacing:.14em;color:var(--tx-3);text-transform:uppercase;opacity:.65}
+.nav{display:flex;align-items:center;gap:12px;width:100%;padding:11px 12px;border-radius:11px;color:var(--tx-2);font-size:14px;font-weight:600;position:relative;margin-bottom:3px;transition:all .16s}
+.nav:hover{background:var(--s1);color:var(--tx)}
+.nav.on{background:var(--s2);color:var(--tx)}
+.nav.on::before{content:'';position:absolute;inset-inline-start:0;top:24%;bottom:24%;width:3px;border-radius:99px;background:var(--g)}
+.nav.on svg{color:var(--g)}
+.nav .cnt{margin-inline-start:auto;min-width:20px;height:20px;padding:0 6px;border-radius:99px;background:var(--g);color:#04121B;font-size:11px;font-weight:800;display:grid;place-items:center}
+.rail-foot{margin-top:auto;padding-top:16px;border-top:1px solid var(--line)}
+.rail-user{display:flex;align-items:center;gap:11px;padding:0 4px 12px}
+.rail-av{width:36px;height:36px;border-radius:11px;background:var(--g-soft);color:var(--g);display:grid;place-items:center;font-weight:800}
+.rail-name{font-size:13px;font-weight:700;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.rail-role{font-size:11px;color:var(--tx-3)}
+.h1{font-size:26px;font-weight:800;letter-spacing:-.035em;line-height:1.2}
+.h2{font-size:17px;font-weight:800;letter-spacing:-.022em;line-height:1.3}
+.h3{font-size:14.5px;font-weight:700}
+.sub{color:var(--tx-2);font-size:13.5px;line-height:1.6}
+.eyebrow{font-size:11px;font-weight:800;letter-spacing:.12em;color:var(--tx-3);text-transform:uppercase}
+.lbl{display:block;font-size:12.5px;font-weight:700;color:var(--tx-2);margin-bottom:8px}
+.sec-head{display:flex;justify-content:space-between;align-items:baseline;margin:26px 0 14px;gap:12px}
+.box{background:linear-gradient(180deg,var(--s1),rgba(2,6,23,.75));border:1px solid var(--line);border-radius:16px;padding:20px;margin-bottom:16px;transition:border-color .25s}
+.box:hover{border-color:var(--line-2)}
+.kpis{display:grid;gap:12px;grid-template-columns:repeat(2,1fr);margin-bottom:18px}
+@media(min-width:720px){.kpis{grid-template-columns:repeat(3,1fr)}}
+@media(min-width:1100px){.kpis{grid-template-columns:repeat(6,1fr)}}
+.kpi{background:linear-gradient(180deg,var(--s1),rgba(2,6,23,.5));border:1px solid var(--line);border-radius:14px;padding:16px;transition:border-color .25s,transform .25s}
+.kpi:hover{border-color:var(--g-line);transform:translateY(-2px)}
+.kpi-i{width:36px;height:36px;border-radius:11px;display:grid;place-items:center;margin-bottom:12px}
+.kpi-v{font-size:20px;font-weight:800;letter-spacing:-.03em;line-height:1.15}
+.kpi-k{font-size:11.5px;color:var(--tx-3);margin-top:4px}
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:8px;padding:11px 18px;border-radius:11px;font-weight:700;font-size:13.5px;font-family:inherit;background:linear-gradient(135deg,var(--g),var(--g-2));color:#04121B;box-shadow:0 8px 18px -8px rgba(16,185,129,.55);transition:transform .18s;position:relative;overflow:hidden}
+.btn:hover:not(:disabled){transform:translateY(-2px)}
+.btn:active:not(:disabled){transform:translateY(0) scale(.98)}
+.btn:disabled{opacity:.42;cursor:not-allowed;background:var(--s3);color:var(--tx-3);box-shadow:none}
+.btn svg{width:16px;height:16px}
+.btn.line{background:transparent;border:1px solid var(--line-2);color:var(--tx);box-shadow:none}
+.btn.line:hover:not(:disabled){background:var(--s2)}
+.btn.ghost{background:var(--s2);color:var(--tx);box-shadow:none}
+.btn.dark{background:var(--s1);border:1px solid var(--line-2);color:var(--tx);box-shadow:none}
+.btn.dark:hover:not(:disabled){border-color:var(--g);color:var(--g)}
+.btn.bad{background:transparent;border:1px solid rgba(239,95,95,.35);color:var(--bad);box-shadow:none}
+.btn.sm{padding:8px 13px;font-size:12.5px;border-radius:10px}
+.btn.wide{width:100%}
+.btn.loading{color:transparent;pointer-events:none}
+.btn.loading::after{content:'';position:absolute;width:16px;height:16px;border:2.5px solid rgba(4,18,27,.3);border-top-color:#04121B;border-radius:50%;animation:spin .7s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+.inp{background:var(--s2);border:1.5px solid var(--line-2);border-radius:12px;padding:12px 14px;color:var(--tx);font-size:14px;font-family:inherit}
+.inp:focus{outline:none;border-color:var(--g);background:var(--s3);box-shadow:0 0 0 3px var(--g-soft)}
+textarea.inp{resize:vertical;line-height:1.7;min-height:90px}
+.scrollx{overflow-x:auto;border-radius:14px;border:1px solid var(--line);background:var(--s1)}
+.tbl{width:100%;border-collapse:collapse;font-size:13px;min-width:700px}
+.tbl th{text-align:right;padding:12px 14px;color:var(--tx-3);font-size:11.5px;font-weight:700;border-bottom:1px solid var(--line);white-space:nowrap;background:var(--s2);position:sticky;top:0;z-index:1}
+.tbl td{padding:12px 14px;border-bottom:1px solid var(--line);white-space:nowrap}
+.tbl tbody tr:last-child td{border-bottom:none}
+.chip{display:inline-block;padding:6px 11px;border-radius:8px;font-size:11.5px;font-weight:700;text-transform:uppercase;letter-spacing:.08em}
+.chip.ok{background:var(--g-soft);color:var(--g)}
+.chip.wait{background:var(--warn-soft);color:var(--warn)}
+.chip.bad{background:var(--bad-soft);color:var(--bad)}
+.chip.info{background:var(--info-soft);color:var(--info)}
+.chip.off{background:var(--s3);color:var(--tx-3)}
+.tabs{display:flex;gap:0;border-bottom:1px solid var(--line);margin-bottom:18px;overflow-x:auto}
+.tab{padding:12px 16px;border-bottom:3px solid transparent;color:var(--tx-2);font-weight:600;font-size:13.5px;white-space:nowrap;transition:all .2s;position:relative}
+.tab:hover{color:var(--tx);background:rgba(255,255,255,.04)}
+.tab.on{color:var(--g);border-bottom-color:var(--g);background:transparent}
+.flex-b{display:flex;justify-content:space-between;align-items:center}
+.flex-c{display:flex;align-items:center;gap:8px}
+.field{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:14px;align-items:center}
+.field>div:first-child{min-width:0}
+.field .n{font-weight:700;font-size:13.5px}
+.field .d{font-size:11.5px;color:var(--tx-3)}
+.sheet-overlay{position:fixed;inset:0;background:rgba(0,0,0,.7);backdrop-filter:blur(4px);opacity:0;pointer-events:none;transition:opacity .3s;z-index:50}
+.sheet-overlay.show{opacity:1;pointer-events:auto}
+.sheet{position:fixed;inset:0;display:flex;align-items:flex-end;z-index:51;pointer-events:none}
+.sheet.show{pointer-events:auto}
+.sheet-content{width:100%;max-height:90vh;background:linear-gradient(180deg,var(--s1),rgba(2,6,23,.8));border-top-left-radius:20px;border-top-right-radius:20px;border-top:1px solid var(--line);padding:20px 16px;overflow-y:auto;transform:translateY(100%);transition:transform .35s cubic-bezier(.34,1.4,.44,1)}
+.sheet.show .sheet-content{transform:translateY(0)}
+@media(min-width:600px){.sheet-content{width:90%;max-width:600px;border-radius:16px;margin:auto;inset:auto}}
+.sheet-head{display:flex;align-items:flex-start;gap:12px;margin-bottom:16px;padding-bottom:16px;border-bottom:1px solid var(--line)}
+.note{background:var(--info-soft);border:1px solid var(--info-soft);color:var(--info);padding:12px;border-radius:12px;font-size:12.5px;margin-bottom:16px}
+.note.warn{background:var(--warn-soft);color:var(--warn);border-color:var(--warn-soft)}
+.note.bad{background:var(--bad-soft);color:var(--bad);border-color:var(--bad-soft)}
+.empty{display:flex;flex-direction:column;align-items:center;justify-content:center;padding:60px 20px;text-align:center}
+.ei{font-size:48px;margin-bottom:12px;opacity:.5}
+.et{color:var(--tx-2);font-weight:600}
+.toast-container{position:fixed;bottom:env(safe-area-inset-bottom,0);inset-inline-end:0;z-index:99;display:flex;flex-direction:column;gap:8px;padding:16px;pointer-events:none}
+.toast{display:flex;align-items:center;gap:12px;padding:12px 16px;border-radius:12px;font-weight:600;font-size:13.5px;animation:toastIn .3s ease forwards;pointer-events:auto;box-shadow:0 8px 16px rgba(0,0,0,.5);border:1px solid rgba(255,255,255,.1)}
+.toast.ok{background:var(--g);color:#04121B}
+.toast.bad{background:var(--bad);color:#fff}
+.toast.warn{background:var(--warn);color:#000}
+.toast.info{background:var(--info);color:#fff}
+@keyframes toastIn{from{opacity:0;transform:translateX(100%)}}
+.sw{width:44px;height:28px;border-radius:14px;background:var(--s3);border:1.5px solid var(--line);cursor:pointer;position:relative;transition:all .2s}
+.sw.on{background:var(--g);border-color:var(--g)}
+.sw::after{content:'';position:absolute;width:24px;height:24px;border-radius:12px;background:#fff;top:1px;inset-inline-start:1px;transition:all .2s}
+.sw.on::after{inset-inline-start:19px}
+.sw-row{display:flex;justify-content:space-between;align-items:center;padding:12px 0;border-bottom:1px solid var(--line)}
+.sw-row:last-child{border-bottom:none}
+.sw-lbl{font-weight:700;font-size:13.5px}
+.sw-desc{font-size:12px;color:var(--tx-3)}
+@media(max-width:1023px){.dock{position:fixed;bottom:0;left:0;right:0;height:var(--dock-h);display:flex;align-items:center;gap:8px;padding:0 8px;background:linear-gradient(180deg,rgba(2,6,23,.7),rgba(2,6,23,.95));backdrop-filter:blur(20px);border-top:1px solid var(--line);overflow-x:auto;z-index:30;padding-bottom:env(safe-area-inset-bottom,0)}}
+.dock button{flex:1;min-width:60px;padding:8px 12px;font-size:11.5px;white-space:nowrap}
+</style>
+</head>
+<body>
+<div class="shell">
+  <div class="main">
+    <div class="bar">
+      <div class="bar-title" id="barTitle">الرئيسية</div>
+      <div class="bar-actions">
+        <button class="iconbtn" id="logoutBtn" aria-label="تسجيل الخروج">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path><polyline points="16 17 21 12 16 7"></polyline><line x1="21" y1="12" x2="9" y2="12"></line></svg>
+        </button>
+      </div>
+    </div>
+    <div class="wrap" id="content"></div>
+  </div>
+  <div class="rail" id="rail"></div>
+</div>
+
+<div class="sheet-overlay" id="sheetOverlay"></div>
+<div class="sheet" id="sheet">
+  <div class="sheet-content" id="sheetContent"></div>
+</div>
+
+<div class="toast-container" id="toastContainer"></div>
+
+<script type="module">
+import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js';
+import { getAuth, onAuthStateChanged, signOut } from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js';
+import { getFirestore, doc, getDoc, collection, query, where, limit, getDocs, orderBy, startAfter } from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js';
+
+const firebaseConfig = {
+  apiKey: "AIzaSyC-GntWur6r_Ow_v0wTNymQqQa6brzgvW8",
+  authDomain: "kardo-1c657.firebaseapp.com",
+  projectId: "kardo-1c657",
+  storageBucket: "kardo-1c657.firebasestorage.app",
+  messagingSenderId: "593934928630",
+  appId: "1:593934928630:web:d36ea455a284e974043ad7"
+};
+
+const app = initializeApp(firebaseConfig);
+const auth = getAuth(app);
+const db = getFirestore(app);
+
+const WORKER_BASE = 'https://kardo.sdkhyrallh08.workers.dev';
+
+let S = {
+  user: null,
+  page: 'home',
+  filter: 'all',
+  setTab: 'ops',
+  orders: [],
+  users: [],
+  deposits: [],
+  tickets: [],
+  vipPlans: [],
+  vipSubs: [],
+  ads: [],
+  settings: {}
+};
+
+/* ═══ SVG Icons ═══ */
+const I = {
+  home: '<path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"></path><polyline points="9 22 9 12 15 12 15 22"></polyline>',
+  package: '<line x1="16.5" y1="9.4" x2="7.5" y2="4.21"></line><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"></path><polyline points="3.27 6.96 12 12.01 20.73 6.96"></polyline><line x1="12" y1="22.08" x2="12" y2="12"></line>',
+  users: '<path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path><circle cx="9" cy="7" r="4"></circle><path d="M23 21v-2a4 4 0 0 0-3-3.87"></path><path d="M16 3.13a4 4 0 0 1 0 7.75"></path>',
+  cash: '<rect x="1" y="4" width="22" height="16" rx="2" ry="2"></rect><line x1="1" y1="10" x2="23" y2="10"></line>',
+  ticket: '<circle cx="9" cy="21" r="1"></circle><circle cx="20" cy="21" r="1"></circle><path d="M1 1h22v10H1z"></path><polyline points="3 15 23 15"></polyline>',
+  star: '<polygon points="12 2 15.09 10.26 23.77 10.36 17.13 16.54 19.22 25.63 12 20.45 4.78 25.63 6.87 16.54 0.23 10.36 8.91 10.26 12 2"></polygon>',
+  megaphone: '<path d="M23 7l-7 5v6l-5 3H1v-8h10V8l7-5h2z"></path><line x1="17" y1="15" x2="17" y2="19"></line><line x1="19" y1="13" x2="19" y2="21"></line>',
+  settings: '<circle cx="12" cy="12" r="3"></circle><path d="M12 1v6m0 6v6M4.22 4.22l4.24 4.24m0 5.08l-4.24 4.24M1 12h6m6 0h6m-1.78-7.78l-4.24 4.24m0 5.08l4.24 4.24"></path>'
+};
+
+function mark(size = 1) {
+  return `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:${19*size}px;height:${19*size}px"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2z"></path><path d="M10 17l-4-4 1.41-1.41L10 14.17l6.59-6.59L18 9l-8 8z" fill="currentColor"></path></svg>`;
+}
+
+function svg(path, scale = 1) {
+  return `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:${19*scale}px;height:${19*scale}px"><${path}></svg>`;
+}
+
+function esc(s) {
+  if(!s) return '';
+  const div = document.createElement('div');
+  div.textContent = String(s);
+  return div.innerHTML;
+}
+
+function n(v) {
+  const num = parseFloat(v);
+  return isNaN(num) ? 0 : num;
+}
+
+function usd(v) {
+  return '$' + n(v).toFixed(2);
+}
+
+function lyd(v) {
+  return n(v).toLocaleString('ar-LY') + ' د.ل';
+}
+
+function dt(ts) {
+  if(!ts) return '—';
+  const d = new Date(ts.seconds ? ts.seconds * 1000 : ts);
+  return d.toLocaleDateString('ar-LY', { year: 'numeric', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
+}
+
+function shortDate(ts) {
+  if(!ts) return '—';
+  const d = new Date(ts.seconds ? ts.seconds * 1000 : ts);
+  return d.toLocaleDateString('ar-LY', { month: 'short', day: 'numeric' });
+}
+
+function $(sel) {
+  return document.querySelector(sel);
+}
+
+function $$(sel) {
+  return Array.from(document.querySelectorAll(sel));
+}
+
+function toast(msg, kind = 'info') {
+  const c = $('#toastContainer');
+  const t = document.createElement('div');
+  t.className = `toast ${kind}`;
+  t.textContent = msg;
+  c.appendChild(t);
+  setTimeout(() => t.remove(), 4000);
+}
+
+function sheet(html) {
+  const overlay = $('#sheetOverlay');
+  const sheet = $('#sheet');
+  const content = $('#sheetContent');
+  content.innerHTML = html;
+  overlay.classList.add('show');
+  sheet.classList.add('show');
+  setTimeout(() => {
+    const first = content.querySelector('input, button');
+    if(first) first.focus();
+  }, 100);
+}
+
+window.closeSheet = function() {
+  const overlay = $('#sheetOverlay');
+  const sheet = $('#sheet');
+  overlay.classList.remove('show');
+  sheet.classList.remove('show');
+};
+
+$('#sheetOverlay').onclick = closeSheet;
+$('#sheet').onclick = (e) => { if(e.target === $('#sheet')) closeSheet(); };
+
+/* ═══ Worker API ═══ */
+async function api(path, body) {
+  if(!S.user) throw new Error('غير مسجل');
+  const token = await S.user.getIdToken();
+  const res = await fetch(`${WORKER_BASE}${path}`, {
+    method: 'POST',
+    headers: {
+      'content-type': 'application/json',
+      'authorization': `Bearer ${token}`
+    },
+    body: JSON.stringify(body)
+  });
+  if(res.status === 401) {
+    const retryToken = await S.user.getIdToken(true);
+    return api(path, body);
+  }
+  const data = await res.json();
+  if(!data.success) throw new Error(data.error || 'خطأ');
+  return data.data;
+}
+
+/* ═══ Firestore Read Operations ═══ */
+async function getUser(uid) {
+  const snap = await getDoc(doc(db, 'users', uid));
+  return snap.exists() ? snap.data() : null;
+}
+
+async function getUsers(lim = 50) {
+  const q = query(collection(db, 'users'), orderBy('created_at', 'desc'), limit(lim));
+  const snap = await getDocs(q);
+  return snap.docs.map(d => ({ id: d.id, ...d.data() }));
+}
+
+async function getCardOrders(filt = 'all', lim = 50) {
+  let q;
+  if(filt === 'all') {
+    q = query(collection(db, 'manual_card_orders'), orderBy('created_at', 'desc'), limit(lim));
+  } else {
+    q = query(collection(db, 'manual_card_orders'), where('status', '==', filt), orderBy('created_at', 'desc'), limit(lim));
+  }
+  const snap = await getDocs(q);
+  return snap.docs.map(d => ({ id: d.id, ...d.data() }));
+}
+
+async function getDeposits(filt = 'all', lim = 50) {
+  let q;
+  if(filt === 'all') {
+    q = query(collection(db, 'wallet_deposits'), orderBy('created_at', 'desc'), limit(lim));
+  } else {
+    q = query(collection(db, 'wallet_deposits'), where('status', '==', filt), orderBy('created_at', 'desc'), limit(lim));
+  }
+  const snap = await getDocs(q);
+  return snap.docs.map(d => ({ id: d.id, ...d.data() }));
+}
+
+async function getTickets(filt = 'all', lim = 50) {
+  let q;
+  if(filt === 'all') {
+    q = query(collection(db, 'tickets'), orderBy('updated_at', 'desc'), limit(lim));
+  } else {
+    q = query(collection(db, 'tickets'), where('status', '==', filt), orderBy('updated_at', 'desc'), limit(lim));
+  }
+  const snap = await getDocs(q);
+  return snap.docs.map(d => ({ id: d.id, ...d.data() }));
+}
+
+async function getVipPlans() {
+  const q = query(collection(db, 'vip_plans'), where('active', '==', true), orderBy('order', 'asc'));
+  const snap = await getDocs(q);
+  return snap.docs.map(d => ({ id: d.id, ...d.data() }));
+}
+
+async function getVipSubs(lim = 100) {
+  const q = query(collection(db, 'subscriptions'), orderBy('created_at', 'desc'), limit(lim));
+  const snap = await getDocs(q);
+  return snap.docs.map(d => ({ id: d.id, ...d.data() }));
+}
+
+async function getAds() {
+  const q = query(collection(db, 'ads'), orderBy('order', 'asc'));
+  const snap = await getDocs(q);
+  return snap.docs.map(d => ({ id: d.id, ...d.data() }));
+}
+
+async function getSettings() {
+  const snap = await getDoc(doc(db, 'settings', 'main'));
+  return snap.exists() ? snap.data() : {};
+}
+
+function getSet(key, def) {
+  return S.settings[key] !== undefined ? S.settings[key] : def;
+}
+
+/* ═══ Worker Actions ═══ */
+async function adminWalletAdjust(uid, delta, reason) {
+  await api('/api/admin/wallet-adjust', { uid, delta, reason });
+}
+
+async function adminUserBan(uid) {
+  await api('/api/admin/users/ban', { uid });
+}
+
+async function adminDepositApprove(depId) {
+  await api('/api/admin/deposits/act', { id: depId, action: 'approve' });
+}
+
+async function adminDepositReject(depId) {
+  await api('/api/admin/deposits/act', { id: depId, action: 'reject' });
+}
+
+async function adminCardFulfil(orderId, cardData) {
+  await api('/api/admin/mcard/fulfil', { order_id: orderId, card_data: cardData });
+}
+
+async function adminCardReject(orderId, reason) {
+  await api('/api/admin/mcard/reject', { order_id: orderId, reason });
+}
+
+async function adminTicketReply(id, message) {
+  await api('/api/admin/tickets/reply', { id, message });
+}
+
+async function adminTicketClose(id) {
+  await api('/api/admin/tickets/close', { id });
+}
+
+async function adminSettingsSave(payload) {
+  await api('/api/admin/settings', payload);
+}
+
+/* ═══ Navigation ═══ */
+function buildNav() {
+  const nav = $('#rail');
+  const user = S.user;
+  nav.innerHTML = `
+    <div class="brand">
+      <div class="en">KARDO</div>
+      <div class="ar">كاردو</div>
+    </div>
+    <div class="nav-group">الأساسي</div>
+    <button class="nav ${S.page === 'home' ? 'on' : ''}" data-page="home">${svg(I.home)} الرئيسية</button>
+    <button class="nav ${S.page === 'orders' ? 'on' : ''}" data-page="orders">${svg(I.package)} الطلبات <span class="cnt">${S.orders.filter(o => o.status === 'pending').length}</span></button>
+    <button class="nav ${S.page === 'users' ? 'on' : ''}" data-page="users">${svg(I.users)} المستخدمون</button>
+    <button class="nav ${S.page === 'deposits' ? 'on' : ''}" data-page="deposits">${svg(I.cash)} الإيداعات <span class="cnt">${S.deposits.filter(d => d.status === 'pending').length}</span></button>
+    <button class="nav ${S.page === 'tickets' ? 'on' : ''}" data-page="tickets">${svg(I.ticket)} التذاكر <span class="cnt">${S.tickets.filter(t => t.status === 'open').length}</span></button>
+    <div class="nav-group">إضافي</div>
+    <button class="nav ${S.page === 'vip' ? 'on' : ''}" data-page="vip">${svg(I.star)} الباقات</button>
+    <button class="nav ${S.page === 'ads' ? 'on' : ''}" data-page="ads">${svg(I.megaphone)} الإعلانات</button>
+    <button class="nav ${S.page === 'settings' ? 'on' : ''}" data-page="settings">${svg(I.settings)} الإعدادات</button>
+    <div class="rail-foot">
+      <div class="rail-user">
+        <div class="rail-av">${esc(user.email.charAt(0).toUpperCase())}</div>
+        <div>
+          <div class="rail-name">${esc(user.email)}</div>
+          <div class="rail-role">مدير</div>
+        </div>
+      </div>
+    </div>
+  `;
+  $$('.nav[data-page]').forEach(b => {
+    b.onclick = () => { S.page = b.dataset.page; S.filter = 'all'; render(); };
+  });
+}
+
+window.go = function(page) {
+  S.page = page;
+  render();
+};
+
+/* ═══ Pages ═══ */
+function vHome() {
+  const pending = S.orders.filter(o => o.status === 'pending').length;
+  const deps = S.deposits.filter(d => d.status === 'pending').length;
+  const tics = S.tickets.filter(t => t.status === 'open').length;
+  return `
+    <div class="h1" style="margin-bottom:8px">مرحباً 👋</div>
+    <p class="sub" style="margin-bottom:28px">لوحة تحكم KARDO — إدارة البطاقات والمحافظ</p>
+    <div class="kpis">
+      <div class="kpi"><div class="kpi-i" style="background:var(--g-soft);color:var(--g)">${svg(I.package)}</div><div class="kpi-v">${pending}</div><div class="kpi-k">طلبات معلقة</div></div>
+      <div class="kpi"><div class="kpi-i" style="background:var(--warn-soft);color:var(--warn)">${svg(I.cash)}</div><div class="kpi-v">${deps}</div><div class="kpi-k">إيداعات معلقة</div></div>
+      <div class="kpi"><div class="kpi-i" style="background:var(--info-soft);color:var(--info)">${svg(I.ticket)}</div><div class="kpi-v">${tics}</div><div class="kpi-k">تذاكر مفتوحة</div></div>
+      <div class="kpi"><div class="kpi-i" style="background:var(--g-soft);color:var(--g)">${svg(I.users)}</div><div class="kpi-v">${S.users.length}</div><div class="kpi-k">مستخدمون</div></div>
+    </div>
+  `;
+}
+
+function vOrders() {
+  const F = [['pending', 'معلقة'], ['fulfilled', 'مكتملة'], ['rejected', 'مرفوضة'], ['all', 'الكل']];
+  let rows = S.orders;
+  if(S.filter !== 'all') rows = rows.filter(o => o.status === S.filter);
+  return `
+    <div class="flex-b" style="margin-bottom:18px">
+      <div><div class="h1">طلبات البطاقات</div><p class="sub">${rows.length} من ${S.orders.length}</p></div>
+    </div>
+    <div class="tabs">
+      ${F.map(([k, t]) => {
+        const c = k === 'all' ? S.orders.length : S.orders.filter(o => o.status === k).length;
+        return `<button class="tab ${S.filter === k ? 'on' : ''}" data-filter="${k}">${t} (${c})</button>`;
+      }).join('')}
+    </div>
+    ${rows.length ? `<div class="scrollx"><table class="tbl">
+      <thead><tr><th>العميل</th><th>المبلغ</th><th>البطاقة</th><th>الحالة</th><th>التاريخ</th><th></th></tr></thead>
+      <tbody>${rows.slice(0, 50).map(o => {
+        const u = S.users.find(x => x.id === o.uid);
+        const st = { fulfilled: ['ok', 'مكتملة'], pending: ['wait', 'معلقة'], rejected: ['bad', 'مرفوضة'] }[o.status] || ['off', '—'];
+        const pend = o.status === 'pending';
+        return `<tr>
+          <td>${esc(u ? (u.name || u.email) : '—')}</td>
+          <td class="num">${usd(o.amount)}</td>
+          <td>${esc(o.card_label || '—')}</td>
+          <td><span class="chip ${st[0]}">${st[1]}</span></td>
+          <td class="sub" style="font-size:11.5px">${dt(o.created_at)}</td>
+          <td>${pend ? `<button class="btn sm" data-ord="${esc(o.id)}">معالجة</button>` : ''}</td>
+        </tr>`;
+      }).join('')}</tbody></table></div>` : `<div class="box"><div class="empty"><div class="ei">${svg(I.package, 1.6)}</div><div class="et">لا طلبات</div></div></div>`}
+  `;
+}
+
+function vUsers() {
+  return `
+    <div class="flex-b" style="margin-bottom:18px">
+      <div><div class="h1">المستخدمون</div><p class="sub">${S.users.length} مستخدم</p></div>
+    </div>
+    ${S.users.length ? `<div class="scrollx"><table class="tbl">
+      <thead><tr><th>الاسم</th><th>البريد</th><th>الهاتف</th><th>الرصيد</th><th>VIP</th><th>التاريخ</th><th></th></tr></thead>
+      <tbody>${S.users.slice(0, 50).map(u => {
+        const vip = u.vip_status ? `<span class="chip ok">${esc(u.vip_plan_id)}</span>` : '<span class="chip off">—</span>';
+        return `<tr>
+          <td>${esc(u.name || '—')}</td>
+          <td class="mono" style="font-size:11.5px;direction:ltr">${esc(u.email)}</td>
+          <td class="mono" dir="ltr">${esc(u.phone || '—')}</td>
+          <td class="num">${usd(u.wallet_balance || 0)}</td>
+          <td>${vip}</td>
+          <td class="sub" style="font-size:11.5px">${shortDate(u.created_at)}</td>
+          <td><button class="btn sm" data-usr="${esc(u.id)}">تفاصيل</button></td>
+        </tr>`;
+      }).join('')}</tbody></table></div>` : `<div class="box"><div class="empty"><div class="ei">${svg(I.users, 1.6)}</div><div class="et">لا مستخدمون</div></div></div>`}
+  `;
+}
+
+function vDeposits() {
+  const F = [['pending', 'معلقة'], ['approved', 'مقبولة'], ['rejected', 'مرفوضة'], ['all', 'الكل']];
+  let rows = S.deposits;
+  if(S.filter !== 'all') rows = rows.filter(d => d.status === S.filter);
+  return `
+    <div class="flex-b" style="margin-bottom:18px">
+      <div><div class="h1">الإيداعات</div><p class="sub">${rows.length} من ${S.deposits.length}</p></div>
+    </div>
+    <div class="tabs">
+      ${F.map(([k, t]) => {
+        const c = k === 'all' ? S.deposits.length : S.deposits.filter(d => d.status === k).length;
+        return `<button class="tab ${S.filter === k ? 'on' : ''}" data-filter="${k}">${t} (${c})</button>`;
+      }).join('')}
+    </div>
+    ${rows.length ? `<div class="scrollx"><table class="tbl">
+      <thead><tr><th>العميل</th><th>المبلغ</th><th>بالدينار</th><th>الطريقة</th><th>الهاتف</th><th>الحالة</th><th>التاريخ</th><th></th></tr></thead>
+      <tbody>${rows.slice(0, 50).map(d => {
+        const u = S.users.find(x => x.id === d.uid);
+        const st = { approved: ['ok', 'مقبول'], pending: ['wait', 'معلّق'], rejected: ['bad', 'مرفوض'] }[d.status] || ['off', '—'];
+        const pend = d.status === 'pending';
+        return `<tr>
+          <td>${esc(u ? (u.name || u.email) : '—')}</td>
+          <td class="num" style="font-weight:800">${usd(d.amount_usd)}</td>
+          <td class="num">${lyd(d.amount_lyd)}</td>
+          <td>${esc(d.method || '—')}</td>
+          <td class="mono" dir="ltr" style="font-size:11.5px">${esc(d.claim_phone || '—')}</td>
+          <td><span class="chip ${st[0]}">${st[1]}</span></td>
+          <td class="sub" style="font-size:11.5px">${dt(d.created_at)}</td>
+          <td>${pend ? `<button class="btn sm" data-dep="${esc(d.id)}">مراجعة</button>` : ''}</td>
+        </tr>`;
+      }).join('')}</tbody></table></div>` : `<div class="box"><div class="empty"><div class="ei">${svg(I.cash, 1.6)}</div><div class="et">لا إيداعات</div></div></div>`}
+  `;
+}
+
+function vTickets() {
+  const F = [['open', 'مفتوحة'], ['answered', 'تم الرد'], ['closed', 'مغلقة'], ['all', 'الكل']];
+  let rows = S.tickets;
+  if(S.filter !== 'all') rows = rows.filter(t => t.status === S.filter);
+  const ST = { open: ['wait', 'مفتوحة'], answered: ['ok', 'تم الرد'], closed: ['off', 'مغلقة'] };
+  return `
+    <div class="flex-b" style="margin-bottom:18px">
+      <div><div class="h1">التذاكر</div><p class="sub">${rows.length} من ${S.tickets.length}</p></div>
+    </div>
+    <div class="tabs">
+      ${F.map(([k, t]) => {
+        const c = k === 'all' ? S.tickets.length : S.tickets.filter(x => x.status === k).length;
+        return `<button class="tab ${S.filter === k ? 'on' : ''}" data-filter="${k}">${t} (${c})</button>`;
+      }).join('')}
+    </div>
+    ${rows.length ? `<div style="display:flex;flex-direction:column;gap:10px">
+      ${rows.slice(0, 50).map(t => {
+        const st = ST[t.status] || ['off', '—'];
+        const u = S.users.find(x => x.id === t.uid);
+        const last = (t.messages || []).slice(-1)[0];
+        return `<button class="box" style="text-align:start;cursor:pointer;display:block;width:100%;padding:16px;border:none;font-family:inherit" data-tic="${esc(t.id)}">
+          <div class="flex-b" style="margin-bottom:8px"><span style="font-weight:700;font-size:14px">${esc(t.subject)}</span><span class="chip ${st[0]}">${st[1]}</span></div>
+          <div class="sub" style="font-size:12px">${esc(u ? (u.name || u.email) : '—')} · ${dt(t.updated_at)}</div>
+          ${last ? `<div class="sub" style="font-size:12.5px;margin-top:6px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(String(last.text).slice(0, 120))}</div>` : ''}
+        </button>`;
+      }).join('')}
+    </div>` : `<div class="box"><div class="empty"><div class="ei">${svg(I.ticket, 1.6)}</div><div class="et">لا تذاكر</div></div></div>`}
+  `;
+}
+
+function vVip() {
+  return `
+    <div class="h1" style="margin-bottom:26px">إدارة الباقات</div>
+    <div style="display:grid;gap:14px">
+      ${S.vipPlans.map(p => `
+        <div class="box">
+          <div class="flex-b" style="margin-bottom:12px"><span class="h3">${esc(p.name_en)}</span><span class="chip ok">${usd(p.price_usd)}</span></div>
+          <div class="sub">${esc(p.name)} · ${p.duration_days} يوم</div>
+          <div class="sub" style="margin-top:8px">بطاقات: ${p.cards_count}</div>
+        </div>
+      `).join('')}
+    </div>
+  `;
+}
+
+function vAds() {
+  return `
+    <div class="h1" style="margin-bottom:26px">الإعلانات</div>
+    <div style="display:grid;gap:14px">
+      ${S.ads.map(a => `
+        <div class="box">
+          <div class="flex-b" style="margin-bottom:12px"><span class="h3">${esc(a.title)}</span><span class="chip ${a.active ? 'ok' : 'off'}">${a.active ? 'مفعل' : 'معطل'}</span></div>
+          <div class="sub">${esc(a.subtitle)}</div>
+        </div>
+      `).join('')}
+    </div>
+  `;
+}
+
+function vSettings() {
+  const tabs = [['ops', 'الدفع'], ['mcard', 'البطاقات'], ['limits', 'الحدود'], ['look', 'المظهر']];
+  let content = '';
+  if(S.setTab === 'ops') content = settingsPay();
+  else if(S.setTab === 'mcard') content = settingsMcard();
+  else if(S.setTab === 'limits') content = settingsLimits();
+  else if(S.setTab === 'look') content = settingsLook();
+  return `
+    <div class="h1" style="margin-bottom:18px">الإعدادات</div>
+    <div class="tabs">
+      ${tabs.map(([k, t]) => `<button class="tab ${S.setTab === k ? 'on' : ''}" data-settab="${k}">${t}</button>`).join('')}
+    </div>
+    ${content}
+  `;
+}
+
+function settingsMcard() {
+  return `
+    <div class="box">
+      <div class="h2" style="margin-bottom:16px">حدود البطاقات</div>
+      <div class="field"><div><div class="n">الحد الأدنى</div><div class="d">بالدولار</div></div><input class="inp num" type="number" min="0" data-op="mcard_min" value="${n(getSet('mcard_min', 10))}"></div>
+      <div class="field"><div><div class="n">الحد الأقصى</div><div class="d">بالدولار</div></div><input class="inp num" type="number" min="0" data-op="mcard_max" value="${n(getSet('mcard_max', 500))}"></div>
+    </div>
+    <div class="box">
+      <div class="h2" style="margin-bottom:16px">الرسوم</div>
+      <div class="field"><div><div class="n">رسم ثابت على الإنشاء</div><div class="d">بالدولار</div></div><input class="inp num" type="number" step="0.1" data-op="mcard_create_fee_fixed" value="${n(getSet('mcard_create_fee_fixed', 0))}"></div>
+      <div class="field"><div><div class="n">رسم نسبة على الإنشاء</div><div class="d">%</div></div><input class="inp num" type="number" step="0.1" data-op="mcard_create_fee_pct" value="${n(getSet('mcard_create_fee_pct', 2))}"></div>
+    </div>
+    <button class="btn wide" data-save="ops" style="margin-top:16px">حفظ إعدادات البطاقات</button>
+  `;
+}
+
+function settingsPay() {
+  return `
+    <div class="box">
+      <div class="h2" style="margin-bottom:16px">طرق الدفع</div>
+      <div class="sw-row"><div><div class="sw-lbl">ليبيانا</div><div class="sw-desc">تحويل عبر رسائل SMS</div></div><div class="sw ${getSet('m_libyana_on', true) !== false ? 'on' : ''}" data-op="m_libyana_on"></div></div>
+      <div class="sw-row"><div><div class="sw-lbl">المدار</div><div class="sw-desc">تحويل عبر رسائل SMS</div></div><div class="sw ${getSet('m_almadar_on', true) !== false ? 'on' : ''}" data-op="m_almadar_on"></div></div>
+      <div class="sw-row"><div><div class="sw-lbl">USDT</div><div class="sw-desc">شبكة TRC20</div></div><div class="sw ${getSet('m_usdt_on', false) === true ? 'on' : ''}" data-op="m_usdt_on"></div></div>
+    </div>
+    <div class="box">
+      <div class="h2" style="margin-bottom:16px">أرقام التحويل</div>
+      <label class="lbl">رقم ليبيانا</label>
+      <input class="inp mono" dir="ltr" data-op="m_libyana_phone" value="${esc(getSet('m_libyana_phone', ''))}" placeholder="0912345678" style="margin-bottom:14px">
+      <label class="lbl">رقم المدار</label>
+      <input class="inp mono" dir="ltr" data-op="m_almadar_phone" value="${esc(getSet('m_almadar_phone', ''))}" placeholder="0912345678" style="margin-bottom:14px">
+      <label class="lbl">عنوان USDT (TRC20)</label>
+      <input class="inp mono" dir="ltr" data-op="usdt_address" value="${esc(getSet('usdt_address', ''))}" placeholder="T...">
+    </div>
+    <div class="box">
+      <div class="h2" style="margin-bottom:16px">أسعار الصرف</div>
+      <div class="field"><div><div class="n">ليبيانا</div><div class="d">دينار لكل دولار</div></div><input class="inp num" type="number" step="0.1" data-op="rate_libyana" value="${n(getSet('rate_libyana', 11.8))}"></div>
+      <div class="field"><div><div class="n">المدار</div><div class="d">دينار لكل دولار</div></div><input class="inp num" type="number" step="0.1" data-op="rate_almadar" value="${n(getSet('rate_almadar', 12.5))}"></div>
+      <div class="field"><div><div class="n">USDT</div><div class="d">دينار لكل دولار</div></div><input class="inp num" type="number" step="0.1" data-op="rate_usdt" value="${n(getSet('rate_usdt', 1))}"></div>
+    </div>
+    <button class="btn wide" data-save="ops" style="margin-top:16px">حفظ إعدادات الدفع</button>
+  `;
+}
+
+function settingsLimits() {
+  return `
+    <div class="box">
+      <div class="h2" style="margin-bottom:16px">الحدود اليومية</div>
+      <p class="sub" style="margin-bottom:16px">تحمي المنصة من الاستنزاف. صفر = بلا حد.</p>
+      <div class="field"><div><div class="n">أقصى عدد طلبات</div><div class="d">لكل عميل يوميًا</div></div><input class="inp num" type="number" min="0" data-op="daily_cards_max" value="${n(getSet('daily_cards_max', 3))}"></div>
+      <div class="field"><div><div class="n">أقصى مبلغ يوميًا</div><div class="d">بالدولار لكل عميل</div></div><input class="inp num" type="number" min="0" data-op="daily_amount_max" value="${n(getSet('daily_amount_max', 200))}"></div>
+      <div class="field"><div><div class="n">أقصى إيداع يوميًا</div><div class="d">بالدولار لكل عميل</div></div><input class="inp num" type="number" min="0" data-op="daily_deposit_max" value="${n(getSet('daily_deposit_max', 500))}"></div>
+    </div>
+    <div class="box">
+      <div class="h2" style="margin-bottom:16px">نظام الدعوات</div>
+      <div class="sw-row"><div><div class="sw-lbl">مفعّل</div></div><div class="sw ${getSet('referral_enabled', false) === true ? 'on' : ''}" data-op="referral_enabled"></div></div>
+      <div class="field"><div><div class="n">مكافأة الداعي</div><div class="d">بالدولار</div></div><input class="inp num" type="number" step="0.5" data-op="referral_bonus_inviter" value="${n(getSet('referral_bonus_inviter', 1))}"></div>
+      <div class="field"><div><div class="n">مكافأة المدعوّ</div><div class="d">بالدولار</div></div><input class="inp num" type="number" step="0.5" data-op="referral_bonus_invitee" value="${n(getSet('referral_bonus_invitee', 1))}"></div>
+    </div>
+    <div class="box">
+      <div class="h2" style="margin-bottom:16px">حدود البطاقات لكل فئة</div>
+      <p class="sub" style="margin-bottom:16px">أقصى عدد بطاقات نشطة. 999 = غير محدود.</p>
+      <div class="field"><div><div class="n">المستخدم العادي</div><div class="d">بدون اشتراك</div></div><input class="inp num" type="number" min="0" data-op="cards_limit_free" value="${n(getSet('cards_limit_free', 1))}"></div>
+      <div class="field"><div><div class="n">VIP Basic</div><div class="d">الباقة الأساسية</div></div><input class="inp num" type="number" min="0" data-op="cards_limit_basic" value="${n(getSet('cards_limit_basic', 3))}"></div>
+      <div class="field"><div><div class="n">VIP Pro</div><div class="d">الباقة الاحترافية</div></div><input class="inp num" type="number" min="0" data-op="cards_limit_pro" value="${n(getSet('cards_limit_pro', 10))}"></div>
+      <div class="field"><div><div class="n">VIP Business</div><div class="d">باقة الأعمال</div></div><input class="inp num" type="number" min="0" data-op="cards_limit_business" value="${n(getSet('cards_limit_business', 999))}"></div>
+    </div>
+    <button class="btn wide" data-save="ops" style="margin-top:16px">حفظ الحدود</button>
+  `;
+}
+
+function settingsLook() {
+  return `
+    <div class="box">
+      <div class="h2" style="margin-bottom:16px">نصوص الواجهة</div>
+      <label class="lbl">الشعار</label>
+      <input class="inp" data-op="brand_tagline" value="${esc(getSet('brand_tagline', 'بطاقتك الرقمية الأولى في ليبيا'))}" style="margin-bottom:14px">
+      <label class="lbl">عنوان الصفحة الرئيسية</label>
+      <input class="inp" data-op="hero_title" value="${esc(getSet('hero_title', ''))}" placeholder="بطاقتك الرقمية الأولى في ليبيا" style="margin-bottom:14px">
+      <label class="lbl">الوصف</label>
+      <input class="inp" data-op="hero_sub" value="${esc(getSet('hero_sub', ''))}" placeholder="بأمان، بساطة، وسرعة" style="margin-bottom:14px">
+      <label class="lbl">رابط الدعم (واتساب)</label>
+      <input class="inp mono" dir="ltr" data-op="support_url" value="${esc(getSet('support_url', ''))}" placeholder="https://wa.me/21891...">
+    </div>
+    <button class="btn wide" data-save="ops" style="margin-top:16px">حفظ المظهر</button>
+  `;
+}
+
+/* ═══ Page Binding ═══ */
+function bindOrders() {
+  $$('[data-ord]').forEach(b => { b.onclick = () => openFulfilSheet(b.dataset.ord); });
+}
+
+function bindUsers() {
+  $$('[data-usr]').forEach(b => { b.onclick = () => openUserSheet(b.dataset.usr); });
+}
+
+function bindDeposits() {
+  $$('[data-dep]').forEach(b => { b.onclick = () => openDepositSheet(b.dataset.dep); });
+}
+
+function bindTickets() {
+  $$('[data-tic]').forEach(b => { b.onclick = () => openTicketSheet(b.dataset.tic); });
+}
+
+function bindVip() {}
+function bindAds() {}
+
+function bindSettings() {
+  $$('[data-settab]').forEach(b => { b.onclick = () => { S.setTab = b.dataset.settab; render(); }; });
+  $$('[data-op]').forEach(el => {
+    if(el.type === 'color' || el.type === 'number' || el.type === 'text') return;
+    el.onclick = () => el.classList.toggle('on');
+  });
+  $$('[data-save="ops"]').forEach(b => { b.onclick = () => saveSettings(b); });
+}
+
+/* ═══ Tabs & Filters ═══ */
+function bindTabs() {
+  $$('.tab[data-filter]').forEach(t => {
+    t.onclick = () => { S.filter = t.dataset.filter; render(); };
+  });
+}
+
+/* ═══ Sheets ═══ */
+function openFulfilSheet(id) {
+  const o = S.orders.find(x => x.id === id);
+  if(!o) return;
+  const u = S.users.find(x => x.id === o.uid);
+  sheet(`
+    <div class="sheet-head"><div style="flex:1;min-width:0"><div class="h2">معالجة طلب</div><div class="sub">${esc(o.card_label)} · ${usd(o.amount)}</div></div></div>
+    <div class="box" style="background:var(--s2);margin-bottom:16px">
+      <div class="flex-b" style="padding:8px 0;border-bottom:1px solid var(--line)"><span class="sub">العميل</span><span>${esc(u ? (u.name || u.email) : '—')}</span></div>
+      <div class="flex-b" style="padding:8px 0;border-bottom:1px solid var(--line)"><span class="sub">البطاقة</span><span>${esc(o.card_label || '—')}</span></div>
+      <div class="flex-b" style="padding:8px 0"><span class="sub">الرسوم</span><span class="num">${usd(o.fee || 0)}</span></div>
+    </div>
+    <label class="lbl">رقم البطاقة (16 رقم)</label>
+    <input class="inp mono" dir="ltr" id="fCardNum" maxlength="19" placeholder="4111 1111 1111 1111" style="margin-bottom:14px">
+    <label class="lbl">صلاحية (MM/YY)</label>
+    <input class="inp mono" dir="ltr" id="fExpiry" maxlength="5" placeholder="12/25" style="margin-bottom:14px">
+    <label class="lbl">CVV</label>
+    <input class="inp mono" dir="ltr" id="fCvv" maxlength="4" placeholder="123" style="margin-bottom:14px">
+    <button class="btn wide" id="fOk">إكمال الطلب</button>
+    <button class="btn bad wide" style="margin-top:10px" id="fNo">رفض</button>
+    <button class="btn line wide" style="margin-top:10px" onclick="closeSheet()">إلغاء</button>
+  `);
+  $('#fOk').onclick = async () => {
+    const btn = $('#fOk');
+    btn.disabled = true;
+    btn.classList.add('loading');
+    try {
+      const cardNum = $('#fCardNum').value.replace(/\s/g, '');
+      const expiry = $('#fExpiry').value;
+      const cvv = $('#fCvv').value;
+      if(!cardNum || cardNum.length !== 16) throw new Error('رقم البطاقة غير صحيح');
+      if(!expiry || expiry.length !== 5) throw new Error('الصلاحية غير صحيحة');
+      if(!cvv || cvv.length < 3) throw new Error('CVV غير صحيح');
+      await adminCardFulfil(id, { card_number: cardNum, expiry, cvv });
+      toast('تم إكمال الطلب', 'ok');
+      closeSheet();
+      subscribeAll();
+    } catch(e) {
+      toast(e.message, 'bad');
+    } finally {
+      btn.disabled = false;
+      btn.classList.remove('loading');
+    }
+  };
+  $('#fNo').onclick = async () => {
+    const btn = $('#fNo');
+    btn.disabled = true;
+    btn.classList.add('loading');
+    try {
+      await adminCardReject(id, 'تم الرفض من قبل الأدمن');
+      toast('تم رفض الطلب', 'ok');
+      closeSheet();
+      subscribeAll();
+    } catch(e) {
+      toast(e.message, 'bad');
+      btn.disabled = false;
+      btn.classList.remove('loading');
+    }
+  };
+}
+
+function openUserSheet(uid) {
+  const u = S.users.find(x => x.id === uid);
+  if(!u) return;
+  sheet(`
+    <div class="sheet-head"><div style="flex:1;min-width:0"><div class="h2">تفاصيل المستخدم</div><div class="sub">${esc(u.email)}</div></div></div>
+    <div class="box" style="background:var(--s2);margin-bottom:16px">
+      <div class="flex-b" style="padding:8px 0;border-bottom:1px solid var(--line)"><span class="sub">الاسم</span><span>${esc(u.name || '—')}</span></div>
+      <div class="flex-b" style="padding:8px 0;border-bottom:1px solid var(--line)"><span class="sub">الهاتف</span><span>${esc(u.phone || '—')}</span></div>
+      <div class="flex-b" style="padding:8px 0;border-bottom:1px solid var(--line)"><span class="sub">الرصيد</span><span class="num">${usd(u.wallet_balance || 0)}</span></div>
+      <div class="flex-b" style="padding:8px 0"><span class="sub">الحالة</span><span>${u.banned ? '<span class="chip bad">محظور</span>' : '<span class="chip ok">نشط</span>'}</span></div>
+    </div>
+    <label class="lbl">تعديل الرصيد (بالدولار)</label>
+    <input class="inp num" type="number" id="uDelta" placeholder="-50 أو 100" style="margin-bottom:14px">
+    <textarea class="inp" id="uReason" placeholder="السبب (اختياري)" style="margin-bottom:14px;min-height:60px"></textarea>
+    <button class="btn wide" id="uAdj">تطبيق التعديل</button>
+    ${!u.banned ? '<button class="btn bad wide" style="margin-top:10px" id="uBan">حظر الحساب</button>' : ''}
+    <button class="btn line wide" style="margin-top:10px" onclick="closeSheet()">إغلاق</button>
+  `);
+  $('#uAdj').onclick = async () => {
+    const btn = $('#uAdj');
+    btn.disabled = true;
+    btn.classList.add('loading');
+    try {
+      const delta = n($('#uDelta').value);
+      const reason = $('#uReason').value.trim() || 'تعديل من الأدمن';
+      if(delta === 0) throw new Error('أدخل مبلغاً');
+      await adminWalletAdjust(uid, delta, reason);
+      toast('تم التعديل', 'ok');
+      closeSheet();
+      subscribeAll();
+    } catch(e) {
+      toast(e.message, 'bad');
+      btn.disabled = false;
+      btn.classList.remove('loading');
+    }
+  };
+  const banBtn = $('#uBan');
+  if(banBtn) {
+    banBtn.onclick = async () => {
+      const btn = banBtn;
+      btn.disabled = true;
+      btn.classList.add('loading');
+      try {
+        await adminUserBan(uid);
+        toast('تم حظر الحساب', 'ok');
+        closeSheet();
+        subscribeAll();
+      } catch(e) {
+        toast(e.message, 'bad');
+        btn.disabled = false;
+        btn.classList.remove('loading');
+      }
+    };
+  }
+}
+
+function openDepositSheet(id) {
+  const d = S.deposits.find(x => x.id === id);
+  if(!d) return;
+  const u = S.users.find(x => x.id === d.uid);
+  sheet(`
+    <div class="sheet-head"><div style="flex:1;min-width:0"><div class="h2">مراجعة إيداع</div><div class="sub">${dt(d.created_at)}</div></div></div>
+    <div class="box" style="background:var(--s2);margin-bottom:16px">
+      <div class="flex-b" style="padding:8px 0;border-bottom:1px solid var(--line)"><span class="sub">العميل</span><span>${esc(u ? (u.name || u.email) : '—')}</span></div>
+      <div class="flex-b" style="padding:8px 0;border-bottom:1px solid var(--line)"><span class="sub">المبلغ</span><span class="num">${usd(d.amount_usd)}</span></div>
+      <div class="flex-b" style="padding:8px 0;border-bottom:1px solid var(--line)"><span class="sub">بالدينار</span><span class="num">${lyd(d.amount_lyd)}</span></div>
+      <div class="flex-b" style="padding:8px 0;border-bottom:1px solid var(--line)"><span class="sub">الطريقة</span><span>${esc(d.method || '—')}</span></div>
+      <div class="flex-b" style="padding:8px 0"><span class="sub">الهاتف</span><span class="mono" dir="ltr">${esc(d.claim_phone || '—')}</span></div>
+    </div>
+    <div class="note">تأكد من وصول التحويل فعليًا قبل الموافقة.</div>
+    <button class="btn wide" id="dOk">قبول وإضافة الرصيد</button>
+    <button class="btn bad wide" style="margin-top:10px" id="dNo">رفض</button>
+    <button class="btn line wide" style="margin-top:10px" onclick="closeSheet()">إغلاق</button>
+  `);
+  $('#dOk').onclick = async () => {
+    const btn = $('#dOk');
+    btn.disabled = true;
+    btn.classList.add('loading');
+    try {
+      await adminDepositApprove(id);
+      toast('تم القبول وإضافة الرصيد', 'ok');
+      closeSheet();
+      subscribeAll();
+    } catch(e) {
+      toast(e.message, 'bad');
+      btn.disabled = false;
+      btn.classList.remove('loading');
+    }
+  };
+  $('#dNo').onclick = async () => {
+    const btn = $('#dNo');
+    btn.disabled = true;
+    btn.classList.add('loading');
+    try {
+      await adminDepositReject(id);
+      toast('تم رفض الإيداع', 'ok');
+      closeSheet();
+      subscribeAll();
+    } catch(e) {
+      toast(e.message, 'bad');
+      btn.disabled = false;
+      btn.classList.remove('loading');
+    }
+  };
+}
+
+function openTicketSheet(id) {
+  const t = S.tickets.find(x => x.id === id);
+  if(!t) return;
+  const u = S.users.find(x => x.id === t.uid);
+  sheet(`
+    <div class="sheet-head"><div style="flex:1;min-width:0"><div class="h2">${esc(t.subject)}</div><div class="sub">${esc(u ? (u.name || u.email) : '—')}</div></div></div>
+    <div style="background:var(--s2);border-radius:12px;padding:12px;margin-bottom:16px;max-height:300px;overflow-y:auto">
+      ${(t.messages || []).map(m => `
+        <div style="margin-bottom:12px;padding-bottom:12px;border-bottom:1px solid var(--line)">
+          <div class="sub" style="font-size:11.5px;margin-bottom:4px">${esc(m.author)} · ${shortDate(m.created_at)}</div>
+          <div style="font-size:13px;line-height:1.6">${esc(m.text)}</div>
+        </div>
+      `).join('')}
+    </div>
+    <textarea class="inp" id="tReply" placeholder="ردك..." style="margin-bottom:14px"></textarea>
+    <button class="btn wide" id="tRep">إرسال الرد</button>
+    ${t.status !== 'closed' ? '<button class="btn line wide" style="margin-top:10px" id="tClose">إغلاق التذكرة</button>' : ''}
+    <button class="btn line wide" style="margin-top:10px" onclick="closeSheet()">إغلاق</button>
+  `);
+  $('#tRep').onclick = async () => {
+    const btn = $('#tRep');
+    btn.disabled = true;
+    btn.classList.add('loading');
+    try {
+      const reply = $('#tReply').value.trim();
+      if(!reply) throw new Error('أدخل ردك');
+      await adminTicketReply(id, reply);
+      toast('تم إرسال الرد', 'ok');
+      closeSheet();
+      subscribeAll();
+    } catch(e) {
+      toast(e.message, 'bad');
+      btn.disabled = false;
+      btn.classList.remove('loading');
+    }
+  };
+  const closeBtn = $('#tClose');
+  if(closeBtn) {
+    closeBtn.onclick = async () => {
+      const btn = closeBtn;
+      btn.disabled = true;
+      btn.classList.add('loading');
+      try {
+        await adminTicketClose(id);
+        toast('تم إغلاق التذكرة', 'ok');
+        closeSheet();
+        subscribeAll();
+      } catch(e) {
+        toast(e.message, 'bad');
+        btn.disabled = false;
+        btn.classList.remove('loading');
+      }
+    };
+  }
+}
+
+/* ═══ Settings ═══ */
+async function saveSettings(btn) {
+  const payload = {};
+  $$('.sw[data-op]').forEach(el => {
+    let v = el.classList.contains('on');
+    payload[el.dataset.op] = v;
+  });
+  $$('input[data-op], textarea[data-op]').forEach(el => {
+    payload[el.dataset.op] = el.type === 'number' ? n(el.value) : el.value;
+  });
+  if(!Object.keys(payload).length) return;
+  btn.disabled = true;
+  btn.classList.add('loading');
+  try {
+    await adminSettingsSave(payload);
+    toast('تم حفظ الإعدادات', 'ok');
+    subscribeAll();
+  } catch(e) {
+    toast(e.message, 'bad');
+  } finally {
+    btn.disabled = false;
+    btn.classList.remove('loading');
+  }
+}
+
+/* ═══ Render ═══ */
+function paint() {
+  $('#barTitle').textContent = {
+    home: 'الرئيسية',
+    orders: 'طلبات البطاقات',
+    users: 'المستخدمون',
+    deposits: 'الإيداعات',
+    tickets: 'التذاكر',
+    vip: 'الباقات',
+    ads: 'الإعلانات',
+    settings: 'الإعدادات'
+  }[S.page] || 'الرئيسية';
+  
+  let content = '';
+  if(S.page === 'home') content = vHome();
+  else if(S.page === 'orders') content = vOrders();
+  else if(S.page === 'users') content = vUsers();
+  else if(S.page === 'deposits') content = vDeposits();
+  else if(S.page === 'tickets') content = vTickets();
+  else if(S.page === 'vip') content = vVip();
+  else if(S.page === 'ads') content = vAds();
+  else if(S.page === 'settings') content = vSettings();
+  
+  $('#content').innerHTML = content;
+}
+
+function bind() {
+  if(S.page === 'orders') bindOrders();
+  else if(S.page === 'users') bindUsers();
+  else if(S.page === 'deposits') bindDeposits();
+  else if(S.page === 'tickets') bindTickets();
+  else if(S.page === 'vip') bindVip();
+  else if(S.page === 'ads') bindAds();
+  else if(S.page === 'settings') bindSettings();
+  bindTabs();
+}
+
+function render() {
+  buildNav();
+  paint();
+  bind();
+}
+
+/* ═══ Data Subscription ═══ */
+async function subscribeAll() {
+  try {
+    S.orders = await getCardOrders();
+    S.users = await getUsers();
+    S.deposits = await getDeposits();
+    S.tickets = await getTickets();
+    S.vipPlans = await getVipPlans();
+    S.vipSubs = await getVipSubs();
+    S.ads = await getAds();
+    S.settings = await getSettings();
+    render();
+  } catch(e) {
+    console.error('Subscribe error:', e);
+  }
+}
+
+/* ═══ Auth ═══ */
+onAuthStateChanged(auth, async (user) => {
+  if(!user) {
+    location.replace('../../index.html');
+    return;
+  }
+  
+  try {
+    const adminSnap = await getDoc(doc(db, 'admins', user.uid));
+    if(!adminSnap.exists()) {
+      location.replace('../../dashboard.html');
+      return;
+    }
+    
+    S.user = user;
+    await subscribeAll();
+  } catch(e) {
+    console.error('Auth error:', e);
+    toast('خطأ في التحقق', 'bad');
+  }
+});
+
+$('#logoutBtn').onclick = async () => {
+  try {
+    await signOut(auth);
+    location.replace('../../index.html');
+  } catch(e) {
+    toast('خطأ في تسجيل الخروج', 'bad');
+  }
+};
+
+function onTap(sel, fn) {
+  const el = $(sel);
+  if(el) el.onclick = fn;
+}
+</script>
+</body>
+</html>
