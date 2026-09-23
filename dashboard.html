@@ -175,13 +175,11 @@ svg{width:19px;height:19px;flex:none;display:inline-block;vertical-align:middle}
 
 <div id="toasts"></div>
 <div class="ov" id="ov"><div class="sheet" id="sheet"></div></div>
-
 <script type="module">
 import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js';
 import { getAuth, onAuthStateChanged, signOut } from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js';
-import { getFirestore, doc, getDoc, collection, query, where, onSnapshot, limit } from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js';
+import { getFirestore, doc, getDoc, setDoc, addDoc, collection, query, where, onSnapshot, limit } from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js';
 
-const API_BASE = 'https://kardo.sdkhyrallh08.workers.dev';
 const firebaseConfig = {
   apiKey: "AIzaSyC-GntWur6r_Ow_v0wTNymQqQa6brzgvW8",
   authDomain: "kardo-1c657.firebaseapp.com",
@@ -246,16 +244,69 @@ window.closeSheet = () => { $('#ov').classList.remove('show'); };
 $('#ov').addEventListener('click', e => { if(e.target.id === 'ov') closeSheet(); });
 document.addEventListener('keydown', e => { if(e.key === 'Escape') closeSheet(); });
 
-async function api(path, body) {
-  const token = await auth.currentUser.getIdToken();
-  const res = await fetch(API_BASE + path, {
-    method: 'POST',
-    headers: { 'content-type': 'application/json', authorization: 'Bearer ' + token },
-    body: JSON.stringify(body || {})
+/* ═══════════════════════════════════════════════════════
+   Firestore Operations — إنشاء مباشر بدون Worker
+   ═══════════════════════════════════════════════════════ */
+
+async function createDepositFS(method, amount_usd, claim_phone) {
+  const rate = method === 'libyana' ? n(S.settings.rate_libyana, 11.8)
+             : method === 'almadar' ? n(S.settings.rate_almadar, 12.5) : 1;
+  await addDoc(collection(db, 'wallet_deposits'), {
+    uid: S.user.uid,
+    email: S.user.email,
+    name: (S.me && S.me.name) || '',
+    method,
+    amount_usd,
+    amount_lyd: amount_usd * rate,
+    claim_phone: claim_phone || '',
+    status: 'pending',
+    created_at: new Date()
   });
-  const d = await res.json().catch(() => ({ success: false, error: 'رد غير مفهوم' }));
-  if(!d.success) throw new Error(d.error || 'فشلت العملية');
-  return d;
+}
+
+async function createCardOrderFS(kind, name_on_card, amount) {
+  const feeFixed = kind === 'topup'
+    ? n(S.settings.mcard_topup_fee_fixed || 2.5)
+    : n(S.settings.mcard_create_fee_fixed || 8);
+  const feePct = kind === 'topup'
+    ? n(S.settings.mcard_topup_fee_pct || 2.5)
+    : n(S.settings.mcard_create_fee_pct || 2.5);
+  const fee = feeFixed + (amount * feePct / 100);
+  const total = amount + fee;
+
+  if(n(S.me.wallet_balance) < total) throw new Error('رصيدك غير كافي — يحتاج ' + usd(total));
+
+  // خصم من المحفظة
+  await setDoc(doc(db, 'users', S.user.uid), {
+    wallet_balance: n(S.me.wallet_balance) - total
+  }, { merge: true });
+
+  // إنشاء الطلب
+  await addDoc(collection(db, 'manual_card_orders'), {
+    uid: S.user.uid,
+    email: S.user.email,
+    name: (S.me && S.me.name) || '',
+    kind,
+    name_on_card,
+    amount,
+    fee,
+    total,
+    status: 'pending',
+    created_at: new Date()
+  });
+}
+
+async function createTicketFS(subject, message) {
+  await addDoc(collection(db, 'tickets'), {
+    uid: S.user.uid,
+    email: S.user.email,
+    name: (S.me && S.me.name) || '',
+    subject,
+    messages: [{ by: 'user', text: message, at: new Date() }],
+    status: 'open',
+    created_at: new Date(),
+    updated_at: new Date()
+  });
 }
 
 /* ═══ Auth ═══ */
@@ -314,9 +365,10 @@ function subscribe() {
   sub(query(collection(db, 'tickets'), where('uid', '==', uid), limit(50)), 'myTickets');
   sub(query(collection(db, 'vip_plans'), where('active', '==', true)), 'vipPlans');
 
-  getDoc(doc(db, 'settings', 'public')).then(s => {
+  // ✅ قراءة الإعدادات من settings/main
+  S.unsub.push(onSnapshot(doc(db, 'settings', 'main'), s => {
     if(s.exists()) { S.settings = s.data(); render(); }
-  }).catch(() => {});
+  }, err => console.warn('settings', err.code)));
 }
 
 /* ═══ Nav ═══ */
@@ -347,7 +399,6 @@ function buildNav() {
   $('#navDock').innerHTML = dk.map(p => `<button class="dk ${S.page === p.k ? 'on' : ''}" data-nav="${p.k}">${svg(p.i)}<span>${p.t}</span></button>`).join('');
   $$('[data-nav]').forEach(b => b.onclick = () => go(b.dataset.nav));
 }
-
 window.go = k => { S.page = k; window.scrollTo({ top: 0 }); render(); };
 
 /* ═══ Render ═══ */
@@ -394,11 +445,11 @@ function vHome() {
       </div>
     </div>
   ` : `
-    <div class="note ok" style="margin-bottom:16px">🎉 بطاقتك الأولى <strong>مجانية</strong>! ابدأ الآن.</div>
+    <div class="note ok" style="margin-bottom:16px">🎉 ابدأ الآن بإصدار بطاقتك الأولى.</div>
     <div class="box"><div class="empty">
       <div class="ei">${svg(I.card, 1.6)}</div>
       <div class="et">لا بطاقات بعد</div>
-      <p style="margin-bottom:16px">أصدر بطاقتك الأولى مجانًا</p>
+      <p style="margin-bottom:16px">أصدر بطاقتك الأولى</p>
       <button class="btn" data-nav="new">${svg(I.plus, 2)} إصدار بطاقة</button>
     </div></div>
   `}
@@ -407,11 +458,9 @@ function vHome() {
    : `<div class="box"><div class="empty"><div class="ei">${svg(I.clock, 1.6)}</div><div class="et">لا طلبات بعد</div></div></div>`}
   `;
 }
-
 function kpi(icon, val, label, bg, fg) {
   return `<div class="kpi"><div class="kpi-i" style="background:${bg};color:${fg}">${svg(icon, 1.9)}</div><div class="kpi-v num">${val}</div><div class="kpi-k">${label}</div></div>`;
 }
-
 function cardHTML(c) {
   const num = c.card_number ? String(c.card_number).replace(/(.{4})/g, '$1 ').trim() : '•••• •••• •••• ' + String(c.id || '').slice(-4);
   return `<div class="vcard" data-card="${esc(c.id)}">
@@ -424,7 +473,6 @@ function cardHTML(c) {
     </div>
   </div>`;
 }
-
 function orderRowHTML(o) {
   const st = o.status === 'completed' ? ['ok', 'مكتمل'] : o.status === 'pending' ? ['wait', 'قيد التنفيذ'] : o.status === 'rejected' ? ['bad', 'مرفوض'] : ['off', '—'];
   const type = o.kind === 'topup' ? 'إعادة شحن' : 'بطاقة جديدة';
@@ -476,21 +524,48 @@ function vCards() {
 
 /* ═══ New Card ═══ */
 function vNew() {
+  const me = S.me || {};
+  const activeCards = S.myCards.filter(c => c.status === 'active' || !c.status).length;
+  const isVip = me.vip_status === 'active';
+  const limit = isVip
+    ? n(S.settings.cards_limit_pro || S.settings.cards_limit_basic || 10)
+    : n(S.settings.cards_limit_free || 1);
+  const canAdd = activeCards < limit;
+
   return `
   <div class="h1" style="margin-bottom:8px">بطاقة جديدة</div>
   <p class="sub" style="margin-bottom:20px">املأ البيانات واطلب بطاقتك</p>
-  <div class="note">📌 الإصدار اليدوي عبر Zid Cash — يستغرق 1-4 ساعات</div>
+
+  ${!canAdd ? `
+    <div class="note" style="background:var(--bad-soft);border-color:var(--bad-line);color:#F5A0A0">
+      ⚠️ وصلت للحد الأقصى (${limit} بطاقة). للترقية، اشترك في VIP.
+      <button class="btn sm" data-nav="vip" style="margin-top:10px">${svg(I.award, 2)} الترقية</button>
+    </div>
+  ` : ''}
+
+  <div class="note">📌 الإصدار يستغرق 1-4 ساعات — بعد التأكيد</div>
+
   <div class="box">
     <label class="h3" style="display:block;margin-bottom:8px">اسم حامل البطاقة (بالإنجليزية)</label>
     <input class="inp mono" id="ncName" dir="ltr" placeholder="AHMED MOHAMED" style="margin-bottom:14px" maxlength="24">
+
     <label class="h3" style="display:block;margin-bottom:8px">المبلغ المطلوب (USD)</label>
-    <input class="inp num" id="ncAmount" type="number" min="10" max="200" step="5" value="20" style="margin-bottom:14px">
+    <input class="inp num" id="ncAmount" type="number" min="${n(S.settings.mcard_min, 10)}" max="${n(S.settings.mcard_max, 200)}" step="5" value="20" style="margin-bottom:14px">
+
     <label class="h3" style="display:block;margin-bottom:8px">نوع الطلب</label>
     <div style="display:flex;gap:8px;margin-bottom:18px">
-      <button class="btn dark" id="kindNew" style="flex:1" data-kind="new">بطاقة جديدة</button>
+      <button class="btn dark" id="kindNew" style="flex:1" data-kind="new" ${!canAdd ? 'disabled' : ''}>بطاقة جديدة</button>
       <button class="btn line" id="kindTopup" style="flex:1" data-kind="topup">إعادة شحن</button>
     </div>
-    <button class="btn wide" id="ncGo">${svg(I.plus, 2.2)} تأكيد الطلب</button>
+
+    <button class="btn wide" id="ncGo" ${!canAdd ? 'disabled' : ''}>${svg(I.plus, 2.2)} تأكيد الطلب</button>
+  </div>
+
+  <div class="box" style="background:var(--s2)">
+    <div class="h3" style="margin-bottom:8px">حدود حسابك</div>
+    <div class="sub" style="font-size:12.5px">
+      ${isVip ? 'عضو VIP' : 'مستخدم عادي'} — استخدمت ${activeCards} من ${limit}
+    </div>
   </div>
   `;
 }
@@ -562,6 +637,7 @@ function bind() {
   const nc = $('#ncGo');
   if(nc) nc.onclick = submitNewCard;
   $$('[data-kind]').forEach(b => b.onclick = () => {
+    if(b.disabled) return;
     S.newKind = b.dataset.kind;
     $('#kindNew').className = 'btn ' + (S.newKind === 'new' ? 'dark' : 'line');
     $('#kindTopup').className = 'btn ' + (S.newKind === 'topup' ? 'dark' : 'line');
@@ -619,7 +695,7 @@ function openDepositForm(method) {
     const btn = $('#depGo');
     btn.disabled = true; btn.classList.add('loading');
     try {
-      await api('/api/deposits/create', { method, amount_usd: v, claim_phone: ph });
+      await createDepositFS(method, v, ph);
       toast('تم الإرسال — بانتظار المراجعة', 'ok');
       closeSheet();
     } catch(e) { toast(e.message, 'bad'); btn.disabled = false; btn.classList.remove('loading'); }
@@ -636,11 +712,18 @@ function submitNewCard() {
   if(amount < 10) return toast('الحد الأدنى $10', 'bad');
   if(amount > 200) return toast('الحد الأقصى $200', 'bad');
 
+  const feeFixed = kind === 'topup' ? n(S.settings.mcard_topup_fee_fixed || 2.5) : n(S.settings.mcard_create_fee_fixed || 8);
+  const feePct = kind === 'topup' ? n(S.settings.mcard_topup_fee_pct || 2.5) : n(S.settings.mcard_create_fee_pct || 2.5);
+  const fee = feeFixed + (amount * feePct / 100);
+  const total = amount + fee;
+
   sheet(`<div class="sheet-head"><div style="flex:1"><div class="h2">تأكيد الطلب</div></div></div>
     <div class="box" style="background:var(--s2);margin-bottom:16px">
       <div class="flex-b" style="padding:8px 0;border-bottom:1px solid var(--line)"><span class="sub">النوع</span><span>${kind === 'topup' ? 'إعادة شحن' : 'بطاقة جديدة'}</span></div>
       <div class="flex-b" style="padding:8px 0;border-bottom:1px solid var(--line)"><span class="sub">الاسم</span><span class="mono" dir="ltr">${esc(name)}</span></div>
-      <div class="flex-b" style="padding:8px 0"><span class="sub">المبلغ</span><span class="num">${usd(amount)}</span></div>
+      <div class="flex-b" style="padding:8px 0;border-bottom:1px solid var(--line)"><span class="sub">المبلغ</span><span class="num">${usd(amount)}</span></div>
+      <div class="flex-b" style="padding:8px 0;border-bottom:1px solid var(--line)"><span class="sub">الرسوم</span><span class="num">${usd(fee)}</span></div>
+      <div class="flex-b" style="padding:8px 0"><span class="sub">الإجمالي</span><span class="num" style="color:var(--g);font-weight:800">${usd(total)}</span></div>
     </div>
     <div class="note">سيُخصم المبلغ من محفظتك</div>
     <button class="btn wide" id="cnfGo">تأكيد</button>
@@ -650,7 +733,7 @@ function submitNewCard() {
     const btn = $('#cnfGo');
     btn.disabled = true; btn.classList.add('loading');
     try {
-      await api('/api/mcard/request', { kind, name_on_card: name, amount });
+      await createCardOrderFS(kind, name, amount);
       toast('تم إرسال الطلب', 'ok');
       closeSheet();
       go('cards');
@@ -666,18 +749,9 @@ function openVipSheet(planId) {
       <div class="flex-b" style="padding:8px 0;border-bottom:1px solid var(--line)"><span class="sub">البطاقات</span><span class="num">${n(p.cards_count, 0)}</span></div>
       <div class="flex-b" style="padding:8px 0"><span class="sub">المدة</span><span class="num">${n(p.duration_days, 30)} يوم</span></div>
     </div>
-    <div class="note ok">سيُخصم ${usd(p.price_usd)} من محفظتك</div>
-    <button class="btn wide" id="vipGo">تأكيد</button>
+    <div class="note ok">سيتم التواصل معك لتفعيل الاشتراك</div>
+    <a href="https://wa.me/218910000000" class="btn wide" target="_blank" rel="noopener">تواصل مع الدعم</a>
     <button class="btn line wide" style="margin-top:10px" onclick="closeSheet()">إلغاء</button>`);
-  $('#vipGo').onclick = async () => {
-    const btn = $('#vipGo');
-    btn.disabled = true; btn.classList.add('loading');
-    try {
-      await api('/api/vip/subscribe', { plan_id: planId });
-      toast('تم الاشتراك', 'ok');
-      closeSheet();
-    } catch(e) { toast(e.message, 'bad'); btn.disabled = false; btn.classList.remove('loading'); }
-  };
 }
 
 function openCardSheet(cardId) {
@@ -711,7 +785,7 @@ function openTicketSheet() {
     const btn = $('#tkGo');
     btn.disabled = true; btn.classList.add('loading');
     try {
-      await api('/api/tickets/create', { subject: subj, message: msg });
+      await createTicketFS(subj, msg);
       toast('تم إنشاء التذكرة', 'ok');
       closeSheet();
     } catch(e) { toast(e.message, 'bad'); btn.disabled = false; btn.classList.remove('loading'); }
