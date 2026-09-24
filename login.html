@@ -2,168 +2,316 @@
 <html lang="ar" dir="rtl">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<meta name="theme-color" content="#0F172A">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#176B4D">
+<meta name="description" content="كاردو — تسجيل الدخول">
 <title>كاردو — تسجيل الدخول</title>
 
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Arabic:wght@400;500;600;700&display=swap">
+<link rel="stylesheet" href="./styles.css">
 
 <style>
-:root{--navy:#0F172A;--navy-2:#1B2438;--emerald:#10B981;--emerald-d:#059669;
-  --muted:#64748B;--border:#E2E8F0;--error:#EF4444}
-*{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
-html,body{min-height:100%}
-body{font-family:'IBM Plex Sans Arabic',system-ui,-apple-system,sans-serif;
-  background:var(--navy);color:var(--navy);font-size:15px;line-height:1.6;
-  -webkit-font-smoothing:antialiased;display:grid;place-items:center;
-  padding:24px 18px calc(24px + env(safe-area-inset-bottom));position:relative;overflow-x:hidden}
-button{font:inherit;color:inherit;background:none;border:none;cursor:pointer}
-input{font:inherit;color:inherit;width:100%}
-:focus-visible{outline:2px solid var(--emerald);outline-offset:2px;border-radius:6px}
+/* ── Login-specific ── */
+body {
+  display: grid;
+  place-items: center;
+  min-height: 100vh;
+  padding: 24px 16px;
+  background: var(--bg);
+}
 
-body::before{content:'';position:fixed;inset:auto -18% -34% auto;width:78vw;max-width:520px;
-  aspect-ratio:1;background:var(--emerald);opacity:.09;
-  clip-path:polygon(0 0,100% 34%,44% 50%,100% 66%,0 100%);pointer-events:none}
+.login-wrap {
+  width: 100%;
+  max-width: 400px;
+}
 
-.wrap{width:min(100%,404px);position:relative;z-index:2}
+.login-brand {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  justify-content: center;
+  margin-bottom: 32px;
+}
 
-.brand{display:flex;align-items:center;gap:12px;justify-content:center;margin-bottom:26px}
-.brand .txt{color:#fff}
-.brand .en{font-size:24px;font-weight:700;letter-spacing:-.025em;line-height:1.15}
-.brand .ar{font-size:12.5px;color:#94A3B8}
+.login-brand-name {
+  font-size: 22px;
+  font-weight: 700;
+  letter-spacing: -0.025em;
+  color: var(--text);
+}
 
-.box{background:#fff;border-radius:20px;padding:28px 24px;
-  box-shadow:0 24px 60px -24px rgba(0,0,0,.55)}
-.h1{font-size:20px;font-weight:700;letter-spacing:-.02em;margin-bottom:3px}
-.sub{color:var(--muted);font-size:13.5px;margin-bottom:22px}
+.login-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  padding: 32px 28px;
+  box-shadow: 0 1px 3px rgba(20, 30, 25, 0.04);
+}
 
-label{display:block;font-size:12.5px;font-weight:600;color:var(--muted);margin-bottom:7px}
-.field{margin-bottom:14px;position:relative}
-.inp{border:1px solid var(--border);border-radius:11px;padding:13px 13px;
-  background:#fff;font-size:15px;transition:.15s}
-.inp:focus{outline:none;border-color:var(--emerald);box-shadow:0 0 0 3px rgba(16,185,129,.11)}
-.inp.bad{border-color:var(--error)}
-.peek{position:absolute;left:11px;bottom:11px;width:30px;height:30px;border-radius:8px;
-  display:grid;place-items:center;color:var(--muted)}
-.peek:hover{background:#F1F5F9}
-.peek svg{width:17px;height:17px}
-input[type=password],input[type=text].pw{padding-left:46px}
+@media (max-width: 480px) {
+  .login-card { padding: 24px 20px; }
+}
 
-.btn{display:flex;align-items:center;justify-content:center;gap:9px;width:100%;
-  padding:14px;border-radius:11px;font-weight:600;font-size:14.5px;
-  background:var(--emerald);color:#fff;transition:.16s}
-.btn:hover:not(:disabled){background:var(--emerald-d)}
-.btn:disabled{opacity:.55;cursor:not-allowed}
-.btn.ghost{background:#fff;border:1px solid var(--border);color:var(--navy);margin-top:10px}
-.btn.ghost:hover:not(:disabled){background:#F8FAFC}
-.btn svg{width:17px;height:17px;flex:none}
+.login-title {
+  font-size: 22px;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  color: var(--text);
+  margin-bottom: 6px;
+}
 
-.sep{display:flex;align-items:center;gap:12px;margin:18px 0;color:var(--muted);font-size:12px}
-.sep::before,.sep::after{content:'';flex:1;height:1px;background:var(--border)}
+.login-sub {
+  font-size: 13.5px;
+  color: var(--text-2);
+  margin-bottom: 24px;
+}
 
-.msg{border-radius:11px;padding:11px 13px;font-size:13px;margin-bottom:16px;display:none}
-.msg.on{display:block}
-.msg.err{background:#FEF2F2;border:1px solid #FECACA;color:#991B1B}
-.msg.ok{background:#ECFDF5;border:1px solid #A7F3D0;color:#065F46}
-.msg.info{background:#EFF6FF;border:1px solid #BFDBFE;color:#1E40AF}
+.login-switch {
+  text-align: center;
+  margin-top: 20px;
+  font-size: 13.5px;
+  color: var(--text-2);
+}
 
-.foot{text-align:center;margin-top:18px;font-size:13.5px;color:var(--muted)}
-.foot button{color:var(--emerald-d);font-weight:600}
-.link{color:var(--muted);font-size:12.5px;text-align:left;margin-top:-6px;margin-bottom:16px}
-.link button{color:var(--muted);text-decoration:underline}
+.login-switch button {
+  color: var(--brand);
+  font-weight: 600;
+  cursor: pointer;
+}
 
-.tagline{text-align:center;color:#64748B;font-size:12px;margin-top:22px}
+.login-switch button:hover {
+  text-decoration: underline;
+}
 
-.spin{width:17px;height:17px;border:2px solid rgba(255,255,255,.35);
-  border-top-color:#fff;border-radius:50%;animation:sp .7s linear infinite}
-@keyframes sp{to{transform:rotate(360deg)}}
-@media(prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
-.hide{display:none!important}
+.login-foot {
+  text-align: center;
+  margin-top: 24px;
+  font-size: 12px;
+  color: var(--text-3);
+  line-height: 1.7;
+}
+
+.login-foot a {
+  color: var(--text-2);
+  font-weight: 500;
+}
+
+.login-foot a:hover {
+  color: var(--brand);
+}
+
+.pass-toggle {
+  position: absolute;
+  left: 12px;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 32px;
+  height: 32px;
+  border-radius: 6px;
+  display: grid;
+  place-items: center;
+  color: var(--text-3);
+  transition: all .15s;
+}
+
+.pass-toggle:hover {
+  background: var(--surface-2);
+  color: var(--text);
+}
+
+.pass-toggle svg { width: 18px; height: 18px; }
+
+/* Error/success messages */
+.auth-msg {
+  display: none;
+  padding: 12px 14px;
+  border-radius: 10px;
+  font-size: 13px;
+  line-height: 1.55;
+  margin-bottom: 16px;
+  border: 1px solid;
+}
+
+.auth-msg.show { display: block; }
+
+.auth-msg.error {
+  background: var(--error-bg);
+  border-color: var(--error-border);
+  color: #8B3030;
+}
+
+.auth-msg.success {
+  background: var(--success-bg);
+  border-color: var(--success-border);
+  color: #0E5C3F;
+}
+
+.auth-msg.info {
+  background: var(--info-bg);
+  border-color: var(--info-border);
+  color: #1E4D6F;
+}
 </style>
 </head>
 <body>
-<div class="wrap">
 
-  <div class="brand">
-    <svg width="42" height="42" viewBox="0 0 40 40">
-      <rect width="40" height="40" rx="10" fill="#1B2438"/>
-      <path d="M11 9h4.4v22H11z" fill="#10B981"/>
-      <path d="M17 20.2 27.5 9H33L22.4 20.2 33 31h-5.6z" fill="#10B981"/>
-      <rect x="19" y="15.6" width="12.4" height="8.8" rx="2" fill="#fff" opacity=".93"/>
-      <rect x="21" y="18.4" width="3.4" height="2.6" rx=".7" fill="#0F172A" opacity=".55"/>
+<div class="login-wrap">
+
+  <!-- Brand -->
+  <div class="login-brand">
+    <svg width="40" height="40" viewBox="0 0 40 40" aria-hidden="true">
+      <rect width="40" height="40" rx="10" fill="#176B4D"/>
+      <path d="M11 9h4.4v22H11z" fill="#FFFFFF"/>
+      <path d="M17 20.2 27.5 9H33L22.4 20.2 33 31h-5.6z" fill="#FFFFFF"/>
+      <rect x="19" y="15.6" width="12.4" height="8.8" rx="2" fill="#176B4D"/>
+      <rect x="21" y="18.4" width="3.4" height="2.6" rx=".7" fill="#E8F3EE" opacity=".9"/>
     </svg>
-    <div class="txt"><div class="en">Kardo</div><div class="ar">كاردو</div></div>
+    <span class="login-brand-name">كاردو</span>
   </div>
 
-  <div class="box">
-    <div class="h1" id="title">تسجيل الدخول</div>
-    <p class="sub" id="subtitle">أدخل بياناتك للوصول إلى بطاقاتك.</p>
+  <!-- Card -->
+  <div class="login-card">
 
-    <div class="msg" id="msg"></div>
-
-    <div class="field hide" id="nameField">
-      <label for="name">الاسم</label>
-      <input class="inp" id="name" placeholder="اسمك الكامل" autocomplete="name">
+    <!-- Login / Register Tabs -->
+    <div class="segments" style="width:100%;margin-bottom:24px;justify-content:center">
+      <button class="segment active" id="tabLogin" style="flex:1">دخول</button>
+      <button class="segment" id="tabRegister" style="flex:1">حساب جديد</button>
     </div>
 
-    <div class="field">
-      <label for="email">البريد الإلكتروني</label>
-      <input class="inp" id="email" type="email" placeholder="you@example.com"
-             autocomplete="email" inputmode="email" dir="ltr">
-    </div>
+    <!-- Message -->
+    <div class="auth-msg" id="msg"></div>
 
-    <div class="field">
-      <label for="pass">كلمة المرور</label>
-      <input class="inp pw" id="pass" type="password" placeholder="••••••••"
-             autocomplete="current-password" dir="ltr">
-      <button class="peek" id="peek" type="button" aria-label="إظهار كلمة المرور">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
-             stroke-linecap="round" stroke-linejoin="round" id="peekIcon">
-          <path d="M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7-10-7-10-7"/><circle cx="12" cy="12" r="3"/>
-        </svg>
+    <!-- ═══ LOGIN FORM ═══ -->
+    <form id="formLogin" style="display:block">
+
+      <h1 class="login-title">تسجيل الدخول</h1>
+      <p class="login-sub">أدخل بياناتك للوصول إلى حسابك.</p>
+
+      <div class="field mb-3">
+        <label class="field-label" for="liEmail">البريد الإلكتروني</label>
+        <input class="input" id="liEmail" type="email" dir="ltr"
+               placeholder="you@example.com" autocomplete="email" required>
+      </div>
+
+      <div class="field mb-3" style="position:relative">
+        <label class="field-label" for="liPass">كلمة المرور</label>
+        <input class="input" id="liPass" type="password" dir="ltr"
+               placeholder="••••••••" autocomplete="current-password" required
+               style="padding-left:48px">
+        <button class="pass-toggle" type="button" data-eye="liPass" aria-label="إظهار">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7-10-7-10-7"/><circle cx="12" cy="12" r="3"/>
+          </svg>
+        </button>
+      </div>
+
+      <div style="text-align:left;margin-bottom:20px">
+        <button type="button" id="forgotBtn"
+                style="color:var(--text-2);font-size:12.5px;text-decoration:underline">
+          نسيت كلمة المرور؟
+        </button>
+      </div>
+
+      <button class="btn btn-primary btn-block" type="submit" id="liSubmit">
+        تسجيل الدخول
       </button>
-    </div>
+    </form>
 
-    <div class="field hide" id="phoneField">
-      <label for="phone">رقم الهاتف</label>
-      <input class="inp" id="phone" type="tel" inputmode="numeric"
-             placeholder="0912345678" autocomplete="tel" dir="ltr" maxlength="13">
-    </div>
+    <!-- ═══ REGISTER FORM ═══ -->
+    <form id="formRegister" style="display:none">
 
-    <div class="link" id="forgotWrap">
-      <button id="forgot">نسيت كلمة المرور؟</button>
-    </div>
+      <h1 class="login-title">إنشاء حساب</h1>
+      <p class="login-sub">أنشئ حسابك وابدأ بإصدار بطاقتك الأولى.</p>
 
-    <button class="btn" id="submit">تسجيل الدخول</button>
+      <div class="field mb-3">
+        <label class="field-label" for="rgName">الاسم الكامل</label>
+        <input class="input" id="rgName" placeholder="محمد أحمد" autocomplete="name" maxlength="60" required>
+      </div>
 
-    <div class="sep">أو</div>
+      <div class="field mb-3">
+        <label class="field-label" for="rgEmail">البريد الإلكتروني</label>
+        <input class="input" id="rgEmail" type="email" dir="ltr"
+               placeholder="you@example.com" autocomplete="email" required>
+      </div>
 
-    <button class="btn ghost" id="google" style="margin-top:0">
-      <svg width="17" height="17" viewBox="0 0 24 24"><path fill="#4285F4" d="M22.6 12.2c0-.8-.1-1.5-.2-2.2H12v4.2h5.9c-.3 1.4-1 2.5-2.1 3.3v2.7h3.4c2-1.8 3.1-4.5 3.1-7.7z"/><path fill="#34A853" d="M12 23c2.9 0 5.3-1 7.1-2.6l-3.4-2.7c-1 .6-2.2 1-3.7 1-2.8 0-5.2-1.9-6.1-4.5H2.4v2.8C4.2 20.6 7.8 23 12 23z"/><path fill="#FBBC05" d="M5.9 14.2c-.2-.7-.4-1.4-.4-2.2s.1-1.5.4-2.2V7H2.4C1.6 8.5 1.2 10.2 1.2 12s.4 3.5 1.2 5l3.5-2.8z"/><path fill="#EA4335" d="M12 5.4c1.6 0 3 .5 4.1 1.6l3-3C17.3 2.2 14.9 1 12 1 7.8 1 4.2 3.4 2.4 7l3.5 2.8C6.8 7.3 9.2 5.4 12 5.4z"/></svg>
-      متابعة بحساب Google
-    </button>
+      <div class="field mb-3">
+        <label class="field-label" for="rgPhone">رقم الهاتف</label>
+        <input class="input" id="rgPhone" type="tel" dir="ltr"
+               placeholder="0912345678" inputmode="numeric"
+               autocomplete="tel" maxlength="13" required>
+        <span class="field-hint">يُستخدم لمطابقة تحويلاتك</span>
+      </div>
 
-    <p class="foot">
-      <span id="switchTxt">ليس لديك حساب؟</span>
-      <button id="switch">إنشاء حساب</button>
-    </p>
+      <div class="field mb-4" style="position:relative">
+        <label class="field-label" for="rgPass">كلمة المرور</label>
+        <input class="input" id="rgPass" type="password" dir="ltr"
+               placeholder="8 أحرف على الأقل" autocomplete="new-password"
+               minlength="8" required style="padding-left:48px">
+        <button class="pass-toggle" type="button" data-eye="rgPass" aria-label="إظهار">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7-10-7-10-7"/><circle cx="12" cy="12" r="3"/>
+          </svg>
+        </button>
+      </div>
+
+      <button class="btn btn-primary btn-block" type="submit" id="rgSubmit">
+        إنشاء الحساب
+      </button>
+    </form>
+
+    <!-- ═══ RESET PASSWORD FORM ═══ -->
+    <form id="formReset" style="display:none">
+
+      <h1 class="login-title">إعادة تعيين كلمة المرور</h1>
+      <p class="login-sub">سنرسل رابط الاستعادة إلى بريدك الإلكتروني.</p>
+
+      <div class="field mb-4">
+        <label class="field-label" for="rsEmail">البريد الإلكتروني</label>
+        <input class="input" id="rsEmail" type="email" dir="ltr"
+               placeholder="you@example.com" required>
+      </div>
+
+      <button class="btn btn-primary btn-block" type="submit" id="rsSubmit">
+        إرسال رابط الاستعادة
+      </button>
+
+      <button type="button" class="btn btn-secondary btn-block" id="rsBack" style="margin-top:10px">
+        رجوع
+      </button>
+    </form>
+
   </div>
 
-  <p class="tagline">بطاقات أكثر .. فرص أكبر</p>
+  <!-- Switch login/register -->
+  <p class="login-switch" id="switchText">
+    ليس لديك حساب؟
+    <button type="button" id="switchBtn">أنشئ حساباً</button>
+  </p>
+
+  <!-- Footer -->
+  <p class="login-foot">
+    بمتابعتك أنت توافق على
+    <a href="#" onclick="return false">شروط الاستخدام</a>
+    و
+    <a href="#" onclick="return false">سياسة الخصوصية</a>
+  </p>
+
 </div>
 
 <script type="module">
 import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js';
 import {
   getAuth, onAuthStateChanged, signInWithEmailAndPassword,
-  createUserWithEmailAndPassword, signInWithPopup, GoogleAuthProvider,
-  updateProfile, sendPasswordResetEmail
+  createUserWithEmailAndPassword, updateProfile, sendPasswordResetEmail,
+  setPersistence, browserLocalPersistence
 } from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js';
-import { getFirestore, doc, getDoc, setDoc }
-  from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js';
+import {
+  getFirestore, doc, getDoc, setDoc
+} from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js';
 
+/* ═══ Config ═══ */
 const firebaseConfig = {
   apiKey: "AIzaSyC-GntWur6r_Ow_v0wTNymQqQa6brzgvW8",
   authDomain: "kardo-1c657.firebaseapp.com",
@@ -176,12 +324,13 @@ const firebaseConfig = {
 const app = initializeApp(firebaseConfig);
 const auth = getAuth(app);
 const db = getFirestore(app);
+
+setPersistence(auth, browserLocalPersistence).catch(() => {});
+
+/* ═══ Helpers ═══ */
 const $ = s => document.querySelector(s);
+const $$ = s => [...document.querySelectorAll(s)];
 
-let signup = false;
-let busy = false;
-
-/** ✅ helper: توحيد رقم الهاتف */
 function phoneKey(raw) {
   let p = String(raw || '').replace(/\D/g, '');
   if (p.startsWith('00218')) p = p.slice(5);
@@ -190,180 +339,187 @@ function phoneKey(raw) {
   return p.slice(-9);
 }
 
-window.addEventListener('error', e =>
-  show('خطأ: ' + (e.message || '') + ' — سطر ' + (e.lineno || ''), 'err'));
-
-function show(text, kind = 'err') {
+function showMsg(text, kind = 'error') {
   const m = $('#msg');
   m.textContent = text;
-  m.className = 'msg on ' + kind;
-}
-function clearMsg() { $('#msg').className = 'msg'; }
-
-function loading(on, label) {
-  busy = on;
-  const b = $('#submit');
-  b.disabled = on;
-  $('#google').disabled = on;
-  b.innerHTML = on ? '<span class="spin"></span>' : label;
+  m.className = 'auth-msg show ' + kind;
 }
 
-/* ── تبديل دخول / تسجيل ── */
-$('#switch').onclick = () => {
-  signup = !signup;
-  clearMsg();
-  $('#nameField').classList.toggle('hide', !signup);
-  $('#phoneField').classList.toggle('hide', !signup);
-  $('#forgotWrap').classList.toggle('hide', signup);
-  $('#title').textContent = signup ? 'إنشاء حساب' : 'تسجيل الدخول';
-  $('#subtitle').textContent = signup
-    ? 'أنشئ حسابك وابدأ بإصدار بطاقتك الأولى.'
-    : 'أدخل بياناتك للوصول إلى بطاقاتك.';
-  $('#submit').textContent = signup ? 'إنشاء الحساب' : 'تسجيل الدخول';
-  $('#switchTxt').textContent = signup ? 'لديك حساب بالفعل؟' : 'ليس لديك حساب؟';
-  $('#switch').textContent = signup ? 'تسجيل الدخول' : 'إنشاء حساب';
-  $('#pass').autocomplete = signup ? 'new-password' : 'current-password';
-};
-
-/* ── إظهار كلمة المرور ── */
-$('#peek').onclick = () => {
-  const p = $('#pass');
-  const hidden = p.type === 'password';
-  p.type = hidden ? 'text' : 'password';
-  $('#peekIcon').innerHTML = hidden
-    ? '<path d="M17.9 17.9A10.6 10.6 0 0 1 12 19c-6.4 0-10-7-10-7a18 18 0 0 1 4.1-5M9.9 4.2A10.6 10.6 0 0 1 12 5c6.4 0 10 7 10 7a18 18 0 0 1-2.2 3.2M3 3l18 18"/>'
-    : '<path d="M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7-10-7-10-7"/><circle cx="12" cy="12" r="3"/>';
-};
-
-/* ── إرسال ── */
-$('#submit').onclick = submit;
-['email', 'pass', 'name', 'phone'].forEach(id =>
-  $('#' + id).addEventListener('keydown', e => {
-    if (e.key === 'Enter' && !busy) submit();
-  }));
-
-async function submit() {
-  clearMsg();
-  const email = $('#email').value.trim();
-  const pass = $('#pass').value;
-  const label = signup ? 'إنشاء الحساب' : 'تسجيل الدخول';
-
-  $('#email').classList.remove('bad');
-  $('#pass').classList.remove('bad');
-  $('#phone').classList.remove('bad');
-
-  if (!email) { $('#email').classList.add('bad'); return show('أدخل بريدك الإلكتروني'); }
-  if (!pass) { $('#pass').classList.add('bad'); return show('أدخل كلمة المرور'); }
-  if (signup && pass.length < 6) {
-    $('#pass').classList.add('bad');
-    return show('كلمة المرور يجب أن تكون 6 أحرف على الأقل');
-  }
-  if (signup) {
-    const phone = $('#phone').value.trim();
-    const pk = phoneKey(phone);
-    if (pk.length !== 9) {
-      $('#phone').classList.add('bad');
-      return show('رقم الهاتف يجب أن يكون 9 أرقام');
-    }
-  }
-
-  loading(true, label);
-  try {
-    if (signup) {
-      const name = $('#name').value.trim() || 'مستخدم';
-      const phone = $('#phone').value.trim();
-      const cred = await createUserWithEmailAndPassword(auth, email, pass);
-      await updateProfile(cred.user, { displayName: name });
-      await ensureProfile(cred.user, name, phone);
-      show('تم إنشاء الحساب — جاري التحويل…', 'ok');
-    } else {
-      await signInWithEmailAndPassword(auth, email, pass);
-    }
-    // التوجيه يتم تلقائياً في onAuthStateChanged
-  } catch (e) {
-    show(msgFor(e.code));
-    loading(false, label);
-  }
+function clearMsg() {
+  $('#msg').className = 'auth-msg';
 }
 
-/* ── Google ── */
-$('#google').onclick = async () => {
+function setLoading(btn, on, label) {
+  if (!btn) return;
+  btn.disabled = on;
+  btn.classList.toggle('loading', on);
+  if (label) btn.textContent = label;
+}
+
+/* ═══ View Switch ═══ */
+function showView(name) {
+  $('#formLogin').style.display = name === 'login' ? 'block' : 'none';
+  $('#formRegister').style.display = name === 'register' ? 'block' : 'none';
+  $('#formReset').style.display = name === 'reset' ? 'block' : 'none';
+
+  $('#tabLogin').classList.toggle('active', name === 'login');
+  $('#tabRegister').classList.toggle('active', name === 'register');
+
+  const sw = $('#switchText');
+  if (name === 'login') {
+    sw.innerHTML = 'ليس لديك حساب؟ <button type="button" id="switchBtn">أنشئ حساباً</button>';
+  } else if (name === 'register') {
+    sw.innerHTML = 'لديك حساب بالفعل؟ <button type="button" id="switchBtn">تسجيل الدخول</button>';
+  } else {
+    sw.innerHTML = '';
+  }
+
+  const sb = $('#switchBtn');
+  if (sb) sb.onclick = () => showView(name === 'login' ? 'register' : 'login');
+
   clearMsg();
-  $('#google').disabled = true;
+}
+
+/* ═══ Password Toggle ═══ */
+const eyeOpen = '<path d="M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7-10-7-10-7"/><circle cx="12" cy="12" r="3"/>';
+const eyeOff = '<path d="M17.9 17.9A10.6 10.6 0 0 1 12 19c-6.4 0-10-7-10-7a18 18 0 0 1 4.1-5M9.9 4.2A10.6 10.6 0 0 1 12 5c6.4 0 10 7 10 7a18 18 0 0 1-2.2 3.2M3 3l18 18"/>';
+
+$$('[data-eye]').forEach(btn => {
+  btn.onclick = () => {
+    const input = document.getElementById(btn.dataset.eye);
+    if (!input) return;
+    const isPass = input.type === 'password';
+    input.type = isPass ? 'text' : 'password';
+    btn.innerHTML = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">${isPass ? eyeOff : eyeOpen}</svg>`;
+  };
+});
+
+/* ═══ Tabs ═══ */
+$('#tabLogin').onclick = () => showView('login');
+$('#tabRegister').onclick = () => showView('register');
+
+/* ═══ Forgot ═══ */
+$('#forgotBtn').onclick = () => {
+  const email = $('#liEmail').value.trim();
+  if (email) $('#rsEmail').value = email;
+  showView('reset');
+};
+
+$('#rsBack').onclick = () => showView('login');
+
+/* ═══ Firebase Errors ═══ */
+function fbMsg(code) {
+  const map = {
+    'auth/invalid-email': 'البريد الإلكتروني غير صحيح',
+    'auth/user-disabled': 'هذا الحساب معطّل',
+    'auth/user-not-found': 'البريد أو كلمة المرور غير صحيحة',
+    'auth/wrong-password': 'البريد أو كلمة المرور غير صحيحة',
+    'auth/invalid-credential': 'البريد أو كلمة المرور غير صحيحة',
+    'auth/email-already-in-use': 'هذا البريد مُسجّل مسبقًا',
+    'auth/weak-password': 'كلمة المرور ضعيفة — 8 أحرف على الأقل',
+    'auth/too-many-requests': 'محاولات كثيرة — حاول بعد قليل',
+    'auth/network-request-failed': 'تعذّر الاتصال — تحقق من الإنترنت',
+    'auth/operation-not-allowed': 'هذه العملية غير مسموح بها',
+    'auth/unauthorized-domain': 'هذا النطاق غير مُصرّح به',
+  };
+  return map[code] || 'تعذّر إتمام العملية، حاول مرة أخرى';
+}
+
+/* ═══ LOGIN ═══ */
+$('#formLogin').onsubmit = async (e) => {
+  e.preventDefault();
+  clearMsg();
+
+  const email = $('#liEmail').value.trim();
+  const pass = $('#liPass').value;
+  const btn = $('#liSubmit');
+
+  if (!email || !pass) return showMsg('أكمل جميع الحقول');
+
+  setLoading(btn, true);
   try {
-    const cred = await signInWithPopup(auth, new GoogleAuthProvider());
-    await ensureProfile(cred.user, cred.user.displayName || 'مستخدم', '');
-    // التوجيه في onAuthStateChanged
-  } catch (e) {
-    show(msgFor(e.code));
-    $('#google').disabled = false;
+    await signInWithEmailAndPassword(auth, email, pass);
+    // onAuthStateChanged سيتولى التوجيه
+  } catch (err) {
+    showMsg(fbMsg(err.code));
+    setLoading(btn, false, 'تسجيل الدخول');
   }
 };
 
-/* ── نسيت كلمة المرور ── */
-$('#forgot').onclick = async () => {
-  const email = $('#email').value.trim();
-  if (!email) {
-    $('#email').classList.add('bad');
-    $('#email').focus();
-    return show('اكتب بريدك أولًا ثم اضغط "نسيت كلمة المرور"');
-  }
-  try {
-    await sendPasswordResetEmail(auth, email);
-    show('أرسلنا رابط إعادة التعيين إلى ' + email + ' — تحقق من بريدك.', 'ok');
-  } catch (e) { show(msgFor(e.code)); }
-};
+/* ═══ REGISTER ═══ */
+$('#formRegister').onsubmit = async (e) => {
+  e.preventDefault();
+  clearMsg();
 
-/* ── إنشاء ملف المستخدم ── */
-async function ensureProfile(user, name, phone) {
-  const ref = doc(db, 'users', user.uid);
+  const name = $('#rgName').value.trim();
+  const email = $('#rgEmail').value.trim();
+  const phone = $('#rgPhone').value.trim();
+  const pass = $('#rgPass').value;
+  const btn = $('#rgSubmit');
+
+  if (!name || name.length < 2) return showMsg('الاسم قصير جدًا');
+  if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return showMsg('البريد الإلكتروني غير صحيح');
+  if (phoneKey(phone).length !== 9) return showMsg('رقم الهاتف يجب أن يكون 9 أرقام');
+  if (pass.length < 8) return showMsg('كلمة المرور 8 أحرف على الأقل');
+
+  setLoading(btn, true);
   try {
-    const snap = await getDoc(ref);
-    if (!snap.exists()) {
-      const pk = phone ? phoneKey(phone) : '';
-      await setDoc(ref, {
-        name: name,
-        email: user.email || '',
-        phone: phone || '',
-        phone_key: pk,
+    const cred = await createUserWithEmailAndPassword(auth, email, pass);
+    await updateProfile(cred.user, { displayName: name });
+
+    // إنشاء مستند المستخدم
+    try {
+      await setDoc(doc(db, 'users', cred.user.uid), {
+        name,
+        email,
+        phone,
+        phone_key: phoneKey(phone),
         wallet_balance: 0,
         total_spent: 0,
         cards_count: 0,
         banned: false,
         created_at: new Date().toISOString(),
       }, { merge: true });
+    } catch (docErr) {
+      console.warn('user doc creation failed:', docErr.code);
     }
-  } catch (e) {
-    console.warn('ensureProfile failed:', e.code);
-    // القواعد قد تمنع الكتابة — الـWorker ينشئه لاحقًا
+
+    showMsg('تم إنشاء حسابك — جاري التحويل...', 'success');
+    // onAuthStateChanged سيتولى التوجيه
+  } catch (err) {
+    showMsg(fbMsg(err.code));
+    setLoading(btn, false, 'إنشاء الحساب');
   }
-}
+};
 
-function msgFor(code) {
-  return {
-    'auth/invalid-credential': 'البريد أو كلمة المرور غير صحيحة',
-    'auth/wrong-password': 'كلمة المرور غير صحيحة',
-    'auth/user-not-found': 'لا يوجد حساب بهذا البريد — أنشئ حسابًا جديدًا',
-    'auth/email-already-in-use': 'هذا البريد مسجّل بالفعل — سجّل الدخول بدلًا من ذلك',
-    'auth/invalid-email': 'صيغة البريد غير صحيحة',
-    'auth/weak-password': 'كلمة المرور ضعيفة — استخدم 6 أحرف فأكثر',
-    'auth/too-many-requests': 'محاولات كثيرة — انتظر قليلًا ثم أعد المحاولة',
-    'auth/network-request-failed': 'تعذّر الاتصال — تحقّق من الإنترنت',
-    'auth/popup-closed-by-user': 'أُغلقت النافذة قبل إكمال الدخول',
-    'auth/popup-blocked': 'المتصفح حجب النافذة — اسمح بالنوافذ المنبثقة',
-    'auth/operation-not-allowed': 'طريقة الدخول غير مفعّلة في Firebase',
-    'auth/unauthorized-domain': 'هذا النطاق غير مُصرّح به في Firebase'
-  }[code] || 'تعذّر إتمام العملية، حاول مرة أخرى';
-}
+/* ═══ RESET ═══ */
+$('#formReset').onsubmit = async (e) => {
+  e.preventDefault();
+  clearMsg();
 
-/**
- * ✅ التوجيه الذكي — الأدمن للوحة، العميل للمتجر
- * هذه أهم إصلاح في هذا الملف
- */
-onAuthStateChanged(auth, async user => {
+  const email = $('#rsEmail').value.trim();
+  const btn = $('#rsSubmit');
+
+  if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+    return showMsg('أدخل بريدًا صحيحًا');
+  }
+
+  setLoading(btn, true);
+  try {
+    await sendPasswordResetEmail(auth, email);
+    showMsg('أرسلنا رابط الاستعادة إلى ' + email, 'success');
+    setLoading(btn, false, 'إرسال رابط الاستعادة');
+  } catch (err) {
+    showMsg(fbMsg(err.code));
+    setLoading(btn, false, 'إرسال رابط الاستعادة');
+  }
+};
+
+/* ═══ Smart Redirect ═══ */
+onAuthStateChanged(auth, async (user) => {
   if (!user) return;
 
-  // فحص إذا كان المستخدم أدمن
+  // فحص إذا كان أدمن
   try {
     const adminSnap = await getDoc(doc(db, 'admins', user.uid));
     if (adminSnap.exists()) {
@@ -374,9 +530,17 @@ onAuthStateChanged(auth, async user => {
     console.warn('admin check failed:', e.code);
   }
 
-  // عميل عادي → للمتجر
+  // عميل عادي
   location.replace('index.html');
 });
+
+/* ═══ URL params ═══ */
+const params = new URLSearchParams(location.search);
+if (params.get('mode') === 'signup') {
+  showView('register');
+} else {
+  showView('login');
+}
 </script>
 </body>
 </html>
