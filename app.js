@@ -1,7 +1,7 @@
 /**
  * ═══════════════════════════════════════════════════════════
- *  KARDO — App Logic (v3.1.0)
- *  Digital Banking + Digital Services
+ *  KARDO — App Logic (v3.2.0)
+ *  Digital Banking + Digital Services (Clean)
  * ═══════════════════════════════════════════════════════════
  */
 
@@ -35,7 +35,6 @@ const S = {
              name: '', email: '', phone: '', points: 0 },
   cards: [], orders: [], deposits: [], shopOrders: [],
   catalog: { categories: [], products: [] },
-  subscriptions: [],
   services: [],
   svcOrders: [],
   cart: [], cat: null, q: '', filter: 'all',
@@ -121,7 +120,6 @@ const I = {
   x: '<path d="M18 6 6 18M6 6l12 12"/>',
   box: '<path d="M21 8 12 3 3 8v8l9 5 9-5z"/><path d="M3 8l9 5 9-5M12 13v8"/>',
   bolt: '<path d="M13 2 4.5 12.5H11l-1 9.5 8.5-11H12z"/>',
-  tag: '<path d="M20.5 13.5 13 21a2 2 0 0 1-2.8 0l-7.2-7.2A2 2 0 0 1 2.4 12V4.4A2 2 0 0 1 4.4 2.4H12a2 2 0 0 1 1.4.6l7.1 7.1a2 2 0 0 1 0 2.8z"/><circle cx="7.5" cy="7.5" r=".8"/>',
 };
 const svg = (d, w = 1.75) => `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="${w}" stroke-linecap="round" stroke-linejoin="round">${d}</svg>`;
 
@@ -209,10 +207,8 @@ onAuthStateChanged(auth, async user => {
     render();
   }).catch(e => console.warn('status:', e.message));
 
-  apiGet('/api/services/list').then(d => {
-    S.services = d.services || [];
-    render();
-  }).catch(e => console.warn('services:', e.message));
+  // جلب الخدمات الرقمية
+  loadServices();
 
   api('/api/activity/ping', {}).catch(() => {});
   loadCatalog();
@@ -239,6 +235,20 @@ async function ensureProfile(user) {
   } catch (e) { console.warn('ensureProfile:', e.code); }
 }
 
+/* ═══ Services Loader ═══ */
+async function loadServices() {
+  try {
+    const d = await apiGet('/api/services/list');
+    S.services = Array.isArray(d.services) ? d.services : [];
+    render();
+  } catch (e) {
+    console.warn('services:', e.message);
+    S.services = [];
+    render();
+  }
+}
+window.loadServices = loadServices;
+
 /* ═══ Realtime Subscriptions ═══ */
 function subscribe(uid) {
   S.unsub.push(onSnapshot(doc(db, 'users', uid), s => {
@@ -254,15 +264,7 @@ function subscribe(uid) {
     },
     e => { S.dataErr.cards = e.code; render(); }));
 
-  S.unsub.push(onSnapshot(query(collection(db, 'subscriptions'),
-    where('uid', '==', uid), limit(50)),
-    s => {
-      S.subscriptions = sortByDate(s.docs.map(d => ({ id: d.id, ...d.data() })));
-      render();
-    },
-    e => { S.dataErr.subs = e.code; render(); }));
-
-  // Service orders (realtime)
+  // طلبات الخدمات
   S.unsub.push(onSnapshot(query(collection(db, 'service_orders'),
     where('uid', '==', uid), limit(60)),
     s => {
@@ -332,6 +334,9 @@ window.go = (page) => {
   window.scrollTo({ top: 0, behavior: 'instant' });
   render();
   $$('[data-nav]').forEach(b => b.classList.toggle('active', b.dataset.nav === page));
+
+  // إعادة تحميل الخدمات عند فتح صفحة الخدمات
+  if (page === 'services') loadServices();
 };
 
 $$('[data-nav]').forEach(b => b.onclick = () => go(b.dataset.nav));
@@ -363,7 +368,6 @@ function paint() {
 
   const pages = {
     dashboard: vDashboard,
-    subscriptions: vSubscriptions,
     services: vServices,
     shop: vShop,
     cards: vCards,
@@ -389,7 +393,10 @@ function vDashboard() {
   const hour = new Date().getHours();
   const greeting = hour < 12 ? 'صباح الخير' : hour < 17 ? 'مساء الخير' : 'مساء الخير';
 
-  const recentTx = [...S.manualOrders.slice(0, 3), ...S.subscriptions.slice(0, 3), ...S.svcOrders.slice(0, 3)]
+  const recentTx = [
+    ...S.manualOrders.slice(0, 3),
+    ...S.svcOrders.slice(0, 3),
+  ]
     .sort((a, b) => {
       const av = a.created_at?.toDate?.() || new Date(a.created_at || 0);
       const bv = b.created_at?.toDate?.() || new Date(b.created_at || 0);
@@ -477,21 +484,21 @@ function vDashboard() {
     </div>
 
     <div class="grid-4">
-      <button class="service-card" data-nav="services" style="text-align:center;align-items:center">
-        <div class="service-logo">${svg(I.box, 2)}</div>
-        <div class="service-name">الخدمات</div>
+      <button class="quick-tile" data-nav="services">
+        <span class="quick-icon">${svg(I.box, 2)}</span>
+        <span class="quick-label">الخدمات</span>
       </button>
-      <button class="service-card" data-nav="subscriptions" style="text-align:center;align-items:center">
-        <div class="service-logo">${svg(I.clock, 2)}</div>
-        <div class="service-name">الاشتراكات</div>
+      <button class="quick-tile" data-nav="shop">
+        <span class="quick-icon">${svg(I.grid, 2)}</span>
+        <span class="quick-label">المتجر</span>
       </button>
-      <button class="service-card" data-nav="referral" style="text-align:center;align-items:center">
-        <div class="service-logo">${svg(I.gift, 2)}</div>
-        <div class="service-name">ادعُ صديقًا</div>
+      <button class="quick-tile" data-nav="referral">
+        <span class="quick-icon">${svg(I.gift, 2)}</span>
+        <span class="quick-label">ادعُ صديقًا</span>
       </button>
-      <button class="service-card" data-nav="support" style="text-align:center;align-items:center">
-        <div class="service-logo">${svg(I.help, 2)}</div>
-        <div class="service-name">الدعم</div>
+      <button class="quick-tile" data-nav="support">
+        <span class="quick-icon">${svg(I.help, 2)}</span>
+        <span class="quick-label">الدعم</span>
       </button>
     </div>
   </div>
@@ -529,13 +536,11 @@ function cardMiniHtml(c) {
 }
 
 function txRow(t) {
-  const kind = t.kind || (t.plan_name ? 'subscription' : (t.service_id ? 'service' : 'order'));
-  const isSub = kind === 'subscription';
+  const kind = t.kind || (t.service_id ? 'service' : 'order');
   const isSvc = kind === 'service';
   const isIn = kind === 'deposit';
 
   const labels = {
-    subscription: t.plan_name || 'اشتراك',
     order: (t.items && t.items[0] && t.items[0].name) || 'طلب',
     service: t.service_name || 'خدمة رقمية',
     deposit: 'إيداع رصيد',
@@ -543,27 +548,28 @@ function txRow(t) {
     card_topup: 'شحن بطاقة',
   };
 
-  const amount = t.total_lyd || t.amount_lyd || t.total_usd || t.price_usd || 0;
+  const amount = isSvc ? n(t.price_usd) : (t.total_lyd || t.amount_lyd || t.total_usd || 0);
   const sign = isIn ? '+' : '−';
+  const displayAmount = isSvc ? usd(amount) : lyd(amount);
 
   return `
     <div class="list-row" style="cursor:default">
-      <div class="list-icon ${isIn ? 'success' : isSvc ? 'brand' : isSub ? 'brand' : ''}">
-        ${svg(isIn ? I.up : isSvc ? I.box : isSub ? I.clock : I.bag, 2)}
+      <div class="list-icon ${isIn ? 'success' : isSvc ? 'brand' : ''}">
+        ${svg(isIn ? I.up : isSvc ? I.box : I.bag, 2)}
       </div>
       <div class="list-content">
         <div class="list-title">${esc(labels[kind] || 'عملية')}</div>
         <div class="list-meta">${esc(dt(t.created_at))}</div>
       </div>
       <div class="list-end">
-        <div class="list-amount ${isIn ? 'credit' : ''}">${sign}${esc(isSvc || isSub ? usd(amount) : lyd(amount))}</div>
+        <div class="list-amount ${isIn ? 'credit' : ''}">${sign}${esc(displayAmount)}</div>
       </div>
     </div>
   `;
 }
 
 /* ═══════════════════════════════════════════════════════════
-   Digital Services (NEW)
+   Digital Services (NEW - Clean)
    ═══════════════════════════════════════════════════════════ */
 
 function vServices() {
@@ -571,19 +577,28 @@ function vServices() {
   const myOrders = S.svcOrders || [];
   const pending = myOrders.filter(o => o.status === 'pending');
   const delivered = myOrders.filter(o => o.status === 'delivered');
+  const rejected = myOrders.filter(o => o.status === 'rejected');
 
   return `
   <div class="page-enter">
     <div class="mb-6">
       <h1 class="h2" style="margin-bottom:6px">الخدمات الرقمية</h1>
-      <p class="body-sm text-2">اشترِ الأكواد والحسابات فوراً — تسليم تلقائي أو يدوي</p>
+      <p class="body-sm text-2">اشترِ الأكواد والحسابات فوراً</p>
     </div>
+
+    ${pending.length ? `
+      <div class="mb-6">
+        <div class="h4" style="margin-bottom:12px">⏳ قيد التنفيذ (${pending.length})</div>
+        <div class="list">
+          ${pending.map(o => svcOrderRow(o, false)).join('')}
+        </div>
+      </div>
+    ` : ''}
 
     ${delivered.length ? `
       <div class="mb-6">
         <div class="flex-between mb-3">
           <div class="h4">✅ طلباتك المُسلَّمة (${delivered.length})</div>
-          <button class="btn btn-ghost btn-sm" id="showAllOrders">عرض الكل</button>
         </div>
         <div class="list">
           ${delivered.slice(0, 3).map(o => svcOrderRow(o, true)).join('')}
@@ -591,19 +606,23 @@ function vServices() {
       </div>
     ` : ''}
 
-    ${pending.length ? `
+    ${rejected.length ? `
       <div class="mb-6">
-        <div class="h4" style="margin-bottom:12px">⏳ طلباتك قيد التنفيذ (${pending.length})</div>
+        <div class="h4" style="margin-bottom:12px;color:var(--text-3)">مرفوضة (${rejected.length})</div>
         <div class="list">
-          ${pending.map(o => svcOrderRow(o, false)).join('')}
+          ${rejected.slice(0, 2).map(o => svcOrderRow(o, false)).join('')}
         </div>
       </div>
     ` : ''}
 
+    <div class="flex-between mb-4">
+      <div class="h4">${(pending.length || delivered.length) ? 'اطلب المزيد' : 'الخدمات المتاحة'}</div>
+      <button class="btn btn-ghost btn-sm" id="reloadSvcs" title="تحديث">
+        ${svg(I.list, 2)} تحديث
+      </button>
+    </div>
+
     ${services.length ? `
-      <div class="flex-between mb-4">
-        <div class="h4">${myOrders.length ? 'اطلب المزيد' : 'الخدمات المتاحة'}</div>
-      </div>
       <div class="grid-2">
         ${services.map(s => svcCard(s)).join('')}
       </div>
@@ -611,7 +630,8 @@ function vServices() {
       <div class="card" style="text-align:center;padding:48px 24px">
         <div class="empty-icon" style="margin:0 auto 16px">${svg(I.box, 2)}</div>
         <div class="h4" style="margin-bottom:8px">لا خدمات متاحة حالياً</div>
-        <p class="body-sm text-2">عذراً، لم نتمكن من تحميل الخدمات. حاول لاحقاً.</p>
+        <p class="body-sm text-2" style="margin-bottom:20px">سيتم عرض الخدمات هنا فور إضافتها.</p>
+        <button class="btn btn-secondary" id="reloadSvcs2">تحديث</button>
       </div>
     `}
   </div>
@@ -620,28 +640,30 @@ function vServices() {
 
 function svcCard(s) {
   const isAuto = s.delivery_type === 'auto';
-  const badge = isAuto ? '🤖 تلقائي' : '👤 يدوي';
+  const badge = isAuto ? 'فوري' : 'يدوي';
+  const badgeCls = isAuto ? 'badge-success' : 'badge-info';
   const stock = s.in_stock;
+  const outOfStock = isAuto && stock === false;
 
   return `
-    <button class="service-card" data-buy-svc="${esc(s.id)}" style="position:relative">
-      <div style="display:flex;gap:12px;align-items:center;width:100%">
-        <div class="service-logo" style="font-size:28px;width:52px;height:52px;padding:0;overflow:hidden">
+    <button class="service-card" data-buy-svc="${esc(s.id)}" style="position:relative;padding:16px">
+      <div style="display:flex;gap:10px;align-items:center;width:100%">
+        <div class="svc-icon">
           ${s.icon_url
-            ? `<img src="${esc(s.icon_url)}" alt="" style="width:100%;height:100%;object-fit:cover">`
-            : esc(s.icon_emoji || '📦')}
+            ? `<img src="${esc(s.icon_url)}" alt="">`
+            : `<span>${esc(s.icon_emoji || '📦')}</span>`}
         </div>
         <div style="flex:1;min-width:0;text-align:right">
-          <div class="service-name">${esc(s.name)}</div>
-          <div class="service-desc">${esc((s.desc || '').slice(0, 60))}</div>
+          <div class="service-name" style="font-size:14px">${esc(s.name)}</div>
+          <div class="service-desc" style="font-size:12px">${esc((s.desc || '').slice(0, 50))}</div>
         </div>
       </div>
-      <div style="display:flex;justify-content:space-between;align-items:baseline;width:100%;margin-top:8px">
-        <div class="service-price">${usd(s.price_usd)}</div>
-        <span class="badge badge-info" style="font-size:10px">${esc(badge)}</span>
+      <div style="display:flex;justify-content:space-between;align-items:center;width:100%;margin-top:10px">
+        <div class="service-price" style="font-size:14px">${usd(s.price_usd)}</div>
+        <span class="badge ${badgeCls}" style="font-size:10px;padding:2px 8px">${badge}</span>
       </div>
-      ${isAuto && stock === false ? `
-        <span class="badge badge-error" style="position:absolute;top:10px;left:10px;font-size:10px">نفد</span>
+      ${outOfStock ? `
+        <span class="badge badge-error" style="position:absolute;top:8px;left:8px;font-size:10px">نفد</span>
       ` : ''}
     </button>
   `;
@@ -718,7 +740,7 @@ function openServiceOrderDetail(orderId) {
     ${isDelivered ? `
       <div class="field-label mb-2">البيانات المُسلَّمة</div>
       <div class="copy-box mb-4" style="text-align:center;padding:16px">
-        <div class="mono" style="font-size:14px;word-break:break-all;line-height:1.7;white-space:pre-wrap">${esc(o.delivered_data || '')}</div>
+        <div class="mono" style="font-size:13px;word-break:break-all;line-height:1.7;white-space:pre-wrap">${esc(o.delivered_data || '')}</div>
         <button class="copy-btn" id="copyDelivered" style="margin-top:8px">${svg(I.copy, 2)} نسخ</button>
       </div>
     ` : ''}
@@ -733,7 +755,7 @@ function openServiceOrderDetail(orderId) {
     ${!isDelivered && !isRejected ? `
       <div class="alert alert-info mb-4">
         ${svg(I.clock, 2)}
-        <div>طلبك قيد التنفيذ — سيتواصل معك الفريق قريباً</div>
+        <div>طلبك قيد التنفيذ — سيتم تسليمه قريباً</div>
       </div>
     ` : ''}
 
@@ -765,14 +787,14 @@ async function openServiceBuy(svcId) {
     </div>
 
     <div class="card card-sm mb-4" style="background:var(--surface-2);border:none;text-align:center;padding:20px">
-      <div style="font-size:44px;margin-bottom:10px;line-height:1">
+      <div class="svc-icon-lg">
         ${svc.icon_url
-          ? `<img src="${esc(svc.icon_url)}" alt="" style="width:60px;height:60px;object-fit:cover;border-radius:14px">`
-          : esc(svc.icon_emoji || '📦')}
+          ? `<img src="${esc(svc.icon_url)}" alt="">`
+          : `<span>${esc(svc.icon_emoji || '📦')}</span>`}
       </div>
-      <div class="h4" style="margin-bottom:4px">${esc(svc.name)}</div>
+      <div class="h4" style="margin:8px 0 4px">${esc(svc.name)}</div>
       ${svc.desc ? `<div class="body-sm text-2">${esc(svc.desc)}</div>` : ''}
-      <div class="tabular" style="font-size:26px;font-weight:700;color:var(--brand);margin-top:12px">${esc(usd(svc.price_usd))}</div>
+      <div class="tabular" style="font-size:24px;font-weight:700;color:var(--brand);margin-top:12px">${esc(usd(svc.price_usd))}</div>
     </div>
 
     ${fields.length ? `
@@ -823,18 +845,18 @@ async function openServiceBuy(svcId) {
       if (ord.delivery_type === 'auto' && ord.delivered_data) {
         modal(`
           <div class="modal-head">
-            <div class="modal-title">✅ تم الشراء بنجاح</div>
+            <div class="modal-title">✅ تم الشراء</div>
             <button class="modal-close" onclick="closeModal()">${svg(I.x, 2)}</button>
           </div>
 
           <div class="alert alert-success mb-4">
             ${svg(I.check, 2)}
-            <div><strong>تم التسليم الفوري!</strong><br>بيانات الخدمة أدناه:</div>
+            <div><strong>تم التسليم الفوري!</strong></div>
           </div>
 
           <div class="field-label mb-2">بيانات الخدمة</div>
           <div class="copy-box mb-4" style="text-align:center;padding:16px">
-            <div class="mono" style="font-size:14px;word-break:break-all;line-height:1.7;white-space:pre-wrap">${esc(ord.delivered_data)}</div>
+            <div class="mono" style="font-size:13px;word-break:break-all;line-height:1.7;white-space:pre-wrap">${esc(ord.delivered_data)}</div>
           </div>
 
           <button class="btn btn-secondary btn-block" id="copySvcCode">${svg(I.copy, 2)} نسخ</button>
@@ -856,7 +878,6 @@ async function openServiceBuy(svcId) {
         closeModal();
         toast('طلبك قيد التنفيذ — سيصلك قريباً', 'ok');
       }
-
     } catch (e) {
       toast(e.message, 'bad');
       btn.disabled = false;
@@ -898,90 +919,11 @@ function renderField(f, i) {
 }
 
 /* ═══════════════════════════════════════════════════════════
-   Subscriptions
-   ═══════════════════════════════════════════════════════════ */
-
-function vSubscriptions() {
-  const subs = [
-    { id: 'netflix', name: 'Netflix Premium', desc: 'مشاهدة بلا حدود', price: 45, logo: '🎬' },
-    { id: 'spotify', name: 'Spotify Premium', desc: 'موسيقى بلا إعلانات', price: 35, logo: '🎵' },
-    { id: 'shahid', name: 'Shahid VIP', desc: 'مسلسلات وأفلام عربية', price: 25, logo: '🎥' },
-    { id: 'youtube', name: 'YouTube Premium', desc: 'بدون إعلانات + YouTube Music', price: 30, logo: '▶️' },
-    { id: 'canva', name: 'Canva Pro', desc: 'تصميم احترافي', price: 50, logo: '🎨' },
-    { id: 'chatgpt', name: 'ChatGPT Plus', desc: 'ذكاء اصطناعي متقدم', price: 90, logo: '💬' },
-    { id: 'adobe', name: 'Adobe Creative Cloud', desc: 'كل تطبيقات Adobe', price: 120, logo: '🎭' },
-    { id: 'xbox', name: 'Xbox Game Pass', desc: 'مكتبة ألعاب ضخمة', price: 55, logo: '🎮' },
-  ];
-
-  const active = S.subscriptions.filter(s => s.status === 'active');
-
-  return `
-  <div class="page-enter">
-    <div class="mb-6">
-      <h1 class="h2" style="margin-bottom:6px">الاشتراكات</h1>
-      <p class="body-sm text-2">اشترك في خدماتك المفضلة بأسعار واضحة</p>
-    </div>
-
-    ${active.length ? `
-      <div class="mb-6">
-        <div class="h4" style="margin-bottom:12px">اشتراكاتك النشطة (${active.length})</div>
-        <div class="list">
-          ${active.map(s => `
-            <div class="list-row" style="cursor:default">
-              <div class="list-icon success">${svg(I.check, 2.2)}</div>
-              <div class="list-content">
-                <div class="list-title">${esc(s.plan_name || 'اشتراك')}</div>
-                <div class="list-meta">ينتهي في ${esc(shortDate(s.expires_at))}</div>
-              </div>
-              <div class="list-end">
-                <div class="list-amount">${esc(usd(s.price_usd))}</div>
-                <span class="badge badge-success" style="margin-top:4px">نشط</span>
-              </div>
-            </div>
-          `).join('')}
-        </div>
-      </div>
-    ` : ''}
-
-    <div class="mb-4">
-      <div class="h4">الأكثر طلبًا</div>
-    </div>
-
-    <div class="grid-2">
-      ${subs.map(s => `
-        <button class="service-card" data-sub="${esc(s.id)}">
-          <div style="display:flex;gap:12px;align-items:center;width:100%">
-            <div class="service-logo" style="font-size:22px">${s.logo}</div>
-            <div style="flex:1;min-width:0;text-align:right">
-              <div class="service-name">${esc(s.name)}</div>
-              <div class="service-desc">${esc(s.desc)}</div>
-            </div>
-          </div>
-          <div style="display:flex;justify-content:space-between;align-items:baseline;width:100%;margin-top:4px">
-            <div class="service-price">
-              ${s.price}
-              <span class="service-price-unit">د.ل / شهر</span>
-            </div>
-            <span class="badge badge-info">اشترك</span>
-          </div>
-        </button>
-      `).join('')}
-    </div>
-  </div>
-  `;
-}
-
-/* ═══════════════════════════════════════════════════════════
    Shop
    ═══════════════════════════════════════════════════════════ */
 
 function vShop() {
-  const cats = S.config.categories || [
-    { id: 'ent', name: 'ترفيه', icon: '🎬' },
-    { id: 'games', name: 'ألعاب', icon: '🎮' },
-    { id: 'apps', name: 'برامج', icon: '💻' },
-    { id: 'cards', name: 'بطاقات', icon: '💳' },
-  ];
+  const cats = S.config.categories || [];
 
   return `
   <div class="page-enter">
@@ -995,17 +937,25 @@ function vShop() {
       <input class="input" id="shopQ" placeholder="ابحث عن خدمة..." value="${esc(S.q)}">
     </div>
 
-    <div class="grid-2">
-      ${cats.map(c => `
-        <button class="service-card" data-cat="${esc(c.id)}" style="align-items:center;text-align:center">
-          <div class="service-logo" style="font-size:26px;width:56px;height:56px">${c.icon || '📦'}</div>
-          <div class="service-name">${esc(c.name)}</div>
-        </button>
-      `).join('')}
-    </div>
+    ${cats.length ? `
+      <div class="grid-2">
+        ${cats.map(c => `
+          <button class="service-card" data-cat="${esc(c.id)}" style="align-items:center;text-align:center;padding:20px">
+            <div class="svc-icon" style="width:44px;height:44px;font-size:22px">${c.icon || '📦'}</div>
+            <div class="service-name">${esc(c.name)}</div>
+          </button>
+        `).join('')}
+      </div>
+    ` : `
+      <div class="card" style="text-align:center;padding:48px 24px">
+        <div class="empty-icon" style="margin:0 auto 16px">${svg(I.grid, 2)}</div>
+        <div class="h4" style="margin-bottom:8px">المتجر قريباً</div>
+        <p class="body-sm text-2">جاري تجهيز المنتجات.</p>
+      </div>
+    `}
   </div>
   `;
-}
+              }
 /* ═══════════════════════════════════════════════════════════
    Cards
    ═══════════════════════════════════════════════════════════ */
@@ -1087,9 +1037,6 @@ function renderCard(c) {
    ═══════════════════════════════════════════════════════════ */
 
 function vWallet() {
-  const inSum = S.deposits.filter(d => d.status === 'approved')
-    .reduce((t, d) => t + n(d.amount_usd), 0);
-
   return `
   <div class="page-enter">
     <div class="mb-6">
@@ -1179,7 +1126,6 @@ function vWallet() {
 function vTransactions() {
   const rows = [
     ...S.manualOrders,
-    ...S.subscriptions,
     ...S.deposits,
     ...S.svcOrders.map(o => ({
       ...o,
@@ -1339,25 +1285,25 @@ function vSupport() {
     </div>
 
     <div class="grid-2 mb-6">
-      <button class="service-card">
-        <div class="service-logo">${svg(I.card, 2)}</div>
-        <div class="service-name">البطاقات</div>
-        <div class="service-desc">مشاكل الإصدار والدفع</div>
+      <button class="service-card" style="padding:16px">
+        <div class="svc-icon" style="width:40px;height:40px">${svg(I.card, 2)}</div>
+        <div class="service-name" style="font-size:13px">البطاقات</div>
+        <div class="service-desc" style="font-size:11px">مشاكل الإصدار</div>
       </button>
-      <button class="service-card">
-        <div class="service-logo">${svg(I.wallet, 2)}</div>
-        <div class="service-name">المحفظة</div>
-        <div class="service-desc">الإيداع والسحب</div>
+      <button class="service-card" style="padding:16px">
+        <div class="svc-icon" style="width:40px;height:40px">${svg(I.wallet, 2)}</div>
+        <div class="service-name" style="font-size:13px">المحفظة</div>
+        <div class="service-desc" style="font-size:11px">الإيداع والسحب</div>
       </button>
-      <button class="service-card">
-        <div class="service-logo">${svg(I.shield, 2)}</div>
-        <div class="service-name">الأمان</div>
-        <div class="service-desc">حماية الحساب</div>
+      <button class="service-card" style="padding:16px">
+        <div class="svc-icon" style="width:40px;height:40px">${svg(I.shield, 2)}</div>
+        <div class="service-name" style="font-size:13px">الأمان</div>
+        <div class="service-desc" style="font-size:11px">حماية الحساب</div>
       </button>
-      <button class="service-card">
-        <div class="service-logo">${svg(I.help, 2)}</div>
-        <div class="service-name">أخرى</div>
-        <div class="service-desc">استفسارات عامة</div>
+      <button class="service-card" style="padding:16px">
+        <div class="svc-icon" style="width:40px;height:40px">${svg(I.help, 2)}</div>
+        <div class="service-name" style="font-size:13px">أخرى</div>
+        <div class="service-desc" style="font-size:11px">استفسارات</div>
       </button>
     </div>
 
@@ -1517,10 +1463,8 @@ function vPlans() {
    ═══════════════════════════════════════════════════════════ */
 
 function bind() {
-  // Nav
   $$('[data-nav]').forEach(b => b.onclick = () => go(b.dataset.nav));
 
-  // Actions
   $$('[data-action]').forEach(b => {
     b.onclick = () => {
       const a = b.dataset.action;
@@ -1531,36 +1475,18 @@ function bind() {
     };
   });
 
-  // Cards
   $$('[data-card]').forEach(b => b.onclick = () => openCardDetails(b.dataset.card));
-
-  // Subscriptions
-  $$('[data-sub]').forEach(b => b.onclick = () => openSubscribe(b.dataset.sub));
 
   // Digital Services
   $$('[data-buy-svc]').forEach(b => b.onclick = () => openServiceBuy(b.dataset.buySvc));
   $$('[data-svc-order]').forEach(b => b.onclick = () => openServiceOrderDetail(b.dataset.svcOrder));
 
-  onTap('#showAllOrders', () => {
-    modal(`
-      <div class="modal-head">
-        <div class="modal-title">كل طلباتي</div>
-        <button class="modal-close" onclick="closeModal()">${svg(I.x, 2)}</button>
-      </div>
-      <div class="list">
-        ${S.svcOrders.map(o => svcOrderRow(o, o.status === 'delivered')).join('')}
-      </div>
-    `);
-    $$('[data-svc-order]').forEach(b => b.onclick = () => openServiceOrderDetail(b.dataset.svcOrder));
-  });
+  onTap('#reloadSvcs', () => { loadServices(); toast('جاري التحديث...', 'ok'); });
+  onTap('#reloadSvcs2', () => { loadServices(); toast('جاري التحديث...', 'ok'); });
 
-  // Deposit methods
   $$('[data-method]').forEach(b => b.onclick = () => openDepositMethod(b.dataset.method));
-
-  // Orders
   $$('[data-order]').forEach(b => b.onclick = () => openOrderDetails(b.dataset.order));
 
-  // Settings
   onTap('#saveProfile', async () => {
     const name = $('#pName').value.trim();
     const phone = $('#pPhone').value.trim();
@@ -1594,14 +1520,12 @@ function bind() {
     onTap('#confirmLogout', () => { closeModal(); signOut(auth); });
   });
 
-  // Referral
   onTap('#refCopy', async () => {
     const code = $('#refCode').textContent;
     try { await navigator.clipboard.writeText(code); toast('نُسخ الرمز', 'ok'); }
     catch { toast('تعذّر النسخ', 'bad'); }
   });
 
-  // Support
   onTap('#newTicket', () => {
     modal(`
       <div class="modal-head">
@@ -1917,72 +1841,6 @@ async function openCardDetails(cardId) {
   });
 }
 
-async function openSubscribe(id) {
-  const subs = {
-    netflix: { name: 'Netflix Premium', price: 45, logo: '🎬' },
-    spotify: { name: 'Spotify Premium', price: 35, logo: '🎵' },
-    shahid: { name: 'Shahid VIP', price: 25, logo: '🎥' },
-    youtube: { name: 'YouTube Premium', price: 30, logo: '▶️' },
-    canva: { name: 'Canva Pro', price: 50, logo: '🎨' },
-    chatgpt: { name: 'ChatGPT Plus', price: 90, logo: '💬' },
-    adobe: { name: 'Adobe Creative Cloud', price: 120, logo: '🎭' },
-    xbox: { name: 'Xbox Game Pass', price: 55, logo: '🎮' },
-  };
-  const s = subs[id];
-  if (!s) return;
-
-  modal(`
-    <div class="modal-head">
-      <div class="modal-title">${esc(s.name)}</div>
-      <button class="modal-close" onclick="closeModal()">${svg(I.x, 2)}</button>
-    </div>
-
-    <div class="card card-sm mb-4" style="text-align:center;padding:24px">
-      <div style="font-size:44px;margin-bottom:12px">${s.logo}</div>
-      <div class="h3" style="margin-bottom:8px">${esc(s.name)}</div>
-      <div style="display:flex;align-items:baseline;justify-content:center;gap:6px;margin:16px 0">
-        <span class="tabular" style="font-size:28px;font-weight:700">${s.price}</span>
-        <span class="body-sm text-3">د.ل / شهر</span>
-      </div>
-    </div>
-
-    <div class="field mb-4">
-      <label class="field-label">اختر المدة</label>
-      <select class="input select" id="subDuration">
-        <option value="30">شهر واحد</option>
-        <option value="90">3 أشهر</option>
-        <option value="365">سنة كاملة</option>
-      </select>
-    </div>
-
-    <div class="card card-sm mb-4" style="background:var(--surface-2);border:none">
-      <div class="flex-between" style="padding:6px 0"><span class="body-sm text-2">السعر</span><span class="tabular" style="font-weight:600">${s.price} د.ل</span></div>
-      <div class="flex-between" style="padding:6px 0"><span class="body-sm text-2">الرسوم</span><span class="tabular" style="font-weight:600">0 د.ل</span></div>
-      <div class="divider" style="margin:8px 0"></div>
-      <div class="flex-between"><span style="font-weight:600">الإجمالي</span><span class="tabular" style="font-weight:700;color:var(--brand)">${s.price} د.ل</span></div>
-    </div>
-
-    <button class="btn btn-primary btn-block" id="subConfirm">
-      تأكيد الاشتراك
-    </button>
-  `);
-
-  onTap('#subConfirm', async () => {
-    const btn = $('#subConfirm');
-    btn.disabled = true;
-    btn.classList.add('loading');
-    try {
-      await api('/api/vip/subscribe', { plan_id: id, duration_days: n($('#subDuration').value, 30) });
-      closeModal();
-      toast('تم الاشتراك بنجاح', 'ok');
-    } catch (e) {
-      toast(e.message, 'bad');
-      btn.disabled = false;
-      btn.classList.remove('loading');
-    }
-  });
-}
-
 async function openOrderDetails(orderId) {
   const o = S.orders.find(x => x.id === orderId);
   if (!o) return;
@@ -2063,4 +1921,4 @@ bindPublic();
 if (!auth.currentUser) {
   $('#public').style.display = 'block';
   $('#app').style.display = 'none';
-                                                     }
+      }
