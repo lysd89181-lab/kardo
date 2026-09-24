@@ -2,469 +2,281 @@
 <html lang="ar" dir="rtl">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
-<meta name="theme-color" content="#020617">
+<meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="robots" content="noindex,nofollow">
-<title>كاردو — لوحة التحكم</title>
+<meta name="theme-color" content="#0F172A">
+<title>كاردو — لوحة الإدارة</title>
+
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Tajawal:wght@400;500;700;800;900&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Arabic:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap">
+
 <style>
-:root{
-  --bg:#020617;--s1:#0D1421;--s2:#131C2C;--s3:#1A2436;--s4:#232F45;
-  --line:rgba(255,255,255,.07);--line-2:rgba(255,255,255,.13);
-  --tx:#F8FAFC;--tx-2:#94A3B8;--tx-3:#5F6E88;
-  --g:#10B981;--g-2:#0E9E70;--g-3:#34D399;
-  --g-soft:rgba(16,185,129,.10);--g-line:rgba(16,185,129,.30);
-  --bad:#EF5F5F;--bad-soft:rgba(239,95,95,.10);--bad-line:rgba(239,95,95,.30);
-  --warn:#F59E0B;--warn-soft:rgba(245,158,11,.10);
-  --info:#4A9EFF;--info-soft:rgba(74,158,255,.10);
-  --spring:cubic-bezier(.34,1.4,.44,1);
-  --ease:cubic-bezier(.22,1,.36,1);
-  --swift:cubic-bezier(.4,0,.2,1);
-  --rail:280px;--bar-h:64px;--dock-h:68px;
-}
+:root{--navy:#0F172A;--navy-2:#1B2438;--emerald:#10B981;--emerald-d:#059669;
+  --bg:#F8FAFC;--muted:#64748B;--border:#E2E8F0;--error:#EF4444;--warn:#F59E0B;--radius:14px}
 *{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
-body{
-  font-family:'Tajawal',system-ui,sans-serif;
-  background:var(--bg);color:var(--tx);
-  font-size:15px;line-height:1.6;
-  -webkit-font-smoothing:antialiased;
-  min-height:100vh;
-}
-body::before{
-  content:'';position:fixed;inset:0;pointer-events:none;z-index:0;
-  background:
-    radial-gradient(70vw 55vh at 88% -8%, rgba(16,185,129,.07), transparent 60%),
-    radial-gradient(60vw 45vh at -8% 4%, rgba(52,211,153,.04), transparent 58%);
-}
+body{font-family:'IBM Plex Sans Arabic',system-ui,sans-serif;background:var(--bg);
+  color:var(--navy);font-size:15px;line-height:1.6;-webkit-font-smoothing:antialiased}
+.mono{font-family:'IBM Plex Mono',ui-monospace,monospace;font-variant-numeric:tabular-nums}
+.num{font-variant-numeric:tabular-nums;letter-spacing:-.01em}
 button{font:inherit;color:inherit;background:none;border:none;cursor:pointer}
 input,select,textarea{font:inherit;color:inherit;width:100%}
-a{color:inherit;text-decoration:none}
-img{max-width:100%;display:block}
-:focus-visible{outline:2px solid var(--g);outline-offset:3px;border-radius:8px}
-::selection{background:var(--g);color:#04121B}
-::-webkit-scrollbar{width:8px;height:8px}
-::-webkit-scrollbar-thumb{background:var(--s4);border-radius:8px}
-svg{width:19px;height:19px;flex:none;display:inline-block;vertical-align:middle}
-.mono{font-family:'IBM Plex Mono',monospace}
-.num{font-variant-numeric:tabular-nums;letter-spacing:-.02em;font-weight:700}
-.hidden{display:none!important}
 
-/* ═══ Layout ═══ */
-.shell{display:grid;grid-template-columns:1fr;min-height:100vh;position:relative;z-index:1}
-@media(min-width:1024px){.shell{grid-template-columns:1fr var(--rail)}}
-
-.rail{
-  display:none;grid-column:2;position:sticky;top:0;height:100vh;
-  flex-direction:column;padding:22px 14px;
-  border-inline-start:1px solid var(--line);
-  background:linear-gradient(180deg,rgba(13,20,33,.6),rgba(2,6,23,.95));
-  backdrop-filter:blur(20px);
-  overflow-y:auto;
-}
-@media(min-width:1024px){.rail{display:flex}}
-
-.main{grid-column:1;min-width:0;padding-bottom:calc(var(--dock-h) + env(safe-area-inset-bottom) + 16px)}
-@media(min-width:1024px){.main{padding-bottom:32px}}
-.wrap{padding:20px 16px;max-width:1440px;margin:0 auto}
-@media(min-width:640px){.wrap{padding:28px}}
-
-/* ═══ Top Bar ═══ */
-.bar{
-  position:sticky;top:0;z-index:40;height:var(--bar-h);
-  display:flex;align-items:center;gap:12px;padding:0 16px;
-  background:rgba(2,6,23,.82);
-  backdrop-filter:blur(20px);
-  border-bottom:1px solid var(--line);
-}
-@media(min-width:1024px){.bar{padding:0 28px}}
-.bar-title{font-size:17px;font-weight:800;letter-spacing:-.025em;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.bar-actions{margin-inline-start:auto;display:flex;align-items:center;gap:8px}
-.iconbtn{
-  width:40px;height:40px;border-radius:11px;flex:none;
-  display:grid;place-items:center;
-  color:var(--tx-2);border:1px solid transparent;
-  transition:all .18s;
-}
-.iconbtn:hover{background:var(--s2);color:var(--tx);border-color:var(--line)}
-
-/* ═══ Brand ═══ */
-.brand{display:flex;align-items:center;gap:11px;padding:0 6px;margin-bottom:22px}
-.brand .en{font-size:19px;font-weight:800;letter-spacing:-.03em;line-height:1.1}
-.brand .ar{font-size:11px;color:var(--tx-3)}
-
-/* ═══ Nav ═══ */
-.nav-group{
-  margin:16px 0 8px;padding:0 12px;
-  font-size:10.5px;font-weight:800;letter-spacing:.14em;
-  color:var(--tx-3);text-transform:uppercase;opacity:.65;
-}
-.nav{
-  display:flex;align-items:center;gap:12px;width:100%;
-  padding:11px 12px;border-radius:11px;
-  color:var(--tx-2);font-size:14px;font-weight:600;
-  position:relative;margin-bottom:3px;
-  transition:all .16s;
-}
-.nav:hover{background:var(--s1);color:var(--tx)}
-.nav.on{background:var(--s2);color:var(--tx)}
-.nav.on::before{
-  content:'';position:absolute;inset-inline-start:0;top:24%;bottom:24%;
-  width:3px;border-radius:99px;background:var(--g);
-}
-.nav.on svg{color:var(--g)}
-.nav .cnt{
-  margin-inline-start:auto;min-width:20px;height:20px;padding:0 6px;
-  border-radius:99px;background:var(--g);color:#04121B;
-  font-size:11px;font-weight:800;display:grid;place-items:center;
-}
-.rail-foot{margin-top:auto;padding-top:16px;border-top:1px solid var(--line)}
-.rail-user{display:flex;align-items:center;gap:11px;padding:0 4px 12px}
-.rail-av{
-  width:36px;height:36px;border-radius:11px;
-  background:var(--g-soft);color:var(--g);
-  display:grid;place-items:center;font-weight:800;
-}
-.rail-name{font-size:13px;font-weight:700;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.rail-role{font-size:11px;color:var(--tx-3)}
-
-/* ═══ Typography ═══ */
-.h1{font-size:26px;font-weight:800;letter-spacing:-.035em;line-height:1.2}
-.h2{font-size:17px;font-weight:800;letter-spacing:-.022em;line-height:1.3}
-.h3{font-size:14.5px;font-weight:700}
-.sub{color:var(--tx-2);font-size:13.5px;line-height:1.6}
-.eyebrow{font-size:11px;font-weight:800;letter-spacing:.12em;color:var(--tx-3);text-transform:uppercase}
-.lbl{display:block;font-size:12.5px;font-weight:700;color:var(--tx-2);margin-bottom:8px}
-.sec-head{display:flex;justify-content:space-between;align-items:baseline;margin:26px 0 14px;gap:12px}
-
-/* ═══ Box ═══ */
-.box{
-  background:linear-gradient(180deg,var(--s1),rgba(2,6,23,.75));
-  border:1px solid var(--line);border-radius:16px;
-  padding:20px;margin-bottom:16px;
-  transition:border-color .25s;
-}
-.box:hover{border-color:var(--line-2)}
-
-/* ═══ KPIs ═══ */
-.kpis{display:grid;gap:12px;grid-template-columns:repeat(2,1fr);margin-bottom:18px}
-@media(min-width:720px){.kpis{grid-template-columns:repeat(3,1fr)}}
-@media(min-width:1100px){.kpis{grid-template-columns:repeat(6,1fr)}}
-.kpi{
-  background:linear-gradient(180deg,var(--s1),rgba(2,6,23,.5));
-  border:1px solid var(--line);border-radius:14px;
-  padding:16px;transition:border-color .25s,transform .25s;
-}
-.kpi:hover{border-color:var(--g-line);transform:translateY(-2px)}
-.kpi-i{width:36px;height:36px;border-radius:11px;display:grid;place-items:center;margin-bottom:12px}
-.kpi-v{font-size:20px;font-weight:800;letter-spacing:-.03em;line-height:1.15}
-.kpi-k{font-size:11.5px;color:var(--tx-3);margin-top:4px}
-
-/* ═══ Buttons ═══ */
-.btn{
-  display:inline-flex;align-items:center;justify-content:center;gap:8px;
-  padding:11px 18px;border-radius:11px;
-  font-weight:700;font-size:13.5px;font-family:inherit;
-  background:linear-gradient(135deg,var(--g),var(--g-2));color:#04121B;
-  box-shadow:0 8px 18px -8px rgba(16,185,129,.55);
-  transition:transform .18s;position:relative;overflow:hidden;
-}
-.btn:hover:not(:disabled){transform:translateY(-2px)}
-.btn:active:not(:disabled){transform:translateY(0) scale(.98)}
-.btn:disabled{opacity:.42;cursor:not-allowed;background:var(--s3);color:var(--tx-3);box-shadow:none}
+svg{width:17px;height:17px;flex:none;display:inline-block;vertical-align:middle}
 .btn svg{width:16px;height:16px}
-.btn.line{background:transparent;border:1px solid var(--line-2);color:var(--tx);box-shadow:none}
-.btn.line:hover:not(:disabled){background:var(--s2)}
-.btn.ghost{background:var(--s2);color:var(--tx);box-shadow:none}
-.btn.dark{background:var(--s1);border:1px solid var(--line-2);color:var(--tx);box-shadow:none}
-.btn.dark:hover:not(:disabled){border-color:var(--g);color:var(--g)}
-.btn.bad{background:transparent;border:1px solid rgba(239,95,95,.35);color:var(--bad);box-shadow:none}
-.btn.sm{padding:8px 13px;font-size:12.5px;border-radius:10px}
+.btn.sm svg{width:14px;height:14px}
+.kpi .ico svg{width:17px;height:17px}
+.alert svg{width:19px;height:19px;margin-top:2px}
+.empty svg{width:40px;height:40px}
+.tab svg{width:20px;height:20px}
+.navlink svg{width:19px;height:19px}
+svg[data-lg]{width:22px;height:22px}
+
+:focus-visible{outline:2px solid var(--emerald);outline-offset:2px;border-radius:6px}
+::-webkit-scrollbar{width:8px;height:8px}
+::-webkit-scrollbar-thumb{background:#CBD5E1;border-radius:8px}
+
+.shell{display:grid;grid-template-columns:1fr;min-height:100vh}
+@media(min-width:1024px){.shell{grid-template-columns:1fr 258px}}
+.side{display:none;background:var(--navy);color:#fff;padding:22px 17px;
+  position:sticky;top:0;height:100vh;flex-direction:column;grid-column:2}
+@media(min-width:1024px){.side{display:flex}}
+.navlink{display:flex;align-items:center;justify-content:space-between;gap:10px;
+  padding:11px 13px;border-radius:11px;color:#94A3B8;font-size:14px;
+  font-weight:500;transition:.16s;margin-bottom:3px;width:100%}
+.navlink:hover{background:rgba(255,255,255,.06);color:#fff}
+.navlink.on{background:var(--emerald);color:#fff}
+.navlink .l{display:flex;align-items:center;gap:11px}
+.navlink svg{width:19px;height:19px;flex:none}
+.badge{background:var(--warn);color:#fff;font-size:11px;font-weight:700;
+  padding:1px 7px;border-radius:999px;min-width:20px;text-align:center}
+.main{grid-column:1;min-width:0;padding-bottom:80px}
+@media(min-width:1024px){.main{padding-bottom:30px}}
+
+.top{position:sticky;top:0;z-index:30;background:rgba(248,250,252,.9);
+  backdrop-filter:blur(12px);border-bottom:1px solid var(--border);
+  padding:12px 16px;display:flex;align-items:center;gap:11px}
+@media(min-width:1024px){.top{padding:14px 28px}}
+.wrap{padding:18px 16px;max-width:1280px}
+@media(min-width:1024px){.wrap{padding:24px 28px}}
+
+.tabbar{position:fixed;inset:auto 0 0 0;z-index:40;background:var(--navy);
+  display:flex;overflow-x:auto;padding:8px}
+@media(min-width:1024px){.tabbar{display:none}}
+.tab{display:flex;flex-direction:column;align-items:center;gap:3px;padding:6px 12px;
+  color:#64748B;font-size:10.5px;font-weight:500;flex:none;border-radius:10px;position:relative}
+.tab.on{color:var(--emerald)}
+.tab svg{width:20px;height:20px}
+.tab .dot{position:absolute;top:2px;left:8px;width:7px;height:7px;
+  border-radius:50%;background:var(--warn)}
+
+.box{background:#fff;border:1px solid var(--border);border-radius:var(--radius);padding:17px;
+  box-shadow:0 1px 2px rgba(15,23,42,.04),0 8px 22px -18px rgba(15,23,42,.26)}
+.h1{font-size:20px;font-weight:700;letter-spacing:-.02em}
+.h2{font-size:15.5px;font-weight:600}
+.sub{color:var(--muted);font-size:13.5px}
+.lbl{font-size:12.5px;font-weight:600;color:var(--muted);margin-bottom:7px;display:block}
+
+.inp{border:1px solid var(--border);border-radius:10px;padding:11px 12px;background:#fff;transition:.15s}
+.inp:focus{outline:none;border-color:var(--emerald);box-shadow:0 0 0 3px rgba(16,185,129,.11)}
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:7px;
+  padding:12px 18px;border-radius:10px;font-weight:600;font-size:14px;
+  background:var(--emerald);color:#fff;transition:.16s}
+.btn:hover:not(:disabled){background:var(--emerald-d)}
+.btn:active:not(:disabled){transform:scale(.975)}
+.btn:disabled{opacity:.5;cursor:not-allowed}
+.btn.dark{background:var(--navy)}
+.btn.ghost{background:#fff;border:1px solid var(--border);color:var(--navy)}
+.btn.ghost:hover:not(:disabled){background:var(--bg)}
+.btn.danger{background:#fff;border:1px solid #FECACA;color:var(--error)}
+.btn.sm{padding:8px 13px;font-size:12.5px;border-radius:9px}
 .btn.wide{width:100%}
-.btn.loading{color:transparent;pointer-events:none}
-.btn.loading::after{
-  content:'';position:absolute;width:16px;height:16px;
-  border:2.5px solid rgba(4,18,27,.3);border-top-color:#04121B;
-  border-radius:50%;animation:spin .7s linear infinite;
-}
-@keyframes spin{to{transform:rotate(360deg)}}
 
-/* ═══ Inputs ═══ */
-.inp{
-  background:var(--s2);border:1.5px solid var(--line-2);
-  border-radius:12px;padding:12px 14px;
-  color:var(--tx);font-size:14px;font-family:inherit;
-}
-.inp::placeholder{color:var(--tx-3)}
-.inp:focus{outline:none;border-color:var(--g);background:var(--s3);box-shadow:0 0 0 3px var(--g-soft)}
-textarea.inp{resize:vertical;line-height:1.7;min-height:90px}
+.pill{display:inline-flex;align-items:center;padding:3px 10px;border-radius:999px;
+  font-size:11.5px;font-weight:600;white-space:nowrap}
+.pill.ok{background:#D1FAE5;color:#065F46}
+.pill.wait{background:#FEF3C7;color:#92400E}
+.pill.bad{background:#FEE2E2;color:#991B1B}
+.pill.off{background:#E2E8F0;color:#475569}
 
-/* ═══ Table ═══ */
-.scrollx{
-  overflow-x:auto;border-radius:14px;
-  border:1px solid var(--line);background:var(--s1);
-}
-.tbl{width:100%;border-collapse:collapse;font-size:13px;min-width:700px}
-.tbl th{
-  text-align:right;padding:12px 14px;
-  color:var(--tx-3);font-size:11.5px;font-weight:700;
-  border-bottom:1px solid var(--line);white-space:nowrap;
-  background:var(--s2);position:sticky;top:0;z-index:1;
-}
-.tbl td{
-  padding:12px 14px;border-bottom:1px solid var(--line);
-  white-space:nowrap;
-}
-.tbl tbody tr:last-child td{border-bottom:none}
-.tbl tbody tr:hover{background:var(--s2)}
+.kpis{display:grid;gap:11px;grid-template-columns:repeat(2,1fr)}
+@media(min-width:760px){.kpis{grid-template-columns:repeat(3,1fr)}}
+@media(min-width:1180px){.kpis{grid-template-columns:repeat(6,1fr)}}
+.kpi{background:#fff;border:1px solid var(--border);border-radius:var(--radius);padding:14px;
+  box-shadow:0 1px 2px rgba(15,23,42,.04),0 8px 20px -18px rgba(15,23,42,.3);
+  transition:transform .2s cubic-bezier(.2,.8,.3,1),box-shadow .2s}
+.kpi:hover{transform:translateY(-2px)}
+.kpi .ico{width:34px;height:34px;border-radius:10px;display:grid;place-items:center;margin-bottom:9px}
+.kpi .v{font-size:19px;font-weight:700;letter-spacing:-.03em}
+.kpi .k{font-size:12px;color:var(--muted)}
 
-/* ═══ Chips ═══ */
-.chip{
-  display:inline-flex;align-items:center;gap:5px;
-  padding:4px 10px;border-radius:99px;
-  font-size:11px;font-weight:700;white-space:nowrap;
-}
-.chip.ok{background:var(--g-soft);color:var(--g)}
-.chip.wait{background:var(--warn-soft);color:var(--warn)}
-.chip.bad{background:var(--bad-soft);color:var(--bad)}
-.chip.info{background:var(--info-soft);color:var(--info)}
-.chip.off{background:var(--s3);color:var(--tx-3)}
+.tbl{width:100%;border-collapse:collapse;font-size:13px}
+.tbl th{text-align:right;padding:10px 11px;color:var(--muted);font-size:11.5px;
+  font-weight:600;border-bottom:1px solid var(--border);white-space:nowrap;background:var(--bg)}
+.tbl td{padding:11px;border-bottom:1px solid #F1F5F9;white-space:nowrap}
+.tbl tr:last-child td{border-bottom:none}
+.tbl tr.warn td{background:#FFFBEB}
+.scrollx{overflow-x:auto;-webkit-overflow-scrolling:touch}
 
-/* ═══ Empty ═══ */
-.empty{text-align:center;padding:46px 20px;color:var(--tx-2)}
-.empty .ei{
-  width:64px;height:64px;border-radius:18px;margin:0 auto 16px;
-  display:grid;place-items:center;background:var(--s2);color:var(--tx-3);
-}
-.empty .ei svg{width:28px;height:28px}
-.empty .et{font-weight:800;color:var(--tx);font-size:15px;margin-bottom:6px}
+.alert{background:#FEF2F2;border:1px solid #FECACA;color:#991B1B;
+  padding:13px 15px;border-radius:12px;font-size:13.5px;margin-bottom:16px;
+  display:flex;gap:10px;align-items:flex-start}
+.banner{background:#FFFBEB;border:1px solid #FDE68A;color:#92400E;
+  padding:11px 14px;border-radius:11px;font-size:13px;margin-bottom:16px}
 
-/* ═══ Note ═══ */
-.note{
-  background:var(--warn-soft);border:1px solid rgba(245,158,11,.28);
-  color:#F0C878;padding:12px 15px;border-radius:12px;
-  font-size:13px;margin-bottom:14px;
-}
-.note.bad{background:var(--bad-soft);border-color:var(--bad-line);color:#F5A0A0}
-.note.ok{background:var(--g-soft);border-color:var(--g-line);color:var(--g-3)}
+.sk{background:linear-gradient(90deg,#EEF2F7 25%,#E2E8F0 37%,#EEF2F7 63%);
+  background-size:400% 100%;animation:sh 1.3s ease infinite;border-radius:8px}
+@keyframes sh{0%{background-position:100% 0}100%{background-position:0 0}}
+.empty{text-align:center;padding:40px 20px;color:var(--muted)}
+.empty svg{width:40px;height:40px;margin:0 auto 12px;opacity:.32;display:block}
 
-/* ═══ Grids ═══ */
-.grid2{display:grid;grid-template-columns:1fr;gap:12px}
-@media(min-width:640px){.grid2{grid-template-columns:1fr 1fr}}
-.grid3{display:grid;grid-template-columns:1fr;gap:12px}
-@media(min-width:720px){.grid3{grid-template-columns:repeat(3,1fr)}}
-.flex-b{display:flex;justify-content:space-between;align-items:center;gap:12px}
-.flex{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+#toasts{position:fixed;top:14px;left:50%;transform:translateX(-50%);z-index:200;
+  display:flex;flex-direction:column;gap:8px;width:min(92vw,400px)}
+.toast{background:var(--navy);color:#fff;padding:13px 15px;border-radius:12px;font-size:14px;
+  box-shadow:0 12px 30px -10px rgba(15,23,42,.5);animation:tin .26s ease}
+.toast.ok{background:var(--emerald-d)}.toast.bad{background:var(--error)}
+@keyframes tin{from{opacity:0;transform:translateY(-14px)}}
 
-/* ═══ Sparklines ═══ */
-.spark{display:flex;align-items:flex-end;gap:3px;height:80px}
-.spark i{flex:1;background:var(--g);border-radius:3px 3px 0 0;min-height:3px;opacity:.85}
-  /* ═══ Sheet/Modal ═══ */
-.ov{
-  position:fixed;inset:0;z-index:120;
-  background:rgba(2,6,23,.72);
-  display:none;align-items:flex-end;justify-content:center;
-  backdrop-filter:blur(4px);
-}
+.ov{position:fixed;inset:0;z-index:120;background:rgba(15,23,42,.55);
+  display:none;align-items:flex-end;justify-content:center;backdrop-filter:blur(3px)}
 .ov.show{display:flex}
 @media(min-width:640px){.ov{align-items:center}}
-.sheet{
-  background:var(--s1);border:1px solid var(--line);
-  border-bottom:none;width:100%;max-width:540px;
-  border-radius:24px 24px 0 0;padding:22px;
-  max-height:92vh;overflow-y:auto;
-}
-@media(min-width:640px){.sheet{border-radius:20px;border-bottom:1px solid var(--line)}}
-.sheet-head{display:flex;gap:12px;margin-bottom:18px;padding-bottom:14px;border-bottom:1px solid var(--line)}
+.sheet{background:#fff;width:100%;max-width:470px;border-radius:20px 20px 0 0;
+  padding:22px;max-height:92vh;overflow-y:auto}
+@media(min-width:640px){.sheet{border-radius:18px}}
 
-/* ═══ Toast ═══ */
-#toasts{
-  position:fixed;top:14px;left:50%;transform:translateX(-50%);
-  z-index:200;display:flex;flex-direction:column;gap:8px;
-  width:min(92vw,400px);pointer-events:none;
-}
-.toast{
-  background:var(--s3);border:1px solid var(--line-2);
-  padding:13px 15px;border-radius:12px;
-  font-size:13.5px;font-weight:600;
-  display:flex;gap:10px;
-  box-shadow:0 20px 44px -16px rgba(0,0,0,.9);
-  pointer-events:auto;
-}
-.toast.ok{border-color:var(--g-line);background:linear-gradient(180deg,rgba(16,185,129,.15),rgba(13,20,33,.95))}
-.toast.ok svg{color:var(--g)}
-.toast.bad{border-color:var(--bad-line);background:linear-gradient(180deg,rgba(239,95,95,.15),rgba(13,20,33,.95))}
-.toast.bad svg{color:var(--bad)}
-.toast svg{width:18px;height:18px;flex:none}
-
-/* ═══ Tabs ═══ */
-.tabs{display:flex;gap:6px;overflow-x:auto;padding-bottom:6px;margin-bottom:18px;scrollbar-width:none}
-.tabs::-webkit-scrollbar{display:none}
-.tab{
-  flex:none;padding:9px 15px;border-radius:10px;
-  font-size:12.5px;font-weight:700;
-  border:1px solid var(--line);background:var(--s1);color:var(--tx-3);
-  transition:all .16s;font-family:inherit;
-}
-.tab:hover{color:var(--tx)}
-.tab.on{background:var(--s2);border-color:var(--g-line);color:var(--tx)}
-
-/* ═══ Switch ═══ */
-.sw{
-  width:46px;height:26px;border-radius:99px;
-  background:var(--line-2);
-  position:relative;transition:background .22s;
-  flex:none;cursor:pointer;border:none;
-}
-.sw::after{
-  content:'';position:absolute;top:3px;inset-inline-start:3px;
-  width:20px;height:20px;border-radius:50%;background:#fff;
-  transition:inset-inline-start .24s;
-}
-.sw.on{background:var(--g)}
-.sw.on::after{inset-inline-start:23px}
-.sw-row{
-  display:flex;justify-content:space-between;align-items:center;
-  padding:13px 0;border-bottom:1px solid var(--line);
-}
-.sw-row:last-child{border-bottom:none}
-.sw-lbl{font-size:13.5px;font-weight:600}
-.sw-desc{font-size:11.5px;color:var(--tx-3);margin-top:2px}
-
-/* ═══ Field row ═══ */
-.field{
-  display:grid;grid-template-columns:1fr 130px;
-  gap:12px;align-items:center;
-  padding:12px 0;border-bottom:1px solid var(--line);
-}
+.field{display:grid;grid-template-columns:1fr 118px;gap:11px;align-items:center;
+  padding:11px 0;border-bottom:1px solid #F1F5F9}
 .field:last-child{border-bottom:none}
-.field .n{font-size:13.5px;font-weight:600}
-.field .d{font-size:11.5px;color:var(--tx-3);margin-top:2px}
-.field input{text-align:center;padding:10px}
+.field .n{font-size:13.5px;font-weight:500}
+.field .d{font-size:11.5px;color:var(--muted)}
+.field input{text-align:center;padding:9px}
 
-/* ═══ Dock ═══ */
-.dock{
-  position:fixed;inset:auto 0 0 0;z-index:50;
-  display:grid;height:var(--dock-h);
-  padding-bottom:env(safe-area-inset-bottom);
-  background:rgba(2,6,23,.94);
-  backdrop-filter:blur(20px);
-  border-top:1px solid var(--line);
-}
-@media(min-width:1024px){.dock{display:none}}
-.dk{
-  display:flex;flex-direction:column;align-items:center;justify-content:center;
-  gap:3px;font-size:10px;font-weight:700;
-  color:var(--tx-3);padding:0 4px;position:relative;
-}
-.dk.on{color:var(--g)}
-.dk.on::before{
-  content:'';position:absolute;top:0;left:50%;
-  width:22px;height:2.5px;border-radius:0 0 4px 4px;
-  background:var(--g);transform:translateX(-50%);
-}
-.dk svg{width:20px;height:20px}
-.dk .cnt{
-  position:absolute;top:6px;inset-inline-end:14px;
-  min-width:15px;height:15px;padding:0 4px;
-  border-radius:99px;background:var(--bad);color:#fff;
-  font-size:9px;font-weight:800;display:grid;place-items:center;
-}
+.sw{width:46px;height:26px;border-radius:999px;background:var(--border);
+  position:relative;transition:.2s;flex:none;cursor:pointer}
+.sw.on{background:var(--emerald)}
+.sw::after{content:'';position:absolute;top:3px;right:3px;width:20px;height:20px;
+  border-radius:50%;background:#fff;transition:.2s}
+.sw.on::after{right:23px}
 
-/* ═══ Gate ═══ */
-#gate{min-height:100vh;display:none;place-items:center;padding:20px}
-#gate.show{display:grid}
-.gate-card{
-  background:var(--s1);border:1px solid var(--line);
-  border-radius:22px;padding:30px 26px;
-  width:min(100%,420px);text-align:center;
-}
+@keyframes rise{from{opacity:0;transform:translateY(12px)}to{opacity:1;transform:none}}
+.wrap > *{animation:rise .4s cubic-bezier(.2,.8,.3,1) backwards}
+.wrap > *:nth-child(2){animation-delay:.06s}
+.wrap > *:nth-child(3){animation-delay:.11s}
+.wrap > *:nth-child(n+4){animation-delay:.15s}
+.kpis > *{animation:rise .42s cubic-bezier(.2,.8,.3,1) backwards}
+.kpis > *:nth-child(2){animation-delay:.05s}
+.kpis > *:nth-child(3){animation-delay:.09s}
+.kpis > *:nth-child(4){animation-delay:.13s}
+.kpis > *:nth-child(5){animation-delay:.17s}
+.kpis > *:nth-child(6){animation-delay:.21s}
+.tbl tbody tr{transition:background .15s}
+.tbl tbody tr:hover{background:var(--bg)}
+@media(prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
+.hide{display:none!important}
 
-/* ═══ Reduced motion ═══ */
-@media(prefers-reduced-motion:reduce){
-  *,*::before,*::after{
-    animation-duration:.01ms!important;
-    transition-duration:.01ms!important;
-  }
-}
+#gate{min-height:100vh;display:grid;place-items:center;padding:22px;background:var(--navy)}
+.gatebox{background:#fff;border-radius:20px;padding:28px;width:min(100%,390px)}
+
+.copy-row{display:flex;align-items:center;gap:8px;padding:10px 12px;
+  background:var(--bg);border-radius:10px;border:1px solid var(--border)}
+.copy-row code{font-family:'IBM Plex Mono',monospace;font-size:12.5px;
+  flex:1;word-break:break-all}
+.copy-btn{padding:5px 9px;background:#fff;border:1px solid var(--border);
+  border-radius:7px;font-size:11.5px;font-weight:600;color:var(--muted)}
+.copy-btn:hover{color:var(--navy);border-color:var(--emerald)}
+
+.order-card{background:#fff;border:1px solid var(--border);border-radius:13px;
+  padding:15px;margin-bottom:11px;transition:.15s}
+.order-card:hover{border-color:var(--emerald)}
+.order-head{display:flex;justify-content:space-between;align-items:flex-start;
+  gap:11px;flex-wrap:wrap;margin-bottom:12px}
+.order-id{font-family:'IBM Plex Mono',monospace;font-size:11.5px;
+  color:var(--muted);letter-spacing:.04em}
+.order-actions{display:flex;gap:7px;flex-wrap:wrap}
+.order-meta{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;
+  margin-top:11px;padding-top:11px;border-top:1px solid #F1F5F9}
+.order-meta-item .k{font-size:10.5px;color:var(--muted);font-weight:600}
+.order-meta-item .v{font-size:14px;font-weight:700;margin-top:2px}
 </style>
 </head>
 <body>
 
 <div id="gate">
-  <div class="gate-card">
-    <div class="gate-head">
+  <div class="gatebox">
+    <div style="display:flex;align-items:center;gap:11px;margin-bottom:4px">
       <span id="gateMark"></span>
-      <div>
-        <div class="gate-title" style="font-size:21px;font-weight:800;letter-spacing:-.03em">Kardo</div>
-        <div class="gate-sub" style="font-size:11.5px;color:var(--tx-3)">لوحة التحكم</div>
-      </div>
+      <div><div style="font-size:21px;font-weight:700;letter-spacing:-.02em">Kardo</div>
+        <div style="font-size:12px;color:var(--muted)">لوحة الإدارة</div></div>
     </div>
-    <p class="sub" style="margin-bottom:20px">هذه الصفحة للمصرّح لهم فقط.</p>
-    <label class="lbl">البريد الإلكتروني</label>
-    <input class="inp" id="gEmail" type="email" dir="ltr" placeholder="admin@kardo.ly" autocomplete="email" style="margin-bottom:14px">
-    <label class="lbl">كلمة المرور</label>
-    <input class="inp" id="gPass" type="password" dir="ltr" placeholder="••••••••" autocomplete="current-password" style="margin-bottom:20px">
-    <button class="btn wide" id="gGo">تسجيل الدخول</button>
-    <div id="gErr" class="note bad hidden" style="margin-top:14px"></div>
+    <p class="sub" style="margin:6px 0 22px">هذه الصفحة للمصرّح لهم فقط.</p>
+    <div style="margin-bottom:13px">
+      <label class="lbl">البريد الإلكتروني</label>
+      <input class="inp" id="gEmail" type="email" dir="ltr" autocomplete="email">
+    </div>
+    <div style="margin-bottom:18px">
+      <label class="lbl">كلمة المرور</label>
+      <input class="inp" id="gPass" type="password" autocomplete="current-password">
+    </div>
+    <button class="btn wide dark" id="gGo">تسجيل الدخول</button>
+    <p id="gErr" class="hide" style="color:var(--error);font-size:13px;margin-top:12px;text-align:center"></p>
   </div>
 </div>
 
 <div id="app" style="display:none">
 <div class="shell">
-
-  <aside class="rail">
-    <div class="brand">
-      <span id="railMark"></span>
-      <div>
-        <div class="en">Kardo</div>
-        <div class="ar">لوحة التحكم</div>
-      </div>
+  <aside class="side">
+    <div style="display:flex;align-items:center;gap:10px;margin-bottom:4px">
+      <span id="sideMark"></span>
+      <div><div style="font-size:18px;font-weight:700;letter-spacing:-.02em">Kardo</div>
+        <div style="font-size:11px;color:#64748B">لوحة الإدارة</div></div>
     </div>
-
-    <nav id="navRail"></nav>
-
-    <div class="rail-foot">
-      <div class="rail-user">
-        <div class="rail-av" id="railAv">A</div>
-        <div style="min-width:0;flex:1">
-          <div class="rail-name" id="railName">—</div>
-          <div class="rail-role">مسؤول النظام</div>
-        </div>
-      </div>
-      <button class="nav" id="railOut"></button>
+    <div style="height:22px"></div>
+    <nav id="navDesk"></nav>
+    <div style="margin-top:auto;padding-top:18px;border-top:1px solid rgba(255,255,255,.09)">
+      <div style="padding:0 3px 12px;font-size:12.5px">
+        <div id="admName" style="font-weight:600"></div>
+        <div style="color:#64748B;font-size:11px">مدير النظام</div></div>
+      <button class="navlink" onclick="confirmOut()">
+        <span class="l">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+            stroke-linecap="round"><path d="M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4M16 17l5-5-5-5M21 12H9"/></svg>
+          تسجيل الخروج</span></button>
     </div>
   </aside>
 
   <div class="main">
-    <header class="bar">
-      <div class="bar-title" id="barTitle">نظرة عامة</div>
-      <div class="bar-actions">
-        <button class="iconbtn" id="refreshBtn" aria-label="تحديث">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round">
-            <path d="M21 12a9 9 0 1 1-3-6.7M21 4v5h-5"/>
-          </svg>
-        </button>
+    <header class="top">
+      <div style="display:flex;align-items:center;gap:9px" class="lg-hide">
+        <span id="topMark"></span>
+        <span style="font-size:16px;font-weight:700">لوحة الإدارة</span>
+      </div>
+      <div style="margin-inline-start:auto;display:flex;align-items:center;gap:9px">
+        <span id="floatChip" class="pill off"></span>
+        <button class="btn ghost sm" onclick="refreshAll()">تحديث</button>
       </div>
     </header>
     <main class="wrap" id="view"></main>
   </div>
-
 </div>
-<nav class="dock" id="navDock"></nav>
+<nav class="tabbar" id="navMob"></nav>
 </div>
 
 <div id="toasts"></div>
 <div class="ov" id="ov"><div class="sheet" id="sheet"></div></div>
+<style>@media(min-width:1024px){.lg-hide{display:none}}</style>
+
 <script type="module">
 import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js';
-import { getAuth, onAuthStateChanged, signInWithEmailAndPassword, signOut } from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js';
-import { getFirestore, doc, getDoc, setDoc, deleteDoc, addDoc, onSnapshot, collection, query, orderBy, limit } from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js';
+import { getAuth, onAuthStateChanged, signInWithEmailAndPassword, signOut }
+  from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js';
+import { getFirestore, doc, getDoc, onSnapshot, collection, query,
+  orderBy, limit, deleteDoc, addDoc, setDoc }
+  from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js';
 
-/* ═══════════════════════════════════════════════════════════
-   Firebase Config + Constants
-   ═══════════════════════════════════════════════════════════ */
+/* ═══ Config ═══ */
+const API_BASE = 'https://kardo.sdkhyrallh08.workers.dev';
+
 const firebaseConfig = {
   apiKey: "AIzaSyC-GntWur6r_Ow_v0wTNymQqQa6brzgvW8",
   authDomain: "kardo-1c657.firebaseapp.com",
@@ -474,624 +286,493 @@ const firebaseConfig = {
   appId: "1:593934928630:web:d36ea455a284e974043ad7"
 };
 
-const WORKER_URL = 'https://kardo.sdkhyrallh08.workers.dev';
-
 const app = initializeApp(firebaseConfig);
 const auth = getAuth(app);
 const db = getFirestore(app);
 
-/* ═══════════════════════════════════════════════════════════
-   State
-   ═══════════════════════════════════════════════════════════ */
+window.addEventListener('error', e => {
+  const el = document.getElementById('gErr');
+  if (el) {
+    el.textContent = 'خطأ: ' + (e.message || '') + ' — سطر ' + (e.lineno || '');
+    el.classList.remove('hide');
+  }
+});
+
+/* ═══ State ═══ */
 const S = {
   admin: null,
   page: 'home',
   unsub: [],
   users: [],
-  cardOrders: [],
   cards: [],
+  manualCards: [],
+  manualOrders: [],
+  orders: [],
   deposits: [],
+  withdrawals: [],
   tickets: [],
-  vipPlans: [],
-  vipSubs: [],
-  ads: [],
-  stats: null,
+  coupons: [],
+  sms: [],
+  logs: [],
   settings: {},
+  q: '',
   filter: 'all',
-  search: '',
-  setTab: 'ops'
 };
 
-/* ═══════════════════════════════════════════════════════════
-   Icons
-   ═══════════════════════════════════════════════════════════ */
+/* ═══ Icons ═══ */
 const I = {
-  home:'<path d="M3 10.4 12 3.2l9 7.2V20a1 1 0 0 1-1 1h-5v-6.5H9V21H4a1 1 0 0 1-1-1z"/>',
-  card:'<rect x="2" y="5" width="20" height="14" rx="3"/><path d="M2 10h20"/>',
-  users:'<path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.9"/>',
-  cash:'<rect x="2" y="6" width="20" height="12" rx="2"/><circle cx="12" cy="12" r="2.5"/>',
-  gear:'<circle cx="12" cy="12" r="3"/><path d="M19.9 14.6a1.6 1.6 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.6 1.6 0 0 0-2.7 1.1V21a2 2 0 0 1-4 0v-.1a1.6 1.6 0 0 0-2.7-1.1l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.6 1.6 0 0 0-1.1-2.7H4a2 2 0 0 1 0-4h.1A1.6 1.6 0 0 0 5.2 7.6l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.6 1.6 0 0 0 2.7-1.1V3a2 2 0 0 1 4 0v.1a1.6 1.6 0 0 0 2.7 1.1l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.6 1.6 0 0 0 1.1 2.7H21a2 2 0 0 1 0 4h-.1a1.6 1.6 0 0 0-1 .9z"/>',
-  chart:'<path d="M4 20V10M10 20V4M16 20v-7M22 20H2"/>',
-  warn:'<path d="M12 9v4M12 17h.01"/><path d="M10.3 3.9 2 18a2 2 0 0 0 1.7 3h16.6A2 2 0 0 0 22 18L13.7 3.9a2 2 0 0 0-3.4 0z"/>',
-  check:'<path d="M20 6 9 17l-5-5"/>',
-  clock:'<circle cx="12" cy="12" r="9"/><path d="M12 7v5.2l3.2 2"/>',
-  plus:'<path d="M12 5.5v13M5.5 12h13"/>',
-  help:'<circle cx="12" cy="12" r="9"/><path d="M9.6 9.3a2.5 2.5 0 1 1 3.4 2.3c-.6.3-1 .9-1 1.6v.3"/><path d="M12 17h.01"/>',
-  out:'<path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4M16 17l5-5-5-5M21 12H9"/>',
-  award:'<circle cx="12" cy="8" r="6"/><path d="M8.2 13.7 7 22l5-3 5 3-1.2-8.3"/>',
-  megaphone:'<path d="M3 11v3a1 1 0 0 0 1 1h2l5 4V6L6 10H4a1 1 0 0 0-1 1z"/><path d="M16 9a4 4 0 0 1 0 6"/>',
-  trash:'<path d="M3.5 6h17M8 6V4h8v2M6.5 6l1 15h9l1-15"/>'
+  home: '<path d="M3 10.2 12 3l9 7.2V20a1 1 0 0 1-1 1h-5v-7H9v7H4a1 1 0 0 1-1-1z"/>',
+  orders: '<path d="M8 6h13M8 12h13M8 18h13M3 6h.01M3 12h.01M3 18h.01"/>',
+  mcards: '<rect x="2" y="5" width="20" height="14" rx="2.5"/><path d="M2 10h20"/>',
+  card: '<rect x="2" y="5" width="20" height="14" rx="2.5"/><path d="M2 10h20"/>',
+  users: '<path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.9"/>',
+  cash: '<rect x="2" y="6" width="20" height="12" rx="2"/><circle cx="12" cy="12" r="2.5"/>',
+  withdraw: '<path d="M12 5v14M18.5 12.5 12 19l-6.5-6.5"/>',
+  ticket: '<circle cx="12" cy="12" r="9"/><path d="M9.6 9.3a2.5 2.5 0 1 1 3.4 2.3c-.6.3-1 .9-1 1.6v.3"/><path d="M12 17h.01"/>',
+  coupon: '<path d="M20.5 13.5 13 21a2 2 0 0 1-2.8 0l-7.2-7.2A2 2 0 0 1 2.4 12V4.4A2 2 0 0 1 4.4 2.4H12a2 2 0 0 1 1.4.6l7.1 7.1a2 2 0 0 1 0 2.8z"/><path d="M7.5 7.5h.01"/>',
+  gear: '<circle cx="12" cy="12" r="3"/><path d="M20 12a8 8 0 0 1-.2 1.8l2 1.5-2 3.4-2.3-1a8 8 0 0 1-1.6.9l-.3 2.4h-4l-.3-2.4a8 8 0 0 1-1.6-.9l-2.3 1-2-3.4 2-1.5A8 8 0 0 1 4 12"/>',
+  chart: '<path d="M4 20V10M10 20V4M16 20v-7M22 20H2"/>',
+  warn: '<path d="M12 9v4M12 17h.01"/><path d="M10.3 3.9 2 18a2 2 0 0 0 1.7 3h16.6A2 2 0 0 0 22 18L13.7 3.9a2 2 0 0 0-3.4 0z"/>',
+  check: '<path d="M20 6 9 17l-5-5"/>',
+  cash2: '<path d="M12 2v20M17 6H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/>',
+  sms: '<path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>',
+  plus: '<path d="M12 5.5v13M5.5 12h13"/>',
+  eye: '<path d="M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7-10-7-10-7"/><circle cx="12" cy="12" r="3"/>',
+  trash: '<path d="M3.5 6h17M8 6V4h8v2M6.5 6l1 15h9l1-15"/>',
+  copy: '<rect x="9" y="9" width="12" height="12" rx="2.5"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/>',
+  clock: '<circle cx="12" cy="12" r="9"/><path d="M12 7v5.2l3.2 2"/>',
 };
-const svg = (d, w = 1.8) => `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="${w}" stroke-linecap="round" stroke-linejoin="round">${d}</svg>`;
+const svg = (d, w = 2) => `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="${w}" stroke-linecap="round" stroke-linejoin="round">${d}</svg>`;
 
-/* ═══════════════════════════════════════════════════════════
-   Logo Mark
-   ═══════════════════════════════════════════════════════════ */
 function mark(size = 32) {
-  const id = 'k' + size + '_' + Math.random().toString(36).slice(2, 6);
-  return `<svg width="${size}" height="${size}" viewBox="0 0 40 40" style="flex:none" aria-hidden="true">
-    <defs>
-      <linearGradient id="${id}" x1="0" y1="0" x2="1" y2="1">
-        <stop offset="0" stop-color="#10B981"/>
-        <stop offset="1" stop-color="#34D399"/>
-      </linearGradient>
-    </defs>
-    <rect width="40" height="40" rx="11" fill="#0D1421"/>
-    <rect x="0.5" y="0.5" width="39" height="39" rx="10.5" fill="none" stroke="rgba(16,185,129,.28)"/>
-    <path d="M11 9h4.4v22H11z" fill="url(#${id})"/>
-    <path d="M17 20.2 27.5 9H33L22.4 20.2 33 31h-5.6z" fill="url(#${id})"/>
-    <rect x="19" y="15.6" width="12.4" height="8.8" rx="2.2" fill="#F8FAFC" opacity=".95"/>
-    <rect x="21" y="18.4" width="3.4" height="2.6" rx=".7" fill="#0D1421" opacity=".6"/>
-  </svg>`;
+  return `<svg width="${size}" height="${size}" viewBox="0 0 40 40" style="flex:none">
+    <rect width="40" height="40" rx="10" fill="#0F172A"/>
+    <path d="M11 9h4.4v22H11z" fill="#10B981"/>
+    <path d="M17 20.2 27.5 9H33L22.4 20.2 33 31h-5.6z" fill="#10B981"/>
+    <rect x="19" y="15.6" width="12.4" height="8.8" rx="2" fill="#fff" opacity=".93"/>
+    <rect x="21" y="18.4" width="3.4" height="2.6" rx=".7" fill="#0F172A" opacity=".55"/></svg>`;
 }
 
-/* ═══════════════════════════════════════════════════════════
-   Helpers
-   ═══════════════════════════════════════════════════════════ */
+/* ═══ Helpers ═══ */
 const $ = s => document.querySelector(s);
-const $$ = s => [...document.querySelectorAll(s)];
-const n = v => { const x = parseFloat(v); return Number.isFinite(x) ? x : 0; };
-const usd = v => '$' + Number(v || 0).toFixed(2);
-const lyd = v => Number(v || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + ' د.ل';
-const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const usd = n => '$' + Number(n || 0).toFixed(2);
+const lyd = n => Number(n || 0).toLocaleString('en-US',
+  { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + ' د.ل';
+const esc = s => String(s ?? '').replace(/[&<>"']/g, c =>
+  ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+const n = (v, f = 0) => { const x = typeof v === 'number' ? v : parseFloat(v); return Number.isFinite(x) ? x : f; };
 const dt = v => {
   if (!v) return '—';
   const d = v.toDate ? v.toDate() : new Date(v);
-  return isNaN(d) ? '—' : d.toLocaleDateString('ar-LY', { day: '2-digit', month: 'short' }) + ' · ' + d.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' });
+  return isNaN(d) ? '—' : d.toLocaleDateString('ar-LY', { day: '2-digit', month: 'short' }) + ' · ' +
+    d.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' });
 };
 const shortDate = v => {
-  const d = v.toDate ? v.toDate() : new Date(v);
+  const d = v?.toDate ? v.toDate() : new Date(v);
   return isNaN(d) ? '—' : d.toLocaleDateString('ar-LY', { day: 'numeric', month: 'short' });
 };
 
-/* ═══════════════════════════════════════════════════════════
-   Toast
-   ═══════════════════════════════════════════════════════════ */
-function toast(msg, kind = '') {
-  const el = document.createElement('div');
-  el.className = 'toast ' + kind;
-  el.innerHTML = (kind === 'ok' ? svg(I.check, 2.4) : kind === 'bad' ? svg(I.warn, 2) : '') + `<span>${esc(msg)}</span>`;
-  $('#toasts').appendChild(el);
+function toast(m, k = '') {
+  const e = document.createElement('div');
+  e.className = 'toast ' + k;
+  e.textContent = m;
+  $('#toasts').appendChild(e);
   setTimeout(() => {
-    el.style.opacity = '0';
-    el.style.transition = '.28s';
-    setTimeout(() => el.remove(), 280);
+    e.style.opacity = '0';
+    e.style.transition = '.25s';
+    setTimeout(() => e.remove(), 250);
   }, 3600);
 }
 
-/* ═══════════════════════════════════════════════════════════
-   Sheet
-   ═══════════════════════════════════════════════════════════ */
-function sheet(html) {
-  $('#sheet').innerHTML = html;
+function sheet(h) {
+  $('#sheet').innerHTML = h;
   $('#ov').classList.add('show');
 }
 window.closeSheet = () => $('#ov').classList.remove('show');
 $('#ov').addEventListener('click', e => { if (e.target.id === 'ov') closeSheet(); });
 document.addEventListener('keydown', e => { if (e.key === 'Escape') closeSheet(); });
 
-/* ═══════════════════════════════════════════════════════════
-   Worker API — كل العمليات الإدارية عبر Worker
-   ═══════════════════════════════════════════════════════════ */
-async function api(path, body = {}) {
+async function api(path, body) {
   const token = await auth.currentUser.getIdToken();
-  const idempotencyKey = 'admin_' + Date.now() + '_' + Math.random().toString(36).slice(2, 10);
-
-  const res = await fetch(WORKER_URL + path, {
+  const res = await fetch(API_BASE + path, {
     method: 'POST',
-    headers: {
-      'content-type': 'application/json',
-      'authorization': 'Bearer ' + token,
-      'Idempotency-Key': idempotencyKey
-    },
-    body: JSON.stringify(body)
+    headers: { 'content-type': 'application/json', authorization: 'Bearer ' + token },
+    body: JSON.stringify(body || {}),
   });
-
   const d = await res.json().catch(() => ({ success: false, error: 'رد غير مفهوم' }));
   if (!d.success) throw new Error(d.error || 'فشلت العملية');
   return d;
 }
 
-/* ═══════════════════════════════════════════════════════════
-   Inject Marks
-   ═══════════════════════════════════════════════════════════ */
-$('#gateMark').innerHTML = mark(44);
-$('#railMark').innerHTML = mark(32);
-$('#railOut').innerHTML = svg(I.out) + '<span>تسجيل الخروج</span>';
+/* ═══ Auth ═══ */
+$('#gateMark').innerHTML = mark(40);
+$('#sideMark').innerHTML = mark(32);
+$('#topMark').innerHTML = mark(28);
 
-/* ═══════════════════════════════════════════════════════════
-   Auth — Firebase + admins/{uid} check
-   ═══════════════════════════════════════════════════════════ */
 $('#gGo').onclick = async () => {
-  const email = $('#gEmail').value.trim();
-  const pass = $('#gPass').value;
-  if (!email || !pass) return gateErr('أكمل البيانات');
-
-  const btn = $('#gGo');
-  btn.disabled = true;
-  btn.classList.add('loading');
-
-  try {
-    await signInWithEmailAndPassword(auth, email, pass);
-  } catch (err) {
-    gateErr('البريد أو كلمة المرور غير صحيحة');
-    btn.disabled = false;
-    btn.classList.remove('loading');
-  }
+  const e = $('#gEmail').value.trim(), p = $('#gPass').value;
+  if (!e || !p) return showErr('أكمل البيانات');
+  $('#gGo').disabled = true;
+  try { await signInWithEmailAndPassword(auth, e, p); }
+  catch (err) { showErr('البريد أو كلمة المرور غير صحيحة'); }
+  $('#gGo').disabled = false;
 };
+$('#gPass').addEventListener('keydown', e => { if (e.key === 'Enter') $('#gGo').click(); });
+function showErr(m) { const el = $('#gErr'); el.textContent = m; el.classList.remove('hide'); }
 
-$('#gPass').addEventListener('keydown', e => {
-  if (e.key === 'Enter') $('#gGo').click();
-});
-
-function gateErr(m) {
-  const el = $('#gErr');
-  el.textContent = m;
-  el.classList.remove('hidden');
-}
+window.confirmOut = () => {
+  sheet(`<div class="h2" style="margin-bottom:16px">تسجيل الخروج من اللوحة</div>
+    <button class="btn wide dark" onclick="closeSheet();__out()">تسجيل الخروج</button>
+    <button class="btn ghost wide" style="margin-top:9px" onclick="closeSheet()">إلغاء</button>`);
+};
+window.__out = () => signOut(auth);
 
 onAuthStateChanged(auth, async user => {
   S.unsub.forEach(u => { try { u(); } catch {} });
   S.unsub = [];
-
-  if (!user) {
-    $('#gate').classList.add('show');
-    $('#app').style.display = 'none';
-    return;
-  }
-
-  let isAdmin = false;
-  let adminData = null;
-  try {
-    const adminSnap = await getDoc(doc(db, 'admins', user.uid)).catch(() => null);
-    if (adminSnap && adminSnap.exists()) {
-      isAdmin = true;
-      adminData = adminSnap.data();
-    }
-  } catch (e) {}
-
-  if (!isAdmin) {
-    location.replace('dashboard.html');
-    return;
-  }
-
-  S.admin = { uid: user.uid, email: user.email, ...(adminData || {}) };
-  $('#gate').classList.remove('show');
-  $('#app').style.display = 'block';
-  $('#railName').textContent = adminData?.name || user.email.split('@')[0];
-  $('#railAv').textContent = (adminData?.name || user.email).charAt(0).toUpperCase();
-
-  subscribeAll();
-  render();
-});
-
-/* ═══════════════════════════════════════════════════════════
-   Logout
-   ═══════════════════════════════════════════════════════════ */
-$('#railOut').addEventListener('click', () => {
-  sheet(`
-    <div class="h2" style="margin-bottom:10px">تسجيل الخروج</div>
-    <p class="sub" style="margin-bottom:20px">ستحتاج للدخول مرة أخرى.</p>
-    <button class="btn wide" id="doOutBtn">تأكيد</button>
-    <button class="btn line wide" style="margin-top:10px" onclick="closeSheet()">إلغاء</button>
-  `);
-  $('#doOutBtn').onclick = async () => {
-    closeSheet();
+  if (!user) { $('#gate').style.display = 'grid'; $('#app').style.display = 'none'; return; }
+  const snap = await getDoc(doc(db, 'admins', user.uid)).catch(() => null);
+  if (!snap || !snap.exists()) {
     await signOut(auth);
-  };
+    $('#gate').style.display = 'grid';
+    showErr('هذا الحساب ليس لديه صلاحية إدارة.');
+    return;
+  }
+  S.admin = { uid: user.uid, email: user.email, ...snap.data() };
+  subscribe();
+  boot();
 });
 
-/* ═══════════════════════════════════════════════════════════
-   Subscribe — real-time Firestore listeners
-   ═══════════════════════════════════════════════════════════ */
 function sub(q, key) {
-  S.unsub.push(onSnapshot(q,
-    s => {
-      S[key] = s.docs.map(d => ({ id: d.id, ...d.data() }));
-      render();
-    },
-    err => console.warn(key, err.code)
-  ));
+  S.unsub.push(onSnapshot(q, s => {
+    S[key] = s.docs.map(d => ({ id: d.id, ...d.data() }));
+    render();
+  }, err => {
+    console.warn(key, err.code);
+  }));
 }
 
-function subscribeAll() {
-  sub(query(collection(db, 'users'), orderBy('created_at', 'desc'), limit(300)), 'users');
-  sub(query(collection(db, 'manual_card_orders'), orderBy('created_at', 'desc'), limit(300)), 'cardOrders');
-  sub(query(collection(db, 'manual_cards'), orderBy('created_at', 'desc'), limit(300)), 'cards');
+function subscribe() {
+  sub(query(collection(db, 'users'), orderBy('created_at', 'desc'), limit(200)), 'users');
+  sub(query(collection(db, 'manual_cards'), orderBy('created_at', 'desc'), limit(200)), 'manualCards');
+  sub(query(collection(db, 'manual_card_orders'), orderBy('created_at', 'desc'), limit(300)), 'manualOrders');
+  sub(query(collection(db, 'orders'), orderBy('created_at', 'desc'), limit(200)), 'orders');
   sub(query(collection(db, 'wallet_deposits'), orderBy('created_at', 'desc'), limit(200)), 'deposits');
-  sub(query(collection(db, 'tickets'), orderBy('updated_at', 'desc'), limit(100)), 'tickets');
-  sub(query(collection(db, 'vip_plans')), 'vipPlans');
-  sub(query(collection(db, 'subscriptions'), orderBy('created_at', 'desc'), limit(200)), 'vipSubs');
-  sub(query(collection(db, 'ads')), 'ads');
-
-  S.unsub.push(onSnapshot(doc(db, 'settings', 'main'),
-    s => {
-      if (s.exists()) {
-        S.settings = s.data();
-        render();
-      }
-    },
-    err => console.warn('settings', err.code)
-  ));
+  sub(query(collection(db, 'withdrawals'), orderBy('created_at', 'desc'), limit(100)), 'withdrawals');
+  sub(query(collection(db, 'tickets'), orderBy('updated_at', 'desc'), limit(80)), 'tickets');
+  sub(query(collection(db, 'coupons')), 'coupons');
+  sub(query(collection(db, 'sms_transactions'), orderBy('created_at', 'desc'), limit(100)), 'sms');
+  sub(query(collection(db, 'card_logs'), orderBy('created_at', 'desc'), limit(80)), 'logs');
+  S.unsub.push(onSnapshot(doc(db, 'settings', 'main'), s => {
+    if (s.exists()) S.settings = s.data();
+    render();
+  }, () => {}));
 }
 
-/* ═══════════════════════════════════════════════════════════
-   Navigation
-   ═══════════════════════════════════════════════════════════ */
-const PAGES = [
-  { k: 'home',       t: 'نظرة عامة',      i: I.home,      g: 'الرئيسية' },
-  { k: 'orders',     t: 'طلبات البطاقات', i: I.card,      g: 'العمليات', badge: 'pendingOrders' },
-  { k: 'users',      t: 'المستخدمون',     i: I.users,     g: 'العملاء' },
-  { k: 'deposits',   t: 'الإيداعات',      i: I.cash,      g: 'العمليات', badge: 'pendingDeposits' },
-  { k: 'tickets',    t: 'التذاكر',        i: I.help,      g: 'الدعم',    badge: 'openTickets' },
-  { k: 'vip',        t: 'الاشتراكات VIP', i: I.award,     g: 'التسويق' },
-  { k: 'ads',        t: 'الإعلانات',      i: I.megaphone, g: 'التسويق' },
-  { k: 'settings',   t: 'الإعدادات',      i: I.gear,      g: 'النظام' }
-];
-const DOCK = ['home', 'orders', 'users', 'vip', 'settings'];
+function boot() {
+  $('#gate').style.display = 'none';
+  $('#app').style.display = 'block';
+  $('#admName').textContent = S.admin.email || 'مدير';
+  buildNav();
+  render();
+}
 
-const badges = {
-  pendingOrders:   () => S.cardOrders.filter(o => o.status === 'pending').length,
-  pendingDeposits: () => S.deposits.filter(d => d.status === 'pending').length,
-  openTickets:     () => S.tickets.filter(t => t.status === 'open').length
-};
+/* ═══ Nav ═══ */
+const PAGES = [
+  { k: 'home',      t: 'الرئيسية',       i: I.home },
+  { k: 'mcards',    t: 'طلبات البطاقات', i: I.mcards, badge: 'pendMc' },
+  { k: 'cards',     t: 'البطاقات',       i: I.card },
+  { k: 'orders',    t: 'طلبات المتجر',   i: I.orders, badge: 'pendOrd' },
+  { k: 'deposits',  t: 'الإيداعات',      i: I.cash,   badge: 'pendDep' },
+  { k: 'withdraw',  t: 'السحوبات',       i: I.withdraw, badge: 'pendWd' },
+  { k: 'tickets',   t: 'التذاكر',        i: I.ticket, badge: 'openTic' },
+  { k: 'coupons',   t: 'الكوبونات',      i: I.coupon },
+  { k: 'users',     t: 'المستخدمون',     i: I.users },
+  { k: 'sms',       t: 'الرسائل',        i: I.sms },
+  { k: 'logs',      t: 'السجلات',        i: I.chart },
+  { k: 'settings',  t: 'الإعدادات',      i: I.gear },
+];
+
+const pendMc = () => S.manualOrders.filter(o => o.status === 'pending').length;
+const pendOrd = () => S.orders.filter(o => o.status === 'pending').length;
+const pendDep = () => S.deposits.filter(d => d.status === 'pending').length;
+const pendWd = () => S.withdrawals.filter(w => w.status === 'pending').length;
+const openTic = () => S.tickets.filter(t => t.status === 'open').length;
+
+const BADGES = { pendMc, pendOrd, pendDep, pendWd, openTic };
 
 function buildNav() {
-  const groups = {};
-  PAGES.forEach(p => { if (!groups[p.g]) groups[p.g] = []; groups[p.g].push(p); });
-
-  let rail = '';
-  for (const [g, items] of Object.entries(groups)) {
-    rail += `<div class="nav-group">${g}</div>`;
-    items.forEach(p => {
-      const c = p.badge ? badges[p.badge]() : 0;
-      rail += `<button class="nav ${S.page === p.k ? 'on' : ''}" data-nav="${p.k}">
-        ${svg(p.i)}<span>${p.t}</span>
-        ${c ? `<span class="cnt">${c}</span>` : ''}
-      </button>`;
-    });
-  }
-  $('#navRail').innerHTML = rail;
-
-  const dk = DOCK.map(k => PAGES.find(p => p.k === k)).filter(Boolean);
-  $('#navDock').style.gridTemplateColumns = `repeat(${dk.length}, 1fr)`;
-  $('#navDock').innerHTML = dk.map(p => {
-    const c = p.badge ? badges[p.badge]() : 0;
-    return `<button class="dk ${S.page === p.k ? 'on' : ''}" data-nav="${p.k}">
-      ${c ? `<span class="cnt">${c}</span>` : ''}
-      ${svg(p.i)}<span>${p.t.replace('ال', '').slice(0, 6)}</span>
-    </button>`;
+  $('#navDesk').innerHTML = PAGES.map(p => {
+    const c = p.badge ? BADGES[p.badge]() : 0;
+    return `<button class="navlink" data-nav="${p.k}">
+      <span class="l">${svg(p.i)}${p.t}</span>
+      ${c ? `<span class="badge">${c}</span>` : ''}</button>`;
   }).join('');
-
-  $$('[data-nav]').forEach(b => b.onclick = () => go(b.dataset.nav));
+  $('#navMob').innerHTML = PAGES.map(p => {
+    const c = p.badge ? BADGES[p.badge]() : 0;
+    return `<button class="tab" data-nav="${p.k}">
+      ${c ? '<span class="dot"></span>' : ''}
+      ${svg(p.i)}<span>${p.t}</span></button>`;
+  }).join('');
+  document.querySelectorAll('[data-nav]').forEach(b =>
+    b.onclick = () => go(b.dataset.nav));
 }
 
 window.go = k => {
   S.page = k;
-  S.search = '';
-  S.filter = 'all';
-  window.scrollTo({ top: 0 });
+  S.q = '';
+  window.scrollTo({ top: 0, behavior: 'instant' });
   render();
 };
 
-/* ═══════════════════════════════════════════════════════════
-   Render
-   ═══════════════════════════════════════════════════════════ */
-let _raf = null;
+window.refreshAll = () => render();
+
+/* ═══ Render ═══ */
 function render() {
-  if (_raf) return;
-  _raf = requestAnimationFrame(() => { _raf = null; paint(); });
-}
-
-function paint() {
   buildNav();
-  $$('[data-nav]').forEach(b => b.classList.toggle('on', b.dataset.nav === S.page));
+  document.querySelectorAll('[data-nav]').forEach(b =>
+    b.classList.toggle('on', b.dataset.nav === S.page));
 
-  const page = PAGES.find(p => p.k === S.page);
-  $('#barTitle').textContent = page ? page.t : 'لوحة التحكم';
+  const fl = n(S.settings.provider_float, 0);
+  const th = n(S.settings.low_balance_threshold, 30);
+  const chip = $('#floatChip');
+  chip.textContent = 'رصيد المزود ' + usd(fl);
+  chip.className = 'pill ' + (fl < th ? 'bad' : 'ok');
 
   const V = {
-    home: vHome, orders: vOrders, users: vUsers, deposits: vDeposits,
-    tickets: vTickets, vip: vVip, ads: vAds, settings: vSettings
+    home: vHome,
+    mcards: vMcardOrders,
+    cards: vCards,
+    orders: vShopOrders,
+    deposits: vDeposits,
+    withdraw: vWithdraw,
+    tickets: vTickets,
+    coupons: vCoupons,
+    users: vUsers,
+    sms: vSms,
+    logs: vLogs,
+    settings: vSettings,
   };
   $('#view').innerHTML = (V[S.page] || vHome)();
   bind();
 }
 
-/* ═══════════════════════════════════════════════════════════
-   Home
-   ═══════════════════════════════════════════════════════════ */
-function vHome() {
-  const orders = S.cardOrders;
-  const done = orders.filter(o => o.status === 'completed');
-  const pending = orders.filter(o => o.status === 'pending').length;
-  const totalFees = done.reduce((sum, o) => sum + n(o.fee), 0);
-  const totalRevenue = done.reduce((sum, o) => sum + n(o.total), 0);
-
-  const days = [...Array(14)].map((_, i) => {
-    const d = new Date(); d.setHours(0, 0, 0, 0);
-    d.setDate(d.getDate() - (13 - i));
-    const nx = new Date(d); nx.setDate(nx.getDate() + 1);
-    const r = done.filter(o => {
-      const t = o.created_at?.toDate?.() || new Date(o.created_at || 0);
-      return t >= d && t < nx;
-    }).reduce((sum, o) => sum + n(o.total), 0);
-    return { d, r };
-  });
-  const peak = Math.max(...days.map(x => x.r), 1);
-  const weekTotal = days.reduce((sum, x) => sum + x.r, 0);
-  const recent = orders.slice(0, 6);
-
-  return `
-  ${pending > 0 ? `<div class="note">
-    <strong>${pending} طلب بطاقة</strong> ينتظر التنفيذ.
-    <button style="color:inherit;font-weight:800;text-decoration:underline;margin-inline-start:6px" data-nav="orders">عرض</button>
-  </div>` : ''}
-
-  <div class="h1" style="margin-bottom:4px">مرحبًا</div>
-  <p class="sub" style="margin-bottom:20px">ملخص أداء المنصة</p>
-
-  <div class="kpis">
-    ${kpi(I.card, orders.length, 'إجمالي الطلبات', '#ECFDF5', '#059669')}
-    ${kpi(I.check, done.length, 'مكتملة', '#EFF6FF', '#2563EB')}
-    ${kpi(I.clock, pending, 'قيد التنفيذ', '#FEF3C7', '#B45309')}
-    ${kpi(I.users, S.users.length, 'المستخدمون', '#F1F5F9', '#475569')}
-    ${kpi(I.cash, lyd(totalRevenue), 'إجمالي المبيعات', '#ECFDF5', '#059669')}
-    ${kpi(I.chart, lyd(totalFees), 'صافي الأرباح', '#ECFDF5', '#059669')}
-  </div>
-
-  <div class="grid2" style="margin-bottom:16px">
-    <div class="box">
-      <div style="margin-bottom:16px">
-        <div class="h2">النشاط — 14 يومًا</div>
-        <div class="sub" style="font-size:12px;margin-top:2px">المجموع ${lyd(weekTotal)}</div>
-      </div>
-      <div class="spark">
-        ${days.map(x => `<i style="height:${Math.max(3, (x.r / peak) * 100)}%" title="${lyd(x.r)}"></i>`).join('')}
-      </div>
-      <div style="display:flex;justify-content:space-between;margin-top:10px;font-size:10.5px;color:var(--tx-3)">
-        <span>${shortDate(days[0].d)}</span><span>اليوم</span>
-      </div>
-    </div>
-    <div class="box">
-      <div class="h2" style="margin-bottom:14px">إجراءات سريعة</div>
-      <div style="display:grid;gap:8px">
-        ${[['orders', I.clock, `${pending} طلب معلّق`],
-           ['deposits', I.cash, `${badges.pendingDeposits()} إيداع معلّق`],
-           ['tickets', I.help, `${badges.openTickets()} تذكرة مفتوحة`],
-           ['settings', I.gear, 'إعدادات المنصة']].map(([k, ic, t]) => `
-          <button class="btn dark" data-nav="${k}" style="justify-content:flex-start;padding:12px 15px">
-            ${svg(ic, 2)} ${t}
-          </button>`).join('')}
-      </div>
-    </div>
-  </div>
-
-  <div class="sec-head">
-    <div class="h2">أحدث الطلبات</div>
-    <button class="btn ghost sm" data-nav="orders">عرض الكل</button>
-  </div>
-  ${recent.length ? `<div class="scrollx">
-    <table class="tbl">
-      <thead><tr>
-        <th>رقم الطلب</th><th>العميل</th><th>النوع</th>
-        <th>المبلغ</th><th>الحالة</th><th>التاريخ</th>
-      </tr></thead>
-      <tbody>${recent.map(o => {
-        const u = S.users.find(x => x.id === o.uid);
-        const st = ostatus(o.status);
-        return `<tr>
-          <td class="mono" style="font-size:11.5px">${esc(String(o.id).slice(-10))}</td>
-          <td>${esc(u ? (u.name || u.email) : '—')}</td>
-          <td>${o.kind === 'topup' ? 'شحن' : 'جديدة'}</td>
-          <td class="num">${usd(o.amount)}</td>
-          <td><span class="chip ${st[0]}">${st[1]}</span></td>
-          <td class="sub" style="font-size:11.5px">${dt(o.created_at)}</td>
-        </tr>`;
-      }).join('')}</tbody>
-    </table>
-  </div>` : `<div class="box"><div class="empty">
-    <div class="ei">${svg(I.card, 1.6)}</div>
-    <div class="et">لا طلبات</div>
-  </div></div>`}
-  `;
-}
-
-function kpi(icon, val, label, bg, fg) {
+function kpi(icon, val, key, bg, fg) {
   return `<div class="kpi">
-    <div class="kpi-i" style="background:${bg};color:${fg}">${svg(icon, 1.9)}</div>
-    <div class="kpi-v num">${val}</div>
-    <div class="kpi-k">${label}</div>
+    <div class="ico" style="background:${bg};color:${fg}">${svg(icon)}</div>
+    <div class="v num">${val}</div>
+    <div class="k">${key}</div>
   </div>`;
 }
 
-const ostatus = s => ({
-  completed: ['ok', 'مكتمل'],
-  pending: ['wait', 'قيد التنفيذ'],
-  processing: ['wait', 'قيد المعالجة'],
-  rejected: ['bad', 'مرفوض'],
-  refunded: ['bad', 'مسترد']
-}[s] || ['off', '—']);
-
-/* ═══════════════════════════════════════════════════════════
-   Bind — common events
-   ═══════════════════════════════════════════════════════════ */
-function bind() {
-  $$('[data-nav]').forEach(b => b.onclick = () => go(b.dataset.nav));
-
-  const r = $('#refreshBtn');
-  if (r) r.onclick = () => render();
-
-  $$('[data-search]').forEach(input => {
-    input.oninput = e => {
-      S.search = e.target.value.toLowerCase();
-      clearTimeout(input._t);
-      input._t = setTimeout(() => render(), 250);
-    };
-  });
-
-  $$('[data-filter]').forEach(b => {
-    b.onclick = () => { S.filter = b.dataset.filter; render(); };
-  });
-
-  bindPage();
+function empty(icon, t, d = '') {
+  return `<div class="box"><div class="empty">${svg(icon, 1.5)}
+    <div style="font-weight:600;color:var(--navy)">${t}</div>
+    ${d ? `<p style="font-size:13px;margin-top:4px">${d}</p>` : ''}</div></div>`;
 }
 
-function bindPage() {
-  if (S.page === 'orders') bindOrders();
-  if (S.page === 'users') bindUsers();
-  if (S.page === 'deposits') bindDeposits();
-  if (S.page === 'tickets') bindTickets();
-  if (S.page === 'vip') bindVip();
-  if (S.page === 'ads') bindAds();
-  if (S.page === 'settings') bindSettings();
-}
-  /* ═══════════════════════════════════════════════════════════
-   Orders Page
-   ═══════════════════════════════════════════════════════════ */
-function vOrders() {
-  const F = [['all', 'الكل'], ['pending', 'قيد التنفيذ'], ['completed', 'مكتملة'], ['rejected', 'مرفوضة']];
-  let rows = S.cardOrders;
-  if (S.filter !== 'all') rows = rows.filter(o => o.status === S.filter);
-  if (S.search) rows = rows.filter(o => {
-    const u = S.users.find(x => x.id === o.uid);
-    const txt = (String(o.id) + ' ' + (o.name_on_card || '') + ' ' + (u ? (u.name || '') + ' ' + (u.email || '') : '')).toLowerCase();
-    return txt.includes(S.search);
-  });
+const userName = uid => {
+  const u = S.users.find(x => x.id === uid);
+  return u ? (u.name || u.email || uid) : (uid || '—');
+};
+
+/* ═══ Home ═══ */
+function vHome() {
+  const mcPend = pendMc();
+  const mcDone = S.manualOrders.filter(o => o.status === 'completed').length;
+  const mcToday = S.manualOrders.filter(o => {
+    const t = o.created_at?.toDate?.() || new Date(o.created_at || 0);
+    return (Date.now() - t.getTime()) < 86400000;
+  }).length;
+
+  const shopRev = S.orders.filter(o => o.status === 'completed')
+    .reduce((s, o) => s + n(o.total_usd), 0);
+
+  const deps = S.deposits.filter(d => d.status === 'approved')
+    .reduce((s, d) => s + n(d.amount_usd), 0);
 
   return `
-  <div class="flex-b" style="margin-bottom:18px;flex-wrap:wrap;gap:10px">
-    <div><div class="h1">طلبات البطاقات</div><p class="sub">${rows.length} من ${S.cardOrders.length}</p></div>
+  ${mcPend > 0 ? `<div class="banner">
+    <strong>${mcPend}</strong> طلب بطاقة ينتظر التنفيذ.
+    <button style="color:#92400E;font-weight:700;text-decoration:underline"
+      onclick="go('mcards')">عرضها</button></div>` : ''}
+
+  ${S.settings.kill_switch === true ? `<div class="alert">
+    ${svg(I.warn)}
+    <div><strong>المنصة متوقفة الآن (kill switch مفعّل)</strong><br>
+      العملاء لا يستطيعون الشراء. <button style="color:#991B1B;font-weight:700;text-decoration:underline"
+      onclick="go('settings')">إلغاء الإيقاف</button></div></div>` : ''}
+
+  <div class="h1" style="margin-bottom:16px">نظرة عامة</div>
+
+  <div class="kpis" style="margin-bottom:18px">
+    ${kpi(I.mcards, mcPend, 'بطاقات تنتظر', '#FEF3C7', '#B45309')}
+    ${kpi(I.check, mcDone, 'بطاقات مكتملة', '#ECFDF5', '#059669')}
+    ${kpi(I.cash2, usd(shopRev), 'مبيعات المتجر', '#ECFDF5', '#059669')}
+    ${kpi(I.cash, usd(deps), 'إيداعات مؤكدة', '#EFF6FF', '#2563EB')}
+    ${kpi(I.users, S.users.length, 'المستخدمون', '#F1F5F9', '#475569')}
+    ${kpi(I.clock, mcToday, 'طلبات اليوم', '#F1F5F9', '#475569')}
   </div>
 
-  <div class="flex" style="margin-bottom:14px;gap:10px">
-    <input class="inp" data-search placeholder="ابحث..." value="${esc(S.search)}" style="flex:1;min-width:200px">
+  <div style="display:grid;gap:14px;grid-template-columns:1fr;margin-bottom:18px">
+    <div class="box">
+      <div class="h2" style="margin-bottom:14px">إجراءات سريعة</div>
+      <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:8px">
+        <button class="btn dark" onclick="go('mcards')">
+          ${svg(I.mcards)} طلبات البطاقات (${mcPend})
+        </button>
+        <button class="btn dark" onclick="go('deposits')">
+          ${svg(I.cash)} الإيداعات (${pendDep()})
+        </button>
+        <button class="btn dark" onclick="go('orders')">
+          ${svg(I.orders)} طلبات المتجر (${pendOrd()})
+        </button>
+        <button class="btn dark" onclick="go('withdraw')">
+          ${svg(I.withdraw)} السحوبات (${pendWd()})
+        </button>
+        <button class="btn dark" onclick="go('tickets')">
+          ${svg(I.ticket)} التذاكر (${openTic()})
+        </button>
+        <button class="btn dark" onclick="go('settings')">
+          ${svg(I.gear)} الإعدادات
+        </button>
+      </div>
+    </div>
   </div>
 
-  <div class="tabs">
-    ${F.map(([k, t]) => {
-      const c = k === 'all' ? S.cardOrders.length : S.cardOrders.filter(o => o.status === k).length;
-      return `<button class="tab ${S.filter === k ? 'on' : ''}" data-filter="${k}">${t} (${c})</button>`;
-    }).join('')}
+  <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:11px">
+    <div class="h2">أحدث طلبات البطاقات</div>
+    <button class="btn ghost sm" onclick="go('mcards')">عرض الكل</button>
   </div>
-
-  ${rows.length ? `<div class="scrollx">
-    <table class="tbl">
-      <thead><tr>
-        <th>رقم الطلب</th><th>العميل</th><th>النوع</th>
-        <th>المبلغ</th><th>الرسوم</th><th>الإجمالي</th>
-        <th>الاسم</th><th>الحالة</th><th>التاريخ</th><th></th>
-      </tr></thead>
-      <tbody>${rows.map(o => {
-        const u = S.users.find(x => x.id === o.uid);
-        const st = ostatus(o.status);
-        const pend = o.status === 'pending';
-        return `<tr>
-          <td class="mono" style="font-size:11.5px">${esc(String(o.id).slice(-10))}</td>
-          <td>${esc(u ? (u.name || u.email) : '—')}</td>
-          <td>${o.kind === 'topup' ? 'شحن' : 'جديدة'}</td>
-          <td class="num">${usd(o.amount)}</td>
-          <td class="num" style="color:var(--tx-3)">${usd(o.fee)}</td>
-          <td class="num" style="font-weight:800">${usd(o.total)}</td>
-          <td class="mono" dir="ltr" style="font-size:11.5px">${esc(o.name_on_card || '—')}</td>
-          <td><span class="chip ${st[0]}">${st[1]}</span></td>
-          <td class="sub" style="font-size:11.5px">${dt(o.created_at)}</td>
-          <td>${pend ? `<button class="btn sm" data-fulfil="${esc(o.id)}">تنفيذ</button>` : ''}</td>
-        </tr>`;
-      }).join('')}</tbody>
-    </table>
-  </div>` : `<div class="box"><div class="empty">
-    <div class="ei">${svg(I.card, 1.6)}</div>
-    <div class="et">لا طلبات</div>
-  </div></div>`}
-  `;
+  ${S.manualOrders.length
+    ? `<div class="box" style="padding:0"><div class="scrollx">
+        ${mcardTable(S.manualOrders.slice(0, 6))}</div></div>`
+    : empty(I.mcards, 'لا طلبات بعد')}`;
 }
 
-function bindOrders() {
-  $$('[data-fulfil]').forEach(b => b.onclick = () => openFulfilSheet(b.dataset.fulfil));
+/* ═══ MCard Orders (البطاقات اليدوية) ═══ */
+const MCST = {
+  completed: ['ok', 'مكتملة'],
+  pending: ['wait', 'قيد التنفيذ'],
+  rejected: ['bad', 'مرفوضة'],
+};
+
+function vMcardOrders() {
+  const F = [['all', 'الكل'], ['pending', 'قيد التنفيذ'],
+             ['completed', 'مكتملة'], ['rejected', 'مرفوضة']];
+  let rows = S.manualOrders;
+  if (S.filter !== 'all') rows = rows.filter(o => o.status === S.filter);
+  if (S.q) rows = rows.filter(o =>
+    (o.id + ' ' + userName(o.uid) + ' ' + (o.name_on_card || '') + ' ' + (o.card_name || ''))
+      .toLowerCase().includes(S.q.toLowerCase()));
+
+  const pend = S.manualOrders.filter(o => o.status === 'pending').length;
+
+  return `
+  <div class="h1" style="margin-bottom:4px">طلبات البطاقات</div>
+  <p class="sub" style="margin-bottom:16px">
+    ${pend ? pend + ' طلب ينتظر التنفيذ' : 'لا طلبات معلّقة'}</p>
+
+  <div style="display:flex;gap:9px;margin-bottom:14px;flex-wrap:wrap">
+    <input class="inp" id="qBox" placeholder="ابحث برقم الطلب أو اسم العميل"
+           value="${esc(S.q)}" style="flex:1;min-width:200px">
+  </div>
+
+  <div style="display:flex;gap:7px;overflow-x:auto;padding-bottom:4px;margin-bottom:14px">
+    ${F.map(([k, t]) => `<button class="btn ${S.filter === k ? 'dark' : 'ghost'} sm"
+      data-filter="${k}" style="flex:none">${t} (${k === 'all'
+        ? S.manualOrders.length
+        : S.manualOrders.filter(o => o.status === k).length})</button>`).join('')}
+  </div>
+
+  ${rows.length
+    ? `<div class="box" style="padding:0"><div class="scrollx">
+        ${mcardTable(rows)}</div></div>`
+    : empty(I.mcards, 'لا نتائج', 'جرّب تصفية أخرى.')}`;
 }
 
-function openFulfilSheet(orderId) {
-  const o = S.cardOrders.find(x => x.id === orderId);
+function mcardTable(rows) {
+  return `<table class="tbl"><thead><tr>
+    <th>رقم الطلب</th><th>العميل</th><th>النوع</th><th>المبلغ</th>
+    <th>الرسوم</th><th>الإجمالي</th><th>الاسم على البطاقة</th>
+    <th>الحالة</th><th>التاريخ</th><th></th>
+  </tr></thead><tbody>${rows.map(o => {
+    const st = MCST[o.status] || ['off', '—'];
+    const isTopup = o.kind === 'topup';
+    return `<tr>
+      <td class="mono" style="font-size:11.5px">${esc(o.id)}</td>
+      <td>${esc(userName(o.uid))}</td>
+      <td>${isTopup ? 'شحن بطاقة' : 'بطاقة جديدة'}</td>
+      <td class="num">${usd(o.amount)}</td>
+      <td class="num" style="color:var(--muted)">${usd(o.fee)}</td>
+      <td class="num" style="font-weight:700">${usd(o.total)}</td>
+      <td class="mono" dir="ltr" style="font-size:11.5px">${esc(o.name_on_card || '—')}</td>
+      <td><span class="pill ${st[0]}">${st[1]}</span></td>
+      <td class="sub" style="font-size:11.5px">${dt(o.created_at)}</td>
+      <td>${o.status === 'pending'
+        ? `<button class="btn sm" data-mc-fulfil="${esc(o.id)}">تنفيذ</button>`
+        : ''}</td>
+    </tr>`;
+  }).join('')}</tbody></table>`;
+}
+
+function mcFulfilSheet(id) {
+  const o = S.manualOrders.find(x => x.id === id);
   if (!o) return;
-
-  const u = S.users.find(x => x.id === o.uid);
   const isTopup = o.kind === 'topup';
 
   sheet(`
-    <div class="sheet-head">
-      <div style="flex:1;min-width:0">
-        <div class="h2">${isTopup ? 'شحن بطاقة' : 'إصدار بطاقة جديدة'}</div>
-        <div class="sub">${esc(u ? (u.name || u.email) : '—')} · ${usd(o.amount)}</div>
-      </div>
-    </div>
+    <div class="h2" style="margin-bottom:4px">
+      ${isTopup ? 'شحن بطاقة' : 'إصدار بطاقة جديدة'}</div>
+    <p class="sub" style="margin-bottom:16px">
+      ${esc(userName(o.uid))} · ${usd(o.total)}</p>
 
-    <div class="box" style="background:var(--s2);margin-bottom:16px">
-      <div class="flex-b" style="padding:8px 0;border-bottom:1px solid var(--line)">
-        <span class="sub">المبلغ</span><span class="num">${usd(o.amount)}</span>
-      </div>
-      <div class="flex-b" style="padding:8px 0;border-bottom:1px solid var(--line)">
-        <span class="sub">الرسوم</span><span class="num">${usd(o.fee)}</span>
-      </div>
-      <div class="flex-b" style="padding:8px 0">
-        <span class="sub">الإجمالي</span>
-        <span class="num" style="color:var(--g);font-weight:800">${usd(o.total)}</span>
-      </div>
-      ${o.name_on_card ? `
-        <div class="flex-b" style="padding:8px 0;border-top:1px solid var(--line);margin-top:4px">
-          <span class="sub">اسم حامل البطاقة</span>
-          <span class="mono" dir="ltr">${esc(o.name_on_card)}</span>
-        </div>` : ''}
+    <div class="box" style="background:var(--bg);padding:14px;margin-bottom:16px">
+      <div class="field"><span class="n">المبلغ</span>
+        <span class="num">${usd(o.amount)}</span></div>
+      <div class="field"><span class="n">الرسوم</span>
+        <span class="num">${usd(o.fee)}</span></div>
+      <div class="field"><span class="n">الإجمالي</span>
+        <span class="num" style="color:var(--emerald-d);font-weight:700">${usd(o.total)}</span></div>
+      ${o.name_on_card ? `<div class="field"><span class="n">الاسم على البطاقة</span>
+        <span class="mono" dir="ltr">${esc(o.name_on_card)}</span></div>` : ''}
+      ${o.card_name ? `<div class="field"><span class="n">اسم البطاقة</span>
+        <span>${esc(o.card_name)}</span></div>` : ''}
     </div>
 
     ${!isTopup ? `
-      <label class="h3" style="display:block;margin-bottom:8px">رقم البطاقة (16 رقمًا)</label>
-      <input class="inp mono" id="fPan" dir="ltr" placeholder="5395 0212 3456 7890" maxlength="19" style="margin-bottom:14px">
+      <label class="lbl">رقم البطاقة (13-19 رقم)</label>
+      <input class="inp mono" id="fPan" dir="ltr" placeholder="5395 0212 3456 7890"
+             maxlength="19" inputmode="numeric" style="margin-bottom:14px">
 
-      <div class="grid2" style="margin-bottom:14px">
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:14px">
         <div>
-          <label class="h3" style="display:block;margin-bottom:8px">الانتهاء</label>
+          <label class="lbl">تاريخ الانتهاء</label>
           <input class="inp mono" id="fExp" dir="ltr" placeholder="12/28" maxlength="5">
         </div>
         <div>
-          <label class="h3" style="display:block;margin-bottom:8px">CVV</label>
-          <input class="inp mono" id="fCvv" dir="ltr" placeholder="123" maxlength="4">
+          <label class="lbl">CVV</label>
+          <input class="inp mono" id="fCvv" dir="ltr" placeholder="123"
+                 maxlength="4" inputmode="numeric">
         </div>
       </div>
-    ` : `<div class="note ok" style="margin-bottom:16px">طلب شحن بطاقة موجودة — لا يحتاج بيانات</div>`}
 
-    <button class="btn wide" id="fGo" style="margin-top:8px">
+      <label class="lbl">رقم مرجعي عند المزود (اختياري)</label>
+      <input class="inp mono" id="fRef" dir="ltr" placeholder="ORDER-123456"
+             style="margin-bottom:14px">
+    ` : `<div class="banner">أضف ${usd(o.amount)} على البطاقة عند مزوّدك، ثم أكّد هنا.</div>`}
+
+    <button class="btn wide" id="fGo">
       ${isTopup ? 'تأكيد الشحن' : 'تسليم البيانات للعميل'}
     </button>
-    <button class="btn bad wide" style="margin-top:10px" id="fRej">
+    <button class="btn danger wide" style="margin-top:10px" id="fRej">
       رفض الطلب وإرجاع المبلغ
     </button>
-    <button class="btn line wide" style="margin-top:10px" onclick="closeSheet()">إلغاء</button>
-  `);
+    <button class="btn ghost wide" style="margin-top:10px" onclick="closeSheet()">إلغاء</button>`);
 
   const fPan = $('#fPan');
   if (fPan) fPan.oninput = e => {
-    let v = e.target.value.replace(/\D/g, '').slice(0, 16);
+    const v = e.target.value.replace(/\D/g, '').slice(0, 19);
     e.target.value = v.replace(/(.{4})/g, '$1 ').trim();
   };
   const fExp = $('#fExp');
@@ -1107,1024 +788,1297 @@ function openFulfilSheet(orderId) {
 
   $('#fGo').onclick = async () => {
     const btn = $('#fGo');
-    const payload = { id: orderId };
+    const payload = { id };
 
     if (!isTopup) {
       const pan = ($('#fPan').value || '').replace(/\s+/g, '');
       const exp = $('#fExp').value || '';
       const cvv = $('#fCvv').value || '';
-
-      if (!/^\d{16}$/.test(pan)) return toast('رقم البطاقة يجب أن يكون 16 رقمًا', 'bad');
+      const ref = $('#fRef').value || '';
+      if (!/^\d{13,19}$/.test(pan)) return toast('رقم البطاقة غير صالح', 'bad');
       if (!/^\d{2}\/\d{2}$/.test(exp)) return toast('صيغة التاريخ MM/YY', 'bad');
-      if (!/^\d{3}$/.test(cvv)) return toast('CVV يجب أن يكون 3 أرقام', 'bad');
-
+      if (!/^\d{3,4}$/.test(cvv)) return toast('CVV غير صالح', 'bad');
       payload.card_number = pan;
       payload.expiry = exp;
       payload.cvv = cvv;
+      payload.provider_ref = ref;
     }
 
     btn.disabled = true;
-    btn.classList.add('loading');
-
+    btn.innerHTML = '<span class="sk" style="width:70px;height:14px;display:inline-block"></span>';
     try {
       await api('/api/admin/mcard/fulfil', payload);
-      toast('تم التنفيذ', 'ok');
+      toast('تم التنفيذ — البيانات متاحة للعميل 24 ساعة', 'ok');
       closeSheet();
     } catch (e) {
       toast(e.message, 'bad');
       btn.disabled = false;
-      btn.classList.remove('loading');
+      btn.textContent = isTopup ? 'تأكيد الشحن' : 'تسليم البيانات للعميل';
     }
   };
 
   $('#fRej').onclick = () => {
-    sheet(`
-      <div class="h2" style="margin-bottom:10px">رفض الطلب</div>
-      <div class="note bad">سيُعاد ${usd(o.total)} إلى محفظة العميل.</div>
+    sheet(`<div class="h2" style="margin-bottom:10px">رفض الطلب</div>
+      <div class="alert">${svg(I.warn)}<div>سيُعاد ${usd(o.total)} إلى محفظة العميل فوراً.</div></div>
       <label class="lbl">سبب الرفض (اختياري)</label>
-      <input class="inp" id="rjWhy" placeholder="مثال: تعذّر التنفيذ" style="margin-bottom:16px">
-      <button class="btn bad wide" id="rjGo">تأكيد الرفض</button>
-      <button class="btn line wide" style="margin-top:10px" onclick="openFulfilSheet('${esc(orderId)}')">رجوع</button>
-    `);
+      <input class="inp" id="rjWhy" placeholder="مثال: تعذّر التنفيذ لدى المزود"
+             style="margin-bottom:16px">
+      <button class="btn wide" style="background:var(--error)" id="rjGo">تأكيد الرفض</button>
+      <button class="btn ghost wide" style="margin-top:9px"
+        onclick="mcFulfilSheet('${esc(id)}')">رجوع</button>`);
 
     $('#rjGo').onclick = async () => {
       const btn = $('#rjGo');
       btn.disabled = true;
-      btn.classList.add('loading');
       try {
         await api('/api/admin/mcard/reject', {
-          id: orderId,
-          reason: $('#rjWhy').value.trim() || 'بدون سبب'
+          id, reason: $('#rjWhy').value.trim() || 'بدون سبب',
         });
-        toast('تم الرفض', 'ok');
+        toast('تم الرفض وأُعيد المبلغ', 'ok');
         closeSheet();
       } catch (e) {
         toast(e.message, 'bad');
         btn.disabled = false;
-        btn.classList.remove('loading');
       }
     };
   };
 }
+window.mcFulfilSheet = mcFulfilSheet;
 
-/* ═══════════════════════════════════════════════════════════
-   Users Page
-   ═══════════════════════════════════════════════════════════ */
-function vUsers() {
-  let rows = S.users;
-  if (S.search) {
-    rows = rows.filter(u =>
-      (u.name || '').toLowerCase().includes(S.search) ||
-      (u.email || '').toLowerCase().includes(S.search) ||
-      (u.phone || '').includes(S.search)
-    );
-  }
+/* ═══ Cards (البطاقات المُصدرة) ═══ */
+function vCards() {
+  let rows = S.manualCards;
+  if (S.q) rows = rows.filter(c =>
+    (c.last4 + ' ' + c.id + ' ' + userName(c.uid) + ' ' + (c.card_name || ''))
+      .toLowerCase().includes(S.q.toLowerCase()));
+
+  const totalBal = rows.reduce((s, c) => s + n(c.balance), 0);
 
   return `
-  <div class="flex-b" style="margin-bottom:18px">
-    <div><div class="h1">المستخدمون</div><p class="sub">${rows.length} من ${S.users.length}</p></div>
+  <div style="display:flex;justify-content:space-between;align-items:flex-start;
+       gap:11px;margin-bottom:16px;flex-wrap:wrap">
+    <div><div class="h1">البطاقات المُصدرة</div>
+      <p class="sub">${rows.length} بطاقة · إجمالي الرصيد ${usd(totalBal)}</p></div>
+    <button class="btn ghost sm" onclick="exportCardsCsv()">تصدير CSV</button>
   </div>
 
-  <div class="flex" style="margin-bottom:16px">
-    <input class="inp" data-search placeholder="ابحث..." value="${esc(S.search)}" style="flex:1">
-  </div>
+  <input class="inp" id="qBox" placeholder="ابحث برقم البطاقة أو اسم العميل"
+         value="${esc(S.q)}" style="margin-bottom:14px">
 
-  ${rows.length ? `<div class="scrollx">
-    <table class="tbl">
-      <thead><tr>
-        <th>الاسم</th><th>البريد</th><th>الهاتف</th>
-        <th>الرصيد</th><th>الإنفاق</th>
-        <th>الحالة</th><th>VIP</th><th>التسجيل</th><th></th>
-      </tr></thead>
-      <tbody>${rows.slice(0, 100).map(u => {
-        const vip = u.vip_status === 'active';
-        return `<tr>
-          <td style="font-weight:${u.banned ? 400 : 700};${u.banned ? 'color:var(--tx-3)' : ''}">
-            ${esc(u.name || '—')}
-            ${u.banned ? ' <span class="chip bad">موقوف</span>' : ''}
-          </td>
-          <td class="mono" dir="ltr" style="font-size:11.5px">${esc(u.email || '—')}</td>
-          <td class="mono" dir="ltr" style="font-size:12px">${esc(u.phone || '—')}</td>
-          <td class="num" style="font-weight:700">${usd(u.wallet_balance)}</td>
-          <td class="num">${usd(u.total_spent)}</td>
-          <td>${u.banned ? '<span class="chip bad">موقوف</span>' : '<span class="chip ok">نشط</span>'}</td>
-          <td>${vip ? '<span class="chip ok">VIP</span>' : '<span class="chip off">—</span>'}</td>
-          <td class="sub" style="font-size:11.5px">${dt(u.created_at)}</td>
-          <td><button class="btn ghost sm" data-user="${esc(u.id)}">إدارة</button></td>
-        </tr>`;
-      }).join('')}</tbody>
-    </table>
-  </div>` : `<div class="box"><div class="empty">
-    <div class="ei">${svg(I.users, 1.6)}</div>
-    <div class="et">لا مستخدمون</div>
-  </div></div>`}
-  `;
+  ${rows.length ? `<div class="box" style="padding:0"><div class="scrollx">
+    <table class="tbl"><thead><tr>
+      <th>العميل</th><th>اسم البطاقة</th><th>آخر 4</th>
+      <th>الرصيد</th><th>الحالة</th><th>المزود</th>
+      <th>التاريخ</th><th></th>
+    </tr></thead><tbody>${rows.map(c => {
+      const st = { active: ['ok', 'نشطة'], frozen: ['off', 'مجمدة'], deleted: ['bad', 'مغلقة'] }[c.status] || ['off', '—'];
+      return `<tr>
+        <td>${esc(userName(c.uid))}</td>
+        <td>${esc(c.card_name || '—')}</td>
+        <td class="mono">••${esc(c.last4 || '')}</td>
+        <td class="num" style="font-weight:700">${usd(c.balance)}</td>
+        <td><span class="pill ${st[0]}">${st[1]}</span></td>
+        <td class="sub" style="font-size:11.5px">${esc(c.provider_ref || '—')}</td>
+        <td class="sub" style="font-size:11.5px">${dt(c.created_at)}</td>
+        <td><button class="btn ghost sm" data-viewcard="${esc(c.id)}">تفاصيل</button></td>
+      </tr>`;
+    }).join('')}</tbody></table></div></div>
+
+    <p class="sub" style="font-size:12px;margin-top:11px">
+      رقم البطاقة الكامل وCVV لا يُخزّنان في النظام — يُمسحان تلقائياً بعد 24 ساعة.</p>`
+    : empty(I.card, 'لا بطاقات بعد', 'ستظهر هنا بعد أول تنفيذ.')}`;
 }
 
-function bindUsers() {
-  $$('[data-user]').forEach(b => b.onclick = () => openUserSheet(b.dataset.user));
+function exportCardsCsv() {
+  const head = ['العميل', 'اسم البطاقة', 'آخر4', 'الرصيد', 'الحالة', 'المزود', 'التاريخ'];
+  const lines = [head.join(',')];
+  S.manualCards.forEach(c => lines.push([
+    userName(c.uid), c.card_name || '', c.last4 || '', n(c.balance),
+    c.status || '', c.provider_ref || '', dt(c.created_at),
+  ].map(v => `"${String(v).replace(/"/g, '""')}"`).join(',')));
+
+  const blob = new Blob(['\uFEFF' + lines.join('\n')], { type: 'text/csv;charset=utf-8' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = `kardo-cards-${new Date().toISOString().slice(0, 10)}.csv`;
+  a.click();
+  URL.revokeObjectURL(a.href);
+  toast('نُزّل الملف', 'ok');
 }
 
-function openUserSheet(uid) {
-  const u = S.users.find(x => x.id === uid);
-  if (!u) return;
-
-  const cards = S.cards.filter(c => c.uid === uid);
-  const orders = S.cardOrders.filter(o => o.uid === uid);
+function cardDetailSheet(id) {
+  const c = S.manualCards.find(x => x.id === id);
+  if (!c) return;
+  const orders = S.manualOrders.filter(o => o.card_id === id && o.status === 'completed');
 
   sheet(`
-    <div class="sheet-head">
-      <div style="flex:1;min-width:0">
-        <div class="h2">${esc(u.name || 'مستخدم')}</div>
-        <div class="sub" dir="ltr">${esc(u.email || '')}</div>
-      </div>
+    <div class="h2" style="margin-bottom:4px">${esc(c.card_name || 'بطاقة')}</div>
+    <p class="sub" style="margin-bottom:16px">${esc(userName(c.uid))} · ••${esc(c.last4)}</p>
+
+    <div class="box" style="background:var(--bg);padding:14px;margin-bottom:16px">
+      <div class="field"><span class="n">الرصيد الحالي</span>
+        <span class="num" style="color:var(--emerald-d);font-weight:700">${usd(c.balance)}</span></div>
+      <div class="field"><span class="n">الاسم على البطاقة</span>
+        <span class="mono" dir="ltr">${esc(c.name_on_card || '—')}</span></div>
+      <div class="field"><span class="n">الحالة</span>
+        <span>${esc(c.status || 'active')}</span></div>
+      <div class="field"><span class="n">أُنشئت</span>
+        <span class="sub">${dt(c.created_at)}</span></div>
     </div>
 
-    <div class="box" style="background:var(--s2);margin-bottom:16px">
-      <div class="flex-b" style="padding:8px 0;border-bottom:1px solid var(--line)">
-        <span class="sub">الرصيد</span>
-        <span class="num" style="color:var(--g);font-weight:800">${usd(u.wallet_balance)}</span>
-      </div>
-      <div class="flex-b" style="padding:8px 0;border-bottom:1px solid var(--line)">
-        <span class="sub">الإنفاق</span><span class="num">${usd(u.total_spent)}</span>
-      </div>
-      <div class="flex-b" style="padding:8px 0;border-bottom:1px solid var(--line)">
-        <span class="sub">الهاتف</span><span class="mono" dir="ltr">${esc(u.phone || '—')}</span>
-      </div>
-      <div class="flex-b" style="padding:8px 0;border-bottom:1px solid var(--line)">
-        <span class="sub">البطاقات</span><span class="num">${cards.length}</span>
-      </div>
-      <div class="flex-b" style="padding:8px 0;border-bottom:1px solid var(--line)">
-        <span class="sub">الطلبات</span><span class="num">${orders.length}</span>
-      </div>
-      <div class="flex-b" style="padding:8px 0">
-        <span class="sub">VIP</span>
-        <span>${u.vip_status === 'active'
-          ? `<span class="chip ok">نشط — ${esc(u.vip_expires_at ? shortDate(u.vip_expires_at) : '')}</span>`
-          : '<span class="chip off">غير مشترك</span>'}</span>
-      </div>
-    </div>
+    ${orders.length ? `<div class="h2" style="margin-bottom:10px">سجل الطلبات</div>
+      ${orders.map(o => `
+        <div style="padding:11px;background:var(--bg);border-radius:10px;margin-bottom:8px;
+             display:flex;justify-content:space-between;align-items:center;gap:10px">
+          <div>
+            <div style="font-weight:600;font-size:13.5px">${o.kind === 'topup' ? 'شحن' : 'إصدار'}</div>
+            <div class="sub" style="font-size:11.5px">${dt(o.created_at)}</div>
+          </div>
+          <div class="num" style="font-weight:700">${usd(o.amount)}</div>
+        </div>`).join('')}` : ''}
 
-    <div class="h3" style="margin-bottom:12px">تعديل الرصيد</div>
-    <div class="grid2" style="margin-bottom:14px">
-      <input class="inp num" id="uAmt" type="number" step="0.5" placeholder="± المبلغ">
-      <input class="inp" id="uReason" placeholder="السبب">
-    </div>
-    <button class="btn wide" id="uAdj">تطبيق التعديل</button>
+    <button class="btn ghost wide" style="margin-top:14px" onclick="closeSheet()">إغلاق</button>`);
+}
+window.cardDetailSheet = cardDetailSheet;
 
-    <div style="height:14px"></div>
+/* ═══ Shop Orders ═══ */
+const OST = {
+  completed: ['ok', 'مكتملة'],
+  pending: ['wait', 'قيد التنفيذ'],
+  processing: ['wait', 'قيد المعالجة'],
+  rejected: ['bad', 'ملغية'],
+};
 
-    <button class="btn ${u.banned ? 'line' : 'bad'} wide" id="uBan" style="margin-bottom:10px">
-      ${u.banned ? 'إلغاء الإيقاف' : 'إيقاف الحساب'}
-    </button>
-    <button class="btn line wide" onclick="closeSheet()">إغلاق</button>
-  `);
+function vShopOrders() {
+  const F = [['all', 'الكل'], ['pending', 'قيد التنفيذ'],
+             ['completed', 'مكتملة'], ['rejected', 'ملغية']];
+  let rows = S.orders;
+  if (S.filter !== 'all') rows = rows.filter(o => o.status === S.filter);
+  if (S.q) rows = rows.filter(o =>
+    (o.id + ' ' + userName(o.uid)).toLowerCase().includes(S.q.toLowerCase()));
 
-  $('#uAdj').onclick = async () => {
-    const amt = parseFloat($('#uAmt').value);
-    const reason = $('#uReason').value.trim();
-    if (!amt) return toast('أدخل مبلغًا', 'bad');
-    if (reason.length < 3) return toast('اكتب السبب', 'bad');
+  const pend = S.orders.filter(o => o.status === 'pending').length;
 
-    const btn = $('#uAdj');
-    btn.disabled = true;
-    btn.classList.add('loading');
+  return `
+  <div class="h1" style="margin-bottom:4px">طلبات المتجر</div>
+  <p class="sub" style="margin-bottom:16px">
+    ${pend ? pend + ' طلب ينتظر التنفيذ' : 'لا طلبات معلّقة'}</p>
+
+  <div style="display:flex;gap:9px;margin-bottom:14px;flex-wrap:wrap">
+    <input class="inp" id="qBox" placeholder="ابحث برقم الطلب أو اسم العميل"
+           value="${esc(S.q)}" style="flex:1;min-width:200px">
+  </div>
+
+  <div style="display:flex;gap:7px;overflow-x:auto;padding-bottom:4px;margin-bottom:14px">
+    ${F.map(([k, t]) => `<button class="btn ${S.filter === k ? 'dark' : 'ghost'} sm"
+      data-filter="${k}" style="flex:none">${t} (${k === 'all'
+        ? S.orders.length
+        : S.orders.filter(o => o.status === k).length})</button>`).join('')}
+  </div>
+
+  ${rows.length ? rows.map(o => {
+    const st = OST[o.status] || ['off', '—'];
+    const items = o.items || [];
+    return `<div class="order-card">
+      <div class="order-head">
+        <div style="min-width:0">
+          <div style="font-weight:700;font-size:15px">${lyd(o.total_lyd)}</div>
+          <div class="order-id">${esc(o.id)}</div>
+        </div>
+        <span class="pill ${st[0]}">${st[1]}</span>
+      </div>
+      <div class="sub" style="font-size:12.5px;margin-bottom:9px">
+        ${esc(userName(o.uid))} · ${dt(o.created_at)}
+      </div>
+      <div style="font-size:13px;padding:8px 0;border-top:1px dashed var(--border)">
+        ${items.map(i => `<div style="padding:3px 0">
+          ${esc(i.name)} × ${i.qty}
+          ${i.values && Object.keys(i.values).length
+            ? `<span class="mono" dir="ltr" style="color:var(--muted);font-size:11.5px">
+               — ${Object.values(i.values).map(esc).join(' · ')}</span>` : ''}
+        </div>`).join('')}
+      </div>
+      ${o.status === 'pending' ? `
+        <div class="order-actions" style="margin-top:11px">
+          <button class="btn sm" data-ord-complete="${esc(o.id)}">تنفيذ</button>
+          <button class="btn danger sm" data-ord-reject="${esc(o.id)}">رفض</button>
+        </div>` : ''}
+    </div>`;
+  }).join('') : empty(I.orders, 'لا نتائج', 'جرّب تصفية أخرى.')}`;
+}
+
+function shopOrderSheet(id, action) {
+  const o = S.orders.find(x => x.id === id);
+  if (!o) return;
+  const rej = action === 'reject';
+
+  sheet(`
+    <div class="h2" style="margin-bottom:6px">${rej ? 'رفض الطلب' : 'تنفيذ الطلب'}</div>
+    <p class="sub" style="margin-bottom:14px">
+      ${lyd(o.total_lyd)} · ${(o.items || []).map(i => esc(i.name)).join(' · ')}</p>
+
+    ${rej ? `<div class="alert">${svg(I.warn)}<div>
+        سيُعاد ${usd(o.total_usd)} إلى محفظة العميل فوراً.</div></div>
+      <label class="lbl">سبب الرفض</label>
+      <input class="inp" id="fReason" placeholder="نفد المخزون">`
+     : `<label class="lbl">ما تسلّمه للعميل</label>
+      <textarea class="inp" id="fText" rows="4"
+        placeholder="الكود أو رسالة التأكيد — يراها العميل في طلباته"
+        style="font-family:inherit;resize:vertical"></textarea>`}
+
+    <button class="btn wide" id="fGo" style="margin-top:16px;
+      ${rej ? 'background:var(--error)' : ''}">
+      ${rej ? 'تأكيد الرفض' : 'تأكيد التنفيذ'}</button>
+    <button class="btn ghost wide" style="margin-top:9px" onclick="closeSheet()">إلغاء</button>`);
+
+  $('#fGo').onclick = async () => {
+    $('#fGo').disabled = true;
     try {
-      await api('/api/admin/wallet-adjust', { uid, delta: amt, reason });
-      toast('تم تعديل الرصيد', 'ok');
+      await api('/api/admin/order', {
+        order_id: id,
+        action: rej ? 'reject' : 'complete',
+        reason: rej ? ($('#fReason').value || '') : '',
+        delivery: rej ? '' : ($('#fText').value || ''),
+      });
+      toast(rej ? 'رُفض الطلب وأُعيد المبلغ' : 'نُفّذ الطلب', 'ok');
       closeSheet();
     } catch (e) {
       toast(e.message, 'bad');
-      btn.disabled = false;
-      btn.classList.remove('loading');
-    }
-  };
-
-  $('#uBan').onclick = async () => {
-    try {
-      await api('/api/admin/users/ban', { uid });
-      toast(u.banned ? 'أُلغي الإيقاف' : 'أُوقف الحساب', 'ok');
-      closeSheet();
-    } catch (e) {
-      toast(e.message, 'bad');
+      $('#fGo').disabled = false;
     }
   };
 }
+window.shopOrderSheet = shopOrderSheet;
 
-/* ═══════════════════════════════════════════════════════════
-   Deposits Page
-   ═══════════════════════════════════════════════════════════ */
+/* ═══ Deposits ═══ */
 function vDeposits() {
-  const F = [['pending', 'معلّقة'], ['approved', 'مقبولة'], ['rejected', 'مرفوضة'], ['all', 'الكل']];
+  const F = [['pending', 'معلّقة'], ['approved', 'مقبولة'],
+             ['rejected', 'مرفوضة'], ['all', 'الكل']];
   let rows = S.deposits;
   if (S.filter !== 'all') rows = rows.filter(d => d.status === S.filter);
 
+  const DST = {
+    approved: ['ok', 'مقبول'],
+    pending: ['wait', 'معلّق'],
+    rejected: ['bad', 'مرفوض'],
+  };
+
+  const pend = S.deposits.filter(d => d.status === 'pending').length;
+  const orphan = S.sms.filter(s => s.status === 'unclaimed');
+  const fake = S.sms.filter(s => s.status === 'untrusted');
+
   return `
-  <div class="flex-b" style="margin-bottom:18px">
-    <div><div class="h1">الإيداعات</div><p class="sub">${rows.length} من ${S.deposits.length}</p></div>
+  <div class="h1" style="margin-bottom:4px">الإيداعات</div>
+  <p class="sub" style="margin-bottom:16px">
+    ${pend ? pend + ' طلب ينتظر المراجعة' : 'لا طلبات معلّقة'}</p>
+
+  ${fake.length ? `<div class="alert">${svg(I.warn)}<div>
+    <strong>${fake.length} رسالة تحويل مزيّفة</strong> — وصلت من أرقام شخصية
+    لا من المشغّل، ولم يُضف أي رصيد.</div></div>` : ''}
+
+  ${orphan.length ? `<div class="banner">
+    <strong>${orphan.length} حوالة ليبيانا</strong> وصلت ولم تُطابق أي إعلان.
+    <button style="color:#92400E;font-weight:700;text-decoration:underline"
+      onclick="go('sms')">عرضها</button></div>` : ''}
+
+  <div style="display:flex;gap:7px;overflow-x:auto;padding-bottom:4px;margin-bottom:14px">
+    ${F.map(([k, t]) => `<button class="btn ${S.filter === k ? 'dark' : 'ghost'} sm"
+      data-filter="${k}" style="flex:none">${t} (${k === 'all'
+        ? S.deposits.length
+        : S.deposits.filter(d => d.status === k).length})</button>`).join('')}
   </div>
 
-  <div class="tabs">
-    ${F.map(([k, t]) => {
-      const c = k === 'all' ? S.deposits.length : S.deposits.filter(d => d.status === k).length;
-      return `<button class="tab ${S.filter === k ? 'on' : ''}" data-filter="${k}">${t} (${c})</button>`;
-    }).join('')}
-  </div>
-
-  ${rows.length ? `<div class="scrollx">
-    <table class="tbl">
-      <thead><tr>
-        <th>العميل</th><th>المبلغ</th><th>بالدينار</th>
-        <th>الطريقة</th><th>الهاتف</th>
-        <th>الحالة</th><th>التاريخ</th><th></th>
-      </tr></thead>
-      <tbody>${rows.slice(0, 100).map(d => {
-        const u = S.users.find(x => x.id === d.uid);
-        const st = { approved: ['ok', 'مقبول'], pending: ['wait', 'معلّق'], rejected: ['bad', 'مرفوض'] }[d.status] || ['off', '—'];
-        const pend = d.status === 'pending';
-        return `<tr>
-          <td>${esc(u ? (u.name || u.email) : '—')}</td>
-          <td class="num" style="font-weight:800">${usd(d.amount_usd)}</td>
-          <td class="num">${lyd(d.amount_lyd)}</td>
-          <td>${esc(d.method || '—')}</td>
-          <td class="mono" dir="ltr" style="font-size:11.5px">${esc(d.claim_phone || '—')}</td>
-          <td><span class="chip ${st[0]}">${st[1]}</span></td>
-          <td class="sub" style="font-size:11.5px">${dt(d.created_at)}</td>
-          <td>${pend ? `<button class="btn sm" data-dep="${esc(d.id)}">مراجعة</button>` : ''}</td>
-        </tr>`;
-      }).join('')}</tbody>
-    </table>
-  </div>` : `<div class="box"><div class="empty">
-    <div class="ei">${svg(I.cash, 1.6)}</div>
-    <div class="et">لا إيداعات</div>
-  </div></div>`}
-  `;
+  ${rows.length ? `<div class="box" style="padding:0"><div class="scrollx">
+    <table class="tbl"><thead><tr>
+      <th>العميل</th><th>المبلغ</th><th>بالدينار</th><th>الطريقة</th>
+      <th>الهاتف</th><th>الحالة</th><th>التاريخ</th><th></th>
+    </tr></thead><tbody>${rows.map(d => {
+      const st = DST[d.status] || ['off', '—'];
+      return `<tr>
+        <td>${esc(userName(d.uid))}</td>
+        <td class="num" style="font-weight:700">${usd(d.amount_usd)}</td>
+        <td class="num">${lyd(d.amount_lyd)}</td>
+        <td>${esc(d.method || '—')}</td>
+        <td class="mono" dir="ltr" style="font-size:11.5px">${esc(d.claim_phone || '—')}</td>
+        <td><span class="pill ${st[0]}">${st[1]}</span></td>
+        <td class="sub" style="font-size:11.5px">${dt(d.created_at)}</td>
+        <td>${d.status === 'pending'
+          ? `<button class="btn sm" data-dep="${esc(d.id)}">مراجعة</button>`
+          : ''}</td>
+      </tr>`;
+    }).join('')}</tbody></table></div></div>`
+    : empty(I.cash, 'لا إيداعات')}`;
 }
 
-function bindDeposits() {
-  $$('[data-dep]').forEach(b => b.onclick = () => openDepositSheet(b.dataset.dep));
-}
-
-function openDepositSheet(id) {
+function depositSheet(id) {
   const d = S.deposits.find(x => x.id === id);
   if (!d) return;
 
-  const u = S.users.find(x => x.id === d.uid);
-
   sheet(`
-    <div class="sheet-head">
-      <div style="flex:1;min-width:0">
-        <div class="h2">مراجعة إيداع</div>
-        <div class="sub">${dt(d.created_at)}</div>
-      </div>
+    <div class="h2" style="margin-bottom:6px">مراجعة إيداع</div>
+    <p class="sub" style="margin-bottom:16px">${dt(d.created_at)}</p>
+
+    <div class="box" style="background:var(--bg);padding:14px;margin-bottom:16px">
+      <div class="field"><span class="n">العميل</span>
+        <span>${esc(userName(d.uid))}</span></div>
+      <div class="field"><span class="n">المبلغ</span>
+        <span class="num">${usd(d.amount_usd)}</span></div>
+      <div class="field"><span class="n">بالدينار</span>
+        <span class="num">${lyd(d.amount_lyd)}</span></div>
+      <div class="field"><span class="n">الطريقة</span>
+        <span>${esc(d.method || '—')}</span></div>
+      <div class="field"><span class="n">الهاتف</span>
+        <span class="mono" dir="ltr">${esc(d.claim_phone || '—')}</span></div>
+      ${d.proof_url ? `<div style="margin-top:11px">
+        <div class="lbl">إثبات التحويل</div>
+        <a href="${esc(d.proof_url)}" target="_blank" rel="noopener">
+          <img src="${esc(d.proof_url)}" alt="إثبات" loading="lazy"
+               style="max-width:100%;border-radius:10px;border:1px solid var(--border)">
+        </a></div>` : ''}
     </div>
 
-    <div class="box" style="background:var(--s2);margin-bottom:16px">
-      <div class="flex-b" style="padding:8px 0;border-bottom:1px solid var(--line)">
-        <span class="sub">العميل</span>
-        <span>${esc(u ? (u.name || u.email) : '—')}</span>
-      </div>
-      <div class="flex-b" style="padding:8px 0;border-bottom:1px solid var(--line)">
-        <span class="sub">المبلغ</span><span class="num">${usd(d.amount_usd)}</span>
-      </div>
-      <div class="flex-b" style="padding:8px 0;border-bottom:1px solid var(--line)">
-        <span class="sub">بالدينار</span><span class="num">${lyd(d.amount_lyd)}</span>
-      </div>
-      <div class="flex-b" style="padding:8px 0;border-bottom:1px solid var(--line)">
-        <span class="sub">الطريقة</span><span>${esc(d.method || '—')}</span>
-      </div>
-      <div class="flex-b" style="padding:8px 0">
-        <span class="sub">الهاتف</span>
-        <span class="mono" dir="ltr">${esc(d.claim_phone || '—')}</span>
-      </div>
-    </div>
-
-    <div class="note">تأكد من وصول التحويل قبل الموافقة.</div>
+    <div class="banner">تأكد من وصول التحويل قبل الموافقة.</div>
 
     <button class="btn wide" id="dOk">قبول وإضافة الرصيد</button>
-    <button class="btn bad wide" style="margin-top:10px" id="dNo">رفض</button>
-    <button class="btn line wide" style="margin-top:10px" onclick="closeSheet()">إغلاق</button>
-  `);
+    <button class="btn danger wide" style="margin-top:10px" id="dNo">رفض</button>
+    <button class="btn ghost wide" style="margin-top:10px" onclick="closeSheet()">إغلاق</button>`);
 
   $('#dOk').onclick = async () => {
     const btn = $('#dOk');
     btn.disabled = true;
-    btn.classList.add('loading');
     try {
-      await api('/api/admin/deposits/act', { id, action: 'approve' });
+      await api('/api/admin/deposit', { deposit_id: id, action: 'approve' });
       toast('تم القبول', 'ok');
       closeSheet();
     } catch (e) {
       toast(e.message, 'bad');
       btn.disabled = false;
-      btn.classList.remove('loading');
     }
   };
 
   $('#dNo').onclick = async () => {
     const btn = $('#dNo');
     btn.disabled = true;
-    btn.classList.add('loading');
     try {
-      await api('/api/admin/deposits/act', { id, action: 'reject', reason: 'مرفوض' });
+      await api('/api/admin/deposit', {
+        deposit_id: id, action: 'reject', reason: 'لم يُستلم التحويل',
+      });
       toast('تم الرفض', 'ok');
       closeSheet();
     } catch (e) {
       toast(e.message, 'bad');
       btn.disabled = false;
-      btn.classList.remove('loading');
     }
   };
 }
+window.depositSheet = depositSheet;
 
-/* ═══════════════════════════════════════════════════════════
-   Tickets Page
-   ═══════════════════════════════════════════════════════════ */
-function vTickets() {
-  const F = [['open', 'مفتوحة'], ['answered', 'تم الرد'], ['closed', 'مغلقة'], ['all', 'الكل']];
-  let rows = S.tickets;
-  if (S.filter !== 'all') rows = rows.filter(t => t.status === S.filter);
-  const ST = { open: ['wait', 'مفتوحة'], answered: ['ok', 'تم الرد'], closed: ['off', 'مغلقة'] };
+/* ═══ Withdrawals ═══ */
+function vWithdraw() {
+  const F = [['all', 'الكل'], ['pending', 'قيد التنفيذ'],
+             ['completed', 'نُفّذت'], ['rejected', 'مرفوضة']];
+  let rows = S.withdrawals;
+  if (S.filter !== 'all') rows = rows.filter(w => w.status === S.filter);
+
+  const WST = {
+    completed: ['ok', 'نُفّذ'],
+    pending: ['wait', 'قيد التنفيذ'],
+    rejected: ['bad', 'مرفوض'],
+  };
+
+  const pend = S.withdrawals.filter(w => w.status === 'pending').length;
 
   return `
-  <div class="flex-b" style="margin-bottom:18px">
-    <div><div class="h1">التذاكر</div><p class="sub">${rows.length} من ${S.tickets.length}</p></div>
+  <div class="h1" style="margin-bottom:4px">السحوبات</div>
+  <p class="sub" style="margin-bottom:16px">
+    ${pend ? pend + ' طلب ينتظر التنفيذ' : 'لا طلبات معلّقة'}</p>
+
+  <div style="display:flex;gap:7px;overflow-x:auto;padding-bottom:4px;margin-bottom:14px">
+    ${F.map(([k, t]) => `<button class="btn ${S.filter === k ? 'dark' : 'ghost'} sm"
+      data-filter="${k}" style="flex:none">${t} (${k === 'all'
+        ? S.withdrawals.length
+        : S.withdrawals.filter(w => w.status === k).length})</button>`).join('')}
   </div>
 
-  <div class="tabs">
-    ${F.map(([k, t]) => {
-      const c = k === 'all' ? S.tickets.length : S.tickets.filter(x => x.status === k).length;
-      return `<button class="tab ${S.filter === k ? 'on' : ''}" data-filter="${k}">${t} (${c})</button>`;
-    }).join('')}
-  </div>
-
-  ${rows.length ? `<div style="display:flex;flex-direction:column;gap:10px">
-    ${rows.slice(0, 50).map(t => {
-      const st = ST[t.status] || ['off', '—'];
-      const u = S.users.find(x => x.id === t.uid);
-      const last = (t.messages || []).slice(-1)[0];
-      return `<button class="box" style="text-align:start;cursor:pointer;display:block;width:100%;padding:16px;border:none;font-family:inherit" data-tic="${esc(t.id)}">
-        <div class="flex-b" style="margin-bottom:8px">
-          <span style="font-weight:700;font-size:14px">${esc(t.subject)}</span>
-          <span class="chip ${st[0]}">${st[1]}</span>
+  ${rows.length ? rows.map(w => {
+    const st = WST[w.status] || ['off', '—'];
+    return `<div class="order-card">
+      <div class="order-head">
+        <div style="min-width:0">
+          <div style="font-weight:700;font-size:15px">${usd(w.amount_usd)}</div>
+          <div class="order-id">${esc(w.id)}</div>
         </div>
-        <div class="sub" style="font-size:12px">${esc(u ? (u.name || u.email) : '—')} · ${dt(t.updated_at)}</div>
-        ${last ? `<div class="sub" style="font-size:12.5px;margin-top:6px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(String(last.text).slice(0, 120))}</div>` : ''}
-      </button>`;
-    }).join('')}
-  </div>` : `<div class="box"><div class="empty">
-    <div class="ei">${svg(I.help, 1.6)}</div>
-    <div class="et">لا تذاكر</div>
-  </div></div>`}
-  `;
+        <span class="pill ${st[0]}">${st[1]}</span>
+      </div>
+      <div class="sub" style="font-size:12.5px;margin-bottom:9px">
+        ${esc(userName(w.uid))} · ${dt(w.created_at)}
+      </div>
+      <div class="order-meta">
+        <div class="order-meta-item"><div class="k">الطريقة</div>
+          <div class="v">${esc(w.method || '—')}</div></div>
+        <div class="order-meta-item"><div class="k">الرسوم</div>
+          <div class="v num">${usd(w.fee)}</div></div>
+        <div class="order-meta-item"><div class="k">يستلم</div>
+          <div class="v num">${usd(w.net)}</div></div>
+      </div>
+      <div class="copy-row" style="margin-top:9px">
+        <code dir="ltr">${esc(w.destination || '—')}</code>
+        <button class="copy-btn" data-copy="${esc(w.destination || '')}">نسخ</button>
+      </div>
+      ${w.reject_reason ? `<div class="sub" style="font-size:11.5px;
+        color:var(--error);margin-top:7px">${esc(w.reject_reason)}</div>` : ''}
+      ${w.status === 'pending' ? `
+        <div class="order-actions" style="margin-top:11px">
+          <button class="btn sm" data-wd-complete="${esc(w.id)}">تنفيذ</button>
+          <button class="btn danger sm" data-wd-reject="${esc(w.id)}">رفض</button>
+        </div>` : ''}
+    </div>`;
+  }).join('') : empty(I.withdraw, 'لا سحوبات')}`;
 }
 
-function bindTickets() {
-  $$('[data-tic]').forEach(b => b.onclick = () => openTicketSheet(b.dataset.tic));
+function withdrawSheet(id, action) {
+  const w = S.withdrawals.find(x => x.id === id);
+  if (!w) return;
+  const rej = action === 'reject';
+
+  sheet(`
+    <div class="h2" style="margin-bottom:6px">${rej ? 'رفض السحب' : 'تنفيذ السحب'}</div>
+    <p class="sub" style="margin-bottom:14px">
+      ${usd(w.amount_usd)} · ${esc(w.method)} · ${esc(w.destination)}</p>
+
+    ${rej ? `<div class="alert">${svg(I.warn)}<div>
+        سيُعاد ${usd(w.amount_usd)} إلى محفظة العميل فوراً.</div></div>
+      <label class="lbl">سبب الرفض</label>
+      <input class="inp" id="wReason" placeholder="بيانات غير صحيحة">`
+     : `<div class="banner">حوّل ${usd(w.net)} إلى الوجهة أعلاه ثم أكّد.</div>
+      <label class="lbl">ملاحظة (اختياري)</label>
+      <input class="inp" id="wNote" placeholder="رقم عملية التحويل">`}
+
+    <button class="btn wide" id="wGo" style="margin-top:16px;
+      ${rej ? 'background:var(--error)' : ''}">
+      ${rej ? 'تأكيد الرفض' : 'تأكيد التنفيذ'}</button>
+    <button class="btn ghost wide" style="margin-top:9px" onclick="closeSheet()">إلغاء</button>`);
+
+  $('#wGo').onclick = async () => {
+    $('#wGo').disabled = true;
+    try {
+      await api('/api/admin/withdraw', {
+        id, action: rej ? 'reject' : 'complete',
+        reason: rej ? ($('#wReason').value || '') : '',
+        note: rej ? '' : ($('#wNote').value || ''),
+      });
+      toast(rej ? 'رُفض الطلب وأُعيد المبلغ' : 'نُفّذ السحب', 'ok');
+      closeSheet();
+    } catch (e) {
+      toast(e.message, 'bad');
+      $('#wGo').disabled = false;
+    }
+  };
+}
+window.withdrawSheet = withdrawSheet;
+
+/* ═══ Tickets ═══ */
+function vTickets() {
+  const TST = {
+    open: ['wait', 'مفتوحة'],
+    answered: ['ok', 'تم الرد'],
+    closed: ['off', 'مغلقة'],
+  };
+  const F = [['open', 'مفتوحة'], ['answered', 'تم الرد'],
+             ['closed', 'مغلقة'], ['all', 'الكل']];
+  let rows = S.tickets;
+  if (S.filter !== 'all') rows = rows.filter(t => t.status === S.filter);
+
+  return `
+  <div class="h1" style="margin-bottom:4px">التذاكر</div>
+  <p class="sub" style="margin-bottom:16px">
+    ${openTic() ? openTic() + ' تذكرة تنتظر الرد' : 'لا تذاكر مفتوحة'}</p>
+
+  <div style="display:flex;gap:7px;overflow-x:auto;padding-bottom:4px;margin-bottom:14px">
+    ${F.map(([k, t]) => `<button class="btn ${S.filter === k ? 'dark' : 'ghost'} sm"
+      data-filter="${k}" style="flex:none">${t} (${k === 'all'
+        ? S.tickets.length
+        : S.tickets.filter(x => x.status === k).length})</button>`).join('')}
+  </div>
+
+  ${rows.length ? rows.map(t => {
+    const st = TST[t.status] || ['off', '—'];
+    const last = (t.messages || []).slice(-1)[0];
+    return `<div class="order-card">
+      <div class="order-head">
+        <div style="min-width:0">
+          <div style="font-weight:700;font-size:14.5px">${esc(t.subject)}</div>
+          <div class="sub" style="font-size:12px">
+            ${esc(userName(t.uid))} · ${dt(t.updated_at)}</div>
+        </div>
+        <span class="pill ${st[0]}">${st[1]}</span>
+      </div>
+      ${last ? `<div class="sub" style="font-size:12.5px;margin-bottom:11px;
+        overflow:hidden;text-overflow:ellipsis;white-space:nowrap">
+        ${esc(String(last.text).slice(0, 120))}</div>` : ''}
+      <button class="btn ghost sm" data-tic="${esc(t.id)}">فتح التذكرة</button>
+    </div>`;
+  }).join('') : empty(I.ticket, 'لا تذاكر')}`;
 }
 
-function openTicketSheet(id) {
+function ticketSheet(id) {
   const t = S.tickets.find(x => x.id === id);
   if (!t) return;
-
-  const u = S.users.find(x => x.id === t.uid);
   const msgs = t.messages || [];
 
   sheet(`
-    <div class="sheet-head">
-      <div style="flex:1;min-width:0">
-        <div class="h2">${esc(t.subject)}</div>
-        <div class="sub">${esc(u ? (u.name || u.email) : '—')} · ${dt(t.created_at)}</div>
-      </div>
+    <div style="margin-bottom:14px">
+      <div class="h2">${esc(t.subject)}</div>
+      <div class="sub" style="font-size:12px">
+        ${esc(userName(t.uid))} · ${dt(t.created_at)}</div>
     </div>
 
-    <div style="display:flex;flex-direction:column;gap:10px;margin-bottom:16px;max-height:44vh;overflow-y:auto">
+    <div style="display:flex;flex-direction:column;gap:9px;margin-bottom:14px;
+         max-height:44vh;overflow-y:auto">
       ${msgs.map(m => `
-        <div style="align-self:${m.by === 'admin' ? 'flex-end' : 'flex-start'};max-width:88%;padding:11px 14px;border-radius:14px;background:${m.by === 'admin' ? 'var(--g-soft)' : 'var(--s3)'};border:1px solid ${m.by === 'admin' ? 'var(--g-line)' : 'var(--line)'}">
-          <div style="font-size:10.5px;color:var(--tx-3);margin-bottom:4px">${m.by === 'admin' ? 'أنت' : 'العميل'} · ${dt(m.at)}</div>
+        <div style="align-self:${m.by === 'admin' ? 'flex-end' : 'flex-start'};
+             max-width:86%;padding:11px 13px;border-radius:14px;
+             background:${m.by === 'admin' ? '#ECFDF5' : 'var(--bg)'};
+             border:1px solid var(--border)">
+          <div style="font-size:10.5px;color:var(--muted);margin-bottom:3px">
+            ${m.by === 'admin' ? 'أنت' : 'العميل'} · ${dt(m.at)}</div>
           <div style="font-size:13.5px;line-height:1.65;white-space:pre-line">${esc(m.text)}</div>
-        </div>
-      `).join('')}
+        </div>`).join('')}
     </div>
 
     ${t.status !== 'closed' ? `
-      <textarea class="inp" id="tkReply" rows="3" placeholder="اكتب ردك..." style="margin-bottom:10px"></textarea>
-      <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
-        <button class="btn" id="tkSend">إرسال</button>
-        <button class="btn bad" id="tkClose">إغلاق</button>
-      </div>
-    ` : `<div class="note">هذه التذكرة مغلقة.</div>`}
+      <textarea class="inp" id="tRep" rows="3" placeholder="اكتب ردك…"
+        style="font-family:inherit;resize:vertical"></textarea>
+      <button class="btn wide" id="tSend" style="margin-top:10px">إرسال الرد</button>
+      <button class="btn danger wide" id="tClose" style="margin-top:9px">إغلاق التذكرة</button>`
+     : `<div class="banner">هذه التذكرة مغلقة.</div>`}
+    <button class="btn ghost wide" style="margin-top:9px" onclick="closeSheet()">رجوع</button>`);
 
-    <button class="btn line wide" style="margin-top:10px" onclick="closeSheet()">رجوع</button>
-  `);
-
-  $('#tkSend') && ($('#tkSend').onclick = async () => {
-    const m = $('#tkReply').value.trim();
+  const sb = $('#tSend');
+  if (sb) sb.onclick = async () => {
+    const m = $('#tRep').value.trim();
     if (!m) return toast('اكتب ردك', 'bad');
-    const btn = $('#tkSend');
-    btn.disabled = true;
-    btn.classList.add('loading');
+    sb.disabled = true;
     try {
-      await api('/api/admin/tickets/reply', { id, message: m });
-      toast('تم الإرسال', 'ok');
+      await api('/api/ticket/reply', { id, message: m });
+      toast('أُرسل الرد', 'ok');
       closeSheet();
     } catch (e) {
       toast(e.message, 'bad');
-      btn.disabled = false;
-      btn.classList.remove('loading');
-    }
-  });
-
-  $('#tkClose') && ($('#tkClose').onclick = async () => {
-    const btn = $('#tkClose');
-    btn.disabled = true;
-    btn.classList.add('loading');
-    try {
-      await api('/api/admin/tickets/close', { id });
-      toast('تم الإغلاق', 'ok');
-      closeSheet();
-    } catch (e) {
-      toast(e.message, 'bad');
-      btn.disabled = false;
-      btn.classList.remove('loading');
-    }
-  });
-}
-
-/* ═══════════════════════════════════════════════════════════
-   VIP Page
-   ═══════════════════════════════════════════════════════════ */
-function vVip() {
-  return `
-  <div class="flex-b" style="margin-bottom:20px">
-    <div><div class="h1">VIP</div></div>
-    <button class="btn" id="addPlan">${svg(I.plus, 2.1)} باقة</button>
-  </div>
-
-  <div class="sec-head" style="margin-top:0">
-    <div class="h2">الباقات (${S.vipPlans.length})</div>
-  </div>
-
-  ${S.vipPlans.length ? `<div class="grid3" style="margin-bottom:24px">
-    ${S.vipPlans.sort((a, b) => n(a.order, 99) - n(b.order, 99)).map(p => `
-      <div class="box" style="position:relative">
-        ${p.popular ? '<span class="chip ok" style="position:absolute;top:12px;inset-inline-end:12px">شائع</span>' : ''}
-        <div class="eyebrow">${esc(p.name_en || '')}</div>
-        <div class="h2" style="margin:6px 0">${esc(p.name || '')}</div>
-        <div class="num" style="font-size:26px;font-weight:800;color:var(--g);margin:8px 0">${usd(p.price_usd)}</div>
-        <div class="sub" style="font-size:12px;margin-bottom:12px">حتى ${n(p.cards_count, 0)} بطاقات</div>
-        <button class="btn line sm wide" data-plan="${esc(p.id)}">تعديل</button>
-      </div>
-    `).join('')}
-  </div>` : `<div class="box"><div class="empty">
-    <div class="ei">${svg(I.award, 1.6)}</div>
-    <div class="et">لا باقات</div>
-  </div></div>`}
-
-  <div class="sec-head"><div class="h2">آخر الاشتراكات (${S.vipSubs.length})</div></div>
-  ${S.vipSubs.length ? `<div class="scrollx">
-    <table class="tbl">
-      <thead><tr><th>العميل</th><th>الباقة</th><th>السعر</th><th>الانتهاء</th></tr></thead>
-      <tbody>${S.vipSubs.slice(0, 50).map(s => {
-        const u = S.users.find(x => x.id === s.uid);
-        return `<tr>
-          <td>${esc(u ? (u.name || u.email) : '—')}</td>
-          <td>${esc(s.plan_name || '—')}</td>
-          <td class="num">${usd(s.price_usd)}</td>
-          <td class="sub" style="font-size:11.5px">${dt(s.expires_at)}</td>
-        </tr>`;
-      }).join('')}</tbody>
-    </table>
-  </div>` : `<div class="box"><div class="empty">
-    <div class="ei">${svg(I.award, 1.6)}</div>
-    <div class="et">لا اشتراكات</div>
-  </div></div>`}
-  `;
-}
-
-function bindVip() {
-  const ap = $('#addPlan');
-  if (ap) ap.onclick = () => openPlanSheet(null);
-  $$('[data-plan]').forEach(b => b.onclick = () => openPlanSheet(b.dataset.plan));
-}
-
-function openPlanSheet(id) {
-  const p = id ? S.vipPlans.find(x => x.id === id)
-    : { name: '', name_en: '', price_usd: 5, duration_days: 30, cards_count: 3, features: [], popular: false, active: true, order: 99 };
-
-  sheet(`
-    <div class="sheet-head">
-      <div style="flex:1"><div class="h2">${id ? 'تعديل' : 'باقة جديدة'}</div></div>
-    </div>
-
-    <label class="h3" style="display:block;margin-bottom:8px">اسم عربي</label>
-    <input class="inp" id="pName" value="${esc(p.name)}" style="margin-bottom:14px">
-
-    <label class="h3" style="display:block;margin-bottom:8px">اسم إنجليزي</label>
-    <input class="inp" id="pNameEn" value="${esc(p.name_en)}" dir="ltr" style="margin-bottom:14px">
-
-    <div class="grid2" style="margin-bottom:14px">
-      <div>
-        <label class="h3" style="display:block;margin-bottom:8px">السعر $</label>
-        <input class="inp num" id="pPrice" type="number" step="0.5" value="${n(p.price_usd, 5)}">
-      </div>
-      <div>
-        <label class="h3" style="display:block;margin-bottom:8px">البطاقات</label>
-        <input class="inp num" id="pCards" type="number" step="1" value="${n(p.cards_count, 3)}">
-      </div>
-    </div>
-
-    <label class="h3" style="display:block;margin-bottom:8px">المدة (أيام)</label>
-    <input class="inp num" id="pDays" type="number" step="1" value="${n(p.duration_days, 30)}" style="margin-bottom:14px">
-
-    <label class="h3" style="display:block;margin-bottom:8px">المميزات (سطر لكل ميزة)</label>
-    <textarea class="inp" id="pFeatures" rows="4" style="margin-bottom:14px">${Array.isArray(p.features) ? p.features.join('\n') : ''}</textarea>
-
-    <div class="sw-row">
-      <div><div class="sw-lbl">شائع</div></div>
-      <div class="sw ${p.popular ? 'on' : ''}" id="pPopular"></div>
-    </div>
-    <div class="sw-row">
-      <div><div class="sw-lbl">نشطة</div></div>
-      <div class="sw ${p.active !== false ? 'on' : ''}" id="pActive"></div>
-    </div>
-
-    <label class="h3" style="display:block;margin:14px 0 8px">الترتيب</label>
-    <input class="inp num" id="pOrder" type="number" value="${n(p.order, 99)}" style="margin-bottom:16px">
-
-    <button class="btn wide" id="pSave">${id ? 'حفظ' : 'إنشاء'}</button>
-    ${id ? '<button class="btn bad wide" style="margin-top:10px" id="pDel">حذف</button>' : ''}
-    <button class="btn line wide" style="margin-top:10px" onclick="closeSheet()">إلغاء</button>
-  `);
-
-  $('#pPopular').onclick = e => e.currentTarget.classList.toggle('on');
-  $('#pActive').onclick = e => e.currentTarget.classList.toggle('on');
-
-  $('#pSave').onclick = async () => {
-    const btn = $('#pSave');
-    const name = $('#pName').value.trim();
-    if (!name) return toast('اكتب اسم', 'bad');
-
-    const data = {
-      name,
-      name_en: $('#pNameEn').value.trim(),
-      price_usd: n($('#pPrice').value),
-      cards_count: n($('#pCards').value),
-      duration_days: n($('#pDays').value, 30),
-      features: $('#pFeatures').value.split('\n').map(x => x.trim()).filter(Boolean).slice(0, 10),
-      popular: $('#pPopular').classList.contains('on'),
-      active: $('#pActive').classList.contains('on'),
-      order: n($('#pOrder').value, 99)
-    };
-
-    btn.disabled = true;
-    btn.classList.add('loading');
-    try {
-      if (id) await setDoc(doc(db, 'vip_plans', id), data, { merge: true });
-      else await addDoc(collection(db, 'vip_plans'), { ...data, created_at: new Date().toISOString() });
-      toast('تم', 'ok');
-      closeSheet();
-    } catch (e) {
-      toast(e.message, 'bad');
-      btn.disabled = false;
-      btn.classList.remove('loading');
+      sb.disabled = false;
     }
   };
+  const cb = $('#tClose');
+  if (cb) cb.onclick = async () => {
+    cb.disabled = true;
+    try {
+      await api('/api/admin/ticket/close', { id });
+      toast('أُغلقت التذكرة', 'ok');
+      closeSheet();
+    } catch (e) {
+      toast(e.message, 'bad');
+      cb.disabled = false;
+    }
+  };
+}
+window.ticketSheet = ticketSheet;
 
-  if (id) {
-    $('#pDel').onclick = async () => {
-      if (!confirm('حذف الباقة؟')) return;
-      try {
-        await deleteDoc(doc(db, 'vip_plans', id));
-        toast('تم الحذف', 'ok');
-        closeSheet();
-      } catch (e) {
-        toast(e.message, 'bad');
-      }
-    };
-  }
-}  // ← هنا أُغلق الدالة بشكل صحيح (تم حذف القوس الزائد)
-
-/* ═══════════════════════════════════════════════════════════
-   Ads Page
-   ═══════════════════════════════════════════════════════════ */
-function vAds() {
+/* ═══ Coupons ═══ */
+function vCoupons() {
   return `
-  <div class="flex-b" style="margin-bottom:20px">
-    <div><div class="h1">الإعلانات</div></div>
-    <button class="btn" id="addAd">${svg(I.plus, 2.1)} إعلان</button>
+  <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:18px">
+    <div>
+      <div class="h1" style="margin-bottom:4px">الكوبونات</div>
+      <p class="sub">${S.coupons.length} كوبون</p>
+    </div>
+    <button class="btn sm" onclick="couponSheet()">+ كوبون</button>
   </div>
 
-  ${S.ads.length ? `<div class="grid2">
-    ${S.ads.sort((a, b) => n(a.order, 99) - n(b.order, 99)).map(a => `
-      <div class="box" style="padding:0;overflow:hidden">
-        ${a.image ? `<div style="aspect-ratio:2.4;background:var(--s2);overflow:hidden"><img src="${esc(a.image)}" alt="" style="width:100%;height:100%;object-fit:cover"></div>` : ''}
-        <div style="padding:16px">
-          <div class="flex-b" style="margin-bottom:8px">
-            <div class="h3">${esc(a.title || '—')}</div>
-            <span class="chip ${a.active !== false ? 'ok' : 'off'}">${a.active !== false ? 'نشط' : 'معطّل'}</span>
-          </div>
-          ${a.subtitle ? `<div class="sub" style="font-size:12.5px;margin-bottom:10px">${esc(a.subtitle)}</div>` : ''}
-          ${a.advertiser ? `<div class="sub" style="font-size:11.5px;margin-bottom:12px">المعلن: ${esc(a.advertiser)}</div>` : ''}
-          <button class="btn line sm wide" data-ad="${esc(a.id)}">تعديل</button>
+  ${S.coupons.length ? S.coupons.map(c => {
+    const used = n(c.used_count), max = n(c.max_uses);
+    const dead = c.active === false
+      || (max > 0 && used >= max)
+      || (c.expires_at && new Date(c.expires_at) < new Date());
+    return `<div class="order-card">
+      <div class="order-head">
+        <div>
+          <div class="mono" style="font-size:17px;font-weight:700;letter-spacing:.1em">
+            ${esc(c.id)}</div>
+          <div class="sub" style="font-size:12.5px;margin-top:3px">
+            ${n(c.percent) > 0 ? n(c.percent) + '٪ خصم' : lyd(c.amount_lyd)}
+            ${n(c.max_off_lyd) > 0 ? ' · بحد ' + lyd(c.max_off_lyd) : ''}
+            ${n(c.min_order_lyd) > 0 ? ' · لطلب ' + lyd(c.min_order_lyd) + '+' : ''}</div>
+          <div class="sub" style="font-size:11.5px">
+            استُخدم ${used}${max > 0 ? ' من ' + max : ''}
+            ${c.expires_at ? ' · ينتهي ' + shortDate(c.expires_at) : ''}
+            ${dead ? ' · <span style="color:var(--error)">غير فعّال</span>' : ''}</div>
         </div>
+        <button class="btn ghost sm" onclick="couponSheet('${esc(c.id)}')">تعديل</button>
       </div>
-    `).join('')}
-  </div>` : `<div class="box"><div class="empty">
-    <div class="ei">${svg(I.megaphone, 1.6)}</div>
-    <div class="et">لا إعلانات</div>
-  </div></div>`}
-  `;
+    </div>`;
+  }).join('')
+    : empty(I.coupon, 'لا كوبونات', 'أنشئ أول كوبون.')}`;
 }
 
-function bindAds() {
-  const aa = $('#addAd');
-  if (aa) aa.onclick = () => openAdSheet(null);
-  $$('[data-ad]').forEach(b => b.onclick = () => openAdSheet(b.dataset.ad));
-}
-
-function openAdSheet(id) {
-  const a = id ? S.ads.find(x => x.id === id)
-    : { title: '', subtitle: '', image: '', link: '', cta: 'اعرف المزيد', advertiser: '', active: true, order: 99 };
+function couponSheet(id) {
+  const c = id ? S.coupons.find(x => x.id === id)
+    : { id: '', percent: 0, amount_lyd: 0, max_off_lyd: 0, min_order_lyd: 0,
+        max_uses: 0, used_count: 0, once_per_user: true, active: true, expires_at: '' };
+  if (!c) return;
 
   sheet(`
-    <div class="sheet-head">
-      <div style="flex:1"><div class="h2">${id ? 'تعديل' : 'إعلان جديد'}</div></div>
+    <div class="h2" style="margin-bottom:16px">${id ? 'تعديل الكوبون' : 'كوبون جديد'}</div>
+
+    <label class="lbl">الكود</label>
+    <input class="inp mono" id="cCode" value="${esc(c.id || '')}" ${id ? 'disabled' : ''}
+           dir="ltr" placeholder="WELCOME10"
+           style="text-transform:uppercase;letter-spacing:.12em${id ? ';opacity:.6' : ''}">
+
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:14px">
+      <div><label class="lbl">نسبة الخصم ٪</label>
+        <input class="inp num" id="cPct" type="number" step="1" min="0" max="100"
+               value="${n(c.percent)}"></div>
+      <div><label class="lbl">أو مبلغ ثابت</label>
+        <input class="inp num" id="cAmt" type="number" step="0.5" min="0"
+               value="${n(c.amount_lyd)}"></div>
+    </div>
+    <p class="sub" style="font-size:11px;margin-top:5px">
+      استخدم واحدًا منهما — النسبة لها الأولوية.</p>
+
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:14px">
+      <div><label class="lbl">حد أقصى للخصم</label>
+        <input class="inp num" id="cCap" type="number" step="0.5" min="0"
+               value="${n(c.max_off_lyd)}"></div>
+      <div><label class="lbl">أقل قيمة طلب</label>
+        <input class="inp num" id="cMin" type="number" step="0.5" min="0"
+               value="${n(c.min_order_lyd)}"></div>
     </div>
 
-    <label class="h3" style="display:block;margin-bottom:8px">العنوان</label>
-    <input class="inp" id="aTitle" value="${esc(a.title)}" style="margin-bottom:14px">
-
-    <label class="h3" style="display:block;margin-bottom:8px">الوصف</label>
-    <input class="inp" id="aSub" value="${esc(a.subtitle)}" style="margin-bottom:14px">
-
-    <label class="h3" style="display:block;margin-bottom:8px">رابط الصورة</label>
-    <input class="inp mono" id="aImg" value="${esc(a.image)}" dir="ltr" style="margin-bottom:14px">
-
-    <label class="h3" style="display:block;margin-bottom:8px">الرابط</label>
-    <input class="inp mono" id="aLink" value="${esc(a.link)}" dir="ltr" style="margin-bottom:14px">
-
-    <div class="grid2" style="margin-bottom:14px">
-      <div>
-        <label class="h3" style="display:block;margin-bottom:8px">نص الزر</label>
-        <input class="inp" id="aCta" value="${esc(a.cta)}">
-      </div>
-      <div>
-        <label class="h3" style="display:block;margin-bottom:8px">المعلن</label>
-        <input class="inp" id="aAdv" value="${esc(a.advertiser)}">
-      </div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:14px">
+      <div><label class="lbl">عدد الاستخدامات</label>
+        <input class="inp num" id="cMax" type="number" step="1" min="0"
+               value="${n(c.max_uses)}"></div>
+      <div><label class="lbl">ينتهي في</label>
+        <input class="inp" id="cExp" type="date"
+               value="${c.expires_at ? String(c.expires_at).slice(0, 10) : ''}"></div>
     </div>
+    <p class="sub" style="font-size:11px;margin-top:5px">صفر = بلا حد.</p>
 
-    <label class="h3" style="display:block;margin-bottom:8px">الترتيب</label>
-    <input class="inp num" id="aOrder" type="number" value="${n(a.order, 99)}" style="margin-bottom:14px">
+    <div style="display:flex;justify-content:space-between;align-items:center;
+         padding:13px 0;border-bottom:1px solid #F1F5F9;margin-top:8px">
+      <div><div style="font-size:13.5px;font-weight:600">مرة واحدة لكل عميل</div></div>
+      <div class="sw ${c.once_per_user !== false ? 'on' : ''}" id="cOnce"></div></div>
 
-    <div class="sw-row">
-      <div><div class="sw-lbl">نشط</div></div>
-      <div class="sw ${a.active !== false ? 'on' : ''}" id="aActive"></div>
-    </div>
+    <div style="display:flex;justify-content:space-between;align-items:center;padding:13px 0">
+      <div><div style="font-size:13.5px;font-weight:600">فعّال</div></div>
+      <div class="sw ${c.active !== false ? 'on' : ''}" id="cAct"></div></div>
 
-    <button class="btn wide" id="aSave" style="margin-top:16px">${id ? 'حفظ' : 'نشر'}</button>
-    ${id ? '<button class="btn bad wide" style="margin-top:10px" id="aDel">حذف</button>' : ''}
-    <button class="btn line wide" style="margin-top:10px" onclick="closeSheet()">إلغاء</button>
-  `);
+    <button class="btn wide" id="cSave" style="margin-top:14px">حفظ</button>
+    ${id ? `<button class="btn danger wide" style="margin-top:9px" id="cDel">حذف الكوبون</button>` : ''}
+    <button class="btn ghost wide" style="margin-top:9px" onclick="closeSheet()">إلغاء</button>`);
 
-  $('#aActive').onclick = e => e.currentTarget.classList.toggle('on');
+  $('#cOnce').onclick = e => e.currentTarget.classList.toggle('on');
+  $('#cAct').onclick = e => e.currentTarget.classList.toggle('on');
 
-  $('#aSave').onclick = async () => {
-    const btn = $('#aSave');
-    const title = $('#aTitle').value.trim();
-    if (!title) return toast('اكتب العنوان', 'bad');
+  $('#cSave').onclick = async () => {
+    const code = (id || $('#cCode').value).trim().toUpperCase().replace(/[^A-Z0-9_-]/g, '');
+    if (code.length < 3) return toast('الكود 3 أحرف على الأقل', 'bad');
+    const pct = n($('#cPct').value), amt = n($('#cAmt').value);
+    if (pct <= 0 && amt <= 0) return toast('حدّد نسبة أو مبلغًا', 'bad');
 
     const data = {
-      title,
-      subtitle: $('#aSub').value.trim(),
-      image: $('#aImg').value.trim(),
-      link: $('#aLink').value.trim(),
-      cta: $('#aCta').value.trim() || 'اعرف المزيد',
-      advertiser: $('#aAdv').value.trim(),
-      active: $('#aActive').classList.contains('on'),
-      order: n($('#aOrder').value, 99)
+      percent: pct,
+      amount_lyd: amt,
+      max_off_lyd: n($('#cCap').value),
+      min_order_lyd: n($('#cMin').value),
+      max_uses: n($('#cMax').value),
+      expires_at: $('#cExp').value ? new Date($('#cExp').value).toISOString() : '',
+      once_per_user: $('#cOnce').classList.contains('on'),
+      active: $('#cAct').classList.contains('on'),
     };
-
-    btn.disabled = true;
-    btn.classList.add('loading');
+    $('#cSave').disabled = true;
     try {
-      if (id) await setDoc(doc(db, 'ads', id), data, { merge: true });
-      else await addDoc(collection(db, 'ads'), { ...data, created_at: new Date().toISOString() });
-      toast('تم', 'ok');
+      await setDoc(doc(db, 'coupons', code),
+        id ? data : { ...data, used_count: 0, created_at: new Date().toISOString() },
+        { merge: true });
+      toast('حُفظ الكوبون', 'ok');
       closeSheet();
     } catch (e) {
       toast(e.message, 'bad');
-      btn.disabled = false;
-      btn.classList.remove('loading');
+      $('#cSave').disabled = false;
     }
   };
 
-  if (id) {
-    $('#aDel').onclick = async () => {
-      if (!confirm('حذف الإعلان؟')) return;
-      try {
-        await deleteDoc(doc(db, 'ads', id));
-        toast('تم الحذف', 'ok');
-        closeSheet();
-      } catch (e) {
-        toast(e.message, 'bad');
-      }
-    };
-  }
+  const del = $('#cDel');
+  if (del) del.onclick = async () => {
+    try {
+      await deleteDoc(doc(db, 'coupons', id));
+      toast('حُذف الكوبون', 'ok');
+      closeSheet();
+    } catch (e) {
+      toast(e.message, 'bad');
+    }
+  };
+}
+window.couponSheet = couponSheet;
+
+/* ═══ Users ═══ */
+function vUsers() {
+  let rows = S.users;
+  if (S.q) rows = rows.filter(u =>
+    ((u.name || '') + ' ' + (u.email || '') + ' ' + (u.phone || ''))
+      .toLowerCase().includes(S.q.toLowerCase()));
+
+  return `
+  <div class="h1" style="margin-bottom:4px">المستخدمون</div>
+  <p class="sub" style="margin-bottom:14px">${rows.length} مستخدم</p>
+
+  <input class="inp" id="qBox" placeholder="ابحث بالاسم أو البريد أو الهاتف"
+         value="${esc(S.q)}" style="margin-bottom:14px">
+
+  ${rows.length ? `<div class="box" style="padding:0"><div class="scrollx">
+    <table class="tbl"><thead><tr>
+      <th>الاسم</th><th>البريد</th><th>الهاتف</th><th>الرصيد</th>
+      <th>الإنفاق</th><th>البطاقات</th><th>الحالة</th><th>التسجيل</th><th></th>
+    </tr></thead><tbody>${rows.map(u => `<tr>
+      <td style="font-weight:${u.banned ? '400' : '600'};
+           ${u.banned ? 'color:var(--muted)' : ''}">
+        ${esc(u.name || '—')}
+        ${u.banned ? ' <span class="pill bad">موقوف</span>' : ''}</td>
+      <td class="mono" style="font-size:11.5px" dir="ltr">${esc(u.email || '—')}</td>
+      <td class="mono" style="font-size:12px" dir="ltr">${esc(u.phone || '—')}</td>
+      <td class="num" style="font-weight:600">${usd(u.wallet_balance)}</td>
+      <td class="num">${usd(u.total_spent)}</td>
+      <td class="num">${n(u.cards_count)}</td>
+      <td>${u.banned ? '<span class="pill bad">موقوف</span>'
+                    : '<span class="pill ok">نشط</span>'}</td>
+      <td class="sub" style="font-size:11.5px">${dt(u.created_at)}</td>
+      <td><button class="btn ghost sm" data-user="${esc(u.id)}">إدارة</button></td>
+    </tr>`).join('')}</tbody></table></div></div>`
+    : empty(I.users, 'لا مستخدمين')}`;
 }
 
-/* ═══════════════════════════════════════════════════════════
-   Settings Page
-   ═══════════════════════════════════════════════════════════ */
+function userSheet(uid) {
+  const u = S.users.find(x => x.id === uid);
+  if (!u) return;
+
+  sheet(`
+    <div class="h2" style="margin-bottom:3px">${esc(u.name || 'مستخدم')}</div>
+    <p class="sub" style="margin-bottom:16px" dir="ltr">${esc(u.email || '')}</p>
+
+    <div class="box" style="background:var(--bg);padding:14px;margin-bottom:16px">
+      <div class="field"><span class="n">الرصيد</span>
+        <span class="num" style="color:var(--emerald-d);font-weight:700">${usd(u.wallet_balance)}</span></div>
+      <div class="field"><span class="n">الإنفاق</span>
+        <span class="num">${usd(u.total_spent)}</span></div>
+      <div class="field"><span class="n">الهاتف</span>
+        <span class="mono" dir="ltr">${esc(u.phone || '—')}</span></div>
+      <div class="field"><span class="n">البطاقات</span>
+        <span class="num">${n(u.cards_count)}</span></div>
+      <div class="field"><span class="n">التسجيل</span>
+        <span class="sub">${dt(u.created_at)}</span></div>
+    </div>
+
+    <div class="h2" style="font-size:14px;margin-bottom:9px">تعديل الرصيد</div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:9px;margin-bottom:9px">
+      <input class="inp num" id="adjAmt" type="number" step="0.01" placeholder="± المبلغ">
+      <input class="inp" id="adjWhy" placeholder="السبب">
+    </div>
+    <button class="btn wide dark" id="adjGo">تنفيذ التعديل</button>
+    <p class="sub" style="font-size:11.5px;margin-top:7px">
+      رقم موجب يضيف، وسالب يخصم.</p>
+
+    <button class="btn wide ${u.banned ? '' : 'danger'}" style="margin-top:16px" id="banGo">
+      ${u.banned ? 'إلغاء إيقاف الحساب' : 'إيقاف الحساب'}</button>
+
+    <button class="btn ghost wide" style="margin-top:9px" onclick="closeSheet()">إغلاق</button>`);
+
+  $('#adjGo').onclick = async () => {
+    const d = parseFloat($('#adjAmt').value), why = $('#adjWhy').value.trim();
+    if (!Number.isFinite(d) || d === 0) return toast('أدخل مبلغًا', 'bad');
+    if (why.length < 3) return toast('اكتب السبب', 'bad');
+    $('#adjGo').disabled = true;
+    try {
+      await api('/api/admin/wallet-adjust', { uid, delta: d, reason: why });
+      toast('حُدّث الرصيد', 'ok');
+      closeSheet();
+    } catch (e) {
+      toast(e.message, 'bad');
+      $('#adjGo').disabled = false;
+    }
+  };
+
+  $('#banGo').onclick = async () => {
+    $('#banGo').disabled = true;
+    try {
+      // toggle عبر تحديث المستند مباشرة (admin rules تسمح)
+      await setDoc(doc(db, 'users', uid), {
+        banned: !u.banned,
+        banned_at: !u.banned ? new Date().toISOString() : null,
+      }, { merge: true });
+      toast(u.banned ? 'أُلغي الإيقاف' : 'أُوقف الحساب', 'ok');
+      closeSheet();
+    } catch (e) {
+      toast(e.message, 'bad');
+      $('#banGo').disabled = false;
+    }
+  };
+}
+window.userSheet = userSheet;
+
+/* ═══ SMS ═══ */
+function vSms() {
+  const SST = {
+    claimed: ['ok', 'مربوطة'],
+    unclaimed: ['wait', 'غير مربوطة'],
+    untrusted: ['bad', 'مزيّفة'],
+    unparsed: ['off', 'غير مفهومة'],
+  };
+  const F = [['all', 'الكل'], ['unclaimed', 'غير مربوطة'],
+             ['claimed', 'مربوطة'], ['untrusted', 'مزيّفة']];
+  let rows = S.sms;
+  if (S.filter !== 'all') rows = rows.filter(s => s.status === S.filter);
+
+  return `
+  <div class="h1" style="margin-bottom:4px">رسائل التحويل</div>
+  <p class="sub" style="margin-bottom:16px">سجل رسائل ليبيانا والمدار</p>
+
+  <div style="display:flex;gap:7px;overflow-x:auto;padding-bottom:4px;margin-bottom:14px">
+    ${F.map(([k, t]) => `<button class="btn ${S.filter === k ? 'dark' : 'ghost'} sm"
+      data-filter="${k}" style="flex:none">${t} (${k === 'all'
+        ? S.sms.length
+        : S.sms.filter(s => s.status === k).length})</button>`).join('')}
+  </div>
+
+  ${rows.length ? rows.map(s => {
+    const st = SST[s.status] || ['off', '—'];
+    return `<div class="order-card">
+      <div class="order-head">
+        <div style="min-width:0">
+          <div style="font-weight:700;font-size:15px">
+            ${s.amount_lyd ? lyd(s.amount_lyd) : '—'}</div>
+          <div class="sub" style="font-size:12px">
+            من <span dir="ltr" class="mono">${esc(s.sender || s.from || '—')}</span></div>
+        </div>
+        <span class="pill ${st[0]}">${st[1]}</span>
+      </div>
+      <div class="sub" style="font-size:12.5px;margin-bottom:9px">
+        ${dt(s.created_at)} · ${esc(s.method || '')}</div>
+      <div class="copy-row">
+        <code dir="rtl" style="font-size:11.5px;line-height:1.5">${esc((s.raw_text || '').slice(0, 120))}</code>
+      </div>
+      ${s.status === 'unclaimed' ? `
+        <button class="btn sm" style="margin-top:11px"
+          data-sms-assign="${esc(s.id)}">ربط بعميل</button>` : ''}
+    </div>`;
+  }).join('') : empty(I.sms, 'لا رسائل')}`;
+}
+
+function smsAssignSheet(id) {
+  const x = S.sms.find(v => v.id === id);
+  if (!x) return;
+
+  sheet(`
+    <div class="h2" style="margin-bottom:4px">ربط الحوالة بعميل</div>
+    <p class="sub" style="margin-bottom:14px">
+      ${lyd(x.amount_lyd)} · من <span dir="ltr">${esc(x.sender || '—')}</span></p>
+
+    <div class="banner" style="font-size:12.5px">
+      ${esc(String(x.raw_text || '').slice(0, 140))}</div>
+
+    <label class="lbl">اختر العميل</label>
+    <select class="inp" id="smsUid">
+      <option value="">— اختر —</option>
+      ${S.users.map(u => `<option value="${esc(u.id)}">${esc(u.name || u.email || u.id)}${
+        u.phone ? ' · ' + esc(u.phone) : ''}</option>`).join('')}
+    </select>
+
+    <button class="btn wide" style="margin-top:16px" id="smsGo">إضافة الرصيد للعميل</button>
+    <button class="btn ghost wide" style="margin-top:9px" onclick="closeSheet()">إلغاء</button>`);
+
+  $('#smsGo').onclick = async () => {
+    const uid = $('#smsUid').value;
+    if (!uid) return toast('اختر العميل', 'bad');
+    $('#smsGo').disabled = true;
+    try {
+      await api('/api/admin/sms/assign', { sms_id: id, uid });
+      toast('أُضيف الرصيد لمحفظة العميل', 'ok');
+      closeSheet();
+    } catch (e) {
+      toast(e.message, 'bad');
+      $('#smsGo').disabled = false;
+    }
+  };
+}
+window.smsAssignSheet = smsAssignSheet;
+
+/* ═══ Logs ═══ */
+function vLogs() {
+  const rows = S.logs.slice(0, 60);
+  return `
+  <div class="h1" style="margin-bottom:4px">السجلات</div>
+  <p class="sub" style="margin-bottom:16px">آخر العمليات على النظام</p>
+
+  ${rows.length ? `<div class="box" style="padding:0"><div class="scrollx">
+    <table class="tbl"><thead><tr>
+      <th>الحدث</th><th>المستخدم</th><th>الطلب</th><th>الحالة</th><th>التاريخ</th>
+    </tr></thead><tbody>${rows.map(l => `<tr>
+      <td class="mono" style="font-size:11.5px">${esc(l.action || '—')}</td>
+      <td>${esc(userName(l.uid))}</td>
+      <td class="mono" style="font-size:11px;color:var(--muted)">
+        ${esc(String(l.request || '').slice(0, 40))}</td>
+      <td><span class="pill ${l.ok ? 'ok' : 'bad'}">${l.ok ? 'ناجح' : 'فاشل'}</span></td>
+      <td class="sub" style="font-size:11.5px">${dt(l.created_at)}</td>
+    </tr>`).join('')}</tbody></table></div></div>`
+    : empty(I.chart, 'لا سجلات')}`;
+}
+
+/* ═══ Settings ═══ */
 function vSettings() {
+  const s = S.settings || {};
   const TABS = [
     ['ops', 'التشغيل'],
-    ['mcard', 'البطاقات'],
+    ['mcard', 'البطاقات اليدوية'],
     ['pay', 'الدفع'],
-    ['limits', 'حدود الطلبات'],
-    ['cards_limits', 'حدود البطاقات'],
-    ['look', 'المظهر']
+    ['look', 'المظهر'],
+    ['limits', 'الحدود'],
   ];
 
   return `
-  <div class="flex-b" style="margin-bottom:18px">
-    <div>
-      <div class="h1">الإعدادات</div>
-      <p class="sub">تحكم كامل في المنصة</p>
-    </div>
+  <div class="h1" style="margin-bottom:4px">الإعدادات</div>
+  <p class="sub" style="margin-bottom:16px">تحكم كامل في المنصة</p>
+
+  <div style="display:flex;gap:7px;overflow-x:auto;padding-bottom:6px;margin-bottom:18px">
+    ${TABS.map(([k, t]) => `<button class="btn ${S.setTab === k ? 'dark' : 'ghost'} sm"
+      data-settab="${k}" style="flex:none">${t}</button>`).join('')}
   </div>
 
-  <div class="tabs">
-    ${TABS.map(([k, t]) => `
-      <button class="tab ${S.setTab === k ? 'on' : ''}" data-settab="${k}">${t}</button>
-    `).join('')}
-  </div>
-
-  ${S.setTab === 'ops' ? settingsOps() : ''}
-  ${S.setTab === 'mcard' ? settingsMcard() : ''}
-  ${S.setTab === 'pay' ? settingsPay() : ''}
-  ${S.setTab === 'limits' ? settingsLimits() : ''}
-  ${S.setTab === 'cards_limits' ? settingsCardsLimits() : ''}
-  ${S.setTab === 'look' ? settingsLook() : ''}
-  `;
+  ${S.setTab === 'ops' ? settingsOps(s) : ''}
+  ${S.setTab === 'mcard' ? settingsMcard(s) : ''}
+  ${S.setTab === 'pay' ? settingsPay(s) : ''}
+  ${S.setTab === 'look' ? settingsLook(s) : ''}
+  ${S.setTab === 'limits' ? settingsLimits(s) : ''}`;
 }
 
-function getSet(k, def) {
-  const o = S.settings || {};
-  return k in o ? o[k] : def;
-}
-
-/* ═══ Ops Tab ═══ */
-function settingsOps() {
+function settingsOps(s) {
   return `
   <div class="box">
-    <div class="h2" style="margin-bottom:16px">حالة المنصة</div>
-    <div class="sw-row">
+    <div class="h2" style="margin-bottom:14px">حالة المنصة</div>
+
+    <div style="display:flex;justify-content:space-between;align-items:center;
+         padding:11px 0;border-bottom:1px solid #F1F5F9">
       <div>
-        <div class="sw-lbl">المنصة تعمل</div>
-        <div class="sw-desc">إيقافه يمنع كل العمليات</div>
+        <div style="font-size:13.5px;font-weight:600">المنصة تعمل</div>
+        <div class="sub" style="font-size:11.5px">إيقافه يمنع كل العمليات</div>
       </div>
-      <div class="sw ${getSet('kill_switch', false) === false ? 'on' : ''}" data-op="kill_switch" data-inverse="1"></div>
+      <div class="sw ${s.kill_switch !== true ? 'on' : ''}" data-op="kill_switch" data-inverse="1"></div>
     </div>
-    <label class="lbl" style="margin-top:16px">رسالة التوقف</label>
-    <input class="inp" data-op="kill_message" value="${esc(getSet('kill_message', 'الخدمة متوقفة مؤقتًا.'))}" placeholder="نعمل على صيانة سريعة">
-  </div>
-  <button class="btn wide" data-save="ops" style="margin-top:16px">حفظ</button>`;
+
+    <label class="lbl" style="margin-top:14px">رسالة التوقف</label>
+    <input class="inp" data-op="kill_message"
+           value="${esc(s.kill_message || 'الخدمة متوقفة مؤقتًا للصيانة.')}"
+           placeholder="نعمل على صيانة سريعة">
+
+    <div class="field" style="margin-top:12px">
+      <div><span class="n">رصيدك عند المزود</span>
+        <div class="d">للعلم فقط — يدوي</div></div>
+      <input class="inp num" data-op="provider_float" type="number" step="0.01"
+             value="${n(s.provider_float, 0)}"></div>
+
+    <div class="field">
+      <div><span class="n">حد التنبيه</span>
+        <div class="d">ينبهك عند نزول الرصيد تحته</div></div>
+      <input class="inp num" data-op="low_balance_threshold" type="number" step="1"
+             value="${n(s.low_balance_threshold, 30)}"></div>
+
+    <label class="lbl" style="margin-top:14px">رقم استقبال الحوالات</label>
+    <input class="inp mono" data-op="deposit_phone" dir="ltr"
+           value="${esc(s.deposit_phone || '')}" placeholder="0912345678">
+
+    <button class="btn wide" style="margin-top:16px" data-save="ops">حفظ</button>
+  </div>`;
 }
 
-/* ═══ Mcard Tab ═══ */
-function settingsMcard() {
+function settingsMcard(s) {
   return `
   <div class="box">
-    <div class="h2" style="margin-bottom:16px">البطاقات</div>
-    <div class="sw-row">
+    <div class="h2" style="margin-bottom:14px">البطاقات اليدوية</div>
+
+    <div style="display:flex;justify-content:space-between;align-items:center;
+         padding:11px 0;border-bottom:1px solid #F1F5F9">
       <div>
-        <div class="sw-lbl">مفعّلة</div>
-        <div class="sw-desc">السماح للعملاء بطلب بطاقات</div>
+        <div style="font-size:13.5px;font-weight:600">تفعيل الخدمة</div>
+        <div class="sub" style="font-size:11.5px">السماح للعملاء بطلب بطاقات</div>
       </div>
-      <div class="sw ${getSet('mcard_enabled', true) !== false ? 'on' : ''}" data-op="mcard_enabled"></div>
+      <div class="sw ${s.manual_cards_enabled !== false ? 'on' : ''}"
+           data-op="manual_cards_enabled"></div>
     </div>
+
+    <div style="margin-top:14px;font-size:12.5px;font-weight:700;color:var(--muted)">
+      إصدار بطاقة جديدة</div>
     <div class="field">
-      <div><div class="n">أدنى مبلغ</div></div>
-      <input class="inp num" type="number" data-op="mcard_min" value="${n(getSet('mcard_min', 10))}">
-    </div>
+      <div><span class="n">أقل مبلغ</span></div>
+      <input class="inp num" data-op="mc_create_min" type="number" step="1"
+             value="${n(s.mc_create_min, 10)}"></div>
     <div class="field">
-      <div><div class="n">أقصى مبلغ</div></div>
-      <input class="inp num" type="number" data-op="mcard_max" value="${n(getSet('mcard_max', 200))}">
-    </div>
+      <div><span class="n">أكبر مبلغ</span></div>
+      <input class="inp num" data-op="mc_create_max" type="number" step="1"
+             value="${n(s.mc_create_max, 500)}"></div>
     <div class="field">
-      <div><div class="n">رسوم الإصدار الثابتة ($)</div></div>
-      <input class="inp num" type="number" step="0.5" data-op="mcard_create_fee_fixed" value="${n(getSet('mcard_create_fee_fixed', 8))}">
-    </div>
+      <div><span class="n">رسوم ثابتة ($)</span></div>
+      <input class="inp num" data-op="mc_create_fee_fixed" type="number" step="0.5"
+             value="${n(s.mc_create_fee_fixed, 8)}"></div>
     <div class="field">
-      <div><div class="n">نسبة الإصدار (%)</div></div>
-      <input class="inp num" type="number" step="0.1" data-op="mcard_create_fee_pct" value="${n(getSet('mcard_create_fee_pct', 2.5))}">
-    </div>
+      <div><span class="n">رسوم نسبية (%)</span></div>
+      <input class="inp num" data-op="mc_create_fee_pct" type="number" step="0.1"
+             value="${n(s.mc_create_fee_pct, 2.5)}"></div>
+
+    <div style="margin-top:16px;font-size:12.5px;font-weight:700;color:var(--muted)">
+      شحن بطاقة قائمة</div>
     <div class="field">
-      <div><div class="n">رسوم الشحن الثابتة ($)</div></div>
-      <input class="inp num" type="number" step="0.5" data-op="mcard_topup_fee_fixed" value="${n(getSet('mcard_topup_fee_fixed', 2.5))}">
-    </div>
+      <div><span class="n">أقل مبلغ</span></div>
+      <input class="inp num" data-op="mc_topup_min" type="number" step="1"
+             value="${n(s.mc_topup_min, 10)}"></div>
     <div class="field">
-      <div><div class="n">نسبة الشحن (%)</div></div>
-      <input class="inp num" type="number" step="0.1" data-op="mcard_topup_fee_pct" value="${n(getSet('mcard_topup_fee_pct', 2.5))}">
-    </div>
+      <div><span class="n">أكبر مبلغ</span></div>
+      <input class="inp num" data-op="mc_topup_max" type="number" step="1"
+             value="${n(s.mc_topup_max, 500)}"></div>
     <div class="field">
-      <div><div class="n">مدة عرض البيانات (ث)</div></div>
-      <input class="inp num" type="number" step="10" data-op="mcard_reveal_seconds" value="${n(getSet('mcard_reveal_seconds', 300))}">
-    </div>
-  </div>
-  <button class="btn wide" data-save="ops" style="margin-top:16px">حفظ</button>`;
+      <div><span class="n">رسوم ثابتة ($)</span></div>
+      <input class="inp num" data-op="mc_topup_fee_fixed" type="number" step="0.5"
+             value="${n(s.mc_topup_fee_fixed, 8)}"></div>
+    <div class="field">
+      <div><span class="n">رسوم نسبية (%)</span></div>
+      <input class="inp num" data-op="mc_topup_fee_pct" type="number" step="0.1"
+             value="${n(s.mc_topup_fee_pct, 2.5)}"></div>
+
+    <div class="field" style="margin-top:14px">
+      <div><span class="n">مدة عرض البيانات</span>
+        <div class="d">بالساعات — تُمسح بعدها</div></div>
+      <input class="inp num" data-op="mc_reveal_hours" type="number" step="1"
+             value="${n(s.mc_reveal_hours, 24)}"></div>
+
+    <button class="btn wide" style="margin-top:16px" data-save="ops">حفظ</button>
+  </div>`;
 }
 
-/* ═══ Pay Tab ═══ */
-function settingsPay() {
+function settingsPay(s) {
   return `
   <div class="box">
-    <div class="h2" style="margin-bottom:16px">طرق الإيداع</div>
-    <div class="sw-row">
-      <div><div class="sw-lbl">ليبيانا</div></div>
-      <div class="sw ${getSet('m_libyana_on', true) !== false ? 'on' : ''}" data-op="m_libyana_on"></div>
-    </div>
-    <div class="sw-row">
-      <div><div class="sw-lbl">المدار</div></div>
-      <div class="sw ${getSet('m_almadar_on', true) !== false ? 'on' : ''}" data-op="m_almadar_on"></div>
-    </div>
-    <div class="sw-row">
-      <div><div class="sw-lbl">USDT</div></div>
-      <div class="sw ${getSet('m_usdt_on', false) === true ? 'on' : ''}" data-op="m_usdt_on"></div>
-    </div>
-  </div>
+    <div class="h2" style="margin-bottom:14px">طرق الدفع</div>
 
-  <div class="box">
-    <div class="h2" style="margin-bottom:16px">أرقام التحويل</div>
-    <label class="lbl">رقم ليبيانا</label>
-    <input class="inp mono" dir="ltr" data-op="m_libyana_phone" value="${esc(getSet('m_libyana_phone', ''))}" placeholder="0912345678" style="margin-bottom:14px">
-    <label class="lbl">رقم المدار</label>
-    <input class="inp mono" dir="ltr" data-op="m_almadar_phone" value="${esc(getSet('m_almadar_phone', ''))}" placeholder="0912345678" style="margin-bottom:14px">
-    <label class="lbl">عنوان USDT (TRC20)</label>
-    <input class="inp mono" dir="ltr" data-op="usdt_address" value="${esc(getSet('usdt_address', ''))}" placeholder="T...">
-  </div>
+    ${[
+      ['libyana', 'ليبيانا', 'تلقائي عبر رسائل التحويل'],
+      ['almadar', 'المدار', 'تلقائي عبر رسائل التحويل'],
+      ['bank', 'تحويل مصرفي', 'مراجعة يدوية'],
+      ['usdt', 'USDT', 'تلقائي عبر شبكة TRON'],
+      ['binance', 'Binance Pay', 'مراجعة يدوية'],
+    ].map(([k, name, mode]) => {
+      const on = ['bank', 'usdt', 'binance'].includes(k)
+        ? s['m_' + k + '_on'] === true
+        : s['m_' + k + '_on'] !== false;
+      return `
+      <div style="border:1px solid var(--border);border-radius:12px;padding:13px;
+           margin-bottom:10px;background:${on ? '#fff' : 'var(--bg)'}">
+        <div style="display:flex;justify-content:space-between;align-items:center;gap:11px">
+          <div>
+            <div style="font-size:13.5px;font-weight:600">${name}
+              <span class="pill ${on ? 'ok' : 'off'}" style="margin-inline-start:6px">
+                ${on ? 'مفعّلة' : 'معطّلة'}</span></div>
+            <div class="sub" style="font-size:11.5px">${mode}</div>
+          </div>
+          <div class="sw ${on ? 'on' : ''}" data-op="m_${k}_on"></div>
+        </div>
+        <input class="inp" data-op="m_${k}_label" style="margin-top:10px;font-size:13px"
+               value="${esc(s['m_' + k + '_label'] || name)}"
+               placeholder="الاسم الظاهر للعميل">
+        ${['libyana', 'almadar'].includes(k) ? `
+          <input class="inp mono" data-op="m_${k}_phone" dir="ltr"
+                 style="margin-top:7px;font-size:13px"
+                 value="${esc(s['m_' + k + '_phone'] || '')}"
+                 placeholder="رقم استقبال ${name}">` : ''}
+      </div>`;
+    }).join('')}
 
-  <div class="box">
-    <div class="h2" style="margin-bottom:16px">أسعار الصرف</div>
-    <div class="field">
-      <div><div class="n">ليبيانا</div><div class="d">دينار لكل دولار</div></div>
-      <input class="inp num" type="number" step="0.1" data-op="rate_libyana" value="${n(getSet('rate_libyana', 11.8))}">
-    </div>
-    <div class="field">
-      <div><div class="n">المدار</div><div class="d">دينار لكل دولار</div></div>
-      <input class="inp num" type="number" step="0.1" data-op="rate_almadar" value="${n(getSet('rate_almadar', 12.5))}">
-    </div>
-    <div class="field">
-      <div><div class="n">USDT</div><div class="d">دينار لكل دولار</div></div>
-      <input class="inp num" type="number" step="0.1" data-op="rate_usdt" value="${n(getSet('rate_usdt', 1))}">
-    </div>
-  </div>
-  <button class="btn wide" data-save="ops" style="margin-top:16px">حفظ</button>`;
+    <label class="lbl" style="margin-top:14px">أسماء المرسلين الموثوقة</label>
+    <input class="inp" data-op="sms_allowed_senders" style="font-size:12.5px"
+           value="${esc(s.sms_allowed_senders || 'Libyana,ليبيانا,المدار,Almadar')}">
+    <p class="sub" style="font-size:11px;margin-top:6px">
+      تُقبل رسائل التحويل من هذه الأسماء فقط. بدونها يستطيع أي شخص
+      إرسال نص تحويل مزيّف.</p>
+
+    <label class="lbl" style="margin-top:14px">عنوان USDT TRC20</label>
+    <input class="inp mono" data-op="usdt_address" dir="ltr"
+           value="${esc(s.usdt_address || '')}" placeholder="T...">
+
+    <button class="btn wide" style="margin-top:16px" data-save="ops">حفظ</button>
+  </div>`;
 }
 
-/* ═══ Limits Tab ═══ */
-function settingsLimits() {
+function settingsLook(s) {
   return `
   <div class="box">
-    <div class="h2" style="margin-bottom:16px">الحدود اليومية</div>
-    <p class="sub" style="margin-bottom:16px">تحمي المنصة من الاستنزاف. صفر = بلا حد.</p>
-    <div class="field">
-      <div><div class="n">أقصى عدد طلبات يوميًا</div></div>
-      <input class="inp num" type="number" min="0" data-op="daily_cards_max" value="${n(getSet('daily_cards_max', 3))}">
-    </div>
-    <div class="field">
-      <div><div class="n">أقصى مبلغ يوميًا ($)</div></div>
-      <input class="inp num" type="number" min="0" data-op="daily_amount_max" value="${n(getSet('daily_amount_max', 200))}">
-    </div>
-    <div class="field">
-      <div><div class="n">أقصى إيداع يوميًا ($)</div></div>
-      <input class="inp num" type="number" min="0" data-op="daily_deposit_max" value="${n(getSet('daily_deposit_max', 500))}">
-    </div>
-  </div>
+    <div class="h2" style="margin-bottom:14px">نصوص الواجهة</div>
 
-  <div class="box">
-    <div class="h2" style="margin-bottom:16px">نظام الدعوات</div>
-    <div class="sw-row">
-      <div><div class="sw-lbl">مفعّل</div></div>
-      <div class="sw ${getSet('referral_enabled', false) === true ? 'on' : ''}" data-op="referral_enabled"></div>
-    </div>
-    <div class="field">
-      <div><div class="n">مكافأة الداعي ($)</div></div>
-      <input class="inp num" type="number" step="0.5" data-op="referral_bonus_inviter" value="${n(getSet('referral_bonus_inviter', 1))}">
-    </div>
-    <div class="field">
-      <div><div class="n">مكافأة المدعوّ ($)</div></div>
-      <input class="inp num" type="number" step="0.5" data-op="referral_bonus_invitee" value="${n(getSet('referral_bonus_invitee', 1))}">
-    </div>
-  </div>
-  <button class="btn wide" data-save="ops" style="margin-top:16px">حفظ</button>`;
+    <label class="lbl">الشعار النصي</label>
+    <input class="inp" data-op="brand_tagline"
+           value="${esc(s.brand_tagline || 'بطاقات أكثر .. فرص أكبر')}">
+
+    <label class="lbl" style="margin-top:13px">العنوان الرئيسي</label>
+    <input class="inp" data-op="hero_title"
+           value="${esc(s.hero_title || '')}"
+           placeholder="بطاقة تعمل في كل مكان يقبل الدفع الإلكتروني">
+
+    <label class="lbl" style="margin-top:13px">الوصف</label>
+    <input class="inp" data-op="hero_sub"
+           value="${esc(s.hero_sub || '')}"
+           placeholder="بالدولار · بدون رسوم شهرية">
+
+    <label class="lbl" style="margin-top:13px">رابط الدعم</label>
+    <input class="inp mono" data-op="support_url" dir="ltr"
+           value="${esc(s.support_url || '')}" placeholder="https://wa.me/218...">
+
+    <button class="btn wide" style="margin-top:16px" data-save="ops">حفظ</button>
+  </div>`;
 }
 
-/* ═══ Cards Limits Tab ═══ */
-function settingsCardsLimits() {
+function settingsLimits(s) {
   return `
   <div class="box">
-    <div class="h2" style="margin-bottom:16px">حدود البطاقات لكل فئة</div>
-    <p class="sub" style="margin-bottom:16px">حدد أقصى عدد بطاقات نشطة. 999 = غير محدود.</p>
-    <div class="field">
-      <div><div class="n">المستخدم العادي</div><div class="d">بدون اشتراك</div></div>
-      <input class="inp num" type="number" min="0" data-op="cards_limit_free" value="${n(getSet('cards_limit_free', 1))}">
+    <div class="h2" style="margin-bottom:14px">الحدود اليومية</div>
+
+    <div style="display:flex;justify-content:space-between;align-items:center;
+         padding:11px 0;border-bottom:1px solid #F1F5F9">
+      <div><div style="font-size:13.5px;font-weight:600">تفعيل الحدود</div></div>
+      <div class="sw ${s.limits_enabled !== false ? 'on' : ''}"
+           data-op="limits_enabled"></div>
     </div>
+
     <div class="field">
-      <div><div class="n">VIP Basic</div></div>
-      <input class="inp num" type="number" min="0" data-op="cards_limit_basic" value="${n(getSet('cards_limit_basic', 3))}">
-    </div>
+      <div><span class="n">بطاقات لكل عميل يوميًا</span></div>
+      <input class="inp num" data-op="daily_cards_max" type="number" min="0"
+             value="${n(s.daily_cards_max, 3)}"></div>
     <div class="field">
-      <div><div class="n">VIP Pro</div></div>
-      <input class="inp num" type="number" min="0" data-op="cards_limit_pro" value="${n(getSet('cards_limit_pro', 10))}">
-    </div>
+      <div><span class="n">قيمة بطاقاته يوميًا</span>
+        <div class="d">بالدولار</div></div>
+      <input class="inp num" data-op="daily_amount_max" type="number" min="0"
+             value="${n(s.daily_amount_max, 200)}"></div>
     <div class="field">
-      <div><div class="n">VIP Business</div></div>
-      <input class="inp num" type="number" min="0" data-op="cards_limit_business" value="${n(getSet('cards_limit_business', 999))}">
-    </div>
-  </div>
-  <button class="btn wide" data-save="ops" style="margin-top:16px">حفظ حدود البطاقات</button>`;
+      <div><span class="n">إيداعاته يوميًا</span>
+        <div class="d">بالدولار</div></div>
+      <input class="inp num" data-op="daily_deposit_max" type="number" min="0"
+             value="${n(s.daily_deposit_max, 500)}"></div>
+    <div class="field">
+      <div><span class="n">سقف المنصة اليومي</span>
+        <div class="d">حماية عامة</div></div>
+      <input class="inp num" data-op="platform_daily_max" type="number" min="0"
+             value="${n(s.platform_daily_max, 2000)}"></div>
+
+    <button class="btn wide" style="margin-top:16px" data-save="ops">حفظ</button>
+  </div>`;
 }
 
-/* ═══ Look Tab ═══ */
-function settingsLook() {
-  return `
-  <div class="box">
-    <div class="h2" style="margin-bottom:16px">نصوص الواجهة</div>
-    <label class="lbl">الشعار</label>
-    <input class="inp" data-op="brand_tagline" value="${esc(getSet('brand_tagline', 'بطاقتك الرقمية الأولى في ليبيا'))}" style="margin-bottom:14px">
-    <label class="lbl">عنوان رئيسي</label>
-    <input class="inp" data-op="hero_title" value="${esc(getSet('hero_title', ''))}" style="margin-bottom:14px">
-    <label class="lbl">الوصف</label>
-    <input class="inp" data-op="hero_sub" value="${esc(getSet('hero_sub', ''))}" style="margin-bottom:14px">
-    <label class="lbl">رابط الدعم</label>
-    <input class="inp mono" dir="ltr" data-op="support_url" value="${esc(getSet('support_url', ''))}" placeholder="https://wa.me/21891...">
-  </div>
-  <button class="btn wide" data-save="ops" style="margin-top:16px">حفظ المظهر</button>`;
-}
-
-/* ═══ Bind Settings ═══ */
-function bindSettings() {
-  $$('[data-settab]').forEach(b => {
-    b.onclick = () => {
-      S.setTab = b.dataset.settab;
-      render();
-    };
-  });
-
-  /* Switches */
-  $$('.sw[data-op]').forEach(el => {
-    el.onclick = () => el.classList.toggle('on');
-  });
-
-  /* Save buttons */
-  $$('[data-save="ops"]').forEach(b => {
-    b.onclick = () => saveSettings(b);
-  });
-}
-
-/* ═══ Save Settings — كتابة مباشرة في settings/main ═══ */
-async function saveSettings(btn) {
+async function saveSettings(kind, btn) {
   const payload = {};
 
-  /* Switches */
-  $$('.sw[data-op]').forEach(el => {
+  document.querySelectorAll('.sw[data-op]').forEach(el => {
     let v = el.classList.contains('on');
     if (el.dataset.inverse) v = !v;
     payload[el.dataset.op] = v;
   });
 
-  /* Inputs */
-  $$('input[data-op], textarea[data-op]').forEach(el => {
+  document.querySelectorAll('input[data-op], textarea[data-op]').forEach(el => {
     const k = el.dataset.op;
     payload[k] = el.type === 'number' ? n(el.value) : el.value;
   });
 
   if (!Object.keys(payload).length) return;
 
-  btn.disabled = true;
-  btn.classList.add('loading');
-
-  try {
-    payload.updated_at = new Date().toISOString();
-    payload.updated_by = S.admin.email;
-
-    await setDoc(doc(db, 'settings', 'main'), payload, { merge: true });
-    toast('تم الحفظ', 'ok');
-  } catch (e) {
-    toast(e.message || 'فشل الحفظ', 'bad');
+  btn = btn || document.querySelector(`[data-save="${kind}"]`);
+  if (btn) {
+    btn.disabled = true;
+    btn.innerHTML = '<span class="sk" style="width:70px;height:13px;display:inline-block"></span>';
   }
 
-  btn.disabled = false;
-  btn.classList.remove('loading');
+  try {
+    await api('/api/admin/settings', payload);
+    toast('حُفظت الإعدادات', 'ok');
+    render();
+  } catch (e) {
+    toast(e.message, 'bad');
+    if (btn) {
+      btn.disabled = false;
+      btn.textContent = 'حفظ';
+    }
+  }
 }
 
-/* ═══════════════════════════════════════════════════════════
-   Boot
-   ═══════════════════════════════════════════════════════════ */
-$('#gate').classList.add('show');
+/* ═══ Bind ═══ */
+function bind() {
+  const q = $('#qBox');
+  if (q) {
+    q.oninput = e => {
+      S.q = e.target.value;
+      clearTimeout(q._t);
+      q._t = setTimeout(() => {
+        render();
+        const el = $('#qBox');
+        if (el) { el.focus(); el.setSelectionRange(el.value.length, el.value.length); }
+      }, 260);
+    };
+  }
+
+  document.querySelectorAll('[data-filter]').forEach(b =>
+    b.onclick = () => { S.filter = b.dataset.filter; render(); });
+
+  document.querySelectorAll('[data-mc-fulfil]').forEach(b =>
+    b.onclick = () => mcFulfilSheet(b.dataset.mcFulfil));
+
+  document.querySelectorAll('[data-viewcard]').forEach(b =>
+    b.onclick = () => cardDetailSheet(b.dataset.viewcard));
+
+  document.querySelectorAll('[data-ord-complete]').forEach(b =>
+    b.onclick = () => shopOrderSheet(b.dataset.ordComplete, 'complete'));
+  document.querySelectorAll('[data-ord-reject]').forEach(b =>
+    b.onclick = () => shopOrderSheet(b.dataset.ordReject, 'reject'));
+
+  document.querySelectorAll('[data-dep]').forEach(b =>
+    b.onclick = () => depositSheet(b.dataset.dep));
+
+  document.querySelectorAll('[data-wd-complete]').forEach(b =>
+    b.onclick = () => withdrawSheet(b.dataset.wdComplete, 'complete'));
+  document.querySelectorAll('[data-wd-reject]').forEach(b =>
+    b.onclick = () => withdrawSheet(b.dataset.wdReject, 'reject'));
+
+  document.querySelectorAll('[data-tic]').forEach(b =>
+    b.onclick = () => ticketSheet(b.dataset.tic));
+
+  document.querySelectorAll('[data-user]').forEach(b =>
+    b.onclick = () => userSheet(b.dataset.user));
+
+  document.querySelectorAll('[data-sms-assign]').forEach(b =>
+    b.onclick = () => smsAssignSheet(b.dataset.smsAssign));
+
+  document.querySelectorAll('[data-copy]').forEach(b =>
+    b.onclick = async () => {
+      try {
+        await navigator.clipboard.writeText(b.dataset.copy);
+        toast('نُسخ', 'ok');
+      } catch { toast('تعذّر النسخ', 'bad'); }
+    });
+
+  // Settings tabs
+  document.querySelectorAll('[data-settab]').forEach(b =>
+    b.onclick = () => { S.setTab = b.dataset.settab; render(); });
+
+  // Switches
+  document.querySelectorAll('.sw[data-op]').forEach(el =>
+    el.onclick = () => el.classList.toggle('on'));
+
+  // Save buttons
+  document.querySelectorAll('[data-save="ops"]').forEach(b =>
+    b.onclick = () => saveSettings('ops', b));
+}
 </script>
 </body>
 </html>
