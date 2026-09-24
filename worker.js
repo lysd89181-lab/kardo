@@ -1,7 +1,7 @@
 /**
  * ═══════════════════════════════════════════════════════════
  *  KARDO — Cloudflare Worker Backend
- *  Version: 2.1.0 (Fixed Transaction BatchGet)
+ *  Version: 2.2.0 (Fixed BatchGet Document Name)
  * ═══════════════════════════════════════════════════════════
  */
 
@@ -2221,10 +2221,11 @@ async function fsQueryRaw(env, structuredQuery) {
   }
 }
 
-/* ✅ Transaction مُصلحة — تستخدم :batchGet */
+/* ✅ Transaction مُصلحة — تستخدم document name الصحيح */
 async function fsRunTransaction(env, fn) {
   const token = await getAccessToken(env);
   const base = `${FS_BASE}/projects/${env.FIREBASE_PROJECT_ID}/databases/(default)/documents`;
+  const projectRoot = `projects/${env.FIREBASE_PROJECT_ID}/databases/(default)/documents`;
 
   const beginRes = await fetch(`${base}:beginTransaction`, {
     method: 'POST',
@@ -2248,7 +2249,7 @@ async function fsRunTransaction(env, fn) {
           'content-type': 'application/json',
         },
         body: JSON.stringify({
-          documents: [`${base}/${path}`],
+          documents: [`${projectRoot}/${path}`],
           transaction,
         }),
       });
@@ -2371,7 +2372,7 @@ function fromFsFields(fields) {
 }
 
 /* ═══════════════════════════════════════════════════════════
-   Firebase Auth
+   Auth
    ═══════════════════════════════════════════════════════════ */
 
 async function requireAuth(request, env) {
@@ -2513,4 +2514,4 @@ function b64urlToBytes(s) {
   const b64 = s.replace(/-/g, '+').replace(/_/g, '/');
   const raw = atob(b64 + '='.repeat((4 - b64.length % 4) % 4));
   return Uint8Array.from(raw, c => c.charCodeAt(0));
-                  }
+}
