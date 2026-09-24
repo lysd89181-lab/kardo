@@ -1,94 +1,2371 @@
-/* ═══════════════════════════════════════════════════════════
-   KARDO — Cloudflare Worker
-   Firestore REST API مباشرة (بدون Cloud Functions، بدون KV)
-   النسخة الآمنة — PAN/CVV في manual_card_reveal مع TTL
-   + ضمان وجود ملف شخصي تلقائياً لكل مستخدم
-   ═══════════════════════════════════════════════════════════ */
+/**
+ * ═══════════════════════════════════════════════════════════
+ *  KARDO — Cloudflare Worker Backend
+ *  كاردو — الخدمة الخلفية
+ * ═══════════════════════════════════════════════════════════
+ *
+ *  المسؤوليات:
+ *   1. محفظة ذرية (atomic) — idempotency لكل عملية
+ *   2. بطاقات افتراضية يدوية — الأدمن ينفّذ ويسلّم البيانات
+ *   3. شحن تلقائي عبر رسائل ليبيانا والمدار
+ *   4. USDT عبر شبكة TRON
+ *   5. متجر خدمات رقمية (أكواد + يدوي)
+ *
+ *  سرّيات مطلوبة (wrangler secret put أو Cloudflare Dashboard):
+ *   FIREBASE_PROJECT_ID     kardo-1c657
+ *   FIREBASE_CLIENT_EMAIL   من ملف service account
+ *   FIREBASE_PRIVATE_KEY    من ملف service account (كامل مع BEGIN/END)
+ *   ALLOWED_ORIGIN          https://kardo.ly
+ *   SMS_WEBHOOK_SECRET      سلسلة عشوائية طويلة
+ * ═══════════════════════════════════════════════════════════
+ */
 
-const FS_BASE = (env) =>
-  `https://firestore.googleapis.com/v1/projects/${env.FIREBASE_PROJECT_ID}/databases/(default)/documents`;
-
-const FS_DOC_ROOT = (env) =>
-  `projects/${env.FIREBASE_PROJECT_ID}/databases/(default)/documents`;
-
-/* ═══════════════════════════════════════════════════════════
-   OAuth 2.0
-   ═══════════════════════════════════════════════════════════ */
+const FS_BASE = 'https://firestore.googleapis.com/v1';
+const TRON_API = 'https://api.trongrid.io';
+// عقد USDT على شبكة TRC20 — ثابت عالميًا
+const USDT_TRC20 = 'TR7NHqjeKQxGTCi8q8ZY4pL8otSzgjLj6t';
 
 let _tokenCache = { token: null, exp: 0 };
+let _jwksCache = { keys: null, exp: 0 };
 
-function base64url(input) {
-  const bytes = typeof input === 'string' ? new TextEncoder().encode(input) : input;
-  let str = '';
-  for (const b of bytes) str += String.fromCharCode(b);
-  return btoa(str).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+/* ═══════════════════════════════════════════════════════════
+   نقطة الدخول
+   ═══════════════════════════════════════════════════════════ */
+
+export default {
+  async fetch(request, env, ctx) {
+    const origin = env.ALLOWED_ORIGIN || '*';
+
+    if (request.method === 'OPTIONS') {
+      return new Response(null, { status: 204, headers: corsHeaders(origin) });
+    }
+
+    const url = new URL(request.url);
+    const path = url.pathname.replace(/\/+$/, '');
+
+    try {
+      const result = await route(path, request, url, env);
+      return json(result, 200, origin);
+    } catch (err) {
+      const status = err.status || 500;
+      const body = { success: false, error: err.publicMessage || 'حدث خطأ غير متوقع' };
+      if (status === 500) console.error('UNHANDLED', err.stack || err.message);
+      return json(body, status, origin);
+    }
+  },
+
+  /**
+   * Cron trigger — كل ساعة.
+   * يمسح بيانات البطاقات منتهية الصلاحية (PAN + CVV).
+   */
+  async scheduled(event, env, ctx) {
+    ctx.waitUntil(
+      purgeExpiredReveals(env).catch(e => console.error('PURGE_FAILED', e.message))
+    );
+  },
+};
+
+async function route(path, request, url, env) {
+  // ── عام (بدون مصادقة) ────────────────────────────────
+  if (path === '/api/status' && request.method === 'GET') {
+    return handleStatus(env);
+  }
+  if (path === '/api/catalog' && request.method === 'GET') {
+    return handleCatalog(env);
+  }
+  if (path === '/api/sms/webhook') {
+    return handleSmsWebhook(request, env);
+  }
+
+  // ── تتطلب مصادقة ─────────────────────────────────────
+  const body = request.method === 'POST' ? await safeJson(request) : {};
+  const user = await requireAuth(request, env);
+
+  switch (path) {
+    // ── المحفظة والإيداع ──
+    case '/api/wallet/claim':        return handleWalletClaim(user, body, env);
+    case '/api/wallet/withdraw':     return handleWithdrawRequest(user, body, env);
+    case '/api/wallet/transfer':     return handleTransfer(user, body, env);
+    case '/api/wallet/usdt/invoice': return handleUsdtInvoice(user, body, env);
+    case '/api/wallet/usdt/verify':  return handleUsdtVerify(user, body, env);
+
+    // ── البطاقات اليدوية ──
+    case '/api/mcard/request':       return handleManualCardRequest(user, body, env);
+    case '/api/mcard/topup-request': return handleManualCardTopup(user, body, env);
+    case '/api/mcard/list':          return handleManualCardList(user, env);
+    case '/api/mcard/reveal':        return handleRevealCard(user, body, env);
+
+    // ── المتجر ──
+    case '/api/store/order':         return handleStoreOrder(user, body, env);
+    case '/api/coupon/check':        return handleCouponCheck(user, body, env);
+
+    // ── النقاط والدعوات ──
+    case '/api/points/redeem':       return handleRedeemPoints(user, body, env);
+    case '/api/ref/code':            return handleRefCode(user, body, env);
+    case '/api/ref/claim':           return handleRefClaim(user, body, env);
+
+    // ── التذاكر ──
+    case '/api/ticket/create':       return handleTicketCreate(user, body, env);
+    case '/api/ticket/reply':        return handleTicketReply(user, body, env);
+
+    // ── سجل النشاط ──
+    case '/api/activity/ping':       return handleActivityPing(user, body, env, request);
+
+    // ── إدارية ─────────────────────────────────────────
+    case '/api/admin/settings':      return handleAdminSettings(user, body, env);
+    case '/api/admin/deposit':       return handleAdminDeposit(user, body, env);
+    case '/api/admin/wallet-adjust': return handleAdminWalletAdjust(user, body, env);
+    case '/api/admin/mcard/fulfil':  return handleAdminCardFulfil(user, body, env);
+    case '/api/admin/mcard/reject':  return handleAdminCardReject(user, body, env);
+    case '/api/admin/sms/assign':    return handleAdminSmsAssign(user, body, env);
+    case '/api/admin/withdraw':      return handleAdminWithdraw(user, body, env);
+    case '/api/admin/order':         return handleAdminOrder(user, body, env);
+    case '/api/admin/ticket/close':  return handleTicketClose(user, body, env);
+  }
+
+  throw httpError(404, 'المسار غير موجود');
 }
 
-function pemToArrayBuffer(pem) {
-  const b64 = pem
-    .replace(/-----BEGIN PRIVATE KEY-----/, '')
-    .replace(/-----END PRIVATE KEY-----/, '')
-    .replace(/\\n/g, '\n')
-    .replace(/\s+/g, '');
-  const bin = atob(b64);
-  const buf = new Uint8Array(bin.length);
-  for (let i = 0; i < bin.length; i++) buf[i] = bin.charCodeAt(i);
-  return buf.buffer;
+/* ═══════════════════════════════════════════════════════════
+   الحالة العامة — يقرأها المتجر
+   ═══════════════════════════════════════════════════════════ */
+
+async function handleStatus(env) {
+  const s = await getSettings(env);
+  return {
+    success: true,
+    min_amount: num(s.mc_create_min, 10),
+    max_amount: num(s.mc_create_max, 500),
+    usd_to_lyd: num(s.usd_to_lyd, 11.8),
+    rates: {
+      libyana: num(s.rate_libyana, 11.8),
+      almadar: num(s.rate_almadar, 12.5),
+      bank: num(s.rate_bank, 9.5),
+      usdt: num(s.rate_usdt, 1),
+    },
+    deposit_phone: s.deposit_phone || '',
+    max_deposit_lyd: num(s.max_deposit_lyd, 5000),
+    deposit_note: s.deposit_note || '',
+    method_order: s.method_order || 'libyana,almadar,usdt,bank,binance',
+    banners: cleanBanners(s.banners),
+    subscriptions_visible: s.subscriptions_visible !== false,
+    manual_cards: {
+      on: s.manual_cards_enabled !== false,
+      create_min: num(s.mc_create_min, 10),
+      create_max: num(s.mc_create_max, 500),
+      create_fee_fixed: num(s.mc_create_fee_fixed, 8),
+      create_fee_pct: num(s.mc_create_fee_pct, 2.5),
+      topup_min: num(s.mc_topup_min, 10),
+      topup_max: num(s.mc_topup_max, 500),
+      topup_fee_fixed: num(s.mc_topup_fee_fixed, 8),
+      topup_fee_pct: num(s.mc_topup_fee_pct, 2.5),
+      reveal_hours: num(s.mc_reveal_hours, 24),
+    },
+    withdraw: {
+      on: s.withdraw_enabled === true,
+      min: num(s.withdraw_min, 10),
+      max: num(s.withdraw_max, 500),
+      fee_pct: num(s.withdraw_fee_pct, 0),
+      fee_fixed: num(s.withdraw_fee_fixed, 0),
+      methods: String(s.withdraw_methods || 'ليبيانا,المدار')
+        .split(',').map(x => x.trim()).filter(Boolean),
+    },
+    transfer: {
+      on: s.transfer_enabled === true,
+      min: num(s.transfer_min, 1),
+      fee_pct: num(s.transfer_fee_pct, 0),
+    },
+    tickets_on: s.tickets_enabled !== false,
+    coupons_on: s.coupons_enabled !== false,
+    points: {
+      on: s.points_enabled === true,
+      per_lyd: num(s.points_per_lyd, 1),
+      value_lyd: num(s.points_value_lyd, 0.01),
+      min_redeem: num(s.points_min_redeem, 100),
+    },
+    banner_rotate_sec: num(s.banner_rotate_sec, 6),
+    kill_switch: s.kill_switch === true,
+    kill_message: s.kill_message || 'الخدمة متوقفة مؤقتًا للصيانة.',
+    referral: {
+      on: s.referral_enabled === true,
+      inviter: num(s.referral_bonus_inviter, 1),
+      invitee: num(s.referral_bonus_invitee, 1),
+      min_spend: num(s.referral_min_spend, 10),
+    },
+    theme: {
+      navy: s.theme_navy || '#0F172A',
+      emerald: s.theme_emerald || '#10B981',
+      bg: s.theme_bg || '#F8FAFC',
+      radius: num(s.theme_radius, 14),
+    },
+    nav: {
+      home: s.nav_home !== false,
+      mcards: s.nav_mcards !== false,
+      wallet: s.nav_wallet !== false,
+      tx: s.nav_tx !== false,
+      help: s.nav_help !== false,
+      settings: s.nav_settings !== false,
+    },
+    texts: {
+      tagline: s.brand_tagline || 'بطاقات أكثر .. فرص أكبر',
+      hero_title: s.hero_title || 'بطاقة تعمل في كل مكان يقبل الدفع الإلكتروني',
+      hero_sub: s.hero_sub || 'بالدولار · بدون رسوم شهرية · تُصدر خلال دقائق',
+      support_url: s.support_url || '',
+    },
+    methods: {
+      libyana: { on: s.m_libyana_on !== false, logo: s.m_libyana_logo || '',
+                 label: s.m_libyana_label || 'ليبيانا',
+                 phone: s.m_libyana_phone || s.deposit_phone || '',
+                 rate: num(s.rate_libyana, 11.8), auto: true },
+      almadar: { on: s.m_almadar_on !== false, logo: s.m_almadar_logo || '',
+                 label: s.m_almadar_label || 'المدار',
+                 phone: s.m_almadar_phone || s.deposit_phone || '',
+                 rate: num(s.rate_almadar, 12.5), auto: true },
+      bank:    { on: s.m_bank_on === true, logo: s.m_bank_logo || '',
+                 label: s.m_bank_label || 'تحويل مصرفي',
+                 rate: num(s.rate_bank, 9.5), auto: false,
+                 fields: cleanFields(s.m_bank_fields) },
+      usdt:    { on: s.m_usdt_on === true, logo: s.m_usdt_logo || '',
+                 label: s.m_usdt_label || 'USDT',
+                 rate: num(s.rate_usdt, 1),
+                 auto: true, invoice: true,
+                 address: s.usdt_address || '',
+                 min: num(s.usdt_min, 5), max: num(s.usdt_max, 1000),
+                 window_min: num(s.usdt_window_min, 30),
+                 fields: cleanFields(s.m_usdt_fields) },
+      binance: { on: s.m_binance_on === true, logo: s.m_binance_logo || '',
+                 label: s.m_binance_label || 'Binance Pay',
+                 rate: num(s.rate_usdt, 1), auto: false,
+                 fields: cleanFields(s.m_binance_fields) },
+      ...cleanCustomMethods(s.custom_methods),
+    },
+    maintenance_message: s.maintenance_message || '',
+  };
 }
+
+/* ═══════════════════════════════════════════════════════════
+   البطاقات اليدوية — المسار الأساسي
+   ═══════════════════════════════════════════════════════════ */
+
+/**
+ * طلب إصدار بطاقة جديدة.
+ * يُخصم المبلغ فورًا، ويدخل الطلب قائمة انتظار الإدارة.
+ * الأدمن يُصدر البطاقة عند مزوّده اليدوي ثم يُدخل بياناتها.
+ */
+async function handleManualCardRequest(user, body, env) {
+  const s = await getSettings(env);
+  assertLive(s);
+  if (s.manual_cards_enabled === false) {
+    throw httpError(503, 'إصدار البطاقات متوقف مؤقتًا');
+  }
+
+  const amount = round2(num(body.amount, NaN));
+  const nameOnCard = String(body.name_on_card || '').trim().toUpperCase().slice(0, 40);
+  const cardName = String(body.card_name || 'بطاقتي').trim().slice(0, 40);
+
+  if (!Number.isFinite(amount) || amount <= 0) throw httpError(400, 'أدخل المبلغ');
+  if (!/^[A-Z][A-Z .'-]{1,39}$/.test(nameOnCard)) {
+    throw httpError(400, 'اسم حامل البطاقة يجب أن يكون بحروف لاتينية');
+  }
+
+  const mn = num(s.mc_create_min, 10);
+  const mx = num(s.mc_create_max, 500);
+  if (amount < mn) throw httpError(400, `الحد الأدنى ${mn}$`);
+  if (amount > mx) throw httpError(400, `الحد الأقصى ${mx}$`);
+
+  // الرسوم: $8 + 2.5% (افتراضي قابل للتعديل من اللوحة)
+  const fixedFee = num(s.mc_create_fee_fixed, 8);
+  const pct = num(s.mc_create_fee_pct, 2.5);
+  const fee = round2(fixedFee + amount * pct / 100);
+  const total = round2(amount + fee);
+
+  await assertDailyLimit(env, s, user.uid, 'card', total);
+
+  const me = await fsGet(env, `users/${user.uid}`);
+  if (!me) throw httpError(400, 'الحساب غير مكتمل');
+  if (me.banned === true) throw httpError(403, 'الحساب موقوف');
+  if (num(me.wallet_balance, 0) < total) {
+    throw httpError(402, `رصيدك غير كافٍ — تحتاج ${round2(total - num(me.wallet_balance, 0))}$ إضافية`);
+  }
+
+  const id = `MC${Date.now()}${randomSuffix(4)}`;
+
+  // خصم ذري + إنشاء الطلب
+  const newBalance = round2(num(me.wallet_balance, 0) - total);
+  await Promise.all([
+    fsPatch(env, `users/${user.uid}`, { wallet_balance: newBalance }),
+    fsSet(env, `manual_card_orders/${id}`, {
+      uid: user.uid,
+      kind: 'create',
+      amount,
+      fee,
+      total,
+      card_name: cardName,
+      name_on_card: nameOnCard,
+      status: 'pending',
+      created_at: nowIso(),
+      updated_at: nowIso(),
+    }),
+    fsSet(env, `wallet_transactions/txn_mc_create_${id}`, {
+      uid: user.uid,
+      type: 'debit',
+      amount: total,
+      balance_before: num(me.wallet_balance, 0),
+      balance_after: newBalance,
+      reason: 'card_create',
+      reference: id,
+      created_at: nowIso(),
+    }),
+    logOp(env, user.uid, 'manual_card_request', { kind: 'create', amount }, { id }, true),
+  ]);
+
+  return {
+    success: true,
+    id,
+    amount,
+    fee,
+    total,
+    message: 'وصل طلبك — سيُصدر خلال دقائق، وتتابعه من صفحة البطاقات',
+  };
+}
+
+/**
+ * طلب شحن بطاقة قائمة.
+ */
+async function handleManualCardTopup(user, body, env) {
+  const s = await getSettings(env);
+  assertLive(s);
+  if (s.manual_cards_enabled === false) {
+    throw httpError(503, 'خدمة البطاقات متوقفة مؤقتًا');
+  }
+
+  const cardId = String(body.card_id || '').trim();
+  const amount = round2(num(body.amount, NaN));
+
+  if (!cardId) throw httpError(400, 'اختر البطاقة');
+  if (!Number.isFinite(amount) || amount <= 0) throw httpError(400, 'أدخل المبلغ');
+
+  const mn = num(s.mc_topup_min, 10);
+  const mx = num(s.mc_topup_max, 500);
+  if (amount < mn) throw httpError(400, `الحد الأدنى للشحن ${mn}$`);
+  if (amount > mx) throw httpError(400, `الحد الأقصى للشحن ${mx}$`);
+
+  const card = await fsGet(env, `manual_cards/${cardId}`);
+  if (!card || card.uid !== user.uid) throw httpError(404, 'البطاقة غير موجودة');
+  if (card.status !== 'active') throw httpError(400, 'هذه البطاقة غير نشطة');
+
+  const fixedFee = num(s.mc_topup_fee_fixed, 8);
+  const pct = num(s.mc_topup_fee_pct, 2.5);
+  const fee = round2(fixedFee + amount * pct / 100);
+  const total = round2(amount + fee);
+
+  await assertDailyLimit(env, s, user.uid, 'card', total);
+
+  const me = await fsGet(env, `users/${user.uid}`);
+  if (!me) throw httpError(400, 'الحساب غير مكتمل');
+  if (num(me.wallet_balance, 0) < total) {
+    throw httpError(402, 'رصيدك غير كافٍ');
+  }
+
+  const id = `MCT${Date.now()}${randomSuffix(4)}`;
+  const newBalance = round2(num(me.wallet_balance, 0) - total);
+
+  await Promise.all([
+    fsPatch(env, `users/${user.uid}`, { wallet_balance: newBalance }),
+    fsSet(env, `manual_card_orders/${id}`, {
+      uid: user.uid,
+      kind: 'topup',
+      card_id: cardId,
+      amount,
+      fee,
+      total,
+      card_name: card.card_name || '',
+      status: 'pending',
+      created_at: nowIso(),
+      updated_at: nowIso(),
+    }),
+    fsSet(env, `wallet_transactions/txn_mc_topup_${id}`, {
+      uid: user.uid,
+      type: 'debit',
+      amount: total,
+      balance_before: num(me.wallet_balance, 0),
+      balance_after: newBalance,
+      reason: 'card_topup',
+      reference: id,
+      created_at: nowIso(),
+    }),
+    logOp(env, user.uid, 'manual_card_request', { kind: 'topup', amount }, { id }, true),
+  ]);
+
+  return { success: true, id, amount, fee, total };
+}
+
+/** قائمة بطاقات العميل */
+async function handleManualCardList(user, env) {
+  const rows = await fsQuery(env, {
+    from: [{ collectionId: 'manual_cards' }],
+    where: {
+      fieldFilter: {
+        field: { fieldPath: 'uid' },
+        op: 'EQUAL',
+        value: { stringValue: user.uid },
+      },
+    },
+    limit: 50,
+  });
+
+  const cards = rows.map(r => {
+    const d = withId(r, 'manual_cards');
+    return {
+      id: d._id,
+      card_name: d.card_name || 'بطاقتي',
+      name_on_card: d.name_on_card || '',
+      last4: d.last4 || '****',
+      balance: round2(num(d.balance, 0)),
+      status: d.status || 'active',
+      created_at: d.created_at,
+    };
+  }).sort((a, b) => String(b.created_at || '').localeCompare(String(a.created_at || '')));
+
+  // آخر الطلبات
+  const orderRows = await fsQuery(env, {
+    from: [{ collectionId: 'manual_card_orders' }],
+    where: {
+      fieldFilter: {
+        field: { fieldPath: 'uid' },
+        op: 'EQUAL',
+        value: { stringValue: user.uid },
+      },
+    },
+    limit: 60,
+  });
+
+  const orders = orderRows.map(r => withId(r, 'manual_card_orders'))
+    .sort((a, b) => String(b.created_at || '').localeCompare(String(a.created_at || '')))
+    .map(o => ({
+      id: o._id,
+      kind: o.kind,
+      amount: round2(num(o.amount, 0)),
+      fee: round2(num(o.fee, 0)),
+      total: round2(num(o.total, 0)),
+      card_id: o.card_id || '',
+      card_name: o.card_name || '',
+      status: o.status,
+      reject_reason: o.reject_reason || '',
+      created_at: o.created_at,
+    }));
+
+  return { success: true, cards, orders };
+}
+
+/**
+ * العميل يقرأ بيانات بطاقته (PAN + CVV) — مرة واحدة،
+ * خلال 24 ساعة من إدخال الأدمن لها.
+ */
+async function handleRevealCard(user, body, env) {
+  const orderId = String(body.order_id || '').trim();
+  if (!orderId) throw httpError(400, 'رقم الطلب مفقود');
+
+  const rv = await fsGet(env, `manual_card_reveal/${orderId}`);
+  if (!rv || rv.uid !== user.uid) {
+    throw httpError(404, 'لا بيانات متاحة لهذا الطلب');
+  }
+  if (new Date(rv.expires_at) < new Date()) {
+    throw httpError(410, 'انتهت صلاحية عرض البيانات — تواصل مع الدعم');
+  }
+
+  // سجل قراءة للتدقيق
+  const logId = `RV${Date.now()}${randomSuffix(4)}`;
+  await fsSet(env, `reveal_logs/${logId}`, {
+    uid: user.uid,
+    order_id: orderId,
+    card_id: rv.card_id,
+    revealed_at: nowIso(),
+  }).catch(() => {});
+
+  return {
+    success: true,
+    card_number: rv.card_number,
+    expiry: rv.expiry,
+    cvv: rv.cvv,
+    expires_at: rv.expires_at,
+  };
+}
+
+/**
+ * الأدمن يُدخل بيانات البطاقة بعد إصدارها عند مزوّده اليدوي.
+ * البيانات تُخزَّن مؤقتًا فقط، وتُمسح تلقائيًا بعد 24 ساعة.
+ */
+async function handleAdminCardFulfil(user, body, env) {
+  await requireAdmin(user, env);
+
+  const id = String(body.id || '').trim();
+  if (!id) throw httpError(400, 'رقم الطلب مفقود');
+
+  const o = await fsGet(env, `manual_card_orders/${id}`);
+  if (!o) throw httpError(404, 'الطلب غير موجود');
+  if (o.status !== 'pending') throw httpError(400, 'الطلب مُغلق بالفعل');
+
+  const pan = String(body.card_number || '').replace(/\s+/g, '');
+  const expiry = String(body.expiry || '').trim();
+  const cvv = String(body.cvv || '').trim();
+  const providerRef = String(body.provider_ref || '').slice(0, 120);
+
+  if (!/^\d{13,19}$/.test(pan)) throw httpError(400, 'رقم البطاقة غير صالح');
+  if (!/^\d{2}\/\d{2}$/.test(expiry)) throw httpError(400, 'صيغة التاريخ MM/YY');
+  if (!/^\d{3,4}$/.test(cvv)) throw httpError(400, 'CVV غير صالح');
+
+  const s = await getSettings(env);
+  const ttlHours = num(s.mc_reveal_hours, 24);
+  const expiresAt = new Date(Date.now() + ttlHours * 3600000).toISOString();
+
+  let cardId = o.card_id;
+
+  if (o.kind === 'create') {
+    cardId = `MCX${Date.now()}${randomSuffix(4)}`;
+    await fsSet(env, `manual_cards/${cardId}`, {
+      uid: o.uid,
+      card_name: o.card_name || 'بطاقتي',
+      name_on_card: o.name_on_card || '',
+      last4: pan.slice(-4),
+      status: 'active',
+      balance: round2(num(o.amount, 0)),
+      created_at: nowIso(),
+      created_by: user.uid,
+      provider_ref: providerRef,
+    });
+  } else {
+    const card = await fsGet(env, `manual_cards/${cardId}`);
+    if (!card) throw httpError(404, 'البطاقة الأصلية غير موجودة');
+    const newBal = round2(num(card.balance, 0) + num(o.amount, 0));
+    await fsPatch(env, `manual_cards/${cardId}`, {
+      balance: newBal,
+      updated_at: nowIso(),
+      last_topup_by: user.uid,
+    });
+  }
+
+  await Promise.all([
+    fsSet(env, `manual_card_reveal/${id}`, {
+      uid: o.uid,
+      card_id: cardId,
+      card_number: pan,
+      expiry,
+      cvv,
+      created_at: nowIso(),
+      expires_at: expiresAt,
+    }),
+    fsPatch(env, `manual_card_orders/${id}`, {
+      status: 'completed',
+      card_id: cardId,
+      completed_at: nowIso(),
+      completed_by: user.uid,
+      provider_ref: providerRef,
+      reveal_expires_at: expiresAt,
+    }),
+    logOp(env, user.uid, 'manual_card_fulfilled', { id }, { cardId }, true),
+  ]);
+
+  return { success: true, card_id: cardId, expires_at: expiresAt };
+}
+
+/**
+ * الأدمن يرفض الطلب — يُعاد المبلغ فورًا.
+ */
+async function handleAdminCardReject(user, body, env) {
+  await requireAdmin(user, env);
+
+  const id = String(body.id || '').trim();
+  const reason = String(body.reason || '').slice(0, 200);
+  if (!id) throw httpError(400, 'رقم الطلب مفقود');
+
+  const o = await fsGet(env, `manual_card_orders/${id}`);
+  if (!o) throw httpError(404, 'الطلب غير موجود');
+  if (o.status !== 'pending') throw httpError(400, 'الطلب مُغلق بالفعل');
+
+  const back = round2(num(o.total, 0));
+
+  await Promise.all([
+    fsPatch(env, `manual_card_orders/${id}`, {
+      status: 'rejected',
+      reject_reason: reason,
+      rejected_at: nowIso(),
+      rejected_by: user.uid,
+    }),
+    fsIncrement(env, `users/${o.uid}`, { wallet_balance: back }),
+    fsSet(env, `wallet_transactions/txn_mc_refund_${id}`, {
+      uid: o.uid,
+      type: 'credit',
+      amount: back,
+      reason: 'card_rejected_refund',
+      reference: id,
+      created_at: nowIso(),
+    }),
+    logOp(env, user.uid, 'manual_card_rejected', { id }, { refunded: back }, true),
+  ]);
+
+  return { success: true, refunded: back };
+}
+
+/**
+ * Cron: مسح بيانات البطاقات منتهية الصلاحية.
+ * لا يمس البطاقة نفسها — فقط PAN + CVV.
+ */
+async function purgeExpiredReveals(env) {
+  const rows = await fsQuery(env, {
+    from: [{ collectionId: 'manual_card_reveal' }],
+    limit: 200,
+  });
+  const now = Date.now();
+  let purged = 0;
+  for (const r of rows) {
+    const d = withId(r, 'manual_card_reveal');
+    if (new Date(d.expires_at).getTime() < now) {
+      await fsDelete(env, `manual_card_reveal/${d._id}`).catch(() => {});
+      purged++;
+    }
+  }
+  return purged;
+}
+
+/* ═══════════════════════════════════════════════════════════
+   المحفظة والإيداع — الشحن التلقائي
+   ═══════════════════════════════════════════════════════════ */
+
+/**
+ * إعلان تحويل من العميل (رقمه + المبلغ).
+ * إن كانت رسالة التحويل وصلت مسبقًا → يُضاف فورًا.
+ * وإلا يُحفظ الإعلان معلّقًا، وتُطابقه أول رسالة مناسبة.
+ */
+async function handleWalletClaim(user, body, env) {
+  const phone = normalizePhone(body.phone || '');
+  const amountLyd = round2(num(body.amount_lyd, NaN));
+  const method = body.method === 'almadar' ? 'almadar' : 'libyana';
+
+  const st = await getSettings(env);
+  assertLive(st);
+  const enabled = method === 'almadar'
+    ? st.m_almadar_on !== false
+    : st.m_libyana_on !== false;
+  if (!enabled) throw httpError(503, 'طريقة الدفع هذه غير متاحة حاليًا');
+
+  if (phone.length !== 9) throw httpError(400, 'رقم الهاتف غير صحيح');
+  if (!Number.isFinite(amountLyd) || amountLyd <= 0) {
+    throw httpError(400, 'أدخل المبلغ الذي حوّلته');
+  }
+
+  const rate = method === 'almadar'
+    ? num(st.rate_almadar, 12.5)
+    : num(st.rate_libyana, 11.8);
+  const amountUsd = round2(amountLyd / rate);
+
+  const maxLyd = num(st.max_deposit_lyd, 5000);
+  if (amountLyd > maxLyd) throw httpError(400, `الحد الأقصى ${maxLyd} د.ل`);
+  await assertDailyLimit(env, st, user.uid, 'deposit', amountUsd);
+
+  // هل وصلت الرسالة قبل الإعلان؟
+  const sms = await findUnclaimedSms(env, phone, amountLyd);
+
+  if (sms) {
+    const credited = round2(num(sms.amount_usd, amountUsd));
+    await Promise.all([
+      fsPatch(env, `sms_transactions/${sms._id}`, {
+        status: 'claimed',
+        uid: user.uid,
+        claimed_at: nowIso(),
+        matched_by: 'claim',
+      }),
+      fsIncrement(env, `users/${user.uid}`, { wallet_balance: credited }),
+      fsSet(env, `wallet_deposits/${sms._id}`, {
+        uid: user.uid,
+        amount_usd: credited,
+        amount_lyd: num(sms.amount_lyd, amountLyd),
+        method: (method === 'libyana' ? 'ليبيانا' : 'المدار') + ' — تلقائي',
+        claim_phone: phone,
+        proof_url: '',
+        note: 'حوالة من ' + phone,
+        status: 'approved',
+        auto: true,
+        created_at: nowIso(),
+      }),
+      bumpCounter(env, user.uid, { deposit: credited }),
+      bumpCounter(env, '_platform', { deposit: credited }),
+      logOp(env, user.uid, 'claim_matched', { phone, amountLyd }, { credited }, true),
+    ]);
+    return { success: true, matched: true, credited_usd: credited };
+  }
+
+  // لم تصل بعد: نحفظ الإعلان
+  const claimId = `CLM${Date.now()}${randomSuffix(4)}`;
+  await fsSet(env, `wallet_deposits/${claimId}`, {
+    uid: user.uid,
+    amount_usd: amountUsd,
+    amount_lyd: amountLyd,
+    method: method === 'libyana' ? 'ليبيانا' : 'المدار',
+    claim_phone: phone,
+    proof_url: '',
+    note: '',
+    status: 'pending',
+    awaiting_sms: true,
+    created_at: nowIso(),
+  });
+
+  return { success: true, matched: false, claim_id: claimId };
+}
+
+/** البحث عن رسالة وصلت ولم تُربط بعد، بنفس الرقم والمبلغ */
+async function findUnclaimedSms(env, phone, amountLyd) {
+  const res = await fsQueryRaw(env, {
+    from: [{ collectionId: 'sms_transactions' }],
+    where: {
+      compositeFilter: {
+        op: 'AND',
+        filters: [
+          { fieldFilter: { field: { fieldPath: 'status' }, op: 'EQUAL',
+            value: { stringValue: 'unclaimed' } } },
+          { fieldFilter: { field: { fieldPath: 'sender' }, op: 'EQUAL',
+            value: { stringValue: phone } } },
+        ],
+      },
+    },
+    limit: 20,
+  });
+
+  const rows = res
+    .map(r => {
+      const d = fromFsFields(r.document.fields || {});
+      d._id = r.document.name.split('/documents/sms_transactions/')[1];
+      return d;
+    })
+    .filter(d => Math.abs(num(d.amount_lyd, -1) - amountLyd) < 0.005);
+
+  return rows[0] || null;
+}
+
+/** البحث عن إعلان معلّق ينتظر رسالة بنفس الرقم والمبلغ */
+async function findPendingClaim(env, phone, amountLyd) {
+  const res = await fsQueryRaw(env, {
+    from: [{ collectionId: 'wallet_deposits' }],
+    where: {
+      compositeFilter: {
+        op: 'AND',
+        filters: [
+          { fieldFilter: { field: { fieldPath: 'status' }, op: 'EQUAL',
+            value: { stringValue: 'pending' } } },
+          { fieldFilter: { field: { fieldPath: 'claim_phone' }, op: 'EQUAL',
+            value: { stringValue: phone } } },
+        ],
+      },
+    },
+    limit: 20,
+  });
+
+  const rows = res
+    .map(r => {
+      const d = fromFsFields(r.document.fields || {});
+      d._id = r.document.name.split('/documents/wallet_deposits/')[1];
+      return d;
+    })
+    .filter(d => Math.abs(num(d.amount_lyd, -1) - amountLyd) < 0.005)
+    .sort((a, b) => String(a.created_at || '').localeCompare(String(b.created_at || '')));
+
+  return rows[0] || null;
+}
+
+/* ═══════════════════════════════════════════════════════════
+   USDT — فواتير وتحقق فوري من TRON
+   ═══════════════════════════════════════════════════════════ */
+
+async function handleUsdtInvoice(user, body, env) {
+  const s = await getSettings(env);
+  assertLive(s);
+  if (s.m_usdt_on !== true) throw httpError(503, 'الدفع بـ USDT غير متاح');
+
+  const address = String(s.usdt_address || '').trim();
+  if (!/^T[1-9A-HJ-NP-Za-km-z]{33}$/.test(address)) {
+    throw httpError(503, 'عنوان الاستقبال غير مضبوط');
+  }
+
+  const amount = round2(num(body.amount_usd, NaN));
+  if (!Number.isFinite(amount) || amount <= 0) throw httpError(400, 'أدخل المبلغ');
+
+  const minU = num(s.usdt_min, 5);
+  const maxU = num(s.usdt_max, 1000);
+  if (amount < minU) throw httpError(400, `الحد الأدنى ${minU} USDT`);
+  if (amount > maxU) throw httpError(400, `الحد الأقصى ${maxU} USDT`);
+  await assertDailyLimit(env, s, user.uid, 'deposit', amount);
+
+  // توليد مبلغ فريد
+  const open = await fsQueryRaw(env, {
+    from: [{ collectionId: 'usdt_invoices' }],
+    where: {
+      fieldFilter: { field: { fieldPath: 'status' }, op: 'EQUAL',
+        value: { stringValue: 'awaiting' } },
+    },
+    limit: 200,
+  });
+  const taken = new Set(
+    open.map(r => {
+      const d = fromFsFields(r.document.fields || {});
+      return Number(num(d.pay_amount, 0)).toFixed(4);
+    })
+  );
+
+  let payAmount = null;
+  for (let i = 0; i < 80; i++) {
+    const b = crypto.getRandomValues(new Uint8Array(2));
+    const frac = ((((b[0] << 8) | b[1]) % 900) + 100) / 10000;
+    const cand = Number((amount + frac).toFixed(4));
+    if (!taken.has(cand.toFixed(4))) { payAmount = cand; break; }
+  }
+  if (payAmount === null) throw httpError(503, 'ازدحام مؤقت، حاول بعد قليل');
+
+  const minutes = num(s.usdt_window_min, 30);
+  const now = Date.now();
+  const id = `INV${now}${randomSuffix(4)}`;
+
+  await fsSet(env, `usdt_invoices/${id}`, {
+    uid: user.uid,
+    amount_usd: amount,
+    pay_amount: payAmount,
+    address,
+    status: 'awaiting',
+    created_at: new Date(now).toISOString(),
+    created_ms: now,
+    expires_ms: now + minutes * 60000,
+  });
+
+  return {
+    success: true,
+    invoice: {
+      id, amount_usd: amount, pay_amount: payAmount,
+      address, network: 'TRC20',
+      expires_ms: now + minutes * 60000,
+    },
+  };
+}
+
+async function handleUsdtVerify(user, body, env) {
+  const id = String(body.invoice_id || '').trim();
+  if (!id) throw httpError(400, 'رقم الفاتورة مفقود');
+
+  const inv = await fsGet(env, `usdt_invoices/${id}`);
+  if (!inv) throw httpError(404, 'الفاتورة غير موجودة');
+  if (inv.uid !== user.uid) throw httpError(403, 'غير مصرّح');
+
+  if (inv.status === 'paid') {
+    return { success: true, paid: true, already: true,
+             credited: num(inv.received, num(inv.amount_usd, 0)) };
+  }
+
+  const now = Date.now();
+  if (num(inv.expires_ms, 0) < now && inv.status === 'awaiting') {
+    await fsPatch(env, `usdt_invoices/${id}`, { status: 'expired' });
+    throw httpError(400, 'انتهت مهلة الفاتورة — أنشئ فاتورة جديدة');
+  }
+
+  const s = await getSettings(env);
+  const address = String(inv.address || s.usdt_address || '').trim();
+  const want = num(inv.pay_amount, 0);
+
+  let txs = [];
+  try {
+    const url = `${TRON_API}/v1/accounts/${address}/transactions/trc20`
+      + `?limit=60&only_to=true&contract_address=${USDT_TRC20}`;
+    const res = await fetch(url, { headers: { accept: 'application/json' } });
+    const data = await res.json();
+    txs = Array.isArray(data.data) ? data.data : [];
+  } catch (e) {
+    console.error('TRON_FETCH_FAILED', e.message);
+    throw httpError(502, 'تعذّر الاتصال بالشبكة، أعد المحاولة');
+  }
+
+  const since = num(inv.created_ms, 0) - 5 * 60000;
+
+  const hit = txs.find(t => {
+    const val = Number(t.value || 0) / 1e6;
+    const ts = Number(t.block_timestamp || 0);
+    return ts >= since && Math.abs(val - want) < 0.00005;
+  });
+
+  if (!hit) return { success: true, paid: false };
+
+  const txid = String(hit.transaction_id || '');
+  if (!txid) return { success: true, paid: false };
+
+  // منع استخدام نفس التحويل مرتين
+  const seen = await fsGet(env, `usdt_txids/${txid}`);
+  if (seen) return { success: true, paid: false, duplicate: true };
+
+  const received = round2(Number(hit.value || 0) / 1e6);
+  const credited = received;
+
+  await fsSet(env, `usdt_txids/${txid}`, {
+    invoice_id: id,
+    uid: user.uid,
+    amount: received,
+    from: String(hit.from || ''),
+    created_at: nowIso(),
+  });
+
+  await Promise.all([
+    fsPatch(env, `usdt_invoices/${id}`, {
+      status: 'paid', txid, paid_at: nowIso(), received,
+    }),
+    fsIncrement(env, `users/${user.uid}`, { wallet_balance: credited }),
+    fsSet(env, `wallet_deposits/${id}`, {
+      uid: user.uid,
+      amount_usd: credited,
+      amount_lyd: 0,
+      method: 'USDT — تلقائي',
+      proof_url: '',
+      note: 'TRC20 · ' + txid.slice(0, 12) + '…',
+      status: 'approved',
+      auto: true,
+      created_at: nowIso(),
+    }),
+    bumpCounter(env, user.uid, { deposit: credited }),
+    bumpCounter(env, '_platform', { deposit: credited }),
+    logOp(env, user.uid, 'usdt_paid', { id, want }, { txid, credited }, true),
+  ]);
+
+  return { success: true, paid: true, credited, txid };
+}
+
+/* ═══════════════════════════════════════════════════════════
+   Webhook رسائل ليبيانا والمدار
+   ═══════════════════════════════════════════════════════════ */
+
+function parseTransferSms(text) {
+  const s = String(text || '').replace(/[\u200e\u200f]/g, '').trim();
+  if (!/تم\s*تحويل/.test(s)) return null;
+
+  const incoming = /رصيد[كه]/.test(s) || /من\s*الرقم/.test(s);
+  const outgoing = /تحويل[^\n]{0,40}\s(?:الى|الي|إلى)\s*\+?\d/.test(s)
+                   && !/من\s*الرقم/.test(s);
+  if (!incoming || outgoing) return null;
+
+  const almadar = s.match(/تم\s*تحويل\s*([\d,]+(?:[.\u066B]\d{1,3})?)\s*د\.?\s*ل/);
+  if (almadar && /د\.?\s*ل/.test(s)) {
+    const phone = s.match(/من\s*الرقم\s*[:\s]?\s*(\d{9,14})/);
+    if (!phone) return null;
+    const amount = round2(parseFloat(String(almadar[1]).replace(/,/g, '')));
+    if (!Number.isFinite(amount) || amount <= 0) return null;
+    return { amount_lyd: amount, sender: normalizePhone(phone[1]), network: 'almadar' };
+  }
+
+  const libyana = s.match(/([\d,]+)[.\u066B](\d{1,3})\s*دينار/);
+  const phone = s.match(/الرقم\s*[:\s]?\s*(\d{9,14})/);
+  if (!libyana || !phone) return null;
+
+  const whole = parseInt(String(libyana[1]).replace(/,/g, ''), 10);
+  const frac = parseInt(libyana[2].padEnd(3, '0'), 10) / 1000;
+  const amount = round2(whole + frac);
+  if (!Number.isFinite(amount) || amount <= 0) return null;
+
+  return { amount_lyd: amount, sender: normalizePhone(phone[1]), network: 'libyana' };
+}
+
+function normalizePhone(raw) {
+  let p = String(raw || '').replace(/\D/g, '');
+  if (p.startsWith('00218')) p = p.slice(5);
+  else if (p.startsWith('218')) p = p.slice(3);
+  if (p.startsWith('0')) p = p.slice(1);
+  return p.slice(-9);
+}
+
+async function sha256Hex(str) {
+  const buf = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(str));
+  return Array.from(new Uint8Array(buf), b => b.toString(16).padStart(2, '0')).join('');
+}
+
+function salvageJson(raw) {
+  const out = {};
+  const s = String(raw || '');
+  const pick = (key) => {
+    const re = new RegExp(`"${key}"\\s*:\\s*"([\\s\\S]*?)"\\s*(?:,\\s*"|\\s*\\})`);
+    const m = s.match(re);
+    return m ? m[1] : undefined;
+  };
+  for (const k of ['text', 'message', 'body', 'from', 'sim', 'sms_id', 'id']) {
+    const v = pick(k);
+    if (v !== undefined) out[k] = v;
+  }
+  const stamp = s.match(/"(?:sentStamp|receivedStamp|timestamp)"\s*:\s*"?(\d+)"?/);
+  if (stamp) out.timestamp = Number(stamp[1]);
+  return out;
+}
+
+async function handleSmsWebhook(request, env) {
+  const url = new URL(request.url);
+  const provided = request.headers.get('x-sms-secret')
+    || url.searchParams.get('secret') || '';
+  const expected = env.SMS_WEBHOOK_SECRET || '';
+
+  if (!expected || provided !== expected) {
+    throw httpError(401, 'unauthorized');
+  }
+
+  const ctype = (request.headers.get('content-type') || '').toLowerCase();
+  let body = {};
+  let rawBody = '';
+
+  if (request.method !== 'GET' && request.method !== 'HEAD') {
+    try { rawBody = await request.text(); } catch { rawBody = ''; }
+  }
+
+  if (rawBody) {
+    if (ctype.includes('json') || /^\s*\{/.test(rawBody)) {
+      try { body = JSON.parse(rawBody); }
+      catch { body = salvageJson(rawBody); }
+    } else if (ctype.includes('x-www-form-urlencoded')) {
+      body = Object.fromEntries(new URLSearchParams(rawBody));
+    }
+  }
+
+  const text =
+    body.text || body.message || body.body || body.msg || body.content ||
+    url.searchParams.get('text') || url.searchParams.get('message') ||
+    (ctype.includes('json') ? '' : rawBody) || '';
+
+  const receivedAt = body.receivedAt || body.timestamp || body.date
+    || url.searchParams.get('timestamp') || nowIso();
+  const smsId = String(
+    body.sms_id || body.id || url.searchParams.get('sms_id') || ''
+  ).trim();
+
+  const parsed = parseTransferSms(text);
+
+  const s0 = await getSettings(env);
+  const from = String(
+    body.from || body.sender || url.searchParams.get('from') || ''
+  ).trim();
+
+  const allow = String(s0.sms_allowed_senders || 'Libyana,ليبيانا,المدار,Almadar')
+    .split(',').map(x => x.trim().toLowerCase()).filter(Boolean);
+
+  const fromLc = from.toLowerCase();
+  const senderOk = allow.length === 0 || allow.some(a => fromLc.includes(a));
+
+  // بصمة فريدة
+  const fingerprint = smsId
+    ? await sha256Hex('id:' + smsId)
+    : await sha256Hex(String(text).trim() + '|' + String(receivedAt).slice(0, 16));
+
+  if (parsed && !senderOk) {
+    await fsSet(env, `sms_transactions/${fingerprint}`, {
+      raw_text: String(text).slice(0, 500),
+      from: from.slice(0, 60),
+      amount_lyd: parsed.amount_lyd,
+      sender: parsed.sender,
+      method: parsed.network,
+      status: 'untrusted',
+      needs_attention: true,
+      received_at: receivedAt,
+      created_at: nowIso(),
+    });
+    console.warn('UNTRUSTED_SENDER', from);
+    return { success: true, parsed: true, matched: false, untrusted: true };
+  }
+
+  const existing = await fsGet(env, `sms_transactions/${fingerprint}`);
+  if (existing) {
+    return { success: true, duplicate: true, status: existing.status };
+  }
+
+  if (!parsed) {
+    await fsSet(env, `sms_transactions/${fingerprint}`, {
+      raw_text: String(text).slice(0, 500),
+      status: 'unparsed',
+      received_at: receivedAt,
+      created_at: nowIso(),
+    });
+    return { success: true, parsed: false };
+  }
+
+  const rate = parsed.network === 'almadar'
+    ? num(s0.rate_almadar, 12.5)
+    : num(s0.rate_libyana, 11.8);
+  const amountUsd = round2(parsed.amount_lyd / rate);
+
+  const record = {
+    raw_text: String(text).slice(0, 500),
+    amount_lyd: parsed.amount_lyd,
+    amount_usd: amountUsd,
+    rate,
+    sender: parsed.sender,
+    from: from.slice(0, 60),
+    method: parsed.network,
+    received_at: receivedAt,
+    created_at: nowIso(),
+  };
+
+  // مطابقة مع إعلان معلّق
+  let claim = null;
+  try {
+    claim = await findPendingClaim(env, parsed.sender, parsed.amount_lyd);
+  } catch (e) {
+    console.error('CLAIM_LOOKUP_FAILED', e.message);
+  }
+
+  if (claim && claim.uid) {
+    try {
+      await Promise.all([
+        fsSet(env, `sms_transactions/${fingerprint}`, {
+          ...record, status: 'claimed', uid: claim.uid,
+          claimed_at: nowIso(), matched_by: 'pending_claim',
+        }),
+        fsPatch(env, `wallet_deposits/${claim._id}`, {
+          status: 'approved', auto: true,
+          awaiting_sms: false, approved_at: nowIso(),
+        }),
+        fsIncrement(env, `users/${claim.uid}`, { wallet_balance: amountUsd }),
+        bumpCounter(env, claim.uid, { deposit: amountUsd }),
+        bumpCounter(env, '_platform', { deposit: amountUsd }),
+        logOp(env, claim.uid, 'sms_matched_claim',
+          { sender: parsed.sender, amount_lyd: parsed.amount_lyd },
+          { credited: amountUsd }, true),
+      ]);
+      return {
+        success: true, parsed: true, matched: true,
+        via: 'claim', credited_usd: amountUsd,
+      };
+    } catch (e) {
+      console.error('CLAIM_CREDIT_FAILED', e.message);
+      await fsSet(env, `sms_transactions/${fingerprint}`, {
+        ...record, status: 'unclaimed', needs_attention: true,
+        error: String(e.message).slice(0, 200),
+      }).catch(() => {});
+      return { success: true, parsed: true, matched: false, deferred: true };
+    }
+  }
+
+  // بلا مطابقة — تُحفظ للمراجعة
+  await fsSet(env, `sms_transactions/${fingerprint}`, {
+    ...record, status: 'unclaimed',
+  });
+
+  return {
+    success: true, parsed: true, matched: false,
+    amount_lyd: parsed.amount_lyd,
+  };
+}
+
+async function handleAdminSmsAssign(user, body, env) {
+  await requireAdmin(user, env);
+
+  const smsId = String(body.sms_id || '').trim();
+  const uid = String(body.uid || '').trim();
+  if (!smsId || !uid) throw httpError(400, 'بيانات ناقصة');
+
+  const sms = await fsGet(env, `sms_transactions/${smsId}`);
+  if (!sms) throw httpError(404, 'الحوالة غير موجودة');
+  if (sms.status === 'claimed') throw httpError(400, 'مربوطة بالفعل');
+
+  const amountUsd = round2(num(sms.amount_usd, 0));
+  if (amountUsd <= 0) throw httpError(400, 'مبلغ غير صالح');
+
+  await Promise.all([
+    fsPatch(env, `sms_transactions/${smsId}`, {
+      status: 'claimed', uid, claimed_at: nowIso(), claimed_by: user.uid,
+    }),
+    fsIncrement(env, `users/${uid}`, { wallet_balance: amountUsd }),
+    fsSet(env, `wallet_deposits/${smsId}`, {
+      uid,
+      amount_usd: amountUsd,
+      amount_lyd: num(sms.amount_lyd, 0),
+      method: 'ليبيانا — ربط يدوي',
+      proof_url: '',
+      note: 'حوالة من ' + (sms.sender || '—'),
+      status: 'approved',
+      auto: false,
+      created_at: nowIso(),
+    }),
+    logOp(env, user.uid, 'sms_manual_assign', { smsId, uid }, { credited: amountUsd }, true),
+  ]);
+
+  return { success: true, credited: amountUsd };
+}
+
+/* ═══════════════════════════════════════════════════════════
+   المتجر — أقسام ومنتجات وطلبات
+   ═══════════════════════════════════════════════════════════ */
+
+async function handleCatalog(env) {
+  const [cats, prods] = await Promise.all([
+    fsQueryRaw(env, { from: [{ collectionId: 'categories' }], limit: 40 }),
+    fsQueryRaw(env, { from: [{ collectionId: 'products' }], limit: 300 }),
+  ]);
+
+  const categories = cats
+    .map(r => withId(r, 'categories'))
+    .filter(c => c.active !== false)
+    .sort((a, b) => num(a.sort, 99) - num(b.sort, 99))
+    .map(c => ({
+      id: c._id,
+      name: c.name || '',
+      parent: c.parent || '',
+      icon: c.icon || '',
+      image: c.image || '',
+      soon: c.soon === true,
+      sort: num(c.sort, 99),
+    }));
+
+  const now = Date.now();
+  const products = prods
+    .map(r => withId(r, 'products'))
+    .filter(p => p.active !== false)
+    .sort((a, b) => num(a.sort, 99) - num(b.sort, 99))
+    .map(p => {
+      const pr = proration(p, now);
+      const inStock = p.kind === 'stock' ? num(p.stock_count, 0) > 0 : true;
+      return {
+        id: p._id,
+        cat: p.cat || '',
+        name: p.name || '',
+        desc: p.desc || '',
+        image: p.image || '',
+        price: pr ? pr.price : round2(num(p.price, 0)),
+        old_price: pr ? round2(num(p.price, 0)) : round2(num(p.old_price, 0)),
+        featured: p.featured === true,
+        kind: p.kind === 'stock' ? 'stock' : 'manual',
+        fields: cleanProductFields(p.fields),
+        note: p.note || '',
+        stock: p.kind === 'stock' ? num(p.stock_count, 0) : null,
+        countdown: pr,
+        available: inStock && (!pr || pr.state === 'active'),
+      };
+    });
+
+  return { success: true, categories, products };
+}
+
+function withId(row, coll) {
+  const d = fromFsFields(row.document.fields || {});
+  d._id = row.document.name.split(`/documents/${coll}/`)[1];
+  return d;
+}
+
+/**
+ * تسعير تناسبي للاشتراكات المشتركة.
+ * يُحسب في الخادم دائمًا — لا نثق بساعة المتصفح.
+ */
+function proration(p, nowMs) {
+  if (p.countdown !== true) return null;
+
+  const DAY = 86400000;
+  const start = Date.parse(p.starts_at || '');
+  const endRaw = Date.parse(p.ends_at || '');
+  const end = Number.isFinite(endRaw) ? endRaw + DAY : NaN;
+  if (!Number.isFinite(start) || !Number.isFinite(end) || end <= start) return null;
+
+  const now = nowMs || Date.now();
+  const total = Math.max(1, Math.round((end - start) / DAY));
+  const full = round2(num(p.price, 0));
+  const perDay = round2(full / total);
+
+  if (now < start) {
+    return { state: 'upcoming', total_days: total, days_left: total,
+             per_day: perDay, price: full,
+             starts_at: p.starts_at, ends_at: p.ends_at };
+  }
+  if (now >= end) {
+    return { state: 'expired', total_days: total, days_left: 0,
+             per_day: perDay, price: 0,
+             starts_at: p.starts_at, ends_at: p.ends_at };
+  }
+
+  const left = Math.max(1, Math.ceil((end - now) / DAY));
+  const minP = round2(num(p.min_price, 0));
+  let price = Math.min(full, round2(perDay * left));
+  if (minP > 0 && price < minP) price = minP;
+
+  return { state: 'active', total_days: total, days_left: left,
+           per_day: perDay, price,
+           starts_at: p.starts_at, ends_at: p.ends_at };
+}
+
+function cleanProductFields(arr) {
+  if (!Array.isArray(arr)) return [];
+  return arr.slice(0, 8).map(f => ({
+    key: String(f && f.key || '').replace(/[^a-zA-Z0-9_]/g, '').slice(0, 24)
+         || 'f' + Math.random().toString(36).slice(2, 7),
+    label: String(f && f.label || '').slice(0, 60),
+    type: ['text', 'number', 'email', 'tel'].includes(f && f.type) ? f.type : 'text',
+    required: f && f.required !== false,
+    hint: String(f && f.hint || '').slice(0, 80),
+  })).filter(f => f.label);
+}
+
+async function handleStoreOrder(user, body, env) {
+  const s = await getSettings(env);
+  assertLive(s);
+  if (s.store_enabled === false) throw httpError(503, 'المتجر متوقف مؤقتًا');
+
+  const items = Array.isArray(body.items) ? body.items.slice(0, 20) : [];
+  if (!items.length) throw httpError(400, 'السلة فارغة');
+
+  const idem = String(body.idempotency_key || '').slice(0, 64);
+  if (!idem) throw httpError(400, 'مفتاح العملية مفقود');
+
+  const lock = await fsGet(env, `idempotency/${idem}`);
+  if (lock) throw httpError(409, 'هذا الطلب قيد التنفيذ بالفعل');
+  await fsSet(env, `idempotency/${idem}`, { uid: user.uid, created_at: nowIso() });
+
+  const lines = [];
+  let totalLyd = 0;
+
+  for (const it of items) {
+    const pid = String(it && it.id || '').trim();
+    const qty = Math.max(1, Math.min(20, Math.floor(num(it && it.qty, 1))));
+    if (!pid) throw httpError(400, 'منتج غير صالح');
+
+    const p = await fsGet(env, `products/${pid}`);
+    if (!p || p.active === false) throw httpError(404, 'منتج غير متاح');
+
+    const kind = p.kind === 'stock' ? 'stock' : 'manual';
+    if (kind === 'stock' && num(p.stock_count, 0) < qty) {
+      throw httpError(409, `الكمية غير متوفرة من ${p.name || 'المنتج'}`);
+    }
+
+    const defs = cleanProductFields(p.fields);
+    const vals = {};
+    for (const f of defs) {
+      const v = String((it.values && it.values[f.key]) || '').trim().slice(0, 120);
+      if (f.required && !v) throw httpError(400, `${f.label} مطلوب`);
+      if (v) vals[f.key] = v;
+    }
+
+    const pr = proration(p, Date.now());
+    if (pr && pr.state !== 'active') {
+      throw httpError(409, pr.state === 'upcoming'
+        ? `${p.name || 'المنتج'} لم يبدأ بعد`
+        : `انتهت مدة ${p.name || 'المنتج'}`);
+    }
+    const price = pr ? pr.price : round2(num(p.price, 0));
+    totalLyd = round2(totalLyd + price * qty);
+
+    lines.push({
+      pid, qty, kind, values: vals,
+      name: p.name || '', image: p.image || '',
+      price_lyd: price, line_lyd: round2(price * qty),
+      days_left: pr ? pr.days_left : null,
+      ends_at: pr ? pr.ends_at : '',
+    });
+  }
+
+  let coupon = null, discountLyd = 0;
+  if (body.coupon) {
+    coupon = await checkCoupon(env, body.coupon, user.uid, totalLyd);
+    if (coupon) {
+      discountLyd = coupon.off_lyd;
+      totalLyd = round2(totalLyd - discountLyd);
+    }
+  }
+
+  const rate = num(s.usd_to_lyd, 11.8);
+  const totalUsd = round2(totalLyd / rate);
+
+  const me = await fsGet(env, `users/${user.uid}`);
+  if (!me) throw httpError(400, 'الحساب غير مكتمل');
+  if (me.banned === true) throw httpError(403, 'الحساب موقوف');
+  if (num(me.wallet_balance, 0) < totalUsd) {
+    throw httpError(402, `رصيدك غير كافٍ — تحتاج ${round2(totalUsd - num(me.wallet_balance, 0))}$`);
+  }
+
+  await fsIncrement(env, `users/${user.uid}`, { wallet_balance: -totalUsd });
+
+  const orderId = `ORD${Date.now()}${randomSuffix(4)}`;
+  const allStock = lines.every(l => l.kind === 'stock');
+
+  try {
+    for (const l of lines) {
+      if (l.kind !== 'stock') continue;
+      l.codes = await takeStock(env, l.pid, l.qty);
+      if (l.codes.length < l.qty) throw new Error('نفد المخزون أثناء التنفيذ');
+    }
+
+    await fsSet(env, `orders/${orderId}`, {
+      uid: user.uid,
+      items: lines,
+      coupon: coupon ? coupon.code : '',
+      discount_lyd: discountLyd,
+      total_lyd: totalLyd,
+      total_usd: totalUsd,
+      rate,
+      status: allStock ? 'completed' : 'pending',
+      idempotency_key: idem,
+      created_at: nowIso(),
+      updated_at: nowIso(),
+    });
+
+    await Promise.all([
+      fsIncrement(env, `users/${user.uid}`, { total_spent: totalUsd }),
+      maybePayReferral(env, s, user.uid, totalUsd),
+      awardPoints(env, s, user.uid, totalLyd),
+      coupon ? consumeCoupon(env, coupon.code, user.uid) : Promise.resolve(),
+      logOp(env, user.uid, 'store_order',
+        { items: lines.length, totalLyd },
+        { orderId, status: allStock ? 'completed' : 'pending' }, true),
+    ]);
+
+    return {
+      success: true,
+      order: {
+        id: orderId,
+        status: allStock ? 'completed' : 'pending',
+        total_lyd: totalLyd, total_usd: totalUsd,
+        items: lines.map(l => ({ name: l.name, qty: l.qty, codes: l.codes || null })),
+      },
+    };
+  } catch (e) {
+    await fsIncrement(env, `users/${user.uid}`, { wallet_balance: totalUsd }).catch(() => {});
+    await logOp(env, user.uid, 'store_order_failed', { totalLyd }, { error: e.message }, false);
+    throw httpError(503, e.message || 'تعذّر تنفيذ الطلب — أُعيد رصيدك');
+  }
+}
+
+async function takeStock(env, pid, qty) {
+  const rows = await fsQueryRaw(env, {
+    from: [{ collectionId: 'stock' }],
+    where: {
+      compositeFilter: {
+        op: 'AND',
+        filters: [
+          { fieldFilter: { field: { fieldPath: 'pid' }, op: 'EQUAL',
+            value: { stringValue: pid } } },
+          { fieldFilter: { field: { fieldPath: 'used' }, op: 'EQUAL',
+            value: { booleanValue: false } } },
+        ],
+      },
+    },
+    limit: qty,
+  });
+
+  const codes = [];
+  for (const r of rows.slice(0, qty)) {
+    const d = withId(r, 'stock');
+    await fsPatch(env, `stock/${d._id}`, { used: true, used_at: nowIso() });
+    codes.push(String(d.code || ''));
+  }
+  if (codes.length) {
+    await fsIncrement(env, `products/${pid}`, { stock_count: -codes.length }).catch(() => {});
+  }
+  return codes;
+}
+
+async function handleAdminOrder(user, body, env) {
+  await requireAdmin(user, env);
+
+  const id = String(body.order_id || '').trim();
+  const action = body.action === 'reject' ? 'reject' : 'complete';
+  if (!id) throw httpError(400, 'رقم الطلب مفقود');
+
+  const o = await fsGet(env, `orders/${id}`);
+  if (!o) throw httpError(404, 'الطلب غير موجود');
+  if (o.status !== 'pending' && o.status !== 'processing') {
+    throw httpError(400, 'الطلب مُغلق بالفعل');
+  }
+
+  if (action === 'reject') {
+    const back = round2(num(o.total_usd, 0));
+    await Promise.all([
+      fsPatch(env, `orders/${id}`, {
+        status: 'rejected',
+        reject_reason: String(body.reason || '').slice(0, 160),
+        updated_at: nowIso(),
+      }),
+      fsIncrement(env, `users/${o.uid}`, { wallet_balance: back, total_spent: -back }),
+      logOp(env, user.uid, 'order_rejected', { id }, { refunded: back }, true),
+    ]);
+    return { success: true, refunded: back };
+  }
+
+  await Promise.all([
+    fsPatch(env, `orders/${id}`, {
+      status: 'completed',
+      delivery: String(body.delivery || '').slice(0, 900),
+      updated_at: nowIso(),
+    }),
+    logOp(env, user.uid, 'order_completed', { id }, {}, true),
+  ]);
+  return { success: true };
+}
+
+/* ═══════════════════════════════════════════════════════════
+   السحب والتحويل
+   ═══════════════════════════════════════════════════════════ */
+
+async function handleWithdrawRequest(user, body, env) {
+  const s = await getSettings(env);
+  assertLive(s);
+  if (s.withdraw_enabled !== true) throw httpError(503, 'السحب غير متاح حاليًا');
+
+  const amount = round2(num(body.amount_usd, NaN));
+  const method = String(body.method || '').slice(0, 40);
+  const dest = String(body.destination || '').trim().slice(0, 120);
+
+  if (!Number.isFinite(amount) || amount <= 0) throw httpError(400, 'أدخل المبلغ');
+  if (!method) throw httpError(400, 'اختر طريقة السحب');
+  if (!dest) throw httpError(400, 'أدخل وجهة السحب');
+
+  const mn = num(s.withdraw_min, 10);
+  const mx = num(s.withdraw_max, 500);
+  if (amount < mn) throw httpError(400, `الحد الأدنى ${mn}$`);
+  if (amount > mx) throw httpError(400, `الحد الأقصى ${mx}$`);
+
+  const feePct = num(s.withdraw_fee_pct, 0);
+  const feeFix = num(s.withdraw_fee_fixed, 0);
+  const fee = round2(feeFix + amount * feePct / 100);
+  const net = round2(amount - fee);
+  if (net <= 0) throw httpError(400, 'المبلغ لا يغطي الرسوم');
+
+  const me = await fsGet(env, `users/${user.uid}`);
+  if (!me) throw httpError(400, 'الحساب غير مكتمل');
+  if (me.banned === true) throw httpError(403, 'الحساب موقوف');
+  if (num(me.wallet_balance, 0) < amount) throw httpError(402, 'رصيدك غير كافٍ');
+
+  const id = `WD${Date.now()}${randomSuffix(4)}`;
+  await fsIncrement(env, `users/${user.uid}`, { wallet_balance: -amount });
+
+  try {
+    await fsSet(env, `withdrawals/${id}`, {
+      uid: user.uid, amount_usd: amount, fee, net,
+      method, destination: dest,
+      status: 'pending',
+      created_at: nowIso(), updated_at: nowIso(),
+    });
+    await logOp(env, user.uid, 'withdraw_request', { amount, method }, { id }, true);
+    return { success: true, id, fee, net };
+  } catch (e) {
+    await fsIncrement(env, `users/${user.uid}`, { wallet_balance: amount }).catch(() => {});
+    throw httpError(503, 'تعذّر إنشاء الطلب — أُعيد رصيدك');
+  }
+}
+
+async function handleAdminWithdraw(user, body, env) {
+  await requireAdmin(user, env);
+  const id = String(body.id || '').trim();
+  const action = body.action === 'reject' ? 'reject' : 'complete';
+  if (!id) throw httpError(400, 'رقم الطلب مفقود');
+
+  const w = await fsGet(env, `withdrawals/${id}`);
+  if (!w) throw httpError(404, 'الطلب غير موجود');
+  if (w.status !== 'pending') throw httpError(400, 'الطلب مُغلق بالفعل');
+
+  if (action === 'reject') {
+    const back = round2(num(w.amount_usd, 0));
+    await Promise.all([
+      fsPatch(env, `withdrawals/${id}`, {
+        status: 'rejected',
+        reject_reason: String(body.reason || '').slice(0, 160),
+        updated_at: nowIso(),
+      }),
+      fsIncrement(env, `users/${w.uid}`, { wallet_balance: back }),
+      logOp(env, user.uid, 'withdraw_rejected', { id }, { refunded: back }, true),
+    ]);
+    return { success: true, refunded: back };
+  }
+
+  await Promise.all([
+    fsPatch(env, `withdrawals/${id}`, {
+      status: 'completed',
+      note: String(body.note || '').slice(0, 200),
+      updated_at: nowIso(),
+    }),
+    logOp(env, user.uid, 'withdraw_completed', { id }, {}, true),
+  ]);
+  return { success: true };
+}
+
+async function handleTransfer(user, body, env) {
+  const s = await getSettings(env);
+  assertLive(s);
+  if (s.transfer_enabled !== true) throw httpError(503, 'التحويل غير متاح');
+
+  const amount = round2(num(body.amount_usd, NaN));
+  const to = String(body.to || '').trim().toLowerCase();
+  if (!Number.isFinite(amount) || amount <= 0) throw httpError(400, 'أدخل المبلغ');
+  if (!to) throw httpError(400, 'أدخل بيانات المستلم');
+
+  const mn = num(s.transfer_min, 1);
+  if (amount < mn) throw httpError(400, `الحد الأدنى ${mn}$`);
+
+  const feePct = num(s.transfer_fee_pct, 0);
+  const fee = round2(amount * feePct / 100);
+  const total = round2(amount + fee);
+
+  let target = null;
+  if (to.includes('@')) {
+    const rows = await fsQueryRaw(env, {
+      from: [{ collectionId: 'users' }],
+      where: {
+        fieldFilter: { field: { fieldPath: 'email' }, op: 'EQUAL',
+          value: { stringValue: to } },
+      },
+      limit: 2,
+    });
+    if (rows.length === 1) target = rows[0];
+  } else {
+    const key = normalizePhone(to);
+    const rows = await fsQueryRaw(env, {
+      from: [{ collectionId: 'users' }],
+      where: {
+        fieldFilter: { field: { fieldPath: 'phone_key' }, op: 'EQUAL',
+          value: { stringValue: key } },
+      },
+      limit: 2,
+    });
+    if (rows.length === 1) target = rows[0];
+  }
+  if (!target) throw httpError(404, 'لم نجد مستخدمًا بهذه البيانات');
+
+  const toUid = target.document.name.split('/documents/users/')[1];
+  if (toUid === user.uid) throw httpError(400, 'لا يمكنك التحويل لنفسك');
+
+  const me = await fsGet(env, `users/${user.uid}`);
+  if (!me) throw httpError(400, 'الحساب غير مكتمل');
+  if (me.banned === true) throw httpError(403, 'الحساب موقوف');
+  if (num(me.wallet_balance, 0) < total) throw httpError(402, 'رصيدك غير كافٍ');
+
+  const id = `TR${Date.now()}${randomSuffix(4)}`;
+  await fsIncrement(env, `users/${user.uid}`, { wallet_balance: -total });
+
+  try {
+    await fsIncrement(env, `users/${toUid}`, { wallet_balance: amount });
+    await fsSet(env, `transfers/${id}`, {
+      from_uid: user.uid, to_uid: toUid,
+      amount_usd: amount, fee,
+      status: 'completed', created_at: nowIso(),
+    });
+    await logOp(env, user.uid, 'transfer', { to: toUid, amount }, { id }, true);
+    return { success: true, id, amount, fee };
+  } catch (e) {
+    await fsIncrement(env, `users/${user.uid}`, { wallet_balance: total }).catch(() => {});
+    throw httpError(503, 'تعذّر التحويل — أُعيد رصيدك');
+  }
+}
+
+/* ═══════════════════════════════════════════════════════════
+   التذاكر
+   ═══════════════════════════════════════════════════════════ */
+
+async function handleTicketCreate(user, body, env) {
+  const subject = String(body.subject || '').trim().slice(0, 120);
+  const msg = String(body.message || '').trim().slice(0, 1500);
+  if (!subject) throw httpError(400, 'اكتب موضوع التذكرة');
+  if (!msg) throw httpError(400, 'اكتب رسالتك');
+
+  const id = `TIC${Date.now()}${randomSuffix(3)}`;
+  await fsSet(env, `tickets/${id}`, {
+    uid: user.uid, subject,
+    order_id: String(body.order_id || '').slice(0, 40),
+    status: 'open',
+    messages: [{ by: 'user', text: msg, at: nowIso() }],
+    created_at: nowIso(), updated_at: nowIso(),
+  });
+  return { success: true, id };
+}
+
+async function handleTicketReply(user, body, env) {
+  const id = String(body.id || '').trim();
+  const msg = String(body.message || '').trim().slice(0, 1500);
+  if (!id || !msg) throw httpError(400, 'بيانات ناقصة');
+
+  const t = await fsGet(env, `tickets/${id}`);
+  if (!t) throw httpError(404, 'التذكرة غير موجودة');
+
+  const isAdmin = await isAdminUid(env, user.uid);
+  if (!isAdmin && t.uid !== user.uid) throw httpError(403, 'غير مصرّح');
+  if (t.status === 'closed' && !isAdmin) throw httpError(400, 'التذكرة مغلقة');
+
+  const msgs = Array.isArray(t.messages) ? t.messages : [];
+  msgs.push({ by: isAdmin ? 'admin' : 'user', text: msg, at: nowIso() });
+
+  await fsPatch(env, `tickets/${id}`, {
+    messages: msgs.slice(-40),
+    status: isAdmin ? 'answered' : 'open',
+    updated_at: nowIso(),
+  });
+  return { success: true };
+}
+
+async function handleTicketClose(user, body, env) {
+  await requireAdmin(user, env);
+  const id = String(body.id || '').trim();
+  if (!id) throw httpError(400, 'رقم التذكرة مفقود');
+  await fsPatch(env, `tickets/${id}`, { status: 'closed', updated_at: nowIso() });
+  return { success: true };
+}
+
+async function isAdminUid(env, uid) {
+  try { return !!(await fsGet(env, `admins/${uid}`)); } catch { return false; }
+}
+
+/* ═══════════════════════════════════════════════════════════
+   الكوبونات والنقاط
+   ═══════════════════════════════════════════════════════════ */
+
+async function checkCoupon(env, code, uid, subtotalLyd) {
+  const c = String(code || '').trim().toUpperCase();
+  if (!c) return null;
+
+  const cp = await fsGet(env, `coupons/${c}`);
+  if (!cp || cp.active === false) throw httpError(404, 'كوبون غير صالح');
+
+  if (cp.expires_at && new Date(cp.expires_at) < new Date()) {
+    throw httpError(400, 'انتهت صلاحية الكوبون');
+  }
+  const maxUses = num(cp.max_uses, 0);
+  if (maxUses > 0 && num(cp.used_count, 0) >= maxUses) {
+    throw httpError(400, 'استُنفد هذا الكوبون');
+  }
+  const minOrder = num(cp.min_order_lyd, 0);
+  if (minOrder > 0 && subtotalLyd < minOrder) {
+    throw httpError(400, `الكوبون يتطلب طلبًا بـ${minOrder} د.ل`);
+  }
+  const used = await fsGet(env, `coupon_uses/${c}_${uid}`);
+  if (used && cp.once_per_user !== false) {
+    throw httpError(400, 'استخدمت هذا الكوبون من قبل');
+  }
+
+  const pct = num(cp.percent, 0);
+  const fixed = num(cp.amount_lyd, 0);
+  let off = pct > 0 ? subtotalLyd * pct / 100 : fixed;
+  const cap = num(cp.max_off_lyd, 0);
+  if (cap > 0 && off > cap) off = cap;
+  off = round2(Math.min(off, subtotalLyd));
+
+  return { code: c, off_lyd: off, percent: pct, fixed };
+}
+
+async function handleCouponCheck(user, body, env) {
+  const sub = round2(num(body.subtotal_lyd, 0));
+  if (sub <= 0) throw httpError(400, 'السلة فارغة');
+  const r = await checkCoupon(env, body.code, user.uid, sub);
+  return { success: true, coupon: r };
+}
+
+async function consumeCoupon(env, code, uid) {
+  try {
+    await Promise.all([
+      fsIncrement(env, `coupons/${code}`, { used_count: 1 }),
+      fsSet(env, `coupon_uses/${code}_${uid}`, { uid, code, at: nowIso() }),
+    ]);
+  } catch (e) { console.error('COUPON_CONSUME_FAILED', e.message); }
+}
+
+async function awardPoints(env, s, uid, spentLyd) {
+  if (s.points_enabled !== true) return;
+  const per = num(s.points_per_lyd, 1);
+  const pts = Math.floor(spentLyd * per);
+  if (pts <= 0) return;
+  try {
+    await fsIncrement(env, `users/${uid}`, { points: pts });
+  } catch (e) { console.error('POINTS_FAILED', e.message); }
+}
+
+async function handleRedeemPoints(user, body, env) {
+  const s = await getSettings(env);
+  assertLive(s);
+  if (s.points_enabled !== true) throw httpError(503, 'نظام النقاط غير مفعّل');
+
+  const pts = Math.floor(num(body.points, 0));
+  const minP = num(s.points_min_redeem, 100);
+  if (pts < minP) throw httpError(400, `الحد الأدنى ${minP} نقطة`);
+
+  const me = await fsGet(env, `users/${user.uid}`);
+  if (!me || num(me.points, 0) < pts) throw httpError(400, 'نقاطك غير كافية');
+
+  const rateP = num(s.points_value_lyd, 0.01);
+  const lydVal = round2(pts * rateP);
+  const usdVal = round2(lydVal / num(s.usd_to_lyd, 11.8));
+  if (usdVal <= 0) throw httpError(400, 'قيمة غير صالحة');
+
+  await Promise.all([
+    fsIncrement(env, `users/${user.uid}`, { points: -pts, wallet_balance: usdVal }),
+    fsSet(env, `wallet_deposits/PTS${Date.now()}${randomSuffix(3)}`, {
+      uid: user.uid, amount_usd: usdVal, amount_lyd: lydVal,
+      method: 'استبدال نقاط', proof_url: '', note: pts + ' نقطة',
+      status: 'approved', auto: true, created_at: nowIso(),
+    }),
+    logOp(env, user.uid, 'redeem_points', { pts }, { usdVal }, true),
+  ]);
+
+  return { success: true, credited: usdVal, points_left: num(me.points, 0) - pts };
+}
+
+/* ═══════════════════════════════════════════════════════════
+   الدعوات
+   ═══════════════════════════════════════════════════════════ */
+
+function makeRefCode() {
+  const A = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+  const b = crypto.getRandomValues(new Uint8Array(6));
+  return Array.from(b, x => A[x % A.length]).join('');
+}
+
+async function handleRefCode(user, body, env) {
+  const s = await getSettings(env);
+  if (s.referral_enabled !== true) throw httpError(503, 'نظام الدعوات غير مفعّل');
+
+  const me = await fsGet(env, `users/${user.uid}`);
+  if (me && me.ref_code) {
+    return { success: true, code: me.ref_code, bonus: num(s.referral_bonus_invitee, 1) };
+  }
+
+  let code = null;
+  for (let i = 0; i < 12; i++) {
+    const c = makeRefCode();
+    const taken = await fsGet(env, `ref_codes/${c}`);
+    if (!taken) { code = c; break; }
+  }
+  if (!code) throw httpError(503, 'تعذّر توليد الرمز');
+
+  await Promise.all([
+    fsSet(env, `ref_codes/${code}`, { uid: user.uid, created_at: nowIso() }),
+    fsPatch(env, `users/${user.uid}`, { ref_code: code }),
+  ]);
+
+  return { success: true, code, bonus: num(s.referral_bonus_invitee, 1) };
+}
+
+async function handleRefClaim(user, body, env) {
+  const s = await getSettings(env);
+  if (s.referral_enabled !== true) throw httpError(503, 'نظام الدعوات غير مفعّل');
+
+  const code = String(body.code || '').trim().toUpperCase();
+  if (!/^[A-Z2-9]{6}$/.test(code)) throw httpError(400, 'رمز غير صحيح');
+
+  const me = await fsGet(env, `users/${user.uid}`);
+  if (!me) throw httpError(400, 'الحساب غير مكتمل');
+  if (me.referred_by) throw httpError(400, 'استخدمت رمز دعوة من قبل');
+  if (me.ref_code === code) throw httpError(400, 'لا يمكنك استخدام رمزك');
+
+  const owner = await fsGet(env, `ref_codes/${code}`);
+  if (!owner || !owner.uid) throw httpError(404, 'الرمز غير موجود');
+  if (owner.uid === user.uid) throw httpError(400, 'لا يمكنك استخدام رمزك');
+
+  await fsPatch(env, `users/${user.uid}`, {
+    referred_by: owner.uid,
+    referred_code: code,
+    referral_paid: false,
+  });
+
+  return {
+    success: true,
+    bonus: num(s.referral_bonus_invitee, 1),
+    min_spend: num(s.referral_min_spend, 10),
+  };
+}
+
+async function maybePayReferral(env, s, uid, spent) {
+  if (s.referral_enabled !== true) return;
+  try {
+    const me = await fsGet(env, `users/${uid}`);
+    if (!me || !me.referred_by || me.referral_paid === true) return;
+
+    const need = num(s.referral_min_spend, 10);
+    const total = num(me.total_spent, 0) + num(spent, 0);
+    if (total < need) return;
+
+    const forInvitee = round2(num(s.referral_bonus_invitee, 1));
+    const forInviter = round2(num(s.referral_bonus_inviter, 1));
+
+    await Promise.all([
+      fsPatch(env, `users/${uid}`, { referral_paid: true }),
+      forInvitee > 0
+        ? fsIncrement(env, `users/${uid}`, { wallet_balance: forInvitee })
+        : Promise.resolve(),
+      forInviter > 0
+        ? fsIncrement(env, `users/${me.referred_by}`,
+            { wallet_balance: forInviter, referrals_count: 1 })
+        : Promise.resolve(),
+      fsSet(env, `wallet_deposits/REF${Date.now()}${randomSuffix(3)}`, {
+        uid, amount_usd: forInvitee, amount_lyd: 0,
+        method: 'مكافأة دعوة', proof_url: '',
+        note: 'رمز ' + (me.referred_code || ''),
+        status: 'approved', auto: true, created_at: nowIso(),
+      }),
+      logOp(env, uid, 'referral_paid',
+        { inviter: me.referred_by }, { forInvitee, forInviter }, true),
+    ]);
+  } catch (e) {
+    console.error('REFERRAL_FAILED', e.message);
+  }
+}
+
+/* ═══════════════════════════════════════════════════════════
+   الإدارة — الإعدادات والإيداعات والتعديلات
+   ═══════════════════════════════════════════════════════════ */
+
+async function handleAdminSettings(user, body, env) {
+  await requireAdmin(user, env);
+
+  const allowedOps = [
+    'issuing_enabled', 'funding_enabled', 'provider_float',
+    'low_balance_threshold', 'maintenance_message', 'deposit_phone',
+    'm_libyana_on', 'm_libyana_label', 'm_almadar_on', 'm_almadar_label',
+    'm_bank_on', 'm_bank_label', 'm_usdt_on', 'm_usdt_label',
+    'm_binance_on', 'm_binance_label',
+    'm_libyana_phone', 'm_almadar_phone', 'method_order', 'sms_allowed_senders',
+    'banners', 'banner_rotate_sec', 'custom_methods',
+    'kill_switch', 'kill_message',
+    'daily_cards_max', 'daily_amount_max', 'daily_deposit_max',
+    'platform_daily_max', 'limits_enabled',
+    'referral_enabled', 'referral_bonus_inviter', 'referral_bonus_invitee',
+    'referral_min_spend', 'activity_log_enabled',
+    'usdt_address', 'usdt_min', 'usdt_max', 'usdt_window_min',
+    'm_libyana_logo', 'm_almadar_logo', 'm_bank_logo',
+    'm_usdt_logo', 'm_binance_logo',
+    'm_bank_fields', 'm_usdt_fields', 'm_binance_fields', 'deposit_note',
+    'theme_navy', 'theme_emerald', 'theme_bg', 'theme_radius',
+    'nav_home', 'nav_mcards', 'nav_wallet', 'nav_tx',
+    'nav_help', 'nav_settings',
+    'brand_tagline', 'hero_title', 'hero_sub', 'support_url',
+    'withdraw_enabled', 'withdraw_min', 'withdraw_max',
+    'withdraw_fee_pct', 'withdraw_fee_fixed', 'withdraw_methods',
+    'transfer_enabled', 'transfer_min', 'transfer_fee_pct',
+    'tickets_enabled', 'coupons_enabled',
+    'points_enabled', 'points_per_lyd', 'points_value_lyd', 'points_min_redeem',
+    'subscriptions_visible', 'manual_cards_enabled',
+    'mc_create_min', 'mc_create_max', 'mc_create_fee_fixed', 'mc_create_fee_pct',
+    'mc_topup_min', 'mc_topup_max', 'mc_topup_fee_fixed', 'mc_topup_fee_pct',
+    'mc_tx_fee', 'mc_reveal_hours',
+    'rate_libyana', 'rate_almadar', 'rate_bank', 'rate_usdt', 'usd_to_lyd',
+    'max_deposit_lyd',
+  ];
+
+  const ops = {};
+  for (const k of allowedOps) if (k in body) ops[k] = body[k];
+
+  if (!Object.keys(ops).length) throw httpError(400, 'لا يوجد شيء للتحديث');
+
+  await fsPatch(env, 'settings/main', ops);
+  await logOp(env, user.uid, 'admin_settings', { ops }, { ok: true }, true);
+
+  return { success: true, updated: ops };
+}
+
+async function handleAdminDeposit(user, body, env) {
+  await requireAdmin(user, env);
+
+  const depositId = String(body.deposit_id || '').trim();
+  const action = body.action === 'reject' ? 'reject' : 'approve';
+  if (!depositId) throw httpError(400, 'معرّف الإيداع مفقود');
+
+  const dep = await fsGet(env, `wallet_deposits/${depositId}`);
+  if (!dep) throw httpError(404, 'الإيداع غير موجود');
+  if (dep.status !== 'pending') throw httpError(400, 'تمت معالجة هذا الإيداع مسبقًا');
+
+  if (action === 'reject') {
+    const why = String(body.reason || '').slice(0, 200);
+    await fsPatch(env, `wallet_deposits/${depositId}`, {
+      status: 'rejected', reject_reason: why,
+      reviewed_by: user.uid, reviewed_at: nowIso(),
+    });
+    return { success: true, status: 'rejected' };
+  }
+
+  const amountUsd = round2(num(dep.amount_usd, 0));
+  if (amountUsd <= 0) throw httpError(400, 'مبلغ غير صحيح');
+
+  await Promise.all([
+    fsIncrement(env, `users/${dep.uid}`, { wallet_balance: amountUsd }),
+    fsPatch(env, `wallet_deposits/${depositId}`, {
+      status: 'approved', reviewed_by: user.uid, reviewed_at: nowIso(),
+    }),
+    logOp(env, user.uid, 'approve_deposit',
+      { depositId, amountUsd }, { ok: true }, true),
+  ]);
+
+  return { success: true, status: 'approved', credited: amountUsd };
+}
+
+async function handleAdminWalletAdjust(user, body, env) {
+  await requireAdmin(user, env);
+
+  const uid = String(body.uid || '').trim();
+  const delta = num(body.delta, NaN);
+  const reason = String(body.reason || '').trim();
+
+  if (!uid) throw httpError(400, 'معرّف المستخدم مفقود');
+  if (!Number.isFinite(delta) || delta === 0) throw httpError(400, 'المبلغ غير صحيح');
+  if (reason.length < 3) throw httpError(400, 'السبب مطلوب');
+
+  await fsIncrement(env, `users/${uid}`, { wallet_balance: round2(delta) });
+  await logOp(env, user.uid, 'wallet_adjust', { uid, delta, reason }, { ok: true }, true);
+
+  return { success: true, delta: round2(delta) };
+}
+
+/* ═══════════════════════════════════════════════════════════
+   الحدود اليومية والطوارئ
+   ═══════════════════════════════════════════════════════════ */
+
+function assertLive(s) {
+  if (s.kill_switch === true) {
+    throw httpError(503, s.kill_message || 'الخدمة متوقفة مؤقتًا للصيانة.');
+  }
+}
+
+function todayKey() {
+  const d = new Date(Date.now() + 2 * 3600 * 1000);
+  return d.toISOString().slice(0, 10);
+}
+
+async function readCounter(env, uid) {
+  const d = await fsGet(env, `daily_counters/${uid}_${todayKey()}`);
+  return {
+    cards: num(d && d.cards, 0),
+    amount: num(d && d.amount, 0),
+    deposit: num(d && d.deposit, 0),
+  };
+}
+
+async function bumpCounter(env, uid, deltas) {
+  const id = `${uid}_${todayKey()}`;
+  try {
+    const cur = await fsGet(env, `daily_counters/${id}`);
+    if (!cur) {
+      await fsSet(env, `daily_counters/${id}`, {
+        uid, day: todayKey(),
+        cards: num(deltas.cards, 0),
+        amount: round2(num(deltas.amount, 0)),
+        deposit: round2(num(deltas.deposit, 0)),
+        created_at: nowIso(),
+      });
+    } else {
+      await fsIncrement(env, `daily_counters/${id}`, deltas);
+    }
+  } catch (e) {
+    console.error('COUNTER_FAILED', id, e.message);
+  }
+}
+
+async function assertDailyLimit(env, s, uid, kind, amount) {
+  if (s.limits_enabled === false) return;
+
+  const me = await readCounter(env, uid);
+
+  if (kind === 'card') {
+    const maxCards = num(s.daily_cards_max, 3);
+    const maxAmt = num(s.daily_amount_max, 200);
+    if (maxCards > 0 && me.cards >= maxCards) {
+      throw httpError(429, `بلغت حدّك اليومي (${maxCards} بطاقات). حاول غدًا.`);
+    }
+    if (maxAmt > 0 && me.amount + amount > maxAmt) {
+      throw httpError(429, `بلغت حدّك اليومي ($${maxAmt}). حاول غدًا.`);
+    }
+  }
+
+  if (kind === 'deposit') {
+    const maxDep = num(s.daily_deposit_max, 500);
+    if (maxDep > 0 && me.deposit + amount > maxDep) {
+      throw httpError(429, `بلغت حدّ الإيداع اليومي ($${maxDep}).`);
+    }
+    const platMax = num(s.platform_daily_max, 0);
+    if (platMax > 0) {
+      const plat = await readCounter(env, '_platform');
+      if (plat.deposit + amount > platMax) {
+        throw httpError(503, 'بلغت المنصة سقفها اليومي. حاول غدًا.');
+      }
+    }
+  }
+}
+
+async function logActivity(env, s, uid, request, action) {
+  if (s.activity_log_enabled === false) return;
+  const cf = request.cf || {};
+  try {
+    await fsSet(env, `activity/${uid}_${Date.now()}`, {
+      uid, action,
+      ip: (request.headers.get('cf-connecting-ip') || '').slice(0, 45),
+      country: String(cf.country || ''),
+      city: String(cf.city || ''),
+      ua: (request.headers.get('user-agent') || '').slice(0, 160),
+      created_at: nowIso(),
+    });
+  } catch { /* السجل ليس حرجًا */ }
+}
+
+async function handleActivityPing(user, body, env, request) {
+  const s = await getSettings(env);
+  await logActivity(env, s, user.uid, request, 'login');
+  return { success: true };
+}
+
+/* ═══════════════════════════════════════════════════════════
+   الإعدادات — الافتراضيات
+   ═══════════════════════════════════════════════════════════ */
+
+async function getSettings(env) {
+  const ops = await fsGet(env, 'settings/main');
+  return {
+    usd_to_lyd: 11.8,
+    rate_libyana: 11.8,
+    rate_almadar: 12.5,
+    rate_bank: 9.5,
+    rate_usdt: 1.0,
+    max_deposit_lyd: 5000,
+    issuing_enabled: false,
+    funding_enabled: false,
+    provider_float: 0,
+    low_balance_threshold: 30,
+    maintenance_message: '',
+    deposit_phone: '',
+    m_libyana_on: true, m_libyana_label: 'ليبيانا',
+    m_almadar_on: true, m_almadar_label: 'المدار',
+    m_bank_on: false, m_bank_label: 'تحويل مصرفي',
+    m_usdt_on: false, m_usdt_label: 'USDT',
+    m_binance_on: false, m_binance_label: 'Binance Pay',
+    m_libyana_phone: '', m_almadar_phone: '',
+    sms_allowed_senders: 'Libyana,ليبيانا,المدار,Almadar',
+    banners: [],
+    banner_rotate_sec: 6,
+    custom_methods: [],
+    method_order: 'libyana,almadar,usdt,bank,binance',
+    deposit_note: '',
+    store_enabled: true,
+    subscriptions_visible: true,
+    manual_cards_enabled: true,
+    mc_create_min: 10, mc_create_max: 500,
+    mc_create_fee_fixed: 8, mc_create_fee_pct: 2.5,
+    mc_topup_min: 10, mc_topup_max: 500,
+    mc_topup_fee_fixed: 8, mc_topup_fee_pct: 2.5,
+    mc_tx_fee: 0,
+    mc_reveal_hours: 24,
+    withdraw_enabled: false, withdraw_min: 10, withdraw_max: 500,
+    withdraw_fee_pct: 0, withdraw_fee_fixed: 0,
+    withdraw_methods: 'ليبيانا,المدار,تحويل مصرفي,USDT',
+    transfer_enabled: false, transfer_min: 1, transfer_fee_pct: 0,
+    tickets_enabled: true,
+    points_enabled: false, points_per_lyd: 1,
+    points_value_lyd: 0.01, points_min_redeem: 100,
+    coupons_enabled: true,
+    kill_switch: false,
+    kill_message: 'الخدمة متوقفة مؤقتًا للصيانة.',
+    daily_cards_max: 3,
+    daily_amount_max: 200,
+    daily_deposit_max: 500,
+    platform_daily_max: 2000,
+    limits_enabled: true,
+    referral_enabled: false,
+    referral_bonus_inviter: 1,
+    referral_bonus_invitee: 1,
+    referral_min_spend: 10,
+    activity_log_enabled: true,
+    usdt_address: '',
+    usdt_min: 5, usdt_max: 1000, usdt_window_min: 30,
+    m_libyana_logo: '', m_almadar_logo: '', m_bank_logo: '',
+    m_usdt_logo: '', m_binance_logo: '',
+    m_bank_fields: [], m_usdt_fields: [], m_binance_fields: [],
+    theme_navy: '#0F172A',
+    theme_emerald: '#10B981',
+    theme_bg: '#F8FAFC',
+    theme_radius: 14,
+    nav_home: true, nav_mcards: true, nav_wallet: true,
+    nav_tx: true, nav_help: true, nav_settings: true,
+    brand_tagline: 'بطاقات أكثر .. فرص أكبر',
+    hero_title: 'بطاقة تعمل في كل مكان يقبل الدفع الإلكتروني',
+    hero_sub: 'بالدولار · بدون رسوم شهرية · تُصدر خلال دقائق',
+    support_url: '',
+    ...(ops || {}),
+  };
+}
+
+function cleanBanners(arr) {
+  if (!Array.isArray(arr)) return [];
+  return arr
+    .filter(b => b && String(b.img || '').trim())
+    .slice(0, 8)
+    .map(b => ({
+      img: String(b.img).slice(0, 900000),
+      link: String(b.link || '').slice(0, 300),
+      title: String(b.title || '').slice(0, 80),
+    }));
+}
+
+function cleanFields(arr) {
+  if (!Array.isArray(arr)) return [];
+  return arr
+    .filter(f => f && String(f.value || '').trim())
+    .slice(0, 8)
+    .map(f => ({
+      label: String(f.label || '').slice(0, 40),
+      value: String(f.value || '').slice(0, 120),
+      copy: f.copy === true,
+    }));
+}
+
+function cleanCustomMethods(arr) {
+  if (!Array.isArray(arr)) return {};
+  const out = {};
+  arr.slice(0, 10).forEach((m, i) => {
+    if (!m || !m.label) return;
+    const key = String(m.key || `custom${i}`)
+      .replace(/[^a-z0-9_]/gi, '').slice(0, 20) || `custom${i}`;
+    out[key] = {
+      on: m.on !== false,
+      custom: true,
+      logo: String(m.logo || '').slice(0, 400000),
+      label: String(m.label).slice(0, 40),
+      rate: num(m.rate, 1),
+      auto: false,
+      fields: cleanFields(m.fields),
+    };
+  });
+  return out;
+}
+
+/* ═══════════════════════════════════════════════════════════
+   Firestore REST
+   ═══════════════════════════════════════════════════════════ */
 
 async function getAccessToken(env) {
   const now = Math.floor(Date.now() / 1000);
-  if (_tokenCache.token && _tokenCache.exp > now + 120) return _tokenCache.token;
+  if (_tokenCache.token && _tokenCache.exp > now + 60) return _tokenCache.token;
 
-  const header = { alg: 'RS256', typ: 'JWT' };
-  const payload = {
+  const claim = {
     iss: env.FIREBASE_CLIENT_EMAIL,
     scope: 'https://www.googleapis.com/auth/datastore',
     aud: 'https://oauth2.googleapis.com/token',
     iat: now,
-    exp: now + 3600
+    exp: now + 3600,
   };
 
-  const unsigned = base64url(JSON.stringify(header)) + '.' + base64url(JSON.stringify(payload));
-
-  const key = await crypto.subtle.importKey(
-    'pkcs8',
-    pemToArrayBuffer(env.FIREBASE_PRIVATE_KEY),
-    { name: 'RSASSA-PKCS1-v1_5', hash: 'SHA-256' },
-    false,
-    ['sign']
-  );
-
-  const sig = await crypto.subtle.sign(
-    'RSASSA-PKCS1-v1_5',
-    key,
-    new TextEncoder().encode(unsigned)
-  );
-
-  const jwt = unsigned + '.' + base64url(new Uint8Array(sig));
+  const jwt = await signRS256(claim, env.FIREBASE_PRIVATE_KEY);
 
   const res = await fetch('https://oauth2.googleapis.com/token', {
     method: 'POST',
-    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+    headers: { 'content-type': 'application/x-www-form-urlencoded' },
     body: new URLSearchParams({
       grant_type: 'urn:ietf:params:oauth:grant-type:jwt-bearer',
-      assertion: jwt
-    }).toString()
+      assertion: jwt,
+    }),
   });
 
-  if (!res.ok) {
-    const t = await res.text();
-    throw new Error('OAuth failed: ' + t);
+  const data = await res.json();
+  if (!data.access_token) {
+    console.error('TOKEN_FAILED', JSON.stringify(data));
+    throw httpError(500, 'خطأ في إعداد السيرفر');
   }
 
-  const data = await res.json();
   _tokenCache = { token: data.access_token, exp: now + (data.expires_in || 3600) };
   return data.access_token;
 }
 
-/* ═══════════════════════════════════════════════════════════
-   Firestore Conversions
-   ═══════════════════════════════════════════════════════════ */
+async function signRS256(claim, pemKey) {
+  const header = { alg: 'RS256', typ: 'JWT' };
+  const input = `${b64url(JSON.stringify(header))}.${b64url(JSON.stringify(claim))}`;
+
+  const pem = String(pemKey).replace(/\\n/g, '\n')
+    .replace(/-----BEGIN PRIVATE KEY-----/, '')
+    .replace(/-----END PRIVATE KEY-----/, '')
+    .replace(/\s/g, '');
+
+  const der = Uint8Array.from(atob(pem), c => c.charCodeAt(0));
+  const key = await crypto.subtle.importKey(
+    'pkcs8', der,
+    { name: 'RSASSA-PKCS1-v1_5', hash: 'SHA-256' },
+    false, ['sign']
+  );
+
+  const sig = await crypto.subtle.sign(
+    'RSASSA-PKCS1-v1_5', key,
+    new TextEncoder().encode(input)
+  );
+
+  return `${input}.${bytesToB64url(new Uint8Array(sig))}`;
+}
+
+function docPath(env, path) {
+  return `projects/${env.FIREBASE_PROJECT_ID}/databases/(default)/documents/${path}`;
+}
+
+async function fsFetch(env, suffix, init = {}) {
+  const token = await getAccessToken(env);
+  const base = `${FS_BASE}/projects/${env.FIREBASE_PROJECT_ID}/databases/(default)/documents`;
+  const res = await fetch(base + suffix, {
+    ...init,
+    headers: {
+      authorization: `Bearer ${token}`,
+      'content-type': 'application/json',
+      ...(init.headers || {}),
+    },
+  });
+
+  if (res.status === 404) return null;
+  const data = await res.json().catch(() => null);
+  if (!res.ok) {
+    console.error('FS_ERROR', res.status, JSON.stringify(data));
+    throw httpError(500, 'خطأ في قاعدة البيانات');
+  }
+  return data;
+}
+
+async function fsGet(env, path) {
+  const doc = await fsFetch(env, `/${path}`);
+  return doc ? fromFsFields(doc.fields || {}) : null;
+}
+
+async function fsSet(env, path, data) {
+  return fsCommit(env, [write(env, path, data)]);
+}
+
+async function fsPatch(env, path, data) {
+  return fsCommit(env, [writeMask(env, path, data, Object.keys(data))]);
+}
+
+async function fsDelete(env, path) {
+  return fsCommit(env, [{ delete: docPath(env, path) }]);
+}
+
+async function fsIncrement(env, path, deltas) {
+  const transforms = Object.entries(deltas).map(([fieldPath, v]) => ({
+    fieldPath,
+    increment: Number.isInteger(v) ? { integerValue: String(v) } : { doubleValue: v },
+  }));
+  return fsCommit(env, [
+    { transform: { document: docPath(env, path), fieldTransforms: transforms } },
+  ]);
+}
+
+function write(env, path, data) {
+  return { update: { name: docPath(env, path), fields: toFsFields(data) } };
+}
+
+function writeMask(env, path, data, fieldPaths) {
+  return {
+    update: { name: docPath(env, path), fields: toFsFields(data) },
+    updateMask: { fieldPaths },
+  };
+}
+
+async function fsCommit(env, writes) {
+  return fsFetch(env, ':commit', {
+    method: 'POST',
+    body: JSON.stringify({ writes }),
+  });
+}
+
+async function fsQuery(env, structuredQuery) {
+  const res = await fsQueryRaw(env, structuredQuery);
+  return res.map(r => withId(r, structuredQuery.from[0].collectionId));
+}
+
+async function fsQueryRaw(env, structuredQuery) {
+  try {
+    const res = await fsFetch(env, ':runQuery', {
+      method: 'POST',
+      body: JSON.stringify({ structuredQuery }),
+    });
+    return (Array.isArray(res) ? res : []).filter(r => r && r.document);
+  } catch (e) {
+    console.error('QUERY_FAILED', e.message);
+    return [];
+  }
+}
 
 function toFsValue(v) {
   if (v === null || v === undefined) return { nullValue: null };
@@ -97,1717 +2374,183 @@ function toFsValue(v) {
     return Number.isInteger(v) ? { integerValue: String(v) } : { doubleValue: v };
   }
   if (typeof v === 'string') return { stringValue: v };
-  if (v instanceof Date) return { timestampValue: v.toISOString() };
   if (Array.isArray(v)) return { arrayValue: { values: v.map(toFsValue) } };
-  if (typeof v === 'object') {
-    const fields = {};
-    for (const [k, val] of Object.entries(v)) fields[k] = toFsValue(val);
-    return { mapValue: { fields } };
-  }
+  if (typeof v === 'object') return { mapValue: { fields: toFsFields(v) } };
   return { stringValue: String(v) };
 }
 
 function toFsFields(obj) {
-  const fields = {};
-  for (const [k, v] of Object.entries(obj)) fields[k] = toFsValue(v);
-  return fields;
+  const f = {};
+  for (const [k, v] of Object.entries(obj)) f[k] = toFsValue(v);
+  return f;
 }
 
-function fromFsValue(fv) {
-  if (!fv) return null;
-  if ('nullValue' in fv) return null;
-  if ('booleanValue' in fv) return fv.booleanValue;
-  if ('integerValue' in fv) return parseInt(fv.integerValue);
-  if ('doubleValue' in fv) return fv.doubleValue;
-  if ('stringValue' in fv) return fv.stringValue;
-  if ('timestampValue' in fv) return fv.timestampValue;
-  if ('arrayValue' in fv) return (fv.arrayValue.values || []).map(fromFsValue);
-  if ('mapValue' in fv) {
-    const out = {};
-    for (const [k, v] of Object.entries(fv.mapValue.fields || {})) out[k] = fromFsValue(v);
-    return out;
-  }
+function fromFsValue(v) {
+  if (!v || typeof v !== 'object') return null;
+  if ('nullValue' in v) return null;
+  if ('booleanValue' in v) return v.booleanValue;
+  if ('integerValue' in v) return Number(v.integerValue);
+  if ('doubleValue' in v) return Number(v.doubleValue);
+  if ('stringValue' in v) return v.stringValue;
+  if ('timestampValue' in v) return v.timestampValue;
+  if ('arrayValue' in v) return (v.arrayValue.values || []).map(fromFsValue);
+  if ('mapValue' in v) return fromFsFields(v.mapValue.fields || {});
   return null;
 }
 
-function fromFsDoc(doc) {
-  if (!doc || !doc.fields) return null;
-  const out = { _id: doc.name ? doc.name.split('/').pop() : null };
-  for (const [k, v] of Object.entries(doc.fields)) out[k] = fromFsValue(v);
-  return out;
+function fromFsFields(fields) {
+  const o = {};
+  for (const [k, v] of Object.entries(fields)) o[k] = fromFsValue(v);
+  return o;
 }
 
 /* ═══════════════════════════════════════════════════════════
-   Firestore Operations
+   Firebase Auth
    ═══════════════════════════════════════════════════════════ */
 
-async function fsGet(env, path) {
-  const token = await getAccessToken(env);
-  const res = await fetch(`${FS_BASE(env)}/${path}`, {
-    headers: { Authorization: 'Bearer ' + token }
-  });
-  if (res.status === 404) return null;
-  if (!res.ok) throw new Error(`fsGet(${path}) → ${res.status}`);
-  return fromFsDoc(await res.json());
+async function requireAuth(request, env) {
+  const auth = request.headers.get('authorization') || '';
+  const m = auth.match(/^Bearer\s+(.+)$/i);
+  if (!m) throw httpError(401, 'يجب تسجيل الدخول');
+
+  const payload = await verifyIdToken(m[1], env.FIREBASE_PROJECT_ID);
+  return { uid: payload.user_id || payload.sub, email: payload.email || '' };
 }
 
-async function fsSet(env, path, data, merge = false) {
-  const token = await getAccessToken(env);
-  const mask = merge
-    ? Object.keys(data).map(k => 'updateMask.fieldPaths=' + encodeURIComponent(k)).join('&')
-    : '';
-  const url = `${FS_BASE(env)}/${path}${mask ? '?' + mask : ''}`;
-  const res = await fetch(url, {
-    method: 'PATCH',
-    headers: { Authorization: 'Bearer ' + token, 'Content-Type': 'application/json' },
-    body: JSON.stringify({ fields: toFsFields(data) })
-  });
-  if (!res.ok) {
-    const t = await res.text();
-    throw new Error(`fsSet(${path}) → ${res.status}: ${t}`);
+async function verifyIdToken(idToken, projectId) {
+  const parts = idToken.split('.');
+  if (parts.length !== 3) throw httpError(401, 'رمز الدخول غير صالح');
+
+  const header = JSON.parse(b64urlToStr(parts[0]));
+  const payload = JSON.parse(b64urlToStr(parts[1]));
+  const now = Math.floor(Date.now() / 1000);
+
+  if (payload.aud !== projectId) throw httpError(401, 'رمز الدخول غير صالح');
+  if (payload.iss !== `https://securetoken.google.com/${projectId}`) {
+    throw httpError(401, 'رمز الدخول غير صالح');
   }
-  return fromFsDoc(await res.json());
-}
+  if (!payload.sub) throw httpError(401, 'رمز الدخول غير صالح');
+  if (payload.exp <= now) throw httpError(401, 'انتهت صلاحية الجلسة');
 
-async function fsAdd(env, collection, data) {
-  const token = await getAccessToken(env);
-  const res = await fetch(`${FS_BASE(env)}/${collection}`, {
-    method: 'POST',
-    headers: { Authorization: 'Bearer ' + token, 'Content-Type': 'application/json' },
-    body: JSON.stringify({ fields: toFsFields(data) })
-  });
-  if (!res.ok) {
-    const t = await res.text();
-    throw new Error(`fsAdd(${collection}) → ${res.status}: ${t}`);
-  }
-  return fromFsDoc(await res.json());
-}
+  const jwks = await getJwks();
+  const jwk = jwks.find(k => k.kid === header.kid);
+  if (!jwk) throw httpError(401, 'رمز الدخول غير صالح');
 
-async function fsDelete(env, path) {
-  const token = await getAccessToken(env);
-  const res = await fetch(`${FS_BASE(env)}/${path}`, {
-    method: 'DELETE',
-    headers: { Authorization: 'Bearer ' + token }
-  });
-  if (!res.ok && res.status !== 404) throw new Error(`fsDelete(${path}) → ${res.status}`);
-}
-
-async function fsQuery(env, collection, opts = {}) {
-  const { where = [], orderBy = null, limit: lim = 100 } = opts;
-  const token = await getAccessToken(env);
-
-  const structuredQuery = {
-    from: [{ collectionId: collection }],
-    limit: lim
-  };
-
-  if (where.length) {
-    structuredQuery.where = {
-      compositeFilter: {
-        op: 'AND',
-        filters: where.map(w => ({
-          fieldFilter: {
-            field: { fieldPath: w.field },
-            op: w.op || 'EQUAL',
-            value: toFsValue(w.value)
-          }
-        }))
-      }
-    };
-  }
-
-  if (orderBy) {
-    structuredQuery.orderBy = [{
-      field: { fieldPath: orderBy.field },
-      direction: orderBy.dir || 'DESCENDING'
-    }];
-  }
-
-  const res = await fetch(`${FS_BASE(env)}:runQuery`, {
-    method: 'POST',
-    headers: { Authorization: 'Bearer ' + token, 'Content-Type': 'application/json' },
-    body: JSON.stringify({ structuredQuery })
-  });
-  if (!res.ok) {
-    const t = await res.text();
-    throw new Error(`fsQuery(${collection}) → ${res.status}: ${t}`);
-  }
-  const rows = await res.json();
-  return rows.filter(r => r.document).map(r => fromFsDoc(r.document));
-}
-
-/* ═══════════════════════════════════════════════════════════
-   Firestore Transaction
-   ═══════════════════════════════════════════════════════════ */
-
-async function fsRunTransaction(env, fn) {
-  const token = await getAccessToken(env);
-
-  const beginRes = await fetch(`${FS_BASE(env)}:beginTransaction`, {
-    method: 'POST',
-    headers: { Authorization: 'Bearer ' + token, 'Content-Type': 'application/json' },
-    body: JSON.stringify({ options: { readWrite: {} } })
-  });
-  if (!beginRes.ok) throw new Error('beginTransaction failed');
-  const { transaction } = await beginRes.json();
-
-  const writes = [];
-
-  const tx = {
-    async get(path) {
-      const res = await fetch(`${FS_BASE(env)}/${path}?transaction=${transaction}`, {
-        headers: { Authorization: 'Bearer ' + token }
-      });
-      if (res.status === 404) return null;
-      if (!res.ok) throw new Error(`tx.get(${path}) → ${res.status}`);
-      return fromFsDoc(await res.json());
-    },
-    update(path, data, merge = true) {
-      const entry = {
-        update: {
-          name: `${FS_DOC_ROOT(env)}/${path}`,
-          fields: toFsFields(data)
-        }
-      };
-      if (merge) entry.updateMask = { fieldPaths: Object.keys(data) };
-      writes.push(entry);
-    },
-    create(collection, docId, data) {
-      writes.push({
-        update: {
-          name: `${FS_DOC_ROOT(env)}/${collection}/${docId}`,
-          fields: toFsFields(data)
-        },
-        currentDocument: { exists: false }
-      });
-    },
-    delete(path) {
-      writes.push({ delete: `${FS_DOC_ROOT(env)}/${path}` });
-    },
-    increment(path, field, amount) {
-      writes.push({
-        transform: {
-          document: `${FS_DOC_ROOT(env)}/${path}`,
-          fieldTransforms: [{
-            fieldPath: field,
-            increment: Number.isInteger(amount)
-              ? { integerValue: String(amount) }
-              : { doubleValue: amount }
-          }]
-        }
-      });
-    }
-  };
-
-  try {
-    const result = await fn(tx);
-    if (writes.length) {
-      const commitRes = await fetch(`${FS_BASE(env)}:commit`, {
-        method: 'POST',
-        headers: { Authorization: 'Bearer ' + token, 'Content-Type': 'application/json' },
-        body: JSON.stringify({ transaction, writes })
-      });
-      if (!commitRes.ok) {
-        const t = await commitRes.text();
-        throw new Error(`commit failed: ${t}`);
-      }
-    }
-    return result;
-  } catch (e) {
-    try {
-      await fetch(`${FS_BASE(env)}:rollback`, {
-        method: 'POST',
-        headers: { Authorization: 'Bearer ' + token, 'Content-Type': 'application/json' },
-        body: JSON.stringify({ transaction })
-      });
-    } catch {}
-    throw e;
-  }
-}
-
-/* ═══════════════════════════════════════════════════════════
-   Helpers
-   ═══════════════════════════════════════════════════════════ */
-
-function json(data, status = 200, headers = {}) {
-  return new Response(JSON.stringify(data), {
-    status,
-    headers: { 'Content-Type': 'application/json', ...headers }
-  });
-}
-
-function newId(prefix) {
-  return `${prefix}_${Date.now()}_${Math.random().toString(36).slice(2, 10)}`;
-}
-
-function nowIso() {
-  return new Date().toISOString();
-}
-
-async function checkIdempotency(env, key) {
-  if (!key) return null;
-  const doc = await fsGet(env, `idempotency_keys/${key}`).catch(() => null);
-  if (!doc) return null;
-  if (doc.expires_at && new Date(doc.expires_at) < new Date()) return null;
-  return doc.response || null;
-}
-
-async function saveIdempotency(env, key, response) {
-  if (!key) return;
-  const expiresAt = new Date(Date.now() + 24 * 3600 * 1000).toISOString();
-  await fsSet(env, `idempotency_keys/${key}`, {
-    response,
-    created_at: nowIso(),
-    expires_at: expiresAt
-  }).catch(e => console.warn('Idempotency save failed:', e.message));
-}
-
-/* ═══════════════════════════════════════════════════════════
-   Auth — verifyIdToken (معدّل: + name)
-   ═══════════════════════════════════════════════════════════ */
-
-async function verifyIdToken(token, env) {
-  const res = await fetch(
-    'https://identitytoolkit.googleapis.com/v1/accounts:lookup?key=' + env.FIREBASE_API_KEY,
-    {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ idToken: token })
-    }
+  const key = await crypto.subtle.importKey(
+    'jwk',
+    { kty: jwk.kty, n: jwk.n, e: jwk.e, alg: 'RS256', ext: true },
+    { name: 'RSASSA-PKCS1-v1_5', hash: 'SHA-256' },
+    false, ['verify']
   );
 
-  if (!res.ok) throw new Error('Token verification failed');
+  const ok = await crypto.subtle.verify(
+    'RSASSA-PKCS1-v1_5', key,
+    b64urlToBytes(parts[2]),
+    new TextEncoder().encode(`${parts[0]}.${parts[1]}`)
+  );
+  if (!ok) throw httpError(401, 'رمز الدخول غير صالح');
+
+  return payload;
+}
+
+async function getJwks() {
+  const now = Date.now();
+  if (_jwksCache.keys && _jwksCache.exp > now) return _jwksCache.keys;
+
+  const res = await fetch(
+    'https://www.googleapis.com/service_accounts/v1/jwk/securetoken@system.gserviceaccount.com'
+  );
   const data = await res.json();
-  if (!data.users?.[0]) throw new Error('Invalid token');
+  _jwksCache = { keys: data.keys, exp: now + 3600_000 };
+  return data.keys;
+}
 
-  const user = data.users[0];
-  const uid = user.localId;
+async function requireAdmin(user, env) {
+  const admin = await fsGet(env, `admins/${user.uid}`);
+  if (!admin) throw httpError(403, 'غير مصرّح');
+  return admin;
+}
 
-  const userDoc = await fsGet(env, `users/${uid}`).catch(() => null);
-  if (userDoc && userDoc.banned === true) throw new Error('ACCOUNT_BANNED');
+/* ═══════════════════════════════════════════════════════════
+   أدوات
+   ═══════════════════════════════════════════════════════════ */
 
-  // ✅ التعديل 1: إضافة name
+function corsHeaders(origin) {
   return {
-    uid,
-    email: user.email || '',
-    name: user.displayName || (userDoc && userDoc.name) || ''
+    'access-control-allow-origin': origin,
+    'access-control-allow-methods': 'GET, POST, OPTIONS',
+    'access-control-allow-headers': 'content-type, authorization',
+    'access-control-max-age': '86400',
   };
 }
 
-async function checkAdmin(env, uid) {
-  try {
-    const doc = await fsGet(env, `admins/${uid}`);
-    return !!doc;
-  } catch {
-    return false;
-  }
-}
-
-/* ═══════════════════════════════════════════════════════════
-   Settings
-   ═══════════════════════════════════════════════════════════ */
-
-function getDefaultSettings() {
-  return {
-    mcard_enabled: true,
-    mcard_min: 10,
-    mcard_max: 1000,
-    mcard_create_fee_fixed: 8,
-    mcard_create_fee_pct: 2.5,
-    mcard_topup_fee_fixed: 2.5,
-    mcard_topup_fee_pct: 2.5,
-    mcard_reveal_seconds: 300,
-    rate_libyana: 11.8,
-    rate_almadar: 12.5,
-    rate_usdt: 1,
-    m_libyana_on: true,
-    m_almadar_on: true,
-    m_usdt_on: false,
-    m_libyana_phone: '',
-    m_almadar_phone: '',
-    usdt_address: '',
-    daily_cards_max: 3,
-    daily_amount_max: 200,
-    daily_deposit_max: 500,
-    referral_enabled: false,
-    referral_bonus_inviter: 1,
-    referral_bonus_invitee: 1,
-    cards_limit_free: 1,
-    cards_limit_basic: 3,
-    cards_limit_pro: 10,
-    cards_limit_business: 999,
-    kill_switch: false,
-    kill_message: 'الخدمة متوقفة مؤقتًا.'
-  };
-}
-
-async function getSettings(env) {
-  const doc = await fsGet(env, 'settings/main').catch(() => null);
-  return { ...getDefaultSettings(), ...(doc || {}) };
-}
-
-/* ═══════════════════════════════════════════════════════════
-   Validation
-   ═══════════════════════════════════════════════════════════ */
-
-const V = {
-  phone: v => /^0?9[1-6]\d{7}$/.test(String(v || '').replace(/\s+/g, '')),
-  pan: v => /^\d{16}$/.test(String(v || '').replace(/\s+/g, '')),
-  cvv: v => /^\d{3}$/.test(String(v || '')),
-  exp: v => /^\d{2}\/\d{2}$/.test(String(v || '')),
-  email: v => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(String(v || '')),
-  amount: (v, min = 0.01, max = 100000) => {
-    const x = parseFloat(v);
-    return Number.isFinite(x) && x >= min && x <= max;
-  },
-  str: (v, min = 1, max = 500) => {
-    const s = String(v || '').trim();
-    return s.length >= min && s.length <= max;
-  }
-};
-
-/* ═══════════════════════════════════════════════════════════
-   Wallet Operations
-   ═══════════════════════════════════════════════════════════ */
-
-async function creditWallet(env, uid, amount, reason, reference) {
-  if (!V.amount(amount)) throw new Error('مبلغ غير صالح');
-
-  return fsRunTransaction(env, async (tx) => {
-    const user = await tx.get(`users/${uid}`);
-    if (!user) throw new Error('المستخدم غير موجود');
-
-    const currentBalance = parseFloat(user.wallet_balance || 0);
-    const newBalance = Math.round((currentBalance + amount) * 100) / 100;
-
-    tx.update(`users/${uid}`, { wallet_balance: newBalance });
-    tx.create('wallet_transactions', reference, {
-      uid,
-      type: 'credit',
-      amount,
-      balance_before: currentBalance,
-      balance_after: newBalance,
-      reason,
-      reference,
-      created_at: nowIso()
-    });
-
-    return { new_balance: newBalance, transaction_id: reference };
-  });
-}
-
-async function debitWallet(env, uid, amount, reason, reference) {
-  if (!V.amount(amount)) throw new Error('مبلغ غير صالح');
-
-  return fsRunTransaction(env, async (tx) => {
-    const user = await tx.get(`users/${uid}`);
-    if (!user) throw new Error('المستخدم غير موجود');
-
-    const currentBalance = parseFloat(user.wallet_balance || 0);
-    if (currentBalance < amount) throw new Error('الرصيد غير كافٍ');
-
-    const newBalance = Math.round((currentBalance - amount) * 100) / 100;
-
-    tx.update(`users/${uid}`, { wallet_balance: newBalance });
-    tx.create('wallet_transactions', reference, {
-      uid,
-      type: 'debit',
-      amount,
-      balance_before: currentBalance,
-      balance_after: newBalance,
-      reason,
-      reference,
-      created_at: nowIso()
-    });
-
-    return { new_balance: newBalance, transaction_id: reference };
-  });
-}
-
-/* ═══════════════════════════════════════════════════════════
-   Daily Limits
-   ═══════════════════════════════════════════════════════════ */
-
-async function checkDailyLimits(env, uid, kind, amount) {
-  const settings = await getSettings(env);
-  const today = new Date(); today.setHours(0, 0, 0, 0);
-  const todayIso = today.toISOString();
-
-  const txns = await fsQuery(env, 'wallet_transactions', {
-    where: [
-      { field: 'uid', value: uid },
-      { field: 'created_at', op: 'GREATER_THAN_OR_EQUAL', value: todayIso }
-    ],
-    limit: 500
-  }).catch(() => []);
-
-  const dayCards = txns.filter(t => (t.reason || '').includes('card') || (t.reason || '').includes('بطاقة')).length;
-  const dayAmount = txns
-    .filter(t => t.type === 'debit')
-    .reduce((s, t) => s + parseFloat(t.amount || 0), 0);
-
-  if (kind === 'card') {
-    if (settings.daily_cards_max > 0 && dayCards >= settings.daily_cards_max) {
-      throw new Error('تجاوزت الحد اليومي لعدد الطلبات');
-    }
-    if (settings.daily_amount_max > 0 && (dayAmount + amount) > settings.daily_amount_max) {
-      throw new Error('تجاوزت الحد اليومي للمبلغ');
-    }
-  }
-}
-
-/* ═══════════════════════════════════════════════════════════
-   Handlers — Public
-   ═══════════════════════════════════════════════════════════ */
-
-async function handleStatus(env, headers) {
-  const s = await getSettings(env);
-  return json({
-    success: true,
-    kill_switch: s.kill_switch === true,
-    kill_message: s.kill_message || '',
-    methods: {
-      libyana: { on: s.m_libyana_on !== false, label: 'ليبيانا', phone: s.m_libyana_phone || '', rate: s.rate_libyana },
-      almadar: { on: s.m_almadar_on !== false, label: 'المدار', phone: s.m_almadar_phone || '', rate: s.rate_almadar },
-      usdt: { on: s.m_usdt_on === true, label: 'USDT', address: s.usdt_address || '', rate: s.rate_usdt }
+function json(data, status, origin) {
+  return new Response(JSON.stringify(data), {
+    status,
+    headers: {
+      'content-type': 'application/json; charset=utf-8',
+      ...corsHeaders(origin),
     },
-    mcard: {
-      on: s.mcard_enabled !== false,
-      min: s.mcard_min,
-      max: s.mcard_max,
-      create_fee_fixed: s.mcard_create_fee_fixed,
-      create_fee_pct: s.mcard_create_fee_pct,
-      topup_fee_fixed: s.mcard_topup_fee_fixed,
-      topup_fee_pct: s.mcard_topup_fee_pct,
-      reveal_seconds: s.mcard_reveal_seconds
-    }
-  }, 200, headers);
+  });
 }
 
-async function handleSmsWebhook(request, env, headers) {
-  const secret = request.headers.get('x-sms-secret');
-  if (secret !== env.SMS_WEBHOOK_SECRET) {
-    return json({ success: false, error: 'Unauthorized' }, 401, headers);
-  }
-  try {
-    await request.json();
-    console.log('SMS webhook received');
-    return json({ success: true }, 200, headers);
-  } catch {
-    return json({ success: false, error: 'Bad request' }, 400, headers);
-  }
+function httpError(status, publicMessage) {
+  const e = new Error(publicMessage);
+  e.status = status;
+  e.publicMessage = publicMessage;
+  return e;
 }
 
-/* ═══════════════════════════════════════════════════════════
-   Handlers — User Profile (ensure-profile)
-   ═══════════════════════════════════════════════════════════ */
+async function safeJson(request) {
+  try { return await request.json(); } catch { return {}; }
+}
 
-async function handleEnsureProfile(env, user, headers) {
+function num(v, fallback) {
+  const n = typeof v === 'number' ? v : parseFloat(v);
+  return Number.isFinite(n) ? n : fallback;
+}
+
+function round2(n) { return Math.round(n * 100) / 100; }
+function nowIso() { return new Date().toISOString(); }
+
+function randomSuffix(len) {
+  const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+  const bytes = crypto.getRandomValues(new Uint8Array(len));
+  return Array.from(bytes, b => chars[b % chars.length]).join('');
+}
+
+async function logOp(env, uid, action, request, response, ok) {
+  const id = `${Date.now()}_${randomSuffix(6)}`;
   try {
-    const existing = await fsGet(env, `users/${user.uid}`);
-    if (existing) {
-      return json({ success: true, created: false }, 200, headers);
-    }
-
-    await fsSet(env, `users/${user.uid}`, {
-      name: user.name || user.email.split('@')[0],
-      email: user.email,
-      phone: '',
-      wallet_balance: 0,
-      total_spent: 0,
-      banned: false,
-      vip_status: 'none',
-      vip_plan_id: '',
-      vip_expires_at: null,
+    await fsSet(env, `card_logs/${id}`, {
+      uid, action, ok: !!ok,
+      request: JSON.stringify(request).slice(0, 900),
+      response: JSON.stringify(response || {}).slice(0, 900),
       created_at: nowIso(),
-      _auto_created: true
     });
-
-    return json({ success: true, created: true }, 200, headers);
   } catch (e) {
-    console.error('ensure-profile error:', e.message);
-    return json({ success: false, error: e.message }, 500, headers);
+    console.error('LOG_FAILED', e.message);
   }
 }
 
-/* ═══════════════════════════════════════════════════════════
-   Handlers — Wallet
-   ═══════════════════════════════════════════════════════════ */
-
-async function handleWalletDeposit(request, env, user, idempotencyKey, headers) {
-  if (!idempotencyKey) return json({ success: false, error: 'Idempotency-Key required' }, 400, headers);
-
-  const cached = await checkIdempotency(env, idempotencyKey);
-  if (cached) return json(cached, 200, headers);
-
-  try {
-    const body = await request.json();
-    const { method, amount_lyd, claim_phone } = body;
-
-    if (!['libyana', 'almadar', 'usdt'].includes(method)) {
-      return json({ success: false, error: 'طريقة دفع غير صحيحة' }, 400, headers);
-    }
-    if (!V.amount(amount_lyd, 1, 100000)) {
-      return json({ success: false, error: 'مبلغ غير صالح' }, 400, headers);
-    }
-
-    const settings = await getSettings(env);
-    const rates = {
-      libyana: settings.rate_libyana,
-      almadar: settings.rate_almadar,
-      usdt: settings.rate_usdt
-    };
-    const rate = rates[method];
-    const amount_usd = Math.round((amount_lyd / rate) * 100) / 100;
-
-    if (settings.daily_deposit_max > 0 && amount_usd > settings.daily_deposit_max) {
-      return json({ success: false, error: 'تجاوزت الحد اليومي للإيداع' }, 400, headers);
-    }
-
-    const depId = newId('dep');
-    await fsSet(env, `wallet_deposits/${depId}`, {
-      uid: user.uid,
-      method,
-      amount_lyd: parseFloat(amount_lyd),
-      amount_usd,
-      rate,
-      claim_phone: claim_phone || '',
-      status: 'pending',
-      created_at: nowIso(),
-      idempotency_key: idempotencyKey
-    });
-
-    const response = {
-      success: true,
-      id: depId,
-      amount_lyd: parseFloat(amount_lyd),
-      amount_usd,
-      status: 'pending'
-    };
-    await saveIdempotency(env, idempotencyKey, response);
-    return json(response, 200, headers);
-  } catch (e) {
-    console.error('Deposit error:', e.message);
-    return json({ success: false, error: e.message }, 500, headers);
-  }
+function b64url(str) {
+  return btoa(unescape(encodeURIComponent(str)))
+    .replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
 }
 
-/* ═══════════════════════════════════════════════════════════
-   Handlers — Manual Cards (User)
-   ═══════════════════════════════════════════════════════════ */
-
-async function handleMcardRequest(request, env, user, idempotencyKey, headers) {
-  if (!idempotencyKey) return json({ success: false, error: 'Idempotency-Key required' }, 400, headers);
-
-  const cached = await checkIdempotency(env, idempotencyKey);
-  if (cached) return json(cached, 200, headers);
-
-  try {
-    const body = await request.json();
-    const { name_on_card, amount, card_label } = body;
-
-    if (!V.str(name_on_card, 2, 60)) {
-      return json({ success: false, error: 'اسم حامل البطاقة غير صالح' }, 400, headers);
-    }
-    if (!V.amount(amount, 1, 10000)) {
-      return json({ success: false, error: 'مبلغ غير صالح' }, 400, headers);
-    }
-
-    const settings = await getSettings(env);
-
-    if (settings.mcard_enabled === false) {
-      return json({ success: false, error: 'خدمة البطاقات متوقفة' }, 400, headers);
-    }
-    if (amount < settings.mcard_min || amount > settings.mcard_max) {
-      return json({ success: false, error: `المبلغ يجب أن يكون بين ${settings.mcard_min} و${settings.mcard_max}` }, 400, headers);
-    }
-
-    await checkDailyLimits(env, user.uid, 'card', amount);
-
-    const fee_fixed = parseFloat(settings.mcard_create_fee_fixed || 0);
-    const fee_pct = (amount * parseFloat(settings.mcard_create_fee_pct || 0)) / 100;
-    const total_fee = Math.round((fee_fixed + fee_pct) * 100) / 100;
-    const total = Math.round((amount + total_fee) * 100) / 100;
-
-    const orderId = newId('order');
-    const txnRef = `txn_mcard_create_${orderId}`;
-
-    await debitWallet(env, user.uid, total, 'card_create', txnRef);
-
-    await fsSet(env, `manual_card_orders/${orderId}`, {
-      uid: user.uid,
-      kind: 'create',
-      name_on_card: String(name_on_card).toUpperCase().trim(),
-      card_label: card_label || 'البطاقة',
-      amount: parseFloat(amount),
-      fee: total_fee,
-      total,
-      status: 'pending',
-      created_at: nowIso(),
-      idempotency_key: idempotencyKey
-    });
-
-    const response = { success: true, id: orderId, amount, fee: total_fee, total };
-    await saveIdempotency(env, idempotencyKey, response);
-    return json(response, 200, headers);
-  } catch (e) {
-    console.error('Mcard request error:', e.message);
-    return json({ success: false, error: e.message }, 400, headers);
-  }
+function bytesToB64url(bytes) {
+  let s = '';
+  for (const b of bytes) s += String.fromCharCode(b);
+  return btoa(s).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
 }
 
-async function handleMcardList(env, user, headers) {
-  try {
-    const cards = await fsQuery(env, 'manual_cards', {
-      where: [{ field: 'uid', value: user.uid }],
-      orderBy: { field: 'created_at', dir: 'DESCENDING' },
-      limit: 100
-    });
-
-    const orders = await fsQuery(env, 'manual_card_orders', {
-      where: [{ field: 'uid', value: user.uid }],
-      orderBy: { field: 'created_at', dir: 'DESCENDING' },
-      limit: 100
-    });
-
-    const safeCards = cards.map(c => ({
-      _id: c._id,
-      card_label: c.card_label || 'البطاقة',
-      name_on_card: c.name_on_card || '',
-      last4: c.last4 || '****',
-      balance: parseFloat(c.balance || 0),
-      status: c.status || 'active',
-      created_at: c.created_at || null
-    }));
-
-    return json({ success: true, cards: safeCards, orders }, 200, headers);
-  } catch (e) {
-    console.error('McardList error:', e.message);
-    return json({ success: false, error: e.message }, 500, headers);
-  }
+function b64urlToStr(s) {
+  const b64 = s.replace(/-/g, '+').replace(/_/g, '/');
+  return decodeURIComponent(escape(atob(b64 + '='.repeat((4 - b64.length % 4) % 4))));
 }
 
-async function handleMcardReveal(request, env, user, headers) {
-  try {
-    const body = await request.json();
-    const { card_id } = body;
-    if (!card_id) return json({ success: false, error: 'Invalid card' }, 400, headers);
-
-    const card = await fsGet(env, `manual_cards/${card_id}`);
-    if (!card) return json({ success: false, error: 'البطاقة غير موجودة' }, 404, headers);
-    if (card.uid !== user.uid) return json({ success: false, error: 'غير مصرّح' }, 403, headers);
-
-    const reveal = await fsGet(env, `manual_card_reveal/${card_id}`);
-    if (!reveal) {
-      return json({ success: false, error: 'بيانات البطاقة غير متوفرة' }, 404, headers);
-    }
-    if (reveal.uid !== user.uid) {
-      return json({ success: false, error: 'غير مصرّح' }, 403, headers);
-    }
-
-    const expiresAt = new Date(reveal.expires_at);
-    const now = new Date();
-    if (isNaN(expiresAt) || expiresAt < now) {
-      return json({
-        success: false,
-        error: 'انتهت صلاحية عرض بيانات البطاقة، يرجى التواصل مع الدعم'
-      }, 410, headers);
-    }
-
-    const logId = newId('reveal_log');
-    await fsSet(env, `reveal_logs/${logId}`, {
-      uid: user.uid,
-      card_id,
-      revealed_at: nowIso(),
-      ip: request.headers.get('CF-Connecting-IP') || '',
-      user_agent: request.headers.get('User-Agent') || ''
-    }).catch(e => console.warn('Reveal log failed:', e.message));
-
-    const ttlRemaining = Math.max(0, Math.floor((expiresAt - now) / 1000));
-
-    return json({
-      success: true,
-      card_number: reveal.card_number,
-      expiry: reveal.expiry,
-      cvv: reveal.cvv,
-      name_on_card: reveal.name_on_card || card.name_on_card || '',
-      ttl_seconds: ttlRemaining
-    }, 200, headers);
-  } catch (e) {
-    console.error('McardReveal error:', e.message);
-    return json({ success: false, error: e.message }, 500, headers);
-  }
-}
-
-async function handleMcardTopupRequest(request, env, user, idempotencyKey, headers) {
-  if (!idempotencyKey) return json({ success: false, error: 'Idempotency-Key required' }, 400, headers);
-
-  const cached = await checkIdempotency(env, idempotencyKey);
-  if (cached) return json(cached, 200, headers);
-
-  try {
-    const body = await request.json();
-    const { card_id, amount } = body;
-
-    if (!card_id) return json({ success: false, error: 'بطاقة غير صالحة' }, 400, headers);
-    if (!V.amount(amount, 1, 10000)) {
-      return json({ success: false, error: 'مبلغ غير صالح' }, 400, headers);
-    }
-
-    const card = await fsGet(env, `manual_cards/${card_id}`);
-    if (!card || card.uid !== user.uid) {
-      return json({ success: false, error: 'غير مصرّح' }, 403, headers);
-    }
-
-    const settings = await getSettings(env);
-    const fee_fixed = parseFloat(settings.mcard_topup_fee_fixed || 0);
-    const fee_pct = (amount * parseFloat(settings.mcard_topup_fee_pct || 0)) / 100;
-    const total_fee = Math.round((fee_fixed + fee_pct) * 100) / 100;
-    const total = Math.round((amount + total_fee) * 100) / 100;
-
-    const orderId = newId('topup');
-    const txnRef = `txn_mcard_topup_${orderId}`;
-
-    await debitWallet(env, user.uid, total, 'card_topup', txnRef);
-
-    await fsSet(env, `manual_card_orders/${orderId}`, {
-      uid: user.uid,
-      kind: 'topup',
-      card_id,
-      amount: parseFloat(amount),
-      fee: total_fee,
-      total,
-      status: 'pending',
-      created_at: nowIso(),
-      idempotency_key: idempotencyKey
-    });
-
-    const response = { success: true, id: orderId, amount, fee: total_fee, total };
-    await saveIdempotency(env, idempotencyKey, response);
-    return json(response, 200, headers);
-  } catch (e) {
-    return json({ success: false, error: e.message }, 400, headers);
-  }
-}
-
-/* ═══════════════════════════════════════════════════════════
-   Handlers — USDT
-   ═══════════════════════════════════════════════════════════ */
-
-async function handleUsdtInvoice(request, env, user, idempotencyKey, headers) {
-  try {
-    const body = await request.json();
-    const { amount_usd } = body;
-    if (!V.amount(amount_usd, 1, 100000)) {
-      return json({ success: false, error: 'مبلغ غير صالح' }, 400, headers);
-    }
-    const settings = await getSettings(env);
-    const invoiceId = newId('usdt_inv');
-    await fsSet(env, `usdt_invoices/${invoiceId}`, {
-      uid: user.uid,
-      amount_usd: parseFloat(amount_usd),
-      address: settings.usdt_address,
-      status: 'waiting',
-      created_at: nowIso(),
-      expires_at: new Date(Date.now() + 3600 * 1000).toISOString()
-    });
-    return json({
-      success: true,
-      invoice: {
-        id: invoiceId,
-        pay_amount: parseFloat(amount_usd),
-        address: settings.usdt_address,
-        expires_ms: Date.now() + 3600000
-      }
-    }, 200, headers);
-  } catch (e) {
-    return json({ success: false, error: e.message }, 500, headers);
-  }
-}
-
-async function handleUsdtVerify(request, env, user, headers) {
-  try {
-    const body = await request.json();
-    const { invoice_id } = body;
-    const inv = await fsGet(env, `usdt_invoices/${invoice_id}`);
-    if (!inv || inv.uid !== user.uid) {
-      return json({ success: false, error: 'Invoice not found' }, 404, headers);
-    }
-    return json({ success: true, paid: inv.status === 'paid' }, 200, headers);
-  } catch (e) {
-    return json({ success: false, error: e.message }, 500, headers);
-  }
-}
-
-/* ═══════════════════════════════════════════════════════════
-   Handlers — VIP
-   ═══════════════════════════════════════════════════════════ */
-
-async function handleVipPlans(env, headers) {
-  try {
-    const plans = await fsQuery(env, 'vip_plans', { limit: 50 });
-    const active = plans.filter(p => p.active !== false)
-      .sort((a, b) => (a.order || 99) - (b.order || 99));
-    return json({ success: true, plans: active }, 200, headers);
-  } catch (e) {
-    return json({ success: false, error: e.message }, 500, headers);
-  }
-}
-
-async function handleVipSubscribe(request, env, user, idempotencyKey, headers) {
-  if (!idempotencyKey) return json({ success: false, error: 'Idempotency-Key required' }, 400, headers);
-
-  const cached = await checkIdempotency(env, idempotencyKey);
-  if (cached) return json(cached, 200, headers);
-
-  try {
-    const body = await request.json();
-    const { plan_id } = body;
-    if (!plan_id) return json({ success: false, error: 'باقة غير صالحة' }, 400, headers);
-
-    const plan = await fsGet(env, `vip_plans/${plan_id}`);
-    if (!plan || plan.active === false) {
-      return json({ success: false, error: 'الباقة غير متوفرة' }, 400, headers);
-    }
-
-    const price = parseFloat(plan.price_usd || 0);
-    const subId = newId('sub');
-    const txnRef = `txn_vip_${subId}`;
-
-    await debitWallet(env, user.uid, price, `vip_subscribe_${plan_id}`, txnRef);
-
-    const durationDays = parseInt(plan.duration_days || 30);
-    const expiresAt = new Date(Date.now() + durationDays * 24 * 3600 * 1000).toISOString();
-
-    await fsSet(env, `subscriptions/${subId}`, {
-      uid: user.uid,
-      plan_id,
-      plan_name: plan.name || '',
-      price_usd: price,
-      duration_days: durationDays,
-      starts_at: nowIso(),
-      expires_at: expiresAt,
-      status: 'active',
-      created_at: nowIso()
-    });
-
-    await fsSet(env, `users/${user.uid}`, {
-      vip_status: 'active',
-      vip_plan_id: plan_id,
-      vip_expires_at: expiresAt
-    }, true);
-
-    const response = {
-      success: true,
-      subscription_id: subId,
-      expires_at: expiresAt,
-      plan_name: plan.name || ''
-    };
-    await saveIdempotency(env, idempotencyKey, response);
-    return json(response, 200, headers);
-  } catch (e) {
-    return json({ success: false, error: e.message }, 400, headers);
-  }
-}
-
-async function handleVipStatus(env, user, headers) {
-  try {
-    const u = await fsGet(env, `users/${user.uid}`);
-    const active = u && u.vip_status === 'active' &&
-      (!u.vip_expires_at || new Date(u.vip_expires_at) > new Date());
-    return json({
-      success: true,
-      active: !!active,
-      expires_at: u?.vip_expires_at || null,
-      plan_id: u?.vip_plan_id || null
-    }, 200, headers);
-  } catch (e) {
-    return json({ success: false, error: e.message }, 500, headers);
-  }
-}
-
-/* ═══════════════════════════════════════════════════════════
-   Handlers — Tickets (User)
-   ═══════════════════════════════════════════════════════════ */
-
-async function handleTicketCreate(request, env, user, idempotencyKey, headers) {
-  if (!idempotencyKey) return json({ success: false, error: 'Idempotency-Key required' }, 400, headers);
-
-  const cached = await checkIdempotency(env, idempotencyKey);
-  if (cached) return json(cached, 200, headers);
-
-  try {
-    const body = await request.json();
-    const { subject, message } = body;
-    if (!V.str(subject, 3, 120)) return json({ success: false, error: 'عنوان غير صالح' }, 400, headers);
-    if (!V.str(message, 3, 3000)) return json({ success: false, error: 'رسالة غير صالحة' }, 400, headers);
-
-    const tId = newId('ticket');
-    await fsSet(env, `tickets/${tId}`, {
-      uid: user.uid,
-      email: user.email,
-      subject: subject.trim(),
-      status: 'open',
-      messages: [{
-        by: 'user',
-        text: message.trim(),
-        at: nowIso()
-      }],
-      created_at: nowIso(),
-      updated_at: nowIso()
-    });
-
-    const response = { success: true, id: tId };
-    await saveIdempotency(env, idempotencyKey, response);
-    return json(response, 200, headers);
-  } catch (e) {
-    return json({ success: false, error: e.message }, 500, headers);
-  }
-}
-
-async function handleTicketList(env, user, headers) {
-  try {
-    const tickets = await fsQuery(env, 'tickets', {
-      where: [{ field: 'uid', value: user.uid }],
-      orderBy: { field: 'updated_at', dir: 'DESCENDING' },
-      limit: 50
-    });
-    return json({ success: true, tickets }, 200, headers);
-  } catch (e) {
-    return json({ success: false, error: e.message }, 500, headers);
-  }
-}
-
-async function handleTicketReply(request, env, user, headers) {
-  try {
-    const body = await request.json();
-    const { id, message } = body;
-    if (!id || !V.str(message, 1, 3000)) {
-      return json({ success: false, error: 'بيانات غير صالحة' }, 400, headers);
-    }
-
-    const t = await fsGet(env, `tickets/${id}`);
-    if (!t) return json({ success: false, error: 'التذكرة غير موجودة' }, 404, headers);
-    if (t.uid !== user.uid) return json({ success: false, error: 'غير مصرّح' }, 403, headers);
-
-    const messages = Array.isArray(t.messages) ? t.messages : [];
-    messages.push({ by: 'user', text: message.trim(), at: nowIso() });
-
-    await fsSet(env, `tickets/${id}`, {
-      messages,
-      status: 'open',
-      updated_at: nowIso()
-    }, true);
-
-    return json({ success: true }, 200, headers);
-  } catch (e) {
-    return json({ success: false, error: e.message }, 500, headers);
-  }
-}
-
-/* ═══════════════════════════════════════════════════════════
-   Handlers — Admin: Wallet
-   ═══════════════════════════════════════════════════════════ */
-
-async function handleWalletAdjust(request, env, admin, idempotencyKey, headers) {
-  if (!idempotencyKey) return json({ success: false, error: 'Idempotency-Key required' }, 400, headers);
-
-  const cached = await checkIdempotency(env, idempotencyKey);
-  if (cached) return json(cached, 200, headers);
-
-  try {
-    const body = await request.json();
-    const { uid, delta, reason } = body;
-
-    if (!uid) return json({ success: false, error: 'uid مفقود' }, 400, headers);
-    if (!V.amount(Math.abs(delta))) return json({ success: false, error: 'مبلغ غير صالح' }, 400, headers);
-    if (!V.str(reason, 2, 200)) return json({ success: false, error: 'سبب مطلوب' }, 400, headers);
-
-    const ref = newId('adj');
-    let result;
-    if (delta > 0) {
-      result = await creditWallet(env, uid, delta, `admin_adjust: ${reason}`, ref);
-    } else {
-      result = await debitWallet(env, uid, Math.abs(delta), `admin_adjust: ${reason}`, ref);
-    }
-
-    const response = { success: true, delta, new_balance: result.new_balance };
-    await saveIdempotency(env, idempotencyKey, response);
-    return json(response, 200, headers);
-  } catch (e) {
-    return json({ success: false, error: e.message }, 400, headers);
-  }
-}
-
-/* ═══════════════════════════════════════════════════════════
-   Handlers — Admin: Deposits
-   ═══════════════════════════════════════════════════════════ */
-
-async function handleAdminDepositsList(request, env, headers) {
-  try {
-    const body = await request.json().catch(() => ({}));
-    const filter = body.filter || 'pending';
-    const where = filter === 'all' ? [] : [{ field: 'status', value: filter }];
-    const deposits = await fsQuery(env, 'wallet_deposits', {
-      where,
-      orderBy: { field: 'created_at', dir: 'DESCENDING' },
-      limit: 200
-    });
-    return json({ success: true, deposits }, 200, headers);
-  } catch (e) {
-    return json({ success: false, error: e.message }, 500, headers);
-  }
-}
-
-async function handleAdminDepositsAct(request, env, admin, idempotencyKey, headers) {
-  if (!idempotencyKey) return json({ success: false, error: 'Idempotency-Key required' }, 400, headers);
-
-  const cached = await checkIdempotency(env, idempotencyKey);
-  if (cached) return json(cached, 200, headers);
-
-  try {
-    const body = await request.json();
-    const { id, action, reason } = body;
-
-    if (!id || !['approve', 'reject'].includes(action)) {
-      return json({ success: false, error: 'طلب غير صالح' }, 400, headers);
-    }
-
-    const dep = await fsGet(env, `wallet_deposits/${id}`);
-    if (!dep) return json({ success: false, error: 'الإيداع غير موجود' }, 404, headers);
-    if (dep.status !== 'pending') {
-      return json({ success: false, error: 'الإيداع تمت معالجته مسبقاً' }, 400, headers);
-    }
-
-    if (action === 'approve') {
-      const ref = `txn_deposit_${id}`;
-      await creditWallet(
-        env,
-        dep.uid,
-        parseFloat(dep.amount_usd || 0),
-        `deposit_approved: ${dep.method}`,
-        ref
-      );
-      await fsSet(env, `wallet_deposits/${id}`, {
-        status: 'approved',
-        approved_at: nowIso(),
-        approved_by: admin.uid
-      }, true);
-
-      const response = { success: true, action: 'approved', deposit_id: id };
-      await saveIdempotency(env, idempotencyKey, response);
-      return json(response, 200, headers);
-    } else {
-      await fsSet(env, `wallet_deposits/${id}`, {
-        status: 'rejected',
-        rejected_at: nowIso(),
-        rejected_by: admin.uid,
-        reject_reason: reason || ''
-      }, true);
-
-      const response = { success: true, action: 'rejected', deposit_id: id };
-      await saveIdempotency(env, idempotencyKey, response);
-      return json(response, 200, headers);
-    }
-  } catch (e) {
-    return json({ success: false, error: e.message }, 400, headers);
-  }
-}
-
-/* ═══════════════════════════════════════════════════════════
-   Handlers — Admin: Users
-   ═══════════════════════════════════════════════════════════ */
-
-async function handleAdminUsersList(request, env, headers) {
-  try {
-    const body = await request.json().catch(() => ({}));
-    const users = await fsQuery(env, 'users', {
-      orderBy: { field: 'created_at', dir: 'DESCENDING' },
-      limit: body.limit || 100
-    });
-    return json({ success: true, users, total: users.length }, 200, headers);
-  } catch (e) {
-    return json({ success: false, error: e.message }, 500, headers);
-  }
-}
-
-async function handleAdminUsersBan(request, env, admin, headers) {
-  try {
-    const body = await request.json();
-    const { uid } = body;
-    if (!uid) return json({ success: false, error: 'uid مفقود' }, 400, headers);
-
-    const user = await fsGet(env, `users/${uid}`);
-    if (!user) return json({ success: false, error: 'المستخدم غير موجود' }, 404, headers);
-
-    const newBanState = !user.banned;
-    await fsSet(env, `users/${uid}`, {
-      banned: newBanState,
-      banned_at: newBanState ? nowIso() : null,
-      banned_by: newBanState ? admin.uid : null
-    }, true);
-
-    return json({ success: true, banned: newBanState }, 200, headers);
-  } catch (e) {
-    return json({ success: false, error: e.message }, 500, headers);
-  }
-}
-
-/* ═══════════════════════════════════════════════════════════
-   Handlers — Admin: Manual Cards
-   ═══════════════════════════════════════════════════════════ */
-
-async function handleAdminMcardList(request, env, headers) {
-  try {
-    const body = await request.json().catch(() => ({}));
-    const filter = body.filter || 'pending';
-    const where = filter === 'all' ? [] : [{ field: 'status', value: filter }];
-    const orders = await fsQuery(env, 'manual_card_orders', {
-      where,
-      orderBy: { field: 'created_at', dir: 'DESCENDING' },
-      limit: 200
-    });
-    return json({ success: true, orders }, 200, headers);
-  } catch (e) {
-    return json({ success: false, error: e.message }, 500, headers);
-  }
-}
-
-async function handleAdminMcardFulfil(request, env, admin, idempotencyKey, headers) {
-  if (!idempotencyKey) return json({ success: false, error: 'Idempotency-Key required' }, 400, headers);
-
-  const cached = await checkIdempotency(env, idempotencyKey);
-  if (cached) return json(cached, 200, headers);
-
-  try {
-    const body = await request.json();
-    const { id, card_number, expiry, cvv } = body;
-
-    if (!id) return json({ success: false, error: 'معرف الطلب مفقود' }, 400, headers);
-
-    const order = await fsGet(env, `manual_card_orders/${id}`);
-    if (!order) return json({ success: false, error: 'الطلب غير موجود' }, 404, headers);
-    if (order.status !== 'pending') {
-      return json({ success: false, error: 'الطلب تمت معالجته مسبقاً' }, 400, headers);
-    }
-
-    if (order.kind === 'create') {
-      if (!V.pan(card_number)) return json({ success: false, error: 'رقم بطاقة غير صالح' }, 400, headers);
-      if (!V.exp(expiry)) return json({ success: false, error: 'صيغة تاريخ غير صالحة (MM/YY)' }, 400, headers);
-      if (!V.cvv(cvv)) return json({ success: false, error: 'CVV غير صالح' }, 400, headers);
-
-      const cardId = newId('card');
-      const cleanPan = String(card_number).replace(/\s+/g, '');
-      const last4 = cleanPan.slice(-4);
-      const settings = await getSettings(env);
-      const ttl = parseInt(settings.mcard_reveal_seconds || 300);
-
-      // ✅ 1. manual_cards — بيانات آمنة فقط
-      await fsSet(env, `manual_cards/${cardId}`, {
-        uid: order.uid,
-        card_label: order.card_label || 'البطاقة',
-        name_on_card: order.name_on_card,
-        last4,
-        balance: parseFloat(order.amount || 0),
-        status: 'active',
-        created_at: nowIso(),
-        created_by: admin.uid
-      });
-
-      // ✅ 2. manual_card_reveal — بيانات حساسة + TTL
-      await fsSet(env, `manual_card_reveal/${cardId}`, {
-        uid: order.uid,
-        card_id: cardId,
-        card_number: cleanPan,
-        expiry,
-        cvv,
-        name_on_card: order.name_on_card,
-        created_at: nowIso(),
-        expires_at: new Date(Date.now() + ttl * 1000).toISOString()
-      });
-
-      // ✅ 3. تحديث الطلب
-      await fsSet(env, `manual_card_orders/${id}`, {
-        status: 'completed',
-        card_id: cardId,
-        completed_at: nowIso(),
-        completed_by: admin.uid
-      }, true);
-
-      const response = {
-        success: true,
-        card_id: cardId,
-        order_id: id,
-        reveal_expires_in: ttl
-      };
-      await saveIdempotency(env, idempotencyKey, response);
-      return json(response, 200, headers);
-
-    } else if (order.kind === 'topup') {
-      const card = await fsGet(env, `manual_cards/${order.card_id}`);
-      if (!card) return json({ success: false, error: 'البطاقة غير موجودة' }, 404, headers);
-
-      const newBalance = Math.round((parseFloat(card.balance || 0) + parseFloat(order.amount)) * 100) / 100;
-      await fsSet(env, `manual_cards/${order.card_id}`, {
-        balance: newBalance,
-        updated_at: nowIso()
-      }, true);
-
-      await fsSet(env, `manual_card_orders/${id}`, {
-        status: 'completed',
-        completed_at: nowIso(),
-        completed_by: admin.uid
-      }, true);
-
-      const response = { success: true, card_id: order.card_id, new_balance: newBalance };
-      await saveIdempotency(env, idempotencyKey, response);
-      return json(response, 200, headers);
-    }
-
-    return json({ success: false, error: 'نوع طلب غير معروف' }, 400, headers);
-  } catch (e) {
-    console.error('Fulfil error:', e.message);
-    return json({ success: false, error: e.message }, 400, headers);
-  }
-}
-
-async function handleAdminMcardReject(request, env, admin, idempotencyKey, headers) {
-  if (!idempotencyKey) return json({ success: false, error: 'Idempotency-Key required' }, 400, headers);
-
-  const cached = await checkIdempotency(env, idempotencyKey);
-  if (cached) return json(cached, 200, headers);
-
-  try {
-    const body = await request.json();
-    const { id, reason } = body;
-
-    const order = await fsGet(env, `manual_card_orders/${id}`);
-    if (!order) return json({ success: false, error: 'الطلب غير موجود' }, 404, headers);
-    if (order.status !== 'pending') {
-      return json({ success: false, error: 'الطلب تمت معالجته مسبقاً' }, 400, headers);
-    }
-
-    const refundRef = `txn_refund_${id}`;
-    await creditWallet(
-      env,
-      order.uid,
-      parseFloat(order.total || 0),
-      `card_rejected_refund: ${reason || 'مرفوض'}`,
-      refundRef
-    );
-
-    await fsSet(env, `manual_card_orders/${id}`, {
-      status: 'rejected',
-      reject_reason: reason || '',
-      rejected_at: nowIso(),
-      rejected_by: admin.uid
-    }, true);
-
-    const response = { success: true, refunded: true, order_id: id };
-    await saveIdempotency(env, idempotencyKey, response);
-    return json(response, 200, headers);
-  } catch (e) {
-    return json({ success: false, error: e.message }, 400, headers);
-  }
-}
-
-/* ═══════════════════════════════════════════════════════════
-   Handlers — Admin: VIP
-   ═══════════════════════════════════════════════════════════ */
-
-async function handleAdminVipPlans(env, headers) {
-  try {
-    const plans = await fsQuery(env, 'vip_plans', { limit: 100 });
-    return json({ success: true, plans }, 200, headers);
-  } catch (e) {
-    return json({ success: false, error: e.message }, 500, headers);
-  }
-}
-
-async function handleAdminVipSave(request, env, admin, headers) {
-  try {
-    const body = await request.json();
-    const { id, ...data } = body;
-
-    if (!V.str(data.name, 1, 80)) {
-      return json({ success: false, error: 'اسم الباقة مطلوب' }, 400, headers);
-    }
-
-    data.updated_at = nowIso();
-    data.updated_by = admin.uid;
-
-    if (id) {
-      await fsSet(env, `vip_plans/${id}`, data, true);
-      return json({ success: true, id }, 200, headers);
-    } else {
-      const planId = newId('plan');
-      data.created_at = nowIso();
-      await fsSet(env, `vip_plans/${planId}`, data);
-      return json({ success: true, id: planId }, 200, headers);
-    }
-  } catch (e) {
-    return json({ success: false, error: e.message }, 500, headers);
-  }
-}
-
-async function handleAdminVipList(env, headers) {
-  try {
-    const subs = await fsQuery(env, 'subscriptions', {
-      orderBy: { field: 'created_at', dir: 'DESCENDING' },
-      limit: 200
-    });
-    return json({ success: true, subscriptions: subs }, 200, headers);
-  } catch (e) {
-    return json({ success: false, error: e.message }, 500, headers);
-  }
-}
-
-/* ═══════════════════════════════════════════════════════════
-   Handlers — Admin: Ads
-   ═══════════════════════════════════════════════════════════ */
-
-async function handleAdminAdsList(env, headers) {
-  try {
-    const ads = await fsQuery(env, 'ads', { limit: 200 });
-    return json({ success: true, ads }, 200, headers);
-  } catch (e) {
-    return json({ success: false, error: e.message }, 500, headers);
-  }
-}
-
-async function handleAdminAdsSave(request, env, admin, headers) {
-  try {
-    const body = await request.json();
-    const { id, ...data } = body;
-    if (!V.str(data.title, 1, 120)) {
-      return json({ success: false, error: 'العنوان مطلوب' }, 400, headers);
-    }
-    data.updated_at = nowIso();
-    data.updated_by = admin.uid;
-
-    if (id) {
-      await fsSet(env, `ads/${id}`, data, true);
-      return json({ success: true, id }, 200, headers);
-    } else {
-      const adId = newId('ad');
-      data.created_at = nowIso();
-      await fsSet(env, `ads/${adId}`, data);
-      return json({ success: true, id: adId }, 200, headers);
-    }
-  } catch (e) {
-    return json({ success: false, error: e.message }, 500, headers);
-  }
-}
-
-async function handleAdminAdsDelete(request, env, admin, headers) {
-  try {
-    const body = await request.json();
-    const { id } = body;
-    if (!id) return json({ success: false, error: 'id مفقود' }, 400, headers);
-    await fsDelete(env, `ads/${id}`);
-    return json({ success: true }, 200, headers);
-  } catch (e) {
-    return json({ success: false, error: e.message }, 500, headers);
-  }
-}
-
-/* ═══════════════════════════════════════════════════════════
-   Handlers — Admin: Stats
-   ═══════════════════════════════════════════════════════════ */
-
-async function handleAdminStats(env, headers) {
-  try {
-    const [users, cards, orders, deposits, subs, tickets] = await Promise.all([
-      fsQuery(env, 'users', { limit: 500 }).catch(() => []),
-      fsQuery(env, 'manual_cards', { limit: 500 }).catch(() => []),
-      fsQuery(env, 'manual_card_orders', { limit: 500 }).catch(() => []),
-      fsQuery(env, 'wallet_deposits', { limit: 500 }).catch(() => []),
-      fsQuery(env, 'subscriptions', { limit: 500 }).catch(() => []),
-      fsQuery(env, 'tickets', { limit: 500 }).catch(() => [])
-    ]);
-
-    const completedOrders = orders.filter(o => o.status === 'completed');
-    const totalRevenue = completedOrders.reduce((s, o) => s + parseFloat(o.total || 0), 0);
-    const totalFees = completedOrders.reduce((s, o) => s + parseFloat(o.fee || 0), 0);
-
-    return json({
-      success: true,
-      stats: {
-        users: {
-          total: users.length,
-          banned: users.filter(u => u.banned).length
-        },
-        cards: {
-          total: cards.length,
-          active: cards.filter(c => c.status === 'active').length
-        },
-        orders: {
-          completed: completedOrders.length,
-          pending: orders.filter(o => o.status === 'pending').length,
-          rejected: orders.filter(o => o.status === 'rejected').length
-        },
-        deposits: {
-          approved: deposits.filter(d => d.status === 'approved').length,
-          pending: deposits.filter(d => d.status === 'pending').length
-        },
-        vip: {
-          subscriptions: subs.filter(s => s.status === 'active').length
-        },
-        tickets: {
-          open: tickets.filter(t => t.status === 'open').length
-        },
-        revenue: {
-          total_usd: totalRevenue,
-          fees_usd: totalFees
-        }
-      }
-    }, 200, headers);
-  } catch (e) {
-    return json({ success: false, error: e.message }, 500, headers);
-  }
-}
-
-/* ═══════════════════════════════════════════════════════════
-   Handlers — Admin: Tickets
-   ═══════════════════════════════════════════════════════════ */
-
-async function handleAdminTicketsList(request, env, headers) {
-  try {
-    const body = await request.json().catch(() => ({}));
-    const filter = body.filter || 'open';
-    const where = filter === 'all' ? [] : [{ field: 'status', value: filter }];
-    const tickets = await fsQuery(env, 'tickets', {
-      where,
-      orderBy: { field: 'updated_at', dir: 'DESCENDING' },
-      limit: 200
-    });
-    return json({ success: true, tickets }, 200, headers);
-  } catch (e) {
-    return json({ success: false, error: e.message }, 500, headers);
-  }
-}
-
-async function handleAdminTicketsReply(request, env, admin, headers) {
-  try {
-    const body = await request.json();
-    const { id, message } = body;
-    if (!id || !V.str(message, 1, 3000)) {
-      return json({ success: false, error: 'بيانات غير صالحة' }, 400, headers);
-    }
-
-    const t = await fsGet(env, `tickets/${id}`);
-    if (!t) return json({ success: false, error: 'التذكرة غير موجودة' }, 404, headers);
-
-    const messages = Array.isArray(t.messages) ? t.messages : [];
-    messages.push({ by: 'admin', text: message.trim(), at: nowIso() });
-
-    await fsSet(env, `tickets/${id}`, {
-      messages,
-      status: 'answered',
-      updated_at: nowIso(),
-      last_admin_reply_at: nowIso(),
-      last_admin_reply_by: admin.uid
-    }, true);
-
-    return json({ success: true }, 200, headers);
-  } catch (e) {
-    return json({ success: false, error: e.message }, 500, headers);
-  }
-}
-
-async function handleAdminTicketsClose(request, env, admin, headers) {
-  try {
-    const body = await request.json();
-    const { id } = body;
-    if (!id) return json({ success: false, error: 'id مفقود' }, 400, headers);
-
-    await fsSet(env, `tickets/${id}`, {
-      status: 'closed',
-      closed_at: nowIso(),
-      closed_by: admin.uid,
-      updated_at: nowIso()
-    }, true);
-
-    return json({ success: true }, 200, headers);
-  } catch (e) {
-    return json({ success: false, error: e.message }, 500, headers);
-  }
-}
-
-/* ═══════════════════════════════════════════════════════════
-   Handlers — Admin: Settings
-   ═══════════════════════════════════════════════════════════ */
-
-async function handleAdminSettings(request, env, admin, headers) {
-  try {
-    const body = await request.json();
-    if (!body || typeof body !== 'object') {
-      return json({ success: false, error: 'بيانات غير صالحة' }, 400, headers);
-    }
-
-    const allowed = [
-      'kill_switch', 'kill_message',
-      'mcard_enabled', 'mcard_min', 'mcard_max',
-      'mcard_create_fee_fixed', 'mcard_create_fee_pct',
-      'mcard_topup_fee_fixed', 'mcard_topup_fee_pct',
-      'mcard_reveal_seconds',
-      'rate_libyana', 'rate_almadar', 'rate_usdt',
-      'm_libyana_on', 'm_almadar_on', 'm_usdt_on',
-      'm_libyana_phone', 'm_almadar_phone', 'usdt_address',
-      'daily_cards_max', 'daily_amount_max', 'daily_deposit_max',
-      'referral_enabled', 'referral_bonus_inviter', 'referral_bonus_invitee',
-      'cards_limit_free', 'cards_limit_basic', 'cards_limit_pro', 'cards_limit_business',
-      'brand_tagline', 'hero_title', 'hero_sub', 'support_url'
-    ];
-
-    const payload = {};
-    for (const k of allowed) {
-      if (k in body) payload[k] = body[k];
-    }
-    payload.updated_at = nowIso();
-    payload.updated_by = admin.uid;
-    payload.updated_by_email = admin.email;
-
-    await fsSet(env, 'settings/main', payload, true);
-    return json({ success: true }, 200, headers);
-  } catch (e) {
-    return json({ success: false, error: e.message }, 500, headers);
-  }
-}
-
-/* ═══════════════════════════════════════════════════════════
-   ROUTER
-   ═══════════════════════════════════════════════════════════ */
-
-export default {
-  async fetch(request, env, ctx) {
-    const url = new URL(request.url);
-    const path = url.pathname;
-    const method = request.method;
-
-    const corsHeaders = {
-      'Access-Control-Allow-Origin': env.ALLOWED_ORIGIN || 'https://kardo.ly',
-      'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
-      'Access-Control-Allow-Headers': 'Content-Type, Authorization, Idempotency-Key',
-      'Access-Control-Max-Age': '86400'
-    };
-
-    if (method === 'OPTIONS') {
-      return new Response(null, { headers: corsHeaders, status: 204 });
-    }
-
-    try {
-      // Public
-      if (path === '/api/status' && method === 'GET') {
-        return handleStatus(env, corsHeaders);
-      }
-      if (path === '/api/sms/webhook' && method === 'POST') {
-        return handleSmsWebhook(request, env, corsHeaders);
-      }
-
-      // Auth
-      const authHeader = request.headers.get('Authorization');
-      if (!authHeader?.startsWith('Bearer ')) {
-        return json({ success: false, error: 'Unauthorized' }, 401, corsHeaders);
-      }
-
-      const idToken = authHeader.substring(7);
-      let user;
-      try {
-        user = await verifyIdToken(idToken, env);
-      } catch (e) {
-        if (e.message === 'ACCOUNT_BANNED') {
-          return json({ success: false, error: 'حسابك موقوف' }, 403, corsHeaders);
-        }
-        return json({ success: false, error: 'Invalid token' }, 401, corsHeaders);
-      }
-
-      const idempotencyKey = request.headers.get('Idempotency-Key');
-
-      // ✅ التعديل 2: User Profile — قبل User Endpoints
-      if (path === '/api/user/ensure-profile' && method === 'POST') {
-        return handleEnsureProfile(env, user, corsHeaders);
-      }
-
-      // User
-      if (path === '/api/wallet/deposit' && method === 'POST')
-        return handleWalletDeposit(request, env, user, idempotencyKey, corsHeaders);
-      if (path === '/api/wallet/usdt/invoice' && method === 'POST')
-        return handleUsdtInvoice(request, env, user, idempotencyKey, corsHeaders);
-      if (path === '/api/wallet/usdt/verify' && method === 'POST')
-        return handleUsdtVerify(request, env, user, corsHeaders);
-      if (path === '/api/mcard/request' && method === 'POST')
-        return handleMcardRequest(request, env, user, idempotencyKey, corsHeaders);
-      if (path === '/api/mcard/list' && method === 'POST')
-        return handleMcardList(env, user, corsHeaders);
-      if (path === '/api/mcard/reveal' && method === 'POST')
-        return handleMcardReveal(request, env, user, corsHeaders);
-      if (path === '/api/mcard/topup-request' && method === 'POST')
-        return handleMcardTopupRequest(request, env, user, idempotencyKey, corsHeaders);
-      if (path === '/api/vip/plans' && method === 'POST')
-        return handleVipPlans(env, corsHeaders);
-      if (path === '/api/vip/subscribe' && method === 'POST')
-        return handleVipSubscribe(request, env, user, idempotencyKey, corsHeaders);
-      if (path === '/api/vip/status' && method === 'POST')
-        return handleVipStatus(env, user, corsHeaders);
-      if (path === '/api/ticket/create' && method === 'POST')
-        return handleTicketCreate(request, env, user, idempotencyKey, corsHeaders);
-      if (path === '/api/ticket/list' && method === 'POST')
-        return handleTicketList(env, user, corsHeaders);
-      if (path === '/api/ticket/reply' && method === 'POST')
-        return handleTicketReply(request, env, user, corsHeaders);
-
-      // Admin check
-      const isAdmin = await checkAdmin(env, user.uid);
-      if (!isAdmin) {
-        return json({ success: false, error: 'Admin only' }, 403, corsHeaders);
-      }
-
-      // Admin
-      if (path === '/api/admin/wallet-adjust' && method === 'POST')
-        return handleWalletAdjust(request, env, user, idempotencyKey, corsHeaders);
-      if (path === '/api/admin/deposits/list' && method === 'POST')
-        return handleAdminDepositsList(request, env, corsHeaders);
-      if (path === '/api/admin/deposits/act' && method === 'POST')
-        return handleAdminDepositsAct(request, env, user, idempotencyKey, corsHeaders);
-      if (path === '/api/admin/users/list' && method === 'POST')
-        return handleAdminUsersList(request, env, corsHeaders);
-      if (path === '/api/admin/users/ban' && method === 'POST')
-        return handleAdminUsersBan(request, env, user, corsHeaders);
-      if (path === '/api/admin/mcard/list' && method === 'POST')
-        return handleAdminMcardList(request, env, corsHeaders);
-      if (path === '/api/admin/mcard/fulfil' && method === 'POST')
-        return handleAdminMcardFulfil(request, env, user, idempotencyKey, corsHeaders);
-      if (path === '/api/admin/mcard/reject' && method === 'POST')
-        return handleAdminMcardReject(request, env, user, idempotencyKey, corsHeaders);
-      if (path === '/api/admin/vip/plans' && method === 'POST')
-        return handleAdminVipPlans(env, corsHeaders);
-      if (path === '/api/admin/vip/save' && method === 'POST')
-        return handleAdminVipSave(request, env, user, corsHeaders);
-      if (path === '/api/admin/vip/list' && method === 'POST')
-        return handleAdminVipList(env, corsHeaders);
-      if (path === '/api/admin/ads/list' && method === 'POST')
-        return handleAdminAdsList(env, corsHeaders);
-      if (path === '/api/admin/ads/save' && method === 'POST')
-        return handleAdminAdsSave(request, env, user, corsHeaders);
-      if (path === '/api/admin/ads/delete' && method === 'POST')
-        return handleAdminAdsDelete(request, env, user, corsHeaders);
-      if (path === '/api/admin/stats' && method === 'POST')
-        return handleAdminStats(env, corsHeaders);
-      if (path === '/api/admin/tickets/list' && method === 'POST')
-        return handleAdminTicketsList(request, env, corsHeaders);
-      if (path === '/api/admin/tickets/reply' && method === 'POST')
-        return handleAdminTicketsReply(request, env, user, corsHeaders);
-      if (path === '/api/admin/tickets/close' && method === 'POST')
-        return handleAdminTicketsClose(request, env, user, corsHeaders);
-      if (path === '/api/admin/settings' && method === 'POST')
-        return handleAdminSettings(request, env, user, corsHeaders);
-
-      return json({ success: false, error: 'Not found' }, 404, corsHeaders);
-
-    } catch (error) {
-      console.error('Worker error:', error.message, error.stack);
-      return json({ success: false, error: 'Internal error' }, 500, corsHeaders);
-    }
-  }
-};
+function b64urlToBytes(s) {
+  const b64 = s.replace(/-/g, '+').replace(/_/g, '/');
+  const raw = atob(b64 + '='.repeat((4 - b64.length % 4) % 4));
+  return Uint8Array.from(raw, c => c.charCodeAt(0));
+       }
