@@ -3,767 +3,605 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<meta name="theme-color" content="#0A0E17">
+<meta name="theme-color" content="#176B4D">
 <meta name="description" content="كاردو — بطاقات افتراضية وخدمات رقمية في ليبيا.">
-<title>كاردو — بطاقات افتراضية</title>
+<title>كاردو — بطاقات وخدمات رقمية</title>
 
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Tajawal:wght@400;500;700;800;900&family=IBM+Plex+Mono:wght@400;500&display=swap">
-
-<style>
-:root{
-  --bg:#0A0E17;
-  --s1:#111725;
-  --s2:#161D2E;
-  --s3:#1C2436;
-  --line:#212B3D;
-  --line-2:#2B3648;
-
-  --tx:#EEF2F8;
-  --tx-2:#97A5BD;
-  --tx-3:#65748F;
-
-  --g:#10B981;
-  --g-d:#0E9E70;
-  --g-l:#34D399;
-  --g-soft:rgba(16,185,129,.13);
-  --g-line:rgba(16,185,129,.28);
-
-  --warn:#E0A030;
-  --warn-soft:rgba(224,160,48,.13);
-  --bad:#EF5F5F;
-  --bad-soft:rgba(239,95,95,.13);
-
-  --r-s:10px;
-  --r:14px;
-  --r-l:18px;
-
-  --spring:cubic-bezier(.34,1.35,.44,1);
-  --ease:cubic-bezier(.22,1,.36,1);
-  --swift:cubic-bezier(.4,0,.2,1);
-
-  --bar-h:64px;
-  --dock-h:66px;
-}
-
-*{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
-html{-webkit-text-size-adjust:100%}
-body{
-  font-family:'Tajawal',system-ui,-apple-system,'Segoe UI',sans-serif;
-  font-feature-settings:'lnum' 1,'tnum' 1;
-  background:var(--bg);color:var(--tx);
-  font-size:15px;line-height:1.6;
-  -webkit-font-smoothing:antialiased;
-  overflow-x:hidden;
-}
-body::before{
-  content:'';position:fixed;inset:0;pointer-events:none;z-index:0;
-  background:
-    radial-gradient(56vw 40vh at 90% -8%, rgba(16,185,129,.09), transparent 58%),
-    radial-gradient(44vw 34vh at -6% 4%, rgba(60,110,200,.055), transparent 56%);
-}
-button{font:inherit;color:inherit;background:none;border:none;cursor:pointer}
-input,select,textarea{font:inherit;color:inherit;width:100%}
-a{color:inherit;text-decoration:none}
-img{max-width:100%;display:block}
-:focus-visible{outline:2px solid var(--g);outline-offset:3px;border-radius:8px}
-::selection{background:var(--g);color:#04121B}
-::-webkit-scrollbar{width:6px;height:6px}
-::-webkit-scrollbar-thumb{background:var(--line-2);border-radius:8px}
-
-svg{width:20px;height:20px;flex:none;display:inline-block;vertical-align:middle}
-svg[data-lg]{width:26px;height:26px}
-
-.mono{font-family:'IBM Plex Mono',ui-monospace,monospace;font-feature-settings:'lnum' 1}
-.num{font-variant-numeric:tabular-nums lining-nums;letter-spacing:-.015em;font-weight:700}
-
-/* ─── Layout ─────────────────────────────── */
-#app{display:none;position:relative;z-index:1}
-.shell{display:grid;grid-template-columns:1fr;min-height:100vh}
-@media(min-width:1024px){.shell{grid-template-columns:1fr 258px}}
-
-.rail{display:none;grid-column:2;position:sticky;top:0;height:100vh;
-  flex-direction:column;padding:22px 14px;border-inline-start:1px solid var(--line)}
-@media(min-width:1024px){.rail{display:flex}}
-
-.main{grid-column:1;min-width:0;
-  padding-bottom:calc(var(--dock-h) + env(safe-area-inset-bottom) + 12px)}
-@media(min-width:1024px){.main{padding-bottom:32px}}
-
-.wrap{padding:16px;max-width:1080px;margin:0 auto}
-@media(min-width:640px){.wrap{padding:22px}}
-
-/* ─── Header ─────────────────────────────── */
-.bar{
-  position:sticky;top:0;z-index:40;height:var(--bar-h);
-  display:flex;align-items:center;gap:12px;padding:0 16px;
-  background:rgba(10,14,23,.82);
-  backdrop-filter:blur(18px) saturate(160%);
-  -webkit-backdrop-filter:blur(18px) saturate(160%);
-  border-bottom:1px solid var(--line);
-}
-.bar-logo{display:flex;align-items:center;gap:9px;margin-inline-end:auto;
-  padding:6px 8px;border-radius:12px;transition:.16s}
-.bar-logo:hover{background:var(--s2)}
-.bar-logo:active{transform:scale(.97)}
-.bar-logo .txt{font-size:17px;font-weight:800;letter-spacing:-.02em}
-.iconbtn{width:40px;height:40px;border-radius:12px;flex:none;
-  display:grid;place-items:center;color:var(--tx-2);
-  border:1px solid transparent;transition:.16s}
-.iconbtn:hover{background:var(--s2);color:var(--tx)}
-.iconbtn:active{transform:scale(.92)}
-.iconbtn.on{border-color:var(--line-2);background:var(--s1)}
-.dotmark{position:absolute;top:8px;inset-inline-end:8px;width:7px;height:7px;
-  border-radius:50%;background:var(--g);box-shadow:0 0 0 2px var(--bg)}
-.rel{position:relative}
-.cbadge{position:absolute;top:-3px;inset-inline-end:-3px;min-width:18px;height:18px;
-  padding:0 5px;border-radius:99px;background:var(--g);color:#04121B;
-  font-size:10.5px;font-weight:800;display:grid;place-items:center;
-  animation:pop .3s var(--spring)}
-
-/* ─── Bottom dock ────────────────────────── */
-.dock{
-  position:fixed;inset:auto 0 0 0;z-index:50;display:grid;height:var(--dock-h);
-  padding-bottom:env(safe-area-inset-bottom);
-  background:rgba(10,14,23,.94);
-  backdrop-filter:blur(20px) saturate(160%);
-  -webkit-backdrop-filter:blur(20px) saturate(160%);
-  border-top:1px solid var(--line);
-}
-@media(min-width:1024px){.dock{display:none}}
-.dk{position:relative;display:flex;flex-direction:column;align-items:center;
-  justify-content:center;gap:4px;font-size:10.5px;font-weight:600;
-  color:var(--tx-3);transition:color .18s}
-.dk .dkico{transition:transform .28s var(--spring)}
-.dk::before{content:'';position:absolute;top:0;left:50%;width:26px;height:2.5px;
-  border-radius:0 0 4px 4px;background:var(--g);
-  transform:translateX(-50%) scaleX(0);transition:transform .3s var(--spring)}
-.dk.on{color:var(--g)}
-.dk.on::before{transform:translateX(-50%) scaleX(1)}
-.dk.on .dkico{transform:translateY(-3px)}
-.dk:active{transform:scale(.94)}
-
-/* ─── Sidebar nav ────────────────────────── */
-.brand{display:flex;align-items:center;gap:10px;padding:0 6px;margin-bottom:22px}
-.brand .en{font-size:19px;font-weight:800;letter-spacing:-.03em;line-height:1.1}
-.brand .ar{font-size:11px;color:var(--tx-3)}
-.nav{display:flex;align-items:center;gap:12px;width:100%;padding:11px 12px;
-  border-radius:var(--r-s);color:var(--tx-2);font-size:14px;font-weight:600;
-  position:relative;margin-bottom:2px;transition:.16s}
-.nav:hover{background:var(--s1);color:var(--tx)}
-.nav.on{background:var(--s2);color:var(--tx)}
-.nav.on::before{content:'';position:absolute;inset-inline-start:0;top:24%;bottom:24%;
-  width:3px;border-radius:99px;background:var(--g)}
-.nav.on svg{color:var(--g)}
-.nav .cnt{margin-inline-start:auto;min-width:20px;height:20px;padding:0 6px;
-  border-radius:99px;background:var(--g);color:#04121B;
-  font-size:11px;font-weight:800;display:grid;place-items:center}
-.rail-foot{margin-top:auto;padding-top:16px;border-top:1px solid var(--line)}
-
-/* ─── Type ───────────────────────────────── */
-.h1{font-size:24px;font-weight:800;letter-spacing:-.032em;line-height:1.24}
-.h2{font-size:17px;font-weight:800;letter-spacing:-.02em}
-.h3{font-size:14.5px;font-weight:700}
-.sub{color:var(--tx-2);font-size:13.5px}
-.eyebrow{font-size:11px;font-weight:800;letter-spacing:.1em;
-  color:var(--tx-3);text-transform:uppercase}
-.lbl{display:block;font-size:12.5px;font-weight:700;color:var(--tx-2);margin-bottom:8px}
-
-.sec-head{display:flex;justify-content:space-between;align-items:baseline;
-  margin:24px 0 13px}
-.sec-head:first-child{margin-top:0}
-.more-link{color:var(--g);font-weight:700;font-size:13px}
-
-/* ─── Surfaces ───────────────────────────── */
-.card{background:var(--s1);border:1px solid var(--line);
-  border-radius:var(--r);padding:16px}
-.card-q{background:var(--s1);border:1px solid var(--line);
-  border-radius:var(--r);padding:14px}
-
-/* ─── Banner ─────────────────────────────── */
-.bnr{position:relative;border-radius:var(--r-l);overflow:hidden;margin-bottom:16px}
-.bnr-track{display:flex;overflow-x:auto;scroll-snap-type:x mandatory;
-  -webkit-overflow-scrolling:touch;scrollbar-width:none}
-.bnr-track::-webkit-scrollbar{display:none}
-.bnr-slide{position:relative;flex:0 0 100%;scroll-snap-align:center;
-  aspect-ratio:2.4;background:var(--s2)}
-.bnr-slide img{width:100%;height:100%;object-fit:cover}
-.bnr-body{position:absolute;inset:0;display:flex;flex-direction:column;
-  justify-content:center;gap:6px;padding:20px;
-  background:linear-gradient(275deg,transparent 8%,rgba(10,14,23,.86) 62%)}
-.bnr-t{font-size:19px;font-weight:800;letter-spacing:-.03em;line-height:1.25}
-.bnr-s{font-size:12.5px;color:var(--tx-2)}
-.bnr-cta{align-self:flex-start;margin-top:6px;padding:8px 16px;border-radius:99px;
-  background:var(--g);color:#04121B;font-size:12.5px;font-weight:800}
-.bnr-dots{position:absolute;bottom:10px;inset-inline-start:0;inset-inline-end:0;
-  display:flex;justify-content:center;gap:5px}
-.bnr-dots span{width:5px;height:5px;border-radius:99px;
-  background:rgba(255,255,255,.32);transition:.25s}
-.bnr-dots span.on{width:16px;background:var(--g)}
-
-/* ─── Wallet card ────────────────────────── */
-.wallet{position:relative;overflow:hidden;border-radius:var(--r-l);
-  padding:18px;margin-bottom:16px;border:1px solid var(--g-line);
-  background:
-    radial-gradient(120% 130% at 92% 0%, rgba(16,185,129,.16), transparent 60%),
-    linear-gradient(160deg,#14202F 0%,#0D1420 100%);
-  box-shadow:inset 0 1px 0 rgba(255,255,255,.05),0 16px 36px -24px rgba(0,0,0,.9)}
-.wallet > *{position:relative;z-index:2}
-.wallet::after{content:'';position:absolute;inset-block:-30%;inset-inline-end:-12%;
-  width:46%;background:var(--g);opacity:.09;
-  clip-path:polygon(0 0,100% 22%,46% 50%,100% 78%,0 100%)}
-.wallet-top{display:flex;justify-content:space-between;align-items:center;
-  margin-bottom:14px}
-.wallet-ico{width:38px;height:38px;border-radius:12px;display:grid;place-items:center;
-  background:var(--g-soft);color:var(--g)}
-.wallet-bal{font-size:clamp(30px,9vw,38px);font-weight:800;letter-spacing:-.04em;
-  line-height:1;font-variant-numeric:tabular-nums lining-nums}
-.wallet-sub{color:var(--tx-2);font-size:12.5px;margin-top:5px}
-
-/* Wallet action row */
-.wacts{display:grid;grid-template-columns:repeat(4,1fr);gap:6px}
-.wact{display:flex;flex-direction:column;align-items:center;gap:6px;
-  padding:11px 4px;border-radius:12px;font-size:10.5px;font-weight:700;
-  color:var(--tx-2);transition:.16s}
-.wact-i{width:38px;height:38px;border-radius:12px;display:grid;place-items:center;
-  background:var(--s3);color:var(--tx-2);transition:.16s}
-.wact:hover{color:var(--tx)}
-.wact:hover .wact-i{background:var(--g-soft);color:var(--g)}
-.wact:active{transform:scale(.94)}
-.wact.pri .wact-i{background:var(--g);color:#04121B}
-.wact.off{opacity:.4}
-
-/* Manual card list + mini card */
-.mclist{display:flex;flex-direction:column;gap:11px}
-.mccard{position:relative;overflow:hidden;border-radius:var(--r-l);
-  padding:17px;text-align:start;border:1px solid rgba(255,255,255,.09);
-  background:linear-gradient(158deg,#1A2740 0%,#101A2C 46%,#080D17 100%);
-  box-shadow:0 12px 26px -14px rgba(0,0,0,.75);
-  animation:rise .42s var(--ease) backwards;transition:transform .2s var(--spring)}
-.mccard:active{transform:scale(.98)}
-.mctop{display:flex;justify-content:space-between;align-items:center;margin-bottom:11px}
-.mcwm{font-size:13px;font-weight:800;letter-spacing:-.02em}
-.mcname{font-size:12px;color:var(--tx-2);margin-bottom:9px}
-.mcpan{font-size:14px;letter-spacing:.1em;color:#DCE5F2;margin-bottom:9px}
-.mcbal{font-size:19px;font-weight:800}
-
-/* ─── Buttons ────────────────────────────── */
-.btn{display:inline-flex;align-items:center;justify-content:center;gap:8px;
-  padding:12px 18px;border-radius:12px;font-weight:800;font-size:14px;
-  background:var(--g);color:#04121B;
-  box-shadow:0 1px 2px rgba(0,0,0,.3),0 8px 18px -10px rgba(16,185,129,.55);
-  transition:background .16s,transform .18s var(--spring),box-shadow .18s}
-.btn:hover:not(:disabled){background:var(--g-d)}
-.btn:active:not(:disabled){transform:scale(.97)}
-.btn:disabled{opacity:.42;cursor:not-allowed;box-shadow:none}
-.btn svg{width:17px;height:17px}
-.btn.line{background:transparent;border:1px solid var(--line-2);color:var(--tx);
-  box-shadow:none}
-.btn.line:hover:not(:disabled){background:var(--s2);border-color:var(--tx-3)}
-.btn.ghost{background:var(--s2);color:var(--tx);box-shadow:none}
-.btn.ghost:hover:not(:disabled){background:var(--s3)}
-.btn.risk{background:transparent;border:1px solid rgba(239,95,95,.35);
-  color:var(--bad);box-shadow:none}
-.btn.wide{width:100%}
-.btn.sm{padding:9px 14px;font-size:12.5px;border-radius:10px}
-.btn.sm svg{width:15px;height:15px}
-.btn.lg{padding:15px 22px;font-size:15.5px;border-radius:14px}
-
-/* Quick actions */
-.quick{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:6px}
-.qbtn{display:flex;align-items:center;gap:11px;padding:14px;border-radius:var(--r);
-  border:1px solid var(--line);background:var(--s1);text-align:start;transition:.18s}
-.qbtn:hover{border-color:var(--g);background:var(--s2)}
-.qbtn:active{transform:scale(.98)}
-.qbtn .qi{width:38px;height:38px;border-radius:11px;flex:none;display:grid;
-  place-items:center;background:var(--s3);color:var(--tx-2);transition:.18s}
-.qbtn:hover .qi{background:var(--g-soft);color:var(--g)}
-.qbtn.pri .qi{background:var(--g-soft);color:var(--g)}
-.qbtn .qt{font-size:13.5px;font-weight:700}
-.qbtn .qs{font-size:11px;color:var(--tx-3)}
-
-/* ─── Chips & badges ─────────────────────── */
-.chip{display:inline-flex;align-items:center;gap:5px;padding:3px 9px;
-  border-radius:99px;font-size:11px;font-weight:700;white-space:nowrap}
-.chip.ok{background:var(--g-soft);color:var(--g)}
-.chip.wait{background:var(--warn-soft);color:var(--warn)}
-.chip.bad{background:var(--bad-soft);color:var(--bad)}
-.chip.off{background:var(--s3);color:var(--tx-3)}
-
-/* ─── Categories ─────────────────────────── */
-.cats{display:grid;grid-template-columns:repeat(4,1fr);gap:9px}
-@media(max-width:400px){.cats{grid-template-columns:repeat(2,1fr)}}
-.cat{position:relative;display:flex;flex-direction:column;align-items:center;
-  gap:8px;padding:15px 8px;border-radius:var(--r);border:1px solid var(--line);
-  background:var(--s1);transition:.18s;overflow:hidden;
-  animation:rise .42s var(--ease) backwards}
-.cat:hover{border-color:var(--g);background:var(--s2);transform:translateY(-2px)}
-.cat:active{transform:scale(.97)}
-.cat.soon{opacity:.55}
-.cat.soon:hover{border-color:var(--line);transform:none}
-.cat-i{width:42px;height:42px;border-radius:13px;display:grid;place-items:center;
-  background:var(--s3);color:var(--g);overflow:hidden;flex:none}
-.cat-i img{width:100%;height:100%;object-fit:cover}
-.cat-i svg{width:21px;height:21px}
-.cat-n{font-size:12px;font-weight:700;text-align:center;line-height:1.3}
-.cat-s{font-size:9.5px;color:var(--tx-3);text-align:center;line-height:1.3}
-.soonbadge{position:absolute;top:6px;inset-inline-start:6px;z-index:3;
-  font-size:9px;font-weight:800;padding:2px 6px;border-radius:99px;
-  background:var(--g);color:#04121B}
-
-/* Horizontal category rail — home */
-.catrail{display:flex;gap:9px;overflow-x:auto;padding:2px 16px 6px;margin:0 -16px;
-  scroll-snap-type:x proximity;scrollbar-width:none}
-.catrail::-webkit-scrollbar{display:none}
-.catrail > *{flex:0 0 104px;scroll-snap-align:start}
-
-/* Two-up grid — category pages */
-.catgrid2{display:grid;grid-template-columns:repeat(2,1fr);gap:11px}
-@media(min-width:700px){.catgrid2{grid-template-columns:repeat(3,1fr)}}
-.cat.big{padding:18px 12px;gap:11px}
-.cat.big .cat-i{width:64px;height:64px;border-radius:17px}
-.cat.big .cat-i svg{width:29px;height:29px}
-.cat.big .cat-n{font-size:14px}
-.cat.big .cat-s{font-size:10.5px}
-.cat.more .cat-i{background:var(--g-soft);color:var(--g)}
-
-/* Breadcrumbs */
-.crumbs{display:flex;align-items:center;gap:5px;flex-wrap:wrap;
-  font-size:12px;color:var(--tx-3);margin-bottom:16px}
-.crumbs button{color:var(--tx-2);font-weight:600}
-.crumbs button:hover{color:var(--g)}
-.crumbs b{color:var(--tx);font-weight:700}
-.crumbs svg{width:13px;height:13px;opacity:.5}
-
-/* ─── Products ───────────────────────────── */
-.plist{display:flex;flex-direction:column;gap:9px}
-.prod{display:flex;align-items:center;gap:12px;width:100%;padding:11px;
-  border-radius:var(--r);border:1px solid var(--line);background:var(--s1);
-  text-align:start;transition:.18s;animation:rise .4s var(--ease) backwards;
-  position:relative}
-.prod:hover{border-color:var(--g);background:var(--s2)}
-.prod:active{transform:scale(.99)}
-.prod.out{opacity:.48}
-.prod-i{width:54px;height:54px;border-radius:12px;flex:none;overflow:hidden;
-  display:grid;place-items:center;background:var(--s3);color:var(--tx-3)}
-.prod-i img{width:100%;height:100%;object-fit:cover}
-.prod-b{flex:1;min-width:0;display:flex;flex-direction:column;gap:1px}
-.prod-n{font-size:14px;font-weight:700;overflow:hidden;
-  text-overflow:ellipsis;white-space:nowrap}
-.prod-s{font-size:11px;color:var(--tx-3)}
-.prod-prow{display:flex;align-items:baseline;gap:8px;margin-top:3px}
-.prod-p{font-size:15px;color:var(--g)}
-.prod-old{font-size:12px;color:var(--tx-3);text-decoration:line-through}
-.offbadge{position:absolute;top:8px;inset-inline-start:8px;
-  padding:2px 7px;border-radius:99px;font-size:10px;font-weight:800;
-  background:var(--bad);color:#fff;z-index:3}
-.prod-a{width:34px;height:34px;border-radius:11px;flex:none;display:grid;
-  place-items:center;background:var(--g-soft);color:var(--g);transition:.18s}
-.prod:hover .prod-a{background:var(--g);color:#04121B}
-
-/* Search & filter */
-.search{position:relative;margin-bottom:13px}
-.search svg{position:absolute;inset-inline-start:13px;top:50%;
-  transform:translateY(-50%);color:var(--tx-3);width:17px;height:17px}
-.search input{padding:12px 40px 12px 13px}
-.pills{display:flex;gap:7px;overflow-x:auto;padding-bottom:5px;margin-bottom:14px;
-  scrollbar-width:none}
-.pills::-webkit-scrollbar{display:none}
-.pill{flex:none;padding:8px 14px;border-radius:99px;font-size:12.5px;font-weight:700;
-  border:1px solid var(--line);background:var(--s1);color:var(--tx-2);transition:.16s}
-.pill:hover{border-color:var(--line-2);color:var(--tx)}
-.pill.on{background:var(--g);border-color:var(--g);color:#04121B}
-.pill:active{transform:scale(.96)}
-
-/* Cart items */
-.citem{display:flex;gap:12px;padding:12px;border-radius:var(--r);
-  border:1px solid var(--line);background:var(--s1);
-  animation:rise .34s var(--ease) backwards}
-.citem-i{width:56px;height:56px;border-radius:13px;flex:none;overflow:hidden;
-  display:grid;place-items:center;background:var(--s3);color:var(--tx-3)}
-.citem-i img{width:100%;height:100%;object-fit:cover}
-.citem-n{font-size:14px;font-weight:700;overflow:hidden;
-  text-overflow:ellipsis;white-space:nowrap}
-.citem-q{display:inline-flex;align-items:center;gap:2px;margin-top:7px;
-  border:1px solid var(--line-2);border-radius:9px;background:var(--s2)}
-.citem-q button{width:30px;height:28px;display:grid;place-items:center;
-  font-size:16px;color:var(--tx-2)}
-.citem-q button:hover{background:var(--s3);color:var(--tx)}
-.citem-q .num{min-width:26px;text-align:center;font-size:13.5px}
-.citem-x{width:30px;height:30px;border-radius:9px;margin-top:8px;
-  display:grid;place-items:center;color:var(--tx-3);transition:.16s}
-.citem-x:hover{background:var(--bad-soft);color:var(--bad)}
-
-/* Countdown card — shown on prorated subscriptions */
-.cdcard{border:1px solid var(--g-line);border-radius:var(--r);padding:15px;
-  margin-bottom:14px;
-  background:linear-gradient(160deg,rgba(16,185,129,.09),rgba(16,185,129,.02))}
-.cdtop{display:flex;justify-content:space-between;align-items:flex-start;
-  margin-bottom:12px}
-.cddays{font-size:30px;font-weight:800;letter-spacing:-.04em;line-height:1;
-  color:var(--g);font-variant-numeric:tabular-nums}
-.cddays span{font-size:14px;font-weight:700;color:var(--tx-2);margin-inline-start:5px}
-.cdicon{width:36px;height:36px;border-radius:11px;display:grid;place-items:center;
-  background:var(--g-soft);color:var(--g)}
-.cdbar{height:5px;border-radius:99px;background:var(--s3);overflow:hidden}
-.cdbar i{display:block;height:100%;border-radius:99px;background:var(--g);
-  transition:width .6s var(--ease)}
-.cdrow{display:flex;justify-content:space-between;font-size:11.5px;
-  color:var(--tx-3);margin-top:7px}
-.cdcalc{display:flex;align-items:baseline;gap:6px;flex-wrap:wrap;
-  margin-top:12px;padding-top:11px;border-top:1px dashed var(--line-2);
-  font-size:12.5px;color:var(--tx-2)}
-.cdcalc .num{font-size:14.5px;color:var(--tx)}
-
-.cdchip{display:inline-flex;align-items:center;gap:4px;color:var(--g);font-weight:700}
-.cdchip svg{width:12px;height:12px}
-.perday{font-size:11px;color:var(--tx-3)}
-
-/* ─── Inputs ─────────────────────────────── */
-.inp{background:var(--s2);border:1px solid var(--line-2);border-radius:12px;
-  padding:13px;color:var(--tx);font-size:15px;transition:.16s}
-.inp::placeholder{color:var(--tx-3)}
-.inp:hover:not(:focus){border-color:var(--tx-3)}
-.inp:focus{outline:none;border-color:var(--g);background:var(--s3);
-  box-shadow:0 0 0 3px var(--g-soft)}
-.inp.bad{border-color:var(--bad)}
-select.inp{appearance:none;background-image:
-  linear-gradient(45deg,transparent 50%,var(--tx-2) 50%),
-  linear-gradient(135deg,var(--tx-2) 50%,transparent 50%);
-  background-position:14px 21px,20px 21px;background-size:6px 6px;
-  background-repeat:no-repeat}
-textarea.inp{resize:vertical;line-height:1.65}
-
-/* Amount chips */
-.amts{display:grid;grid-template-columns:repeat(4,1fr);gap:8px}
-.amt{padding:13px 4px;border:1.5px solid var(--line-2);border-radius:12px;
-  background:var(--s2);font-weight:800;font-size:15px;text-align:center;
-  transition:.16s;font-variant-numeric:tabular-nums}
-.amt:hover{border-color:var(--tx-3)}
-.amt:active{transform:scale(.96)}
-.amt.on{border-color:var(--g);background:var(--g-soft);color:var(--g);
-  animation:pop .3s var(--spring)}
-
-/* Quantity */
-.qty{display:flex;align-items:center;border:1px solid var(--line-2);
-  border-radius:12px;overflow:hidden;flex:none;background:var(--s2)}
-.qty .num{min-width:44px;text-align:center;font-size:16px}
-.qty button{width:40px;height:42px;display:grid;place-items:center;
-  font-size:19px;color:var(--tx-2);transition:.15s}
-.qty button:hover{background:var(--s3);color:var(--tx)}
-.qty button:active{transform:scale(.9)}
-
-/* ─── Lists ──────────────────────────────── */
-.list{border:1px solid var(--line);border-radius:var(--r);overflow:hidden;
-  background:var(--s1)}
-.row{display:flex;align-items:center;gap:12px;padding:13px 14px;
-  border-bottom:1px solid var(--line);transition:background .15s}
-.row:last-child{border-bottom:none}
-.row:hover{background:var(--s2)}
-.row-i{width:38px;height:38px;border-radius:11px;flex:none;display:grid;
-  place-items:center;background:var(--s3);color:var(--tx-2);overflow:hidden}
-.row-i img{width:100%;height:100%;object-fit:cover}
-.row-b{flex:1;min-width:0}
-.row-t{font-size:13.5px;font-weight:700;overflow:hidden;
-  text-overflow:ellipsis;white-space:nowrap}
-.row-s{font-size:11.5px;color:var(--tx-3)}
-.row-v{text-align:start;flex:none}
-.row-a{font-size:14px;font-weight:800}
-.row-a.in{color:var(--g)}
-
-/* Menu rows */
-.menu{display:flex;flex-direction:column;gap:2px}
-.mrow{display:flex;align-items:center;gap:13px;width:100%;padding:14px;
-  border-radius:12px;text-align:start;transition:.16s;
-  animation:slideIn .34s var(--ease) backwards}
-.mrow:hover{background:var(--s2)}
-.mrow:active{transform:scale(.99)}
-.mrow-i{width:36px;height:36px;border-radius:11px;flex:none;display:grid;
-  place-items:center;background:var(--s2);color:var(--tx-2)}
-.mrow:hover .mrow-i{background:var(--g-soft);color:var(--g)}
-.mrow-t{flex:1;font-size:14px;font-weight:700}
-.mrow-x{color:var(--tx-3)}
-.mrow.danger .mrow-i{color:var(--bad)}
-.mrow.danger .mrow-t{color:var(--bad)}
-
-/* ─── Stats ──────────────────────────────── */
-.stats{display:grid;grid-template-columns:repeat(3,1fr);
-  border:1px solid var(--line);border-radius:var(--r);overflow:hidden;
-  background:var(--s1)}
-.stat{padding:14px 12px;border-inline-end:1px solid var(--line);min-width:0}
-.stat:last-child{border-inline-end:none}
-.stat .v{font-size:19px;font-weight:800;letter-spacing:-.03em}
-.stat .k{font-size:10.5px;color:var(--tx-3);margin-top:2px;
-  overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-
-/* ─── Quote box ──────────────────────────── */
-.quote{background:var(--s2);border:1px solid var(--line);border-radius:12px;
-  padding:14px;margin-top:14px}
-.qrow{display:flex;justify-content:space-between;padding:6px 0;font-size:13.5px}
-.qrow .k{color:var(--tx-2)}
-.qrow.tot{border-top:1px dashed var(--line-2);margin-top:8px;padding-top:11px;
-  font-weight:800;font-size:16px}
-
-/* ─── Copy rows ──────────────────────────── */
-.cprow{display:flex;align-items:center;justify-content:space-between;gap:12px;
-  width:100%;padding:14px;border-radius:13px;text-align:start;
-  background:var(--s2);border:1px solid var(--line);transition:.16s}
-.cprow:hover{border-color:var(--g);background:var(--s3)}
-.cprow:active{transform:scale(.99)}
-.cpk{font-size:11.5px;color:var(--tx-3);margin-bottom:2px}
-.cpv{font-size:14px;font-weight:700;word-break:break-all;line-height:1.45}
-.cpi{width:36px;height:36px;border-radius:11px;flex:none;display:grid;
-  place-items:center;background:var(--s3);color:var(--tx-2)}
-.cprow:hover .cpi{background:var(--g);color:#04121B}
-
-/* ─── Virtual card ───────────────────────── */
-.vcard{position:relative;aspect-ratio:1.586;border-radius:var(--r-l);
-  overflow:hidden;padding:17px;display:flex;flex-direction:column;cursor:pointer;
-  background:
-    linear-gradient(102deg,rgba(255,255,255,.04) 0%,transparent 20%,
-                    transparent 80%,rgba(255,255,255,.03) 100%),
-    linear-gradient(158deg,#1A2740 0%,#101A2C 46%,#080D17 100%);
-  border:1px solid rgba(255,255,255,.09);
-  transform-style:preserve-3d;will-change:transform;backface-visibility:hidden;
-  box-shadow:0 1px 0 rgba(255,255,255,.06) inset,
-             0 12px 26px -12px rgba(0,0,0,.75),
-             0 0 50px -24px rgba(16,185,129,.3);
-  transition:transform .45s var(--ease),box-shadow .45s var(--ease);
-  animation:cardin .68s var(--spring) backwards}
-.vcard::after{content:'';position:absolute;inset-block:-18%;inset-inline-start:-10%;
-  width:56%;background:var(--g);opacity:.15;
-  clip-path:polygon(0 0,100% 22%,46% 50%,100% 78%,0 100%)}
-.vcard::before{content:'';position:absolute;inset:-40%;z-index:3;pointer-events:none;
-  background:linear-gradient(108deg,transparent 43%,rgba(255,255,255,.14) 50%,
-                             transparent 57%);
-  transform:translateX(-120%);transition:transform .9s var(--ease)}
-.vcard:hover{transform:translateY(-6px);
-  box-shadow:0 1px 0 rgba(255,255,255,.09) inset,
-             0 22px 44px -18px rgba(0,0,0,.9),
-             0 0 80px -22px rgba(16,185,129,.45)}
-.vcard:hover::before{transform:translateX(120%)}
-.vcard.tilt{transform:perspective(900px) rotateX(var(--rx,0)) rotateY(var(--ry,0))
-  translateY(-4px);transition:transform .12s linear}
-.vcard.frozen{background:linear-gradient(158deg,#22304A,#161F2E)}
-.vcard.frozen::after{background:#7D93B5;opacity:.13}
-.vcard.dead{opacity:.5;filter:saturate(.35)}
-.vcard > *{position:relative;z-index:2}
-.vc-top{display:flex;justify-content:space-between;align-items:flex-start}
-.vc-wm{font-size:14px;font-weight:800;letter-spacing:-.02em}
-.vc-chip{width:33px;height:25px;border-radius:5px;margin:auto 0 11px;
-  background:linear-gradient(115deg,#F0F4F3,#B9C8C7 22%,#E8EEED 40%,
-                             #9FB2B1 62%,#DDE5E4 80%,#A8BAB9);
-  box-shadow:inset 0 0 0 .5px rgba(0,0,0,.22)}
-.vc-pan{font-size:14.5px;letter-spacing:.11em;color:#DCE5F2}
-.vc-foot{display:flex;justify-content:space-between;align-items:flex-end;margin-top:11px}
-.vc-thru{font-size:8px;letter-spacing:.14em;color:var(--tx-3);margin-bottom:3px}
-.vc-amt{font-size:19px;font-weight:800;letter-spacing:-.03em}
-.crail{display:flex;gap:13px;overflow-x:auto;padding:2px 16px 6px;margin:0 -16px;
-  scroll-snap-type:x mandatory;scrollbar-width:none}
-.crail::-webkit-scrollbar{display:none}
-.crail > *{flex:0 0 min(74vw,264px);scroll-snap-align:start}
-@media(min-width:700px){
-  .crail{display:grid;grid-template-columns:repeat(auto-fill,minmax(256px,1fr));
-    overflow:visible;margin:0;padding:0}
-  .crail > *{flex:none}
-}
-
-/* ─── Sheet ──────────────────────────────── */
-.ov{position:fixed;inset:0;z-index:120;background:rgba(4,7,13,.72);
-  display:none;align-items:flex-end;justify-content:center;
-  backdrop-filter:blur(4px);-webkit-backdrop-filter:blur(4px)}
-.ov.show{display:flex}
-@media(min-width:640px){.ov{align-items:center}}
-.sheet{background:var(--s1);border:1px solid var(--line);border-bottom:none;
-  width:100%;max-width:480px;border-radius:22px 22px 0 0;padding:20px;
-  max-height:92vh;overflow-y:auto;
-  animation:up .4s var(--ease);
-  box-shadow:0 -10px 44px -14px rgba(0,0,0,.9)}
-@media(min-width:640px){
-  .sheet{border-radius:var(--r-l);border-bottom:1px solid var(--line)}
-}
-.sheet::before{content:'';display:block;width:36px;height:4px;border-radius:99px;
-  background:var(--line-2);margin:-6px auto 14px}
-@media(min-width:640px){.sheet::before{display:none}}
-.sheet > *{animation:slideIn .32s var(--ease) backwards}
-.sheet > *:nth-child(2){animation-delay:.035s}
-.sheet > *:nth-child(3){animation-delay:.07s}
-.sheet > *:nth-child(n+4){animation-delay:.1s}
-.sheet-head{display:flex;align-items:center;gap:12px;margin-bottom:18px;
-  padding-bottom:14px;border-bottom:1px solid var(--line)}
-
-/* ─── Toast ──────────────────────────────── */
-#toasts{position:fixed;top:14px;left:50%;transform:translateX(-50%);z-index:200;
-  display:flex;flex-direction:column;gap:8px;width:min(92vw,400px)}
-.toast{background:var(--s3);border:1px solid var(--line-2);padding:13px 15px;
-  border-radius:12px;font-size:13.5px;display:flex;gap:10px;align-items:flex-start;
-  box-shadow:0 16px 38px -14px rgba(0,0,0,.9);
-  animation:tin .3s var(--spring)}
-.toast.ok{border-color:var(--g-line)}
-.toast.ok svg{color:var(--g)}
-.toast.bad{border-color:rgba(239,95,95,.4)}
-.toast.bad svg{color:var(--bad)}
-
-/* ─── States ─────────────────────────────── */
-.sk{background:linear-gradient(90deg,var(--s2) 25%,var(--s3) 37%,var(--s2) 63%);
-  background-size:400% 100%;animation:sh 1.4s ease infinite;border-radius:8px}
-@keyframes sh{0%{background-position:100% 0}100%{background-position:0 0}}
-.empty{text-align:center;padding:42px 20px;color:var(--tx-2)}
-.empty .ei{width:58px;height:58px;border-radius:17px;margin:0 auto 14px;
-  display:grid;place-items:center;background:var(--s2);color:var(--tx-3)}
-.empty .ei svg{width:25px;height:25px}
-.empty .et{font-weight:800;color:var(--tx);font-size:15px;margin-bottom:5px}
-.note{background:var(--warn-soft);border:1px solid rgba(224,160,48,.24);
-  color:#F0C878;padding:12px 14px;border-radius:12px;font-size:13px;margin-bottom:14px}
-.note.bad{background:var(--bad-soft);border-color:rgba(239,95,95,.28);color:#F5A0A0}
-
-/* ─── Table ──────────────────────────────── */
-.scrollx{overflow-x:auto;-webkit-overflow-scrolling:touch}
-.tbl{width:100%;border-collapse:collapse;font-size:13px}
-.tbl th{text-align:right;padding:11px 12px;color:var(--tx-3);font-size:11.5px;
-  font-weight:700;border-bottom:1px solid var(--line);white-space:nowrap}
-.tbl td{padding:12px;border-bottom:1px solid var(--line);white-space:nowrap}
-.tbl tr:last-child td{border-bottom:none}
-.tbl tbody tr{transition:background .15s}
-.tbl tbody tr:hover{background:var(--s2)}
-
-/* ─── Steps ──────────────────────────────── */
-.steps{display:flex;align-items:center;gap:7px;margin-bottom:20px}
-.sdot{width:27px;height:27px;border-radius:50%;display:grid;place-items:center;
-  font-size:12px;font-weight:800;background:var(--s3);color:var(--tx-3);
-  flex:none;transition:.25s}
-.sdot.on{background:var(--g);color:#04121B}
-.sdot.done{background:var(--g-soft);color:var(--g)}
-.sline{height:2px;flex:1;background:var(--line-2);border-radius:2px;transition:.3s}
-.sline.on{background:var(--g)}
-
-/* ─── Motion ─────────────────────────────── */
-@keyframes rise{from{opacity:0;transform:translate3d(0,14px,0) scale(.99)}
-  to{opacity:1;transform:none}}
-@keyframes slideIn{from{opacity:0;transform:translate3d(-14px,0,0)}
-  to{opacity:1;transform:none}}
-@keyframes up{from{transform:translateY(100%);opacity:.4}}
-@keyframes tin{from{opacity:0;transform:translateY(-12px)}}
-@keyframes pop{0%{transform:scale(1)}45%{transform:scale(1.08)}100%{transform:scale(1)}}
-@keyframes cardin{from{opacity:0;
-  transform:perspective(900px) translate3d(0,26px,-70px) rotateX(9deg) scale(.95)}}
-@keyframes pulse{0%,100%{opacity:.3;transform:scale(.8)}50%{opacity:1;transform:scale(1)}}
-
-.wrap.anim > *{animation:rise .42s var(--ease) backwards}
-.wrap.anim > *:nth-child(2){animation-delay:.045s}
-.wrap.anim > *:nth-child(3){animation-delay:.09s}
-.wrap.anim > *:nth-child(4){animation-delay:.13s}
-.wrap.anim > *:nth-child(n+5){animation-delay:.16s}
-
-.cats .cat:nth-child(2){animation-delay:.05s}
-.cats .cat:nth-child(3){animation-delay:.1s}
-.cats .cat:nth-child(4){animation-delay:.15s}
-.plist .prod:nth-child(2){animation-delay:.04s}
-.plist .prod:nth-child(3){animation-delay:.08s}
-.plist .prod:nth-child(n+4){animation-delay:.11s}
-
-.autochk{display:flex;align-items:center;justify-content:center;gap:8px;
-  margin-top:14px;font-size:12px;color:var(--tx-3)}
-.autochk i{width:7px;height:7px;border-radius:50%;background:var(--g);
-  animation:pulse 1.6s ease-in-out infinite}
-
-@supports not (backdrop-filter:blur(1px)){
-  .bar,.dock{background:rgba(10,14,23,.97)}
-}
-
-/* Considered motion */
-.prod,.cat,.row,.mrow,.qbtn,.cprow,.citem{
-  transition:transform .16s var(--swift),
-             background .16s var(--swift),
-             border-color .16s var(--swift);
-}
-.prod:active,.cat:active,.row:active,.mrow:active,
-.qbtn:active,.cprow:active{transform:scale(.985)}
-
-.plist > *:nth-child(1){animation-delay:.02s}
-.plist > *:nth-child(2){animation-delay:.06s}
-.plist > *:nth-child(3){animation-delay:.1s}
-.plist > *:nth-child(4){animation-delay:.13s}
-.plist > *:nth-child(n+5){animation-delay:.16s}
-
-.list .row{animation:rise .34s var(--ease) backwards}
-.list .row:nth-child(2){animation-delay:.04s}
-.list .row:nth-child(3){animation-delay:.08s}
-.list .row:nth-child(n+4){animation-delay:.11s}
-
-.sec-head{animation:rise .38s var(--ease) backwards}
-
-.wallet-bal,.bal{transition:color .3s var(--swift)}
-
-@keyframes down{to{transform:translateY(100%);opacity:.3}}
-.ov.closing .sheet{animation:down .26s var(--swift) forwards}
-
-@keyframes settle{
-  0%{opacity:0;transform:translateY(10px) scale(.97)}
-  100%{opacity:1;transform:none}
-}
-.empty{animation:settle .46s var(--spring) backwards}
-.empty .ei{animation:settle .5s var(--spring) .08s backwards}
-
-.btn:disabled{transition:opacity .2s}
-.dk::before{transition:transform .32s var(--spring)}
-.catrail,.crail,.pills{scroll-behavior:smooth}
-
-@media(prefers-reduced-motion:reduce){
-  *{animation:none!important;transition:none!important}
-  .vcard::before{display:none}
-}
-.hide{display:none!important}
-@media(min-width:1024px){.lg-off{display:none}}
-</style>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Arabic:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<link rel="stylesheet" href="./styles.css">
 </head>
 <body>
 
-<div id="app">
-<div class="shell">
+<!-- ═══════════════════════════════════════════════════════
+     PUBLIC — قبل تسجيل الدخول
+     ═══════════════════════════════════════════════════════ -->
 
-  <aside class="rail">
-    <div class="brand">
-      <span id="railMark"></span>
-      <div><div class="en">Kardo</div><div class="ar">كاردو</div></div>
+<div id="public" style="display:none">
+
+  <!-- Top Navigation -->
+  <header class="bar">
+    <a href="/" class="bar-logo" aria-label="كاردو">
+      <svg width="26" height="26" viewBox="0 0 40 40" aria-hidden="true">
+        <rect width="40" height="40" rx="9" fill="#176B4D"/>
+        <path d="M11 9h4.4v22H11z" fill="#FFFFFF"/>
+        <path d="M17 20.2 27.5 9H33L22.4 20.2 33 31h-5.6z" fill="#FFFFFF"/>
+        <rect x="19" y="15.6" width="12.4" height="8.8" rx="2" fill="#176B4D"/>
+        <rect x="21" y="18.4" width="3.4" height="2.6" rx=".7" fill="#E8F3EE" opacity=".9"/>
+      </svg>
+      <span>كاردو</span>
+    </a>
+
+    <nav class="hidden" style="display:flex;gap:4px;margin-right:24px" data-nav="desktop">
+      <a href="#features" style="padding:8px 14px;border-radius:8px;font-size:14px;font-weight:500;color:var(--text-2)">الخدمات</a>
+      <a href="#pricing" style="padding:8px 14px;border-radius:8px;font-size:14px;font-weight:500;color:var(--text-2)">الباقات</a>
+      <a href="#faq" style="padding:8px 14px;border-radius:8px;font-size:14px;font-weight:500;color:var(--text-2)">الأسئلة</a>
+    </nav>
+
+    <div class="bar-actions">
+      <button class="btn btn-ghost btn-sm" onclick="location.href='login.html'">تسجيل الدخول</button>
+      <button class="btn btn-primary btn-sm" onclick="location.href='login.html?mode=signup'">إنشاء حساب</button>
     </div>
-    <nav id="navRail"></nav>
-    <div class="rail-foot">
-      <div style="display:flex;align-items:center;gap:11px;padding:0 4px 12px">
-        <div id="av" style="width:36px;height:36px;border-radius:12px;flex:none;
-             background:var(--g-soft);color:var(--g);display:grid;
-             place-items:center;font-weight:800;font-size:14px"></div>
-        <div style="min-width:0">
-          <div id="railName" style="font-size:13px;font-weight:700;overflow:hidden;
-               text-overflow:ellipsis;white-space:nowrap"></div>
-          <div id="railBal" class="num" style="font-size:12.5px;color:var(--g)"></div>
+  </header>
+
+  <!-- Hero -->
+  <section class="section" style="padding-top:48px">
+    <div class="container">
+      <div style="display:grid;grid-template-columns:1fr;gap:48px;align-items:center">
+
+        <div>
+          <div class="eyebrow" style="color:var(--brand);margin-bottom:12px">
+            بطاقات وخدمات رقمية
+          </div>
+
+          <h1 class="display" style="margin-bottom:20px">
+            بطاقتك الرقمية.<br>
+            بخطوات بسيطة.
+          </h1>
+
+          <p class="body-lg text-2" style="max-width:540px;margin-bottom:32px">
+            أضف رصيدك، أصدر بطاقة فيزا، واشترك في خدماتك الرقمية المفضلة —
+            كل ذلك من مكان واحد.
+          </p>
+
+          <div style="display:flex;gap:12px;flex-wrap:wrap">
+            <button class="btn btn-primary btn-lg" onclick="location.href='login.html?mode=signup'">
+              إنشاء حساب
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 12H5M12 19l-7-7 7-7"/></svg>
+            </button>
+            <a href="#features" class="btn btn-secondary btn-lg">كيف تعمل؟</a>
+          </div>
+
+          <div style="display:flex;gap:24px;margin-top:40px;flex-wrap:wrap">
+            <div>
+              <div class="tabular" style="font-size:22px;font-weight:700">+2,400</div>
+              <div class="caption">مستخدم نشط</div>
+            </div>
+            <div>
+              <div class="tabular" style="font-size:22px;font-weight:700">+15,000</div>
+              <div class="caption">عملية ناجحة</div>
+            </div>
+            <div>
+              <div class="tabular" style="font-size:22px;font-weight:700">24/7</div>
+              <div class="caption">دعم متواصل</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Hero Card Preview -->
+        <div style="max-width:420px;width:100%;margin:0 auto">
+          <div class="vcard">
+            <div class="vcard-top">
+              <span class="vcard-brand">KARDO</span>
+              <span class="vcard-tier">Standard</span>
+            </div>
+
+            <div class="vcard-chip"></div>
+
+            <div class="vcard-number">5412 •••• •••• 4821</div>
+
+            <div class="vcard-foot">
+              <div class="vcard-field">
+                <div class="vcard-label">VALID THRU</div>
+                <div class="vcard-value">12/29</div>
+              </div>
+              <div class="vcard-field">
+                <div class="vcard-label">CARDHOLDER</div>
+                <div class="vcard-value">MOHAMED AHMED</div>
+              </div>
+              <svg class="vcard-brand-logo" viewBox="0 0 780 500" fill="currentColor" opacity=".9">
+                <path d="M385.5 402.3c-46.5 0-88.9-9.5-126-26.9l20.6-95.2c38.5 18.2 80.2 27.4 118 26.5 25.1-.6 42.4-7.3 42.4-18.6 0-12-15.3-19.6-51-30-38-11-87.3-28.2-89.7-79.7C297.1 128.2 328.3 99 412 96.6c39.9-.5 75.9 5.8 108 15.6l-20.4 94.2c-33.1-14.5-69.5-23.1-106.4-23.3-22.8-.1-37.4 5.5-37.4 15.8 0 11.3 19.1 17.5 54 28 42.5 12.7 90.4 31 89.7 84.4-.8 63.1-51.9 90.9-114 91z"/>
+                <path d="M625.2 398.7c-13.9-35.3-19.2-52.7-34.6-85.5h-113c-7.5 19.9-14.6 38.7-19.5 51.3l-.5 1.3-3.4 9.7c-1.3 3.4-2.7 7.3-4.1 11.4l-.7 2-.8 2.3H344l10.9-27.6c.3-.8.7-1.7 1-2.5l1.2-3 2.7-6.7c.4-1 .7-1.9 1.1-2.8l4.5-11.3c2.4-6 4.7-11.7 7-17.3l1.5-3.6c.3-.7.6-1.4.9-2.1l1.4-3.5c.2-.6.5-1.1.7-1.6l3.8-9.4c1.3-3.2 2.6-6.4 3.9-9.5l1.2-3c.4-1 .8-2 1.2-3l3.6-8.9c1.2-2.9 2.3-5.7 3.5-8.5l1-2.5c.5-1.2 1-2.5 1.5-3.7l2.9-7c.9-2.2 1.8-4.4 2.7-6.5l.9-2.2c.3-.8.6-1.5.9-2.2l2.2-5.2c.7-1.8 1.5-3.5 2.2-5.3l.7-1.7c.2-.6.5-1.2.7-1.7l1.7-4.1c.6-1.4 1.2-2.9 1.7-4.3l.5-1.3c.2-.6.5-1.2.7-1.7l1.3-3.2c.5-1.1.9-2.2 1.3-3.3l.3-.7c.1-.3.3-.7.4-1l.9-2.2c.4-1 .8-1.9 1.1-2.8l.2-.5c.1-.3.2-.5.3-.7.3-.7.5-1.3.7-1.9.2-.6.5-1.2.7-1.8l.1-.3c.2-.4.3-.8.5-1.2.1-.3.2-.7.3-1 .2-.5.3-1 .5-1.5.1-.4.3-.7.4-1.1.1-.3.2-.6.3-.9.1-.4.3-.7.4-1.1.1-.2.1-.4.2-.6.1-.3.2-.5.2-.8l.1-.3c0-.1.1-.2.1-.3.1-.2.1-.4.2-.5.1-.1.1-.3.2-.4v-.2c0-.1 0-.1.1-.2 0 0 0-.1 0 0h105.3l.1.2c.1.1.1.3.2.4 0 .1.1.3.1.4l.1.2c0 .1.1.2.1.2l.1.2c.1.2.2.4.2.5l.1.2c0 .1.1.2.1.3.1.2.1.4.2.6.1.2.1.4.2.6.1.3.2.6.3.8.1.3.2.6.3.8.1.4.3.7.4 1.1.1.3.2.6.3.9.1.3.2.7.4 1 .2.6.4 1.1.6 1.7.2.6.4 1.1.6 1.7.2.7.5 1.3.7 1.9.1.3.2.6.4 1 .2.7.5 1.3.7 1.9.2.6.4 1.2.6 1.8.3.8.6 1.6.9 2.5.2.5.4 1.1.6 1.6.3 1 .7 1.9 1 2.9.1.5.3.9.4 1.4.4 1.1.8 2.3 1.2 3.4.1.4.3.8.4 1.2.4 1.2.8 2.5 1.3 3.7.1.3.2.7.3 1 .5 1.4.9 2.7 1.4 4.1.1.3.2.6.3.9.5 1.5 1 3 1.5 4.4.1.3.2.7.3 1 .5 1.5 1 3 1.5 4.6.1.3.2.7.3 1 .5 1.5 1 3.1 1.5 4.6.1.4.3.8.4 1.2.5 1.6 1 3.1 1.5 4.7.1.4.3.8.4 1.2.5 1.6 1 3.1 1.4 4.7.2.5.3.9.4 1.4.5 1.5.9 3 1.3 4.5.2.5.3 1 .4 1.5.5 1.8 1 3.6 1.4 5.4h-105.3c-.3-1.2-.6-2.4-.9-3.6-.3-1.2-.7-2.4-1-3.6-.3-1.2-.7-2.5-1-3.7-.3-1.1-.6-2.3-.9-3.4-.4-1.4-.8-2.9-1.2-4.3-.3-1-.5-1.9-.8-2.9-.4-1.5-.8-3-1.2-4.5-.3-.9-.5-1.8-.7-2.7h-20.3c-4.8 0-8.8 3.4-9.7 8.1-.4 2-.8 4.1-1.2 6.1-.4 2.1-.9 4.1-1.3 6.2l-7.8 36.1c-.1.6-.3 1.1-.4 1.7h-88.4c.6-2.7 1.2-5.5 1.8-8.2z"/>
+              </svg>
+            </div>
+          </div>
+        </div>
+
+      </div>
+    </div>
+  </section>
+
+  <!-- Features -->
+  <section id="features" class="section" style="background:var(--surface);border-top:1px solid var(--border);border-bottom:1px solid var(--border)">
+    <div class="container">
+      <div class="section-head text-center" style="max-width:640px;margin:0 auto 48px">
+        <h2 class="h1">كل ما تحتاجه في مكان واحد</h2>
+        <p class="body text-2" style="margin-top:12px">
+          بدلاً من التعامل مع عدة تطبيقات، كل شيء في كاردو.
+        </p>
+      </div>
+
+      <div class="grid-4">
+        <div class="card card-lg">
+          <div style="width:44px;height:44px;border-radius:12px;background:var(--brand-light);color:var(--brand);display:grid;place-items:center;margin-bottom:16px">
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="5" width="20" height="14" rx="2"/><path d="M2 10h20"/></svg>
+          </div>
+          <div class="h4" style="margin-bottom:8px">بطاقات افتراضية</h3>
+          <p class="body-sm text-2">
+            أصدر بطاقة فيزا افتراضية خلال دقائق، واستخدمها في أي موقع يقبل الدفع الإلكتروني.
+          </p>
+        </div>
+
+        <div class="card card-lg">
+          <div style="width:44px;height:44px;border-radius:12px;background:var(--brand-light);color:var(--brand);display:grid;place-items:center;margin-bottom:16px">
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M3 7.5A2.5 2.5 0 0 1 5.5 5H19a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H5.5A2.5 2.5 0 0 1 3 16.5z"/><path d="M16.5 12h1.5"/></svg>
+          </div>
+          <div class="h4" style="margin-bottom:8px">محفظة رقمية</h3>
+          <p class="body-sm text-2">
+            أضف رصيدك عبر ليبيانا، المدار، أو USDT — واستخدمه في كل خدماتنا.
+          </p>
+        </div>
+
+        <div class="card card-lg">
+          <div style="width:44px;height:44px;border-radius:12px;background:var(--brand-light);color:var(--brand);display:grid;place-items:center;margin-bottom:16px">
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>
+          </div>
+          <div class="h4" style="margin-bottom:8px">اشتراكات رقمية</h3>
+          <p class="body-sm text-2">
+            Netflix، Spotify، Shahid، وأكثر — بأسعار واضحة بالدينار الليبي.
+          </p>
+        </div>
+
+        <div class="card card-lg">
+          <div style="width:44px;height:44px;border-radius:12px;background:var(--brand-light);color:var(--brand);display:grid;place-items:center;margin-bottom:16px">
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2v20M17 6H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>
+          </div>
+          <div class="h4" style="margin-bottom:8px">تحويلات فورية</h3>
+          <p class="body-sm text-2">
+            حوّل أموالك بين مستخدمي كاردو بسرعة وأمان.
+          </p>
         </div>
       </div>
-      <button class="nav" id="railOut"></button>
     </div>
-  </aside>
+  </section>
 
-  <div class="main">
-    <header class="bar">
-      <button class="bar-logo" id="homeBtn" aria-label="الرئيسية">
-        <span id="barMark"></span>
-        <span class="txt">كاردو</span>
-      </button>
-      <button class="iconbtn rel" id="cartBtn" aria-label="السلة">
-        <span id="cartIco"></span>
-        <span class="cbadge" id="cartBadge" hidden>0</span>
-      </button>
-    </header>
-    <main class="wrap" id="view"></main>
+  <!-- Pricing / Plans -->
+  <section id="pricing" class="section">
+    <div class="container">
+      <div class="section-head text-center" style="max-width:640px;margin:0 auto 48px">
+        <h2 class="h1">الباقات</h2>
+        <p class="body text-2" style="margin-top:12px">
+          اختر الباقة المناسبة لاستخدامك.
+        </p>
+      </div>
+
+      <div class="grid-3" style="max-width:1000px;margin:0 auto">
+        <div class="card card-lg">
+          <div class="eyebrow" style="margin-bottom:8px">Basic</div>
+          <div class="h3" style="margin-bottom:8px">للبدء</div>
+          <div style="display:flex;align-items:baseline;gap:6px;margin:20px 0">
+            <span class="tabular" style="font-size:32px;font-weight:700">0</span>
+            <span class="body-sm text-3">د.ل / شهر</span>
+          </div>
+
+          <ul style="display:flex;flex-direction:column;gap:12px;margin:24px 0">
+            <li style="display:flex;gap:10px;align-items:center;font-size:13.5px">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="var(--brand)" stroke-width="2.5" stroke-linecap="round"><path d="M20 6 9 17l-5-5"/></svg>
+              بطاقة افتراضية واحدة
+            </li>
+            <li style="display:flex;gap:10px;align-items:center;font-size:13.5px">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="var(--brand)" stroke-width="2.5" stroke-linecap="round"><path d="M20 6 9 17l-5-5"/></svg>
+              محفظة رقمية كاملة
+            </li>
+            <li style="display:flex;gap:10px;align-items:center;font-size:13.5px">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="var(--brand)" stroke-width="2.5" stroke-linecap="round"><path d="M20 6 9 17l-5-5"/></svg>
+              الوصول للمتجر والاشتراكات
+            </li>
+            <li style="display:flex;gap:10px;align-items:center;font-size:13.5px">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="var(--brand)" stroke-width="2.5" stroke-linecap="round"><path d="M20 6 9 17l-5-5"/></svg>
+              دعم عادي
+            </li>
+          </ul>
+
+          <button class="btn btn-secondary btn-block" onclick="location.href='login.html?mode=signup'">
+            ابدأ الآن
+          </button>
+        </div>
+
+        <div class="card card-lg" style="border-color:var(--brand);border-width:1.5px;position:relative">
+          <span class="badge badge-success" style="position:absolute;top:16px;left:16px">موصى به</span>
+          <div class="eyebrow" style="color:var(--brand);margin-bottom:8px">Pro</div>
+          <div class="h3" style="margin-bottom:8px">للاستخدام اليومي</div>
+          <div style="display:flex;align-items:baseline;gap:6px;margin:20px 0">
+            <span class="tabular" style="font-size:32px;font-weight:700">20</span>
+            <span class="body-sm text-3">د.ل / شهر</span>
+          </div>
+
+          <ul style="display:flex;flex-direction:column;gap:12px;margin:24px 0">
+            <li style="display:flex;gap:10px;align-items:center;font-size:13.5px">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="var(--brand)" stroke-width="2.5" stroke-linecap="round"><path d="M20 6 9 17l-5-5"/></svg>
+              حتى 5 بطاقات افتراضية
+            </li>
+            <li style="display:flex;gap:10px;align-items:center;font-size:13.5px">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="var(--brand)" stroke-width="2.5" stroke-linecap="round"><path d="M20 6 9 17l-5-5"/></svg>
+              رسوم إصدار أقل
+            </li>
+            <li style="display:flex;gap:10px;align-items:center;font-size:13.5px">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="var(--brand)" stroke-width="2.5" stroke-linecap="round"><path d="M20 6 9 17l-5-5"/></svg>
+              خصومات على الاشتراكات
+            </li>
+            <li style="display:flex;gap:10px;align-items:center;font-size:13.5px">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="var(--brand)" stroke-width="2.5" stroke-linecap="round"><path d="M20 6 9 17l-5-5"/></svg>
+              دعم ذو أولوية
+            </li>
+          </ul>
+
+          <button class="btn btn-primary btn-block" onclick="location.href='login.html?mode=signup'">
+            اختر Pro
+          </button>
+        </div>
+
+        <div class="card card-lg">
+          <div class="eyebrow" style="margin-bottom:8px">Business</div>
+          <div class="h3" style="margin-bottom:8px">للشركات</div>
+          <div style="display:flex;align-items:baseline;gap:6px;margin:20px 0">
+            <span class="tabular" style="font-size:32px;font-weight:700">50</span>
+            <span class="body-sm text-3">د.ل / شهر</span>
+          </div>
+
+          <ul style="display:flex;flex-direction:column;gap:12px;margin:24px 0">
+            <li style="display:flex;gap:10px;align-items:center;font-size:13.5px">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="var(--brand)" stroke-width="2.5" stroke-linecap="round"><path d="M20 6 9 17l-5-5"/></svg>
+              بطاقات غير محدودة
+            </li>
+            <li style="display:flex;gap:10px;align-items:center;font-size:13.5px">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="var(--brand)" stroke-width="2.5" stroke-linecap="round"><path d="M20 6 9 17l-5-5"/></svg>
+              رسوم تنافسية
+            </li>
+            <li style="display:flex;gap:10px;align-items:center;font-size:13.5px">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="var(--brand)" stroke-width="2.5" stroke-linecap="round"><path d="M20 6 9 17l-5-5"/></svg>
+              فواتير شهرية
+            </li>
+            <li style="display:flex;gap:10px;align-items:center;font-size:13.5px">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="var(--brand)" stroke-width="2.5" stroke-linecap="round"><path d="M20 6 9 17l-5-5"/></svg>
+              مدير حساب مخصص
+            </li>
+          </ul>
+
+          <button class="btn btn-secondary btn-block" onclick="location.href='login.html?mode=signup'">
+            تواصل معنا
+          </button>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- How it works -->
+  <section class="section" style="background:var(--surface);border-top:1px solid var(--border)">
+    <div class="container">
+      <div class="section-head text-center" style="max-width:640px;margin:0 auto 48px">
+        <h2 class="h1">كيف تعمل كاردو؟</h2>
+        <p class="body text-2" style="margin-top:12px">أربع خطوات بسيطة.</p>
+      </div>
+
+      <div class="grid-4">
+        <div>
+          <div class="tabular" style="font-size:14px;font-weight:700;color:var(--brand);margin-bottom:12px">01</div>
+          <div class="h4" style="margin-bottom:8px">أنشئ حسابك</div>
+          <p class="body-sm text-2">
+            سجّل ببريدك الإلكتروني ورقم هاتفك في دقيقة واحدة.
+          </p>
+        </div>
+        <div>
+          <div class="tabular" style="font-size:14px;font-weight:700;color:var(--brand);margin-bottom:12px">02</div>
+          <div class="h4" style="margin-bottom:8px">أضف رصيدًا</div>
+          <p class="body-sm text-2">
+            اشحن محفظتك بليبيانا، المدار، أو USDT.
+          </p>
+        </div>
+        <div>
+          <div class="tabular" style="font-size:14px;font-weight:700;color:var(--brand);margin-bottom:12px">03</div>
+          <div class="h4" style="margin-bottom:8px">اختر خدمتك</div>
+          <p class="body-sm text-2">
+            أصدر بطاقة، أو اشترك في خدمة رقمية، أو اشترِ من المتجر.
+          </p>
+        </div>
+        <div>
+          <div class="tabular" style="font-size:14px;font-weight:700;color:var(--brand);margin-bottom:12px">04</div>
+          <div class="h4" style="margin-bottom:8px">ابدأ الاستخدام</div>
+          <p class="body-sm text-2">
+            بطاقتك جاهزة فورًا. استخدم بياناتها للدفع في أي موقع.
+          </p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Trust -->
+  <section class="section">
+    <div class="container">
+      <div class="grid-4" style="max-width:1000px;margin:0 auto;text-align:center">
+        <div>
+          <div style="width:48px;height:48px;border-radius:12px;background:var(--surface-2);color:var(--text-2);display:grid;place-items:center;margin:0 auto 16px">
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2.5 4 6v6c0 5 3.4 8.6 8 9.5 4.6-.9 8-4.5 8-9.5V6z"/></svg>
+          </div>
+          <div class="h4" style="margin-bottom:8px">حماية الحساب</div>
+          <p class="body-sm text-2">تشفير كامل ومراقبة دائمة.</p>
+        </div>
+        <div>
+          <div style="width:48px;height:48px;border-radius:12px;background:var(--surface-2);color:var(--text-2);display:grid;place-items:center;margin:0 auto 16px">
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>
+          </div>
+          <div class="h4" style="margin-bottom:8px">تحقق الهوية</div>
+          <p class="body-sm text-2">خطوات تحقق واضحة وشفافة.</p>
+        </div>
+        <div>
+          <div style="width:48px;height:48px;border-radius:12px;background:var(--surface-2);color:var(--text-2);display:grid;place-items:center;margin:0 auto 16px">
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22c4.4 0 7-2.9 7-6.6 0-3.6-2.4-5.6-3.6-8.6-.5-1.2-2.1-1.3-2.7-.2-.8 1.5-.5 3.2-1.5 4.3-.7.8-1.6.2-1.6-.8 0-1.2.4-2-.3-3.1-.5-.8-1.7-.7-2.2.1C5.9 9.2 5 11.6 5 14.6 5 19 8 22 12 22z"/></svg>
+          </div>
+          <div class="h4" style="margin-bottom:8px">إشعارات فورية</div>
+          <p class="body-sm text-2">اعرف كل حركة على حسابك أولًا بأول.</p>
+        </div>
+        <div>
+          <div style="width:48px;height:48px;border-radius:12px;background:var(--surface-2);color:var(--text-2);display:grid;place-items:center;margin:0 auto 16px">
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M9.6 9.3a2.5 2.5 0 1 1 3.4 2.3c-.6.3-1 .9-1 1.6v.3"/><path d="M12 17h.01"/></svg>
+          </div>
+          <div class="h4" style="margin-bottom:8px">دعم متواصل</div>
+          <p class="body-sm text-2">فريق دعم جاهز للمساعدة.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- FAQ -->
+  <section id="faq" class="section" style="background:var(--surface);border-top:1px solid var(--border)">
+    <div class="container" style="max-width:720px">
+      <div class="section-head text-center" style="margin-bottom:40px">
+        <h2 class="h1">الأسئلة الشائعة</h2>
+      </div>
+
+      <div class="stack">
+        <details class="card" style="cursor:pointer">
+          <summary style="display:flex;justify-content:space-between;align-items:center;font-weight:600;list-style:none">
+            <span>كم تستغرق إضافة الرصيد؟</span>
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" style="flex-shrink:0;transition:transform .2s"><path d="M6 9l6 6 6-6"/></svg>
+          </summary>
+          <p class="body-sm text-2" style="margin-top:12px">
+            عبر ليبيانا والمدار وUSDT، تُضاف فورًا بعد التحقق من الرسالة. التحويلات المصرفية تحتاج مراجعة يدوية.
+          </p>
+        </details>
+
+        <details class="card" style="cursor:pointer">
+          <summary style="display:flex;justify-content:space-between;align-items:center;font-weight:600;list-style:none">
+            <span>متى أستلم بطاقتي؟</span>
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" style="flex-shrink:0;transition:transform .2s"><path d="M6 9l6 6 6-6"/></svg>
+          </summary>
+          <p class="body-sm text-2" style="margin-top:12px">
+            تُصدر خلال دقائق وتصلك إشعار عند الجاهزية. يمكنك عرض بياناتها فورًا من صفحة البطاقات.
+          </p>
+        </details>
+
+        <details class="card" style="cursor:pointer">
+          <summary style="display:flex;justify-content:space-between;align-items:center;font-weight:600;list-style:none">
+            <span>لماذا تختفي بيانات البطاقة؟</span>
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" style="flex-shrink:0;transition:transform .2s"><path d="M6 9l6 6 6-6"/></svg>
+          </summary>
+          <p class="body-sm text-2" style="margin-top:12px">
+            لأمانك — تظهر البيانات لمدة 24 ساعة ثم تُمسح تلقائيًا. احفظها عند أول عرض أو تواصل مع الدعم لإعادة إرسالها.
+          </p>
+        </details>
+
+        <details class="card" style="cursor:pointer">
+          <summary style="display:flex;justify-content:space-between;align-items:center;font-weight:600;list-style:none">
+            <span>هل يمكنني استخدام البطاقة في كل المواقع؟</span>
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" style="flex-shrink:0;transition:transform .2s"><path d="M6 9l6 6 6-6"/></svg>
+          </summary>
+          <p class="body-sm text-2" style="margin-top:12px">
+            نعم، في أي موقع يقبل الدفع الإلكتروني بـ VISA/Mastercard. بعض المواقع قد تقيّد البطاقات الافتراضية.
+          </p>
+        </details>
+
+        <details class="card" style="cursor:pointer">
+          <summary style="display:flex;justify-content:space-between;align-items:center;font-weight:600;list-style:none">
+            <span>ماذا لو رُفض طلبي؟</span>
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" style="flex-shrink:0;transition:transform .2s"><path d="M6 9l6 6 6-6"/></svg>
+          </summary>
+          <p class="body-sm text-2" style="margin-top:12px">
+            يُعاد المبلغ كاملًا إلى محفظتك تلقائيًا. تابع حالة طلبك من صفحة "طلباتي".
+          </p>
+        </details>
+      </div>
+    </div>
+  </section>
+
+  <!-- CTA -->
+  <section class="section">
+    <div class="container">
+      <div class="card card-lg" style="max-width:720px;margin:0 auto;text-align:center;padding:48px 32px">
+        <h2 class="h1" style="margin-bottom:16px">جاهز للبدء؟</h2>
+        <p class="body-lg text-2" style="margin-bottom:32px;max-width:480px;margin-inline:auto">
+          أنشئ حسابك الآن وابدأ بإصدار بطاقتك الأولى.
+        </p>
+        <button class="btn btn-primary btn-lg" onclick="location.href='login.html?mode=signup'">
+          إنشاء حساب مجاني
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 12H5M12 19l-7-7 7-7"/></svg>
+        </button>
+      </div>
+    </div>
+  </section>
+
+  <!-- Footer -->
+  <footer style="border-top:1px solid var(--border);background:var(--surface);padding:32px 0">
+    <div class="container">
+      <div style="display:flex;justify-content:space-between;align-items:center;gap:24px;flex-wrap:wrap">
+        <div style="display:flex;align-items:center;gap:10px">
+          <svg width="24" height="24" viewBox="0 0 40 40" aria-hidden="true">
+            <rect width="40" height="40" rx="9" fill="#176B4D"/>
+            <path d="M11 9h4.4v22H11z" fill="#FFFFFF"/>
+            <path d="M17 20.2 27.5 9H33L22.4 20.2 33 31h-5.6z" fill="#FFFFFF"/>
+          </svg>
+          <span style="font-weight:700">كاردو</span>
+        </div>
+        <p class="caption">© 2026 كاردو — جميع الحقوق محفوظة</p>
+      </div>
+    </div>
+  </footer>
+
+</div>
+
+
+<!-- ═══════════════════════════════════════════════════════
+     APP SHELL — بعد تسجيل الدخول
+     ═══════════════════════════════════════════════════════ -->
+
+<div id="app" style="display:none">
+  <div class="app-shell">
+
+    <!-- Sidebar (Desktop) -->
+    <aside class="sidebar">
+      <a href="#" onclick="go('dashboard');return false" style="display:flex;align-items:center;gap:10px;padding:0 12px;margin-bottom:24px">
+        <svg width="26" height="26" viewBox="0 0 40 40">
+          <rect width="40" height="40" rx="9" fill="#176B4D"/>
+          <path d="M11 9h4.4v22H11z" fill="#FFFFFF"/>
+          <path d="M17 20.2 27.5 9H33L22.4 20.2 33 31h-5.6z" fill="#FFFFFF"/>
+          <rect x="19" y="15.6" width="12.4" height="8.8" rx="2" fill="#176B4D"/>
+          <rect x="21" y="18.4" width="3.4" height="2.6" rx=".7" fill="#E8F3EE" opacity=".9"/>
+        </svg>
+        <span style="font-size:16px;font-weight:700;letter-spacing:-.02em">كاردو</span>
+      </a>
+
+      <nav>
+        <div class="sidebar-group">
+          <span class="sidebar-label">الرئيسية</span>
+          <button class="sidebar-item" data-nav="dashboard">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M3 10.4 12 3l9 7.4V20a1 1 0 0 1-1 1h-5v-7H9v7H4a1 1 0 0 1-1-1z"/></svg>
+            <span>لوحتي</span>
+          </button>
+          <button class="sidebar-item" data-nav="subscriptions">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>
+            <span>الاشتراكات</span>
+          </button>
+          <button class="sidebar-item" data-nav="shop">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7.5" height="7.5" rx="2"/><rect x="13.5" y="3" width="7.5" height="7.5" rx="2"/><rect x="3" y="13.5" width="7.5" height="7.5" rx="2"/><rect x="13.5" y="13.5" width="7.5" height="7.5" rx="2"/></svg>
+            <span>المتجر</span>
+          </button>
+        </div>
+
+        <div class="sidebar-group">
+          <span class="sidebar-label">المالية</span>
+          <button class="sidebar-item" data-nav="wallet">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M3 7.5A2.5 2.5 0 0 1 5.5 5H19a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H5.5A2.5 2.5 0 0 1 3 16.5z"/><path d="M16.5 12h1.5"/></svg>
+            <span>المحفظة</span>
+          </button>
+          <button class="sidebar-item" data-nav="cards">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="5" width="20" height="14" rx="3"/><path d="M2 10h20"/></svg>
+            <span>بطاقاتي</span>
+          </button>
+          <button class="sidebar-item" data-nav="transactions">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M8 6h13M8 12h13M8 18h13M3.5 6h.01M3.5 12h.01M3.5 18h.01"/></svg>
+            <span>المعاملات</span>
+          </button>
+          <button class="sidebar-item" data-nav="orders">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M4.5 8h15l-1.2 12.2a1.8 1.8 0 0 1-1.8 1.6H7.5a1.8 1.8 0 0 1-1.8-1.6z"/><path d="M8.5 8V6a3.5 3.5 0 0 1 7 0v2"/></svg>
+            <span>طلباتي</span>
+          </button>
+        </div>
+
+        <div class="sidebar-group">
+          <span class="sidebar-label">المزيد</span>
+          <button class="sidebar-item" data-nav="referral">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="8" width="18" height="13" rx="2"/><path d="M12 8v13M3 12h18"/></svg>
+            <span>ادعُ صديقًا</span>
+          </button>
+          <button class="sidebar-item" data-nav="support">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M9.6 9.3a2.5 2.5 0 1 1 3.4 2.3c-.6.3-1 .9-1 1.6v.3"/><path d="M12 17h.01"/></svg>
+            <span>الدعم</span>
+          </button>
+          <button class="sidebar-item" data-nav="settings">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.9l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.9-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.9.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.9 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.9l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.9.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.9-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.9V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/></svg>
+            <span>الإعدادات</span>
+          </button>
+        </div>
+      </nav>
+    </aside>
+
+    <!-- Main -->
+    <main class="app-main">
+
+      <!-- Top Bar -->
+      <header class="bar">
+        <div class="bar-logo" style="gap:8px;display:flex;align-items:center">
+          <svg width="24" height="24" viewBox="0 0 40 40">
+            <rect width="40" height="40" rx="9" fill="#176B4D"/>
+            <path d="M11 9h4.4v22H11z" fill="#FFFFFF"/>
+            <path d="M17 20.2 27.5 9H33L22.4 20.2 33 31h-5.6z" fill="#FFFFFF"/>
+          </svg>
+          <span style="font-size:15px;font-weight:700">كاردو</span>
+        </div>
+
+        <div class="bar-actions">
+          <div class="bar-balance" style="display:none" id="barBalance">
+            <span class="caption">الرصيد</span>
+            <span class="tabular" style="font-weight:700" id="barBalanceVal">0.00 د.ل</span>
+          </div>
+
+          <button class="icon-btn" id="bellBtn" aria-label="الإشعارات">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M18 8.5a6 6 0 1 0-12 0c0 6-2.5 7.5-2.5 7.5h17S18 14.5 18 8.5"/><path d="M13.7 20a2 2 0 0 1-3.4 0"/></svg>
+          </button>
+
+          <button class="icon-btn" id="avatarBtn" aria-label="الحساب">
+            <div id="avatarInitial" style="width:32px;height:32px;border-radius:8px;background:var(--brand-light);color:var(--brand);display:grid;place-items:center;font-weight:700;font-size:13px">؟</div>
+          </button>
+        </div>
+      </header>
+
+      <div class="app-content" id="view"></div>
+    </main>
+
   </div>
-</div>
-<nav class="dock" id="navDock"></nav>
+
+  <!-- Bottom Navigation (Mobile) -->
+  <nav class="bottom-nav">
+    <button class="nav-item" data-nav="dashboard">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M3 10.4 12 3l9 7.4V20a1 1 0 0 1-1 1h-5v-7H9v7H4a1 1 0 0 1-1-1z"/></svg>
+      <span>الرئيسية</span>
+    </button>
+    <button class="nav-item" data-nav="subscriptions">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>
+      <span>اشتراكات</span>
+    </button>
+    <button class="nav-item" data-nav="cards">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="5" width="20" height="14" rx="3"/><path d="M2 10h20"/></svg>
+      <span>بطاقاتي</span>
+    </button>
+    <button class="nav-item" data-nav="wallet">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M3 7.5A2.5 2.5 0 0 1 5.5 5H19a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H5.5A2.5 2.5 0 0 1 3 16.5z"/><path d="M16.5 12h1.5"/></svg>
+      <span>المحفظة</span>
+    </button>
+    <button class="nav-item" data-nav="account">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="3.6"/><path d="M4.5 20.5a7.5 7.5 0 0 1 15 0"/></svg>
+      <span>حسابي</span>
+    </button>
+  </nav>
+
 </div>
 
+<!-- Toasts + Overlay -->
 <div id="toasts"></div>
-<div class="ov" id="ov"><div class="sheet" id="sheet"></div></div>
+<div class="overlay" id="overlay"><div class="modal" id="modal"></div></div>
 
 <script type="module" src="./app.js"></script>
+
 </body>
-</html>
+        </html>
