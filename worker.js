@@ -1,24 +1,7 @@
 /**
  * ═══════════════════════════════════════════════════════════
  *  KARDO — Cloudflare Worker Backend
- *  كاردو — الخدمة الخلفية
- *
- *  Version: 2.0.0 (Production-Ready)
- *
- *  المسؤوليات:
- *   1. محفظة ذرية (atomic) — idempotency لكل عملية
- *   2. بطاقات افتراضية يدوية — الأدمن ينفّذ ويسلّم البيانات
- *   3. شحن تلقائي عبر رسائل ليبيانا والمدار
- *   4. USDT عبر شبكة TRON
- *   5. متجر خدمات رقمية (أكواد + يدوي)
- *   6. Rate Limiting شامل
- *
- *  سرّيات مطلوبة (wrangler secret put):
- *   FIREBASE_PROJECT_ID     kardo-1c657
- *   FIREBASE_CLIENT_EMAIL   من ملف service account
- *   FIREBASE_PRIVATE_KEY    من ملف service account (كامل مع BEGIN/END)
- *   ALLOWED_ORIGIN          https://kardo.ly
- *   SMS_WEBHOOK_SECRET      سلسلة عشوائية طويلة
+ *  Version: 2.1.0 (Fixed Transaction BatchGet)
  * ═══════════════════════════════════════════════════════════
  */
 
@@ -29,21 +12,14 @@ const USDT_TRC20 = 'TR7NHqjeKQxGTCi8q8ZY4pL8otSzgjLj6t';
 let _tokenCache = { token: null, exp: 0 };
 let _jwksCache = { keys: null, exp: 0 };
 
-/* ═══════════════════════════════════════════════════════════
-   نقطة الدخول
-   ═══════════════════════════════════════════════════════════ */
-
 export default {
   async fetch(request, env, ctx) {
     const origin = env.ALLOWED_ORIGIN || '*';
-
     if (request.method === 'OPTIONS') {
       return new Response(null, { status: 204, headers: corsHeaders(origin) });
     }
-
     const url = new URL(request.url);
     const path = url.pathname.replace(/\/+$/, '');
-
     try {
       const result = await route(path, request, url, env);
       return json(result, 200, origin);
@@ -66,55 +42,32 @@ export default {
 };
 
 async function route(path, request, url, env) {
-  // ── عام (بدون مصادقة) ────────────────────────────────
-  if (path === '/api/status' && request.method === 'GET') {
-    return handleStatus(env);
-  }
-  if (path === '/api/catalog' && request.method === 'GET') {
-    return handleCatalog(env);
-  }
-  if (path === '/api/sms/webhook') {
-    return handleSmsWebhook(request, env);
-  }
+  if (path === '/api/status' && request.method === 'GET') return handleStatus(env);
+  if (path === '/api/catalog' && request.method === 'GET') return handleCatalog(env);
+  if (path === '/api/sms/webhook') return handleSmsWebhook(request, env);
 
-  // ── تتطلب مصادقة ─────────────────────────────────────
   const body = request.method === 'POST' ? await safeJson(request) : {};
   const user = await requireAuth(request, env);
-
-  // ── Rate Limit عام لكل مستخدم ─────────────────────
   await enforceGlobalRateLimit(env, user.uid);
 
   switch (path) {
-    // ── المحفظة والإيداع ──
     case '/api/wallet/claim':        return handleWalletClaim(user, body, env);
     case '/api/wallet/withdraw':     return handleWithdrawRequest(user, body, env);
     case '/api/wallet/transfer':     return handleTransfer(user, body, env);
     case '/api/wallet/usdt/invoice': return handleUsdtInvoice(user, body, env);
     case '/api/wallet/usdt/verify':  return handleUsdtVerify(user, body, env, request);
-
-    // ── البطاقات اليدوية ──
     case '/api/mcard/request':       return handleManualCardRequest(user, body, env);
     case '/api/mcard/topup-request': return handleManualCardTopup(user, body, env);
     case '/api/mcard/list':          return handleManualCardList(user, env);
     case '/api/mcard/reveal':        return handleRevealCard(user, body, env, request);
-
-    // ── المتجر ──
     case '/api/store/order':         return handleStoreOrder(user, body, env);
     case '/api/coupon/check':        return handleCouponCheck(user, body, env);
-
-    // ── النقاط والدعوات ──
     case '/api/points/redeem':       return handleRedeemPoints(user, body, env);
     case '/api/ref/code':            return handleRefCode(user, body, env);
     case '/api/ref/claim':           return handleRefClaim(user, body, env);
-
-    // ── التذاكر ──
     case '/api/ticket/create':       return handleTicketCreate(user, body, env);
     case '/api/ticket/reply':        return handleTicketReply(user, body, env);
-
-    // ── سجل النشاط ──
     case '/api/activity/ping':       return handleActivityPing(user, body, env, request);
-
-    // ── إدارية ─────────────────────────────────────────
     case '/api/admin/settings':      return handleAdminSettings(user, body, env);
     case '/api/admin/deposit':       return handleAdminDeposit(user, body, env);
     case '/api/admin/wallet-adjust': return handleAdminWalletAdjust(user, body, env);
@@ -125,7 +78,6 @@ async function route(path, request, url, env) {
     case '/api/admin/order':         return handleAdminOrder(user, body, env);
     case '/api/admin/ticket/close':  return handleTicketClose(user, body, env);
   }
-
   throw httpError(404, 'المسار غير موجود');
 }
 
@@ -133,10 +85,6 @@ async function route(path, request, url, env) {
    Rate Limiting
    ═══════════════════════════════════════════════════════════ */
 
-/**
- * Rate limit عام لكل مستخدم — 120 طلب في الدقيقة.
- * يمنع abuse من حساب واحد.
- */
 async function enforceGlobalRateLimit(env, uid) {
   const windowSec = 60;
   const max = 120;
@@ -147,24 +95,15 @@ async function enforceGlobalRateLimit(env, uid) {
   try {
     const cur = await fsGet(env, `rate_limits/${key}`).catch(() => null);
     const count = num(cur && cur.count, 0);
-    if (count >= max) {
-      throw httpError(429, 'محاولات كثيرة — انتظر قليلاً');
-    }
+    if (count >= max) throw httpError(429, 'محاولات كثيرة — انتظر قليلاً');
     await fsSet(env, `rate_limits/${key}`, {
-      uid,
-      count: count + 1,
-      bucket,
-      expires_at: now + 120,
+      uid, count: count + 1, bucket, expires_at: now + 120,
     }).catch(() => {});
   } catch (e) {
     if (e.status === 429) throw e;
-    // Rate limit فشل — نتجاهل ونكمل
   }
 }
 
-/**
- * Rate limit مخصص لدوال محددة (reveal, sensitive ops).
- */
 async function checkRateLimit(env, key, limit, windowSec) {
   const bucket = Math.floor(Date.now() / windowSec);
   const rlKey = `rl_${key}_${bucket}`;
@@ -173,22 +112,17 @@ async function checkRateLimit(env, key, limit, windowSec) {
     const count = num(cur && cur.count, 0);
     if (count >= limit) return false;
     await fsSet(env, `rate_limits/${rlKey}`, {
-      key: rlKey,
-      count: count + 1,
+      key: rlKey, count: count + 1,
       expires_at: Math.floor(Date.now() / 1000) + windowSec + 60,
     }).catch(() => {});
     return true;
-  } catch {
-    return true;
-  }
+  } catch { return true; }
 }
 
-/** Cron: تنظيف rate limits القديمة */
 async function purgeOldRateLimits(env) {
   const now = Math.floor(Date.now() / 1000);
   const rows = await fsQueryRaw(env, {
-    from: [{ collectionId: 'rate_limits' }],
-    limit: 300,
+    from: [{ collectionId: 'rate_limits' }], limit: 300,
   });
   let purged = 0;
   for (const r of rows) {
@@ -202,7 +136,7 @@ async function purgeOldRateLimits(env) {
 }
 
 /* ═══════════════════════════════════════════════════════════
-   الحالة العامة
+   Status
    ═══════════════════════════════════════════════════════════ */
 
 async function handleStatus(env) {
@@ -238,17 +172,13 @@ async function handleStatus(env) {
     },
     withdraw: {
       on: s.withdraw_enabled === true,
-      min: num(s.withdraw_min, 10),
-      max: num(s.withdraw_max, 500),
-      fee_pct: num(s.withdraw_fee_pct, 0),
-      fee_fixed: num(s.withdraw_fee_fixed, 0),
-      methods: String(s.withdraw_methods || 'ليبيانا,المدار')
-        .split(',').map(x => x.trim()).filter(Boolean),
+      min: num(s.withdraw_min, 10), max: num(s.withdraw_max, 500),
+      fee_pct: num(s.withdraw_fee_pct, 0), fee_fixed: num(s.withdraw_fee_fixed, 0),
+      methods: String(s.withdraw_methods || 'ليبيانا,المدار').split(',').map(x => x.trim()).filter(Boolean),
     },
     transfer: {
       on: s.transfer_enabled === true,
-      min: num(s.transfer_min, 1),
-      fee_pct: num(s.transfer_fee_pct, 0),
+      min: num(s.transfer_min, 1), fee_pct: num(s.transfer_fee_pct, 0),
     },
     tickets_on: s.tickets_enabled !== false,
     coupons_on: s.coupons_enabled !== false,
@@ -268,18 +198,13 @@ async function handleStatus(env) {
       min_spend: num(s.referral_min_spend, 10),
     },
     theme: {
-      navy: s.theme_navy || '#0F172A',
-      emerald: s.theme_emerald || '#10B981',
-      bg: s.theme_bg || '#F8FAFC',
-      radius: num(s.theme_radius, 14),
+      navy: s.theme_navy || '#0F172A', emerald: s.theme_emerald || '#10B981',
+      bg: s.theme_bg || '#F8FAFC', radius: num(s.theme_radius, 14),
     },
     nav: {
-      home: s.nav_home !== false,
-      mcards: s.nav_mcards !== false,
-      wallet: s.nav_wallet !== false,
-      tx: s.nav_tx !== false,
-      help: s.nav_help !== false,
-      settings: s.nav_settings !== false,
+      home: s.nav_home !== false, mcards: s.nav_mcards !== false,
+      wallet: s.nav_wallet !== false, tx: s.nav_tx !== false,
+      help: s.nav_help !== false, settings: s.nav_settings !== false,
     },
     texts: {
       tagline: s.brand_tagline || 'بطاقات أكثر .. فرص أكبر',
@@ -302,8 +227,7 @@ async function handleStatus(env) {
                  fields: cleanFields(s.m_bank_fields) },
       usdt:    { on: s.m_usdt_on === true, logo: s.m_usdt_logo || '',
                  label: s.m_usdt_label || 'USDT',
-                 rate: num(s.rate_usdt, 1),
-                 auto: true, invoice: true,
+                 rate: num(s.rate_usdt, 1), auto: true, invoice: true,
                  address: s.usdt_address || '',
                  min: num(s.usdt_min, 5), max: num(s.usdt_max, 1000),
                  window_min: num(s.usdt_window_min, 30),
@@ -319,15 +243,13 @@ async function handleStatus(env) {
 }
 
 /* ═══════════════════════════════════════════════════════════
-   البطاقات اليدوية
+   Manual Cards
    ═══════════════════════════════════════════════════════════ */
 
 async function handleManualCardRequest(user, body, env) {
   const s = await getSettings(env);
   assertLive(s);
-  if (s.manual_cards_enabled === false) {
-    throw httpError(503, 'إصدار البطاقات متوقف مؤقتًا');
-  }
+  if (s.manual_cards_enabled === false) throw httpError(503, 'إصدار البطاقات متوقف مؤقتًا');
 
   const amount = round2(num(body.amount, NaN));
   const nameOnCard = String(body.name_on_card || '').trim().toUpperCase().slice(0, 40);
@@ -352,62 +274,36 @@ async function handleManualCardRequest(user, body, env) {
 
   const id = `MC${Date.now()}${randomSuffix(4)}`;
 
-  // ✅ Transaction كامل — لا Race Conditions
   await fsRunTransaction(env, async (tx) => {
     const me = await tx.get(`users/${user.uid}`);
     if (!me) throw httpError(400, 'الحساب غير مكتمل');
     if (me.banned === true) throw httpError(403, 'الحساب موقوف');
 
     const balance = num(me.wallet_balance, 0);
-    if (balance < total) {
-      throw httpError(402, `رصيدك غير كافٍ — تحتاج ${round2(total - balance)}$ إضافية`);
-    }
-
+    if (balance < total) throw httpError(402, `رصيدك غير كافٍ`);
     const newBalance = round2(balance - total);
 
     tx.update(`users/${user.uid}`, { wallet_balance: newBalance });
     tx.create('wallet_transactions', `txn_mc_create_${id}`, {
-      uid: user.uid,
-      type: 'debit',
-      amount: total,
-      balance_before: balance,
-      balance_after: newBalance,
-      reason: 'card_create',
-      reference: id,
-      created_at: nowIso(),
+      uid: user.uid, type: 'debit', amount: total,
+      balance_before: balance, balance_after: newBalance,
+      reason: 'card_create', reference: id, created_at: nowIso(),
     });
     tx.create('manual_card_orders', id, {
-      uid: user.uid,
-      kind: 'create',
-      amount,
-      fee,
-      total,
-      card_name: cardName,
-      name_on_card: nameOnCard,
-      status: 'pending',
-      created_at: nowIso(),
-      updated_at: nowIso(),
+      uid: user.uid, kind: 'create', amount, fee, total,
+      card_name: cardName, name_on_card: nameOnCard,
+      status: 'pending', created_at: nowIso(), updated_at: nowIso(),
     });
   });
 
   await logOp(env, user.uid, 'manual_card_request', { kind: 'create', amount }, { id }, true);
-
-  return {
-    success: true,
-    id,
-    amount,
-    fee,
-    total,
-    message: 'وصل طلبك — سيُصدر خلال دقائق، وتتابعه من صفحة البطاقات',
-  };
+  return { success: true, id, amount, fee, total };
 }
 
 async function handleManualCardTopup(user, body, env) {
   const s = await getSettings(env);
   assertLive(s);
-  if (s.manual_cards_enabled === false) {
-    throw httpError(503, 'خدمة البطاقات متوقفة مؤقتًا');
-  }
+  if (s.manual_cards_enabled === false) throw httpError(503, 'خدمة البطاقات متوقفة مؤقتًا');
 
   const cardId = String(body.card_id || '').trim();
   const amount = round2(num(body.amount, NaN));
@@ -429,7 +325,6 @@ async function handleManualCardTopup(user, body, env) {
 
   const id = `MCT${Date.now()}${randomSuffix(4)}`;
 
-  // ✅ Transaction كامل
   let cardName = '';
   await fsRunTransaction(env, async (tx) => {
     const me = await tx.get(`users/${user.uid}`);
@@ -439,41 +334,26 @@ async function handleManualCardTopup(user, body, env) {
     const card = await tx.get(`manual_cards/${cardId}`);
     if (!card || card.uid !== user.uid) throw httpError(404, 'البطاقة غير موجودة');
     if (card.status !== 'active') throw httpError(400, 'هذه البطاقة غير نشطة');
-
     cardName = card.card_name || '';
 
     const balance = num(me.wallet_balance, 0);
     if (balance < total) throw httpError(402, 'رصيدك غير كافٍ');
-
     const newBalance = round2(balance - total);
 
     tx.update(`users/${user.uid}`, { wallet_balance: newBalance });
     tx.create('wallet_transactions', `txn_mc_topup_${id}`, {
-      uid: user.uid,
-      type: 'debit',
-      amount: total,
-      balance_before: balance,
-      balance_after: newBalance,
-      reason: 'card_topup',
-      reference: id,
-      created_at: nowIso(),
+      uid: user.uid, type: 'debit', amount: total,
+      balance_before: balance, balance_after: newBalance,
+      reason: 'card_topup', reference: id, created_at: nowIso(),
     });
     tx.create('manual_card_orders', id, {
-      uid: user.uid,
-      kind: 'topup',
-      card_id: cardId,
-      amount,
-      fee,
-      total,
-      card_name: cardName,
-      status: 'pending',
-      created_at: nowIso(),
-      updated_at: nowIso(),
+      uid: user.uid, kind: 'topup', card_id: cardId, amount, fee, total,
+      card_name: cardName, status: 'pending',
+      created_at: nowIso(), updated_at: nowIso(),
     });
   });
 
   await logOp(env, user.uid, 'manual_card_request', { kind: 'topup', amount }, { id }, true);
-
   return { success: true, id, amount, fee, total };
 }
 
@@ -481,11 +361,7 @@ async function handleManualCardList(user, env) {
   const rows = await fsQueryRaw(env, {
     from: [{ collectionId: 'manual_cards' }],
     where: {
-      fieldFilter: {
-        field: { fieldPath: 'uid' },
-        op: 'EQUAL',
-        value: { stringValue: user.uid },
-      },
+      fieldFilter: { field: { fieldPath: 'uid' }, op: 'EQUAL', value: { stringValue: user.uid } },
     },
     limit: 50,
   });
@@ -493,12 +369,9 @@ async function handleManualCardList(user, env) {
   const cards = rows.map(r => {
     const d = withId(r, 'manual_cards');
     return {
-      id: d._id,
-      card_name: d.card_name || 'بطاقتي',
-      name_on_card: d.name_on_card || '',
-      last4: d.last4 || '****',
-      balance: round2(num(d.balance, 0)),
-      status: d.status || 'active',
+      id: d._id, card_name: d.card_name || 'بطاقتي',
+      name_on_card: d.name_on_card || '', last4: d.last4 || '****',
+      balance: round2(num(d.balance, 0)), status: d.status || 'active',
       created_at: d.created_at,
     };
   }).sort((a, b) => String(b.created_at || '').localeCompare(String(a.created_at || '')));
@@ -506,11 +379,7 @@ async function handleManualCardList(user, env) {
   const orderRows = await fsQueryRaw(env, {
     from: [{ collectionId: 'manual_card_orders' }],
     where: {
-      fieldFilter: {
-        field: { fieldPath: 'uid' },
-        op: 'EQUAL',
-        value: { stringValue: user.uid },
-      },
+      fieldFilter: { field: { fieldPath: 'uid' }, op: 'EQUAL', value: { stringValue: user.uid } },
     },
     limit: 60,
   });
@@ -518,29 +387,21 @@ async function handleManualCardList(user, env) {
   const orders = orderRows.map(r => withId(r, 'manual_card_orders'))
     .sort((a, b) => String(b.created_at || '').localeCompare(String(a.created_at || '')))
     .map(o => ({
-      id: o._id,
-      kind: o.kind,
-      amount: round2(num(o.amount, 0)),
-      fee: round2(num(o.fee, 0)),
+      id: o._id, kind: o.kind,
+      amount: round2(num(o.amount, 0)), fee: round2(num(o.fee, 0)),
       total: round2(num(o.total, 0)),
-      card_id: o.card_id || '',
-      card_name: o.card_name || '',
-      status: o.status,
-      reject_reason: o.reject_reason || '',
+      card_id: o.card_id || '', card_name: o.card_name || '',
+      status: o.status, reject_reason: o.reject_reason || '',
       created_at: o.created_at,
     }));
 
   return { success: true, cards, orders };
 }
 
-/**
- * ✅ مُحسّن: Rate Limit + IP logging + Transaction آمن
- */
 async function handleRevealCard(user, body, env, request) {
   const orderId = String(body.order_id || '').trim();
   if (!orderId) throw httpError(400, 'رقم الطلب مفقود');
 
-  // ✅ Rate limit: 20 reveals في الساعة لكل مستخدم
   const rlOk = await checkRateLimit(env, `reveal_${user.uid}`, 20, 3600);
   if (!rlOk) {
     await logOp(env, user.uid, 'reveal_rate_limited', { orderId }, {}, false);
@@ -548,19 +409,14 @@ async function handleRevealCard(user, body, env, request) {
   }
 
   const rv = await fsGet(env, `manual_card_reveal/${orderId}`);
-  if (!rv || rv.uid !== user.uid) {
-    throw httpError(404, 'لا بيانات متاحة لهذا الطلب');
-  }
+  if (!rv || rv.uid !== user.uid) throw httpError(404, 'لا بيانات متاحة لهذا الطلب');
   if (new Date(rv.expires_at) < new Date()) {
-    throw httpError(410, 'انتهت صلاحية عرض البيانات — تواصل مع الدعم');
+    throw httpError(410, 'انتهت صلاحية عرض البيانات');
   }
 
-  // ✅ تسجيل كامل للتدقيق
   const logId = `RV${Date.now()}${randomSuffix(4)}`;
   await fsSet(env, `reveal_logs/${logId}`, {
-    uid: user.uid,
-    order_id: orderId,
-    card_id: rv.card_id || '',
+    uid: user.uid, order_id: orderId, card_id: rv.card_id || '',
     ip: (request.headers.get('cf-connecting-ip') || '').slice(0, 45),
     ua: (request.headers.get('user-agent') || '').slice(0, 160),
     country: String(request.cf?.country || '').slice(0, 4),
@@ -577,12 +433,8 @@ async function handleRevealCard(user, body, env, request) {
   };
 }
 
-/**
- * ✅ مُحسّن: Transaction كامل — لا Race Conditions
- */
 async function handleAdminCardFulfil(user, body, env) {
   await requireAdmin(user, env);
-
   const id = String(body.id || '').trim();
   if (!id) throw httpError(400, 'رقم الطلب مفقود');
 
@@ -597,32 +449,24 @@ async function handleAdminCardFulfil(user, body, env) {
 
       const back = round2(num(o.total, 0));
       const u = await tx.get(`users/${o.uid}`);
-      const newBalance = round2(num(u?.wallet_balance, 0) + back);
+      const curBalance = num(u?.wallet_balance, 0);
+      const newBalance = round2(curBalance + back);
 
       tx.update(`users/${o.uid}`, { wallet_balance: newBalance });
       tx.update(`manual_card_orders/${id}`, {
-        status: 'rejected',
-        reject_reason: reason,
-        rejected_at: nowIso(),
-        rejected_by: user.uid,
+        status: 'rejected', reject_reason: reason,
+        rejected_at: nowIso(), rejected_by: user.uid,
       });
       tx.create('wallet_transactions', `txn_mc_refund_${id}`, {
-        uid: o.uid,
-        type: 'credit',
-        amount: back,
-        balance_before: num(u?.wallet_balance, 0),
-        balance_after: newBalance,
-        reason: 'card_rejected_refund',
-        reference: id,
-        created_at: nowIso(),
+        uid: o.uid, type: 'credit', amount: back,
+        balance_before: curBalance, balance_after: newBalance,
+        reason: 'card_rejected_refund', reference: id, created_at: nowIso(),
       });
     });
-
     await logOp(env, user.uid, 'manual_card_rejected', { id }, { refunded: true }, true);
     return { success: true, refunded: true };
   }
 
-  // ── fulfilment ──
   const pan = String(body.card_number || '').replace(/\s+/g, '');
   const expiry = String(body.expiry || '').trim();
   const cvv = String(body.cvv || '').trim();
@@ -632,11 +476,10 @@ async function handleAdminCardFulfil(user, body, env) {
   const ttlHours = num(s.mc_reveal_hours, 24);
   const expiresAt = new Date(Date.now() + ttlHours * 3600000).toISOString();
 
-  // للبطاقة الجديدة — فحص PAN/CVV
-  const isCreate = await (async () => {
-    const o = await fsGet(env, `manual_card_orders/${id}`);
-    return o && o.kind === 'create';
-  })();
+  const o = await fsGet(env, `manual_card_orders/${id}`);
+  if (!o) throw httpError(404, 'الطلب غير موجود');
+
+  const isCreate = o.kind === 'create';
 
   if (isCreate) {
     if (!/^\d{13,19}$/.test(pan)) throw httpError(400, 'رقم البطاقة غير صالح');
@@ -645,72 +488,54 @@ async function handleAdminCardFulfil(user, body, env) {
   }
 
   let cardId = '';
+  let oUid = '';
 
-  // ✅ Transaction كامل — لا Race Conditions
   await fsRunTransaction(env, async (tx) => {
-    const o = await tx.get(`manual_card_orders/${id}`);
-    if (!o) throw httpError(404, 'الطلب غير موجود');
-    if (o.status !== 'pending') throw httpError(400, 'الطلب مُغلق بالفعل');
+    const oo = await tx.get(`manual_card_orders/${id}`);
+    if (!oo) throw httpError(404, 'الطلب غير موجود');
+    if (oo.status !== 'pending') throw httpError(400, 'الطلب مُغلق بالفعل');
+    oUid = oo.uid;
 
-    if (o.kind === 'create') {
+    if (oo.kind === 'create') {
       cardId = `MCX${Date.now()}${randomSuffix(4)}`;
       tx.create('manual_cards', cardId, {
-        uid: o.uid,
-        card_name: o.card_name || 'بطاقتي',
-        name_on_card: o.name_on_card || '',
-        last4: pan.slice(-4),
-        status: 'active',
-        balance: round2(num(o.amount, 0)),
-        created_at: nowIso(),
-        created_by: user.uid,
+        uid: oo.uid, card_name: oo.card_name || 'بطاقتي',
+        name_on_card: oo.name_on_card || '',
+        last4: pan.slice(-4), status: 'active',
+        balance: round2(num(oo.amount, 0)),
+        created_at: nowIso(), created_by: user.uid,
         provider_ref: providerRef,
       });
     } else {
-      cardId = o.card_id;
+      cardId = oo.card_id;
       const card = await tx.get(`manual_cards/${cardId}`);
       if (!card) throw httpError(404, 'البطاقة الأصلية غير موجودة');
-      const newBal = round2(num(card.balance, 0) + num(o.amount, 0));
+      const newBal = round2(num(card.balance, 0) + num(oo.amount, 0));
       tx.update(`manual_cards/${cardId}`, {
-        balance: newBal,
-        updated_at: nowIso(),
-        last_topup_by: user.uid,
+        balance: newBal, updated_at: nowIso(), last_topup_by: user.uid,
       });
     }
 
     tx.update(`manual_card_orders/${id}`, {
-      status: 'completed',
-      card_id: cardId,
-      completed_at: nowIso(),
-      completed_by: user.uid,
-      provider_ref: providerRef,
-      reveal_expires_at: expiresAt,
+      status: 'completed', card_id: cardId,
+      completed_at: nowIso(), completed_by: user.uid,
+      provider_ref: providerRef, reveal_expires_at: expiresAt,
     });
   });
 
-  // كتابة PAN/CVV خارج Transaction (لأنها تحتوي نص كبير)
   if (isCreate) {
     await fsSet(env, `manual_card_reveal/${id}`, {
-      uid: await (async () => {
-        const o = await fsGet(env, `manual_card_orders/${id}`);
-        return o.uid;
-      })(),
-      card_id: cardId,
-      card_number: pan,
-      expiry,
-      cvv,
-      created_at: nowIso(),
-      expires_at: expiresAt,
+      uid: oUid, card_id: cardId, card_number: pan,
+      expiry, cvv, created_at: nowIso(), expires_at: expiresAt,
     });
   }
 
   await logOp(env, user.uid, 'manual_card_fulfilled', { id }, { cardId }, true);
-
   return { success: true, card_id: cardId, expires_at: expiresAt };
 }
 
 async function handleAdminCardReject(user, body, env) {
   await requireAdmin(user, env);
-
   const id = String(body.id || '').trim();
   const reason = String(body.reason || '').slice(0, 200);
   if (!id) throw httpError(400, 'رقم الطلب مفقود');
@@ -724,38 +549,29 @@ async function handleAdminCardReject(user, body, env) {
   await fsRunTransaction(env, async (tx) => {
     const cur = await tx.get(`manual_card_orders/${id}`);
     if (cur.status !== 'pending') throw httpError(400, 'الطلب مُغلق بالفعل');
-
     const u = await tx.get(`users/${o.uid}`);
-    const newBalance = round2(num(u?.wallet_balance, 0) + back);
+    const curBalance = num(u?.wallet_balance, 0);
+    const newBalance = round2(curBalance + back);
 
     tx.update(`users/${o.uid}`, { wallet_balance: newBalance });
     tx.update(`manual_card_orders/${id}`, {
-      status: 'rejected',
-      reject_reason: reason,
-      rejected_at: nowIso(),
-      rejected_by: user.uid,
+      status: 'rejected', reject_reason: reason,
+      rejected_at: nowIso(), rejected_by: user.uid,
     });
     tx.create('wallet_transactions', `txn_mc_refund_${id}`, {
-      uid: o.uid,
-      type: 'credit',
-      amount: back,
-      balance_before: num(u?.wallet_balance, 0),
-      balance_after: newBalance,
-      reason: 'card_rejected_refund',
-      reference: id,
-      created_at: nowIso(),
+      uid: o.uid, type: 'credit', amount: back,
+      balance_before: curBalance, balance_after: newBalance,
+      reason: 'card_rejected_refund', reference: id, created_at: nowIso(),
     });
   });
 
   await logOp(env, user.uid, 'manual_card_rejected', { id }, { refunded: back }, true);
-
   return { success: true, refunded: back };
 }
 
 async function purgeExpiredReveals(env) {
   const rows = await fsQueryRaw(env, {
-    from: [{ collectionId: 'manual_card_reveal' }],
-    limit: 200,
+    from: [{ collectionId: 'manual_card_reveal' }], limit: 200,
   });
   const now = Date.now();
   let purged = 0;
@@ -770,7 +586,7 @@ async function purgeExpiredReveals(env) {
 }
 
 /* ═══════════════════════════════════════════════════════════
-   المحفظة والإيداع
+   Wallet
    ═══════════════════════════════════════════════════════════ */
 
 async function handleWalletClaim(user, body, env) {
@@ -780,19 +596,13 @@ async function handleWalletClaim(user, body, env) {
 
   const st = await getSettings(env);
   assertLive(st);
-  const enabled = method === 'almadar'
-    ? st.m_almadar_on !== false
-    : st.m_libyana_on !== false;
+  const enabled = method === 'almadar' ? st.m_almadar_on !== false : st.m_libyana_on !== false;
   if (!enabled) throw httpError(503, 'طريقة الدفع هذه غير متاحة حاليًا');
 
   if (phone.length !== 9) throw httpError(400, 'رقم الهاتف غير صحيح');
-  if (!Number.isFinite(amountLyd) || amountLyd <= 0) {
-    throw httpError(400, 'أدخل المبلغ الذي حوّلته');
-  }
+  if (!Number.isFinite(amountLyd) || amountLyd <= 0) throw httpError(400, 'أدخل المبلغ');
 
-  const rate = method === 'almadar'
-    ? num(st.rate_almadar, 12.5)
-    : num(st.rate_libyana, 11.8);
+  const rate = method === 'almadar' ? num(st.rate_almadar, 12.5) : num(st.rate_libyana, 11.8);
   const amountUsd = round2(amountLyd / rate);
 
   const maxLyd = num(st.max_deposit_lyd, 5000);
@@ -802,7 +612,6 @@ async function handleWalletClaim(user, body, env) {
   const sms = await findUnclaimedSms(env, phone, amountLyd);
 
   if (sms) {
-    // ✅ Transaction — لا Race Condition
     let credited = 0;
     await fsRunTransaction(env, async (tx) => {
       const smsDoc = await tx.get(`sms_transactions/${sms._id}`);
@@ -815,32 +624,19 @@ async function handleWalletClaim(user, body, env) {
 
       tx.update(`users/${user.uid}`, { wallet_balance: round2(curBalance + credited) });
       tx.update(`sms_transactions/${sms._id}`, {
-        status: 'claimed',
-        uid: user.uid,
-        claimed_at: nowIso(),
-        matched_by: 'claim',
+        status: 'claimed', uid: user.uid, claimed_at: nowIso(), matched_by: 'claim',
       });
       tx.create('wallet_deposits', sms._id, {
-        uid: user.uid,
-        amount_usd: credited,
+        uid: user.uid, amount_usd: credited,
         amount_lyd: num(smsDoc.amount_lyd, amountLyd),
         method: (method === 'libyana' ? 'ليبيانا' : 'المدار') + ' — تلقائي',
-        claim_phone: phone,
-        proof_url: '',
-        note: 'حوالة من ' + phone,
-        status: 'approved',
-        auto: true,
-        created_at: nowIso(),
+        claim_phone: phone, proof_url: '', note: 'حوالة من ' + phone,
+        status: 'approved', auto: true, created_at: nowIso(),
       });
       tx.create('wallet_transactions', `txn_dep_${sms._id}`, {
-        uid: user.uid,
-        type: 'credit',
-        amount: credited,
-        balance_before: curBalance,
-        balance_after: round2(curBalance + credited),
-        reason: 'deposit_claim',
-        reference: sms._id,
-        created_at: nowIso(),
+        uid: user.uid, type: 'credit', amount: credited,
+        balance_before: curBalance, balance_after: round2(curBalance + credited),
+        reason: 'deposit_claim', reference: sms._id, created_at: nowIso(),
       });
     });
 
@@ -855,16 +651,10 @@ async function handleWalletClaim(user, body, env) {
 
   const claimId = `CLM${Date.now()}${randomSuffix(4)}`;
   await fsSet(env, `wallet_deposits/${claimId}`, {
-    uid: user.uid,
-    amount_usd: amountUsd,
-    amount_lyd: amountLyd,
+    uid: user.uid, amount_usd: amountUsd, amount_lyd: amountLyd,
     method: method === 'libyana' ? 'ليبيانا' : 'المدار',
-    claim_phone: phone,
-    proof_url: '',
-    note: '',
-    status: 'pending',
-    awaiting_sms: true,
-    created_at: nowIso(),
+    claim_phone: phone, proof_url: '', note: '',
+    status: 'pending', awaiting_sms: true, created_at: nowIso(),
   });
 
   return { success: true, matched: false, claim_id: claimId };
@@ -877,10 +667,8 @@ async function findUnclaimedSms(env, phone, amountLyd) {
       compositeFilter: {
         op: 'AND',
         filters: [
-          { fieldFilter: { field: { fieldPath: 'status' }, op: 'EQUAL',
-            value: { stringValue: 'unclaimed' } } },
-          { fieldFilter: { field: { fieldPath: 'sender' }, op: 'EQUAL',
-            value: { stringValue: phone } } },
+          { fieldFilter: { field: { fieldPath: 'status' }, op: 'EQUAL', value: { stringValue: 'unclaimed' } } },
+          { fieldFilter: { field: { fieldPath: 'sender' }, op: 'EQUAL', value: { stringValue: phone } } },
         ],
       },
     },
@@ -903,10 +691,8 @@ async function findPendingClaim(env, phone, amountLyd) {
       compositeFilter: {
         op: 'AND',
         filters: [
-          { fieldFilter: { field: { fieldPath: 'status' }, op: 'EQUAL',
-            value: { stringValue: 'pending' } } },
-          { fieldFilter: { field: { fieldPath: 'claim_phone' }, op: 'EQUAL',
-            value: { stringValue: phone } } },
+          { fieldFilter: { field: { fieldPath: 'status' }, op: 'EQUAL', value: { stringValue: 'pending' } } },
+          { fieldFilter: { field: { fieldPath: 'claim_phone' }, op: 'EQUAL', value: { stringValue: phone } } },
         ],
       },
     },
@@ -933,15 +719,12 @@ async function handleUsdtInvoice(user, body, env) {
   if (s.m_usdt_on !== true) throw httpError(503, 'الدفع بـ USDT غير متاح');
 
   const address = String(s.usdt_address || '').trim();
-  if (!/^T[1-9A-HJ-NP-Za-km-z]{33}$/.test(address)) {
-    throw httpError(503, 'عنوان الاستقبال غير مضبوط');
-  }
+  if (!/^T[1-9A-HJ-NP-Za-km-z]{33}$/.test(address)) throw httpError(503, 'عنوان الاستقبال غير مضبوط');
 
   const amount = round2(num(body.amount_usd, NaN));
   if (!Number.isFinite(amount) || amount <= 0) throw httpError(400, 'أدخل المبلغ');
 
-  const minU = num(s.usdt_min, 5);
-  const maxU = num(s.usdt_max, 1000);
+  const minU = num(s.usdt_min, 5), maxU = num(s.usdt_max, 1000);
   if (amount < minU) throw httpError(400, `الحد الأدنى ${minU} USDT`);
   if (amount > maxU) throw httpError(400, `الحد الأقصى ${maxU} USDT`);
   await assertDailyLimit(env, s, user.uid, 'deposit', amount);
@@ -949,17 +732,14 @@ async function handleUsdtInvoice(user, body, env) {
   const open = await fsQueryRaw(env, {
     from: [{ collectionId: 'usdt_invoices' }],
     where: {
-      fieldFilter: { field: { fieldPath: 'status' }, op: 'EQUAL',
-        value: { stringValue: 'awaiting' } },
+      fieldFilter: { field: { fieldPath: 'status' }, op: 'EQUAL', value: { stringValue: 'awaiting' } },
     },
     limit: 200,
   });
-  const taken = new Set(
-    open.map(r => {
-      const d = fromFsFields(r.document.fields || {});
-      return Number(num(d.pay_amount, 0)).toFixed(4);
-    })
-  );
+  const taken = new Set(open.map(r => {
+    const d = fromFsFields(r.document.fields || {});
+    return Number(num(d.pay_amount, 0)).toFixed(4);
+  }));
 
   let payAmount = null;
   for (let i = 0; i < 80; i++) {
@@ -975,14 +755,10 @@ async function handleUsdtInvoice(user, body, env) {
   const id = `INV${now}${randomSuffix(4)}`;
 
   await fsSet(env, `usdt_invoices/${id}`, {
-    uid: user.uid,
-    amount_usd: amount,
-    pay_amount: payAmount,
-    address,
-    status: 'awaiting',
+    uid: user.uid, amount_usd: amount, pay_amount: payAmount,
+    address, status: 'awaiting',
     created_at: new Date(now).toISOString(),
-    created_ms: now,
-    expires_ms: now + minutes * 60000,
+    created_ms: now, expires_ms: now + minutes * 60000,
   });
 
   return {
@@ -995,9 +771,6 @@ async function handleUsdtInvoice(user, body, env) {
   };
 }
 
-/**
- * ✅ مُحسّن: Transaction على admin_usdt_txids + wallet credit
- */
 async function handleUsdtVerify(user, body, env, request) {
   const id = String(body.invoice_id || '').trim();
   if (!id) throw httpError(400, 'رقم الفاتورة مفقود');
@@ -1014,7 +787,7 @@ async function handleUsdtVerify(user, body, env, request) {
   const now = Date.now();
   if (num(inv.expires_ms, 0) < now && inv.status === 'awaiting') {
     await fsPatch(env, `usdt_invoices/${id}`, { status: 'expired' });
-    throw httpError(400, 'انتهت مهلة الفاتورة — أنشئ فاتورة جديدة');
+    throw httpError(400, 'انتهت مهلة الفاتورة');
   }
 
   const s = await getSettings(env);
@@ -1023,14 +796,13 @@ async function handleUsdtVerify(user, body, env, request) {
 
   let txs = [];
   try {
-    const url = `${TRON_API}/v1/accounts/${address}/transactions/trc20`
-      + `?limit=60&only_to=true&contract_address=${USDT_TRC20}`;
+    const url = `${TRON_API}/v1/accounts/${address}/transactions/trc20?limit=60&only_to=true&contract_address=${USDT_TRC20}`;
     const res = await fetch(url, { headers: { accept: 'application/json' } });
     const data = await res.json();
     txs = Array.isArray(data.data) ? data.data : [];
   } catch (e) {
     console.error('TRON_FETCH_FAILED', e.message);
-    throw httpError(502, 'تعذّر الاتصال بالشبكة، أعد المحاولة');
+    throw httpError(502, 'تعذّر الاتصال بالشبكة');
   }
 
   const since = num(inv.created_ms, 0) - 5 * 60000;
@@ -1047,9 +819,7 @@ async function handleUsdtVerify(user, body, env, request) {
 
   const received = round2(Number(hit.value || 0) / 1e6);
 
-  // ✅ Transaction كامل — منع double-spend
-  let credited = 0;
-  let duplicate = false;
+  let credited = 0, duplicate = false;
   await fsRunTransaction(env, async (tx) => {
     const seen = await tx.get(`usdt_txids/${txid}`);
     if (seen) { duplicate = true; return; }
@@ -1062,38 +832,23 @@ async function handleUsdtVerify(user, body, env, request) {
     credited = received;
 
     tx.create('usdt_txids', txid, {
-      invoice_id: id,
-      uid: user.uid,
-      amount: received,
-      from: String(hit.from || '').slice(0, 60),
-      created_at: nowIso(),
+      invoice_id: id, uid: user.uid, amount: received,
+      from: String(hit.from || '').slice(0, 60), created_at: nowIso(),
     });
     tx.update(`usdt_invoices/${id}`, {
       status: 'paid', txid, paid_at: nowIso(), received,
     });
-    tx.update(`users/${user.uid}`, {
-      wallet_balance: round2(curBalance + credited),
-    });
+    tx.update(`users/${user.uid}`, { wallet_balance: round2(curBalance + credited) });
     tx.create('wallet_deposits', id, {
-      uid: user.uid,
-      amount_usd: credited,
-      amount_lyd: 0,
-      method: 'USDT — تلقائي',
-      proof_url: '',
+      uid: user.uid, amount_usd: credited, amount_lyd: 0,
+      method: 'USDT — تلقائي', proof_url: '',
       note: 'TRC20 · ' + txid.slice(0, 12) + '…',
-      status: 'approved',
-      auto: true,
-      created_at: nowIso(),
+      status: 'approved', auto: true, created_at: nowIso(),
     });
     tx.create('wallet_transactions', `txn_usdt_${id}`, {
-      uid: user.uid,
-      type: 'credit',
-      amount: credited,
-      balance_before: curBalance,
-      balance_after: round2(curBalance + credited),
-      reason: 'usdt_deposit',
-      reference: txid,
-      created_at: nowIso(),
+      uid: user.uid, type: 'credit', amount: credited,
+      balance_before: curBalance, balance_after: round2(curBalance + credited),
+      reason: 'usdt_deposit', reference: txid, created_at: nowIso(),
     });
   });
 
@@ -1117,8 +872,7 @@ function parseTransferSms(text) {
   if (!/تم\s*تحويل/.test(s)) return null;
 
   const incoming = /رصيد[كه]/.test(s) || /من\s*الرقم/.test(s);
-  const outgoing = /تحويل[^\n]{0,40}\s(?:الى|الي|إلى)\s*\+?\d/.test(s)
-                   && !/من\s*الرقم/.test(s);
+  const outgoing = /تحويل[^\n]{0,40}\s(?:الى|الي|إلى)\s*\+?\d/.test(s) && !/من\s*الرقم/.test(s);
   if (!incoming || outgoing) return null;
 
   const almadar = s.match(/تم\s*تحويل\s*([\d,]+(?:[.\u066B]\d{1,3})?)\s*د\.?\s*ل/);
@@ -1174,13 +928,10 @@ function salvageJson(raw) {
 
 async function handleSmsWebhook(request, env) {
   const url = new URL(request.url);
-  const provided = request.headers.get('x-sms-secret')
-    || url.searchParams.get('secret') || '';
+  const provided = request.headers.get('x-sms-secret') || url.searchParams.get('secret') || '';
   const expected = env.SMS_WEBHOOK_SECRET || '';
 
-  if (!expected || provided !== expected) {
-    throw httpError(401, 'unauthorized');
-  }
+  if (!expected || provided !== expected) throw httpError(401, 'unauthorized');
 
   const ctype = (request.headers.get('content-type') || '').toLowerCase();
   let body = {};
@@ -1199,23 +950,17 @@ async function handleSmsWebhook(request, env) {
     }
   }
 
-  const text =
-    body.text || body.message || body.body || body.msg || body.content ||
+  const text = body.text || body.message || body.body || body.msg || body.content ||
     url.searchParams.get('text') || url.searchParams.get('message') ||
     (ctype.includes('json') ? '' : rawBody) || '';
 
-  const receivedAt = body.receivedAt || body.timestamp || body.date
-    || url.searchParams.get('timestamp') || nowIso();
-  const smsId = String(
-    body.sms_id || body.id || url.searchParams.get('sms_id') || ''
-  ).trim();
+  const receivedAt = body.receivedAt || body.timestamp || body.date ||
+    url.searchParams.get('timestamp') || nowIso();
+  const smsId = String(body.sms_id || body.id || url.searchParams.get('sms_id') || '').trim();
 
   const parsed = parseTransferSms(text);
-
   const s0 = await getSettings(env);
-  const from = String(
-    body.from || body.sender || url.searchParams.get('from') || ''
-  ).trim();
+  const from = String(body.from || body.sender || url.searchParams.get('from') || '').trim();
 
   const allow = String(s0.sms_allowed_senders || 'Libyana,ليبيانا,المدار,Almadar')
     .split(',').map(x => x.trim().toLowerCase()).filter(Boolean);
@@ -1230,14 +975,10 @@ async function handleSmsWebhook(request, env) {
   if (parsed && !senderOk) {
     await fsSet(env, `sms_transactions/${fingerprint}`, {
       raw_text: String(text).slice(0, 500),
-      from: from.slice(0, 60),
-      amount_lyd: parsed.amount_lyd,
-      sender: parsed.sender,
-      method: parsed.network,
-      status: 'untrusted',
-      needs_attention: true,
-      received_at: receivedAt,
-      created_at: nowIso(),
+      from: from.slice(0, 60), amount_lyd: parsed.amount_lyd,
+      sender: parsed.sender, method: parsed.network,
+      status: 'untrusted', needs_attention: true,
+      received_at: receivedAt, created_at: nowIso(),
     });
     console.warn('UNTRUSTED_SENDER', from);
     return { success: true, parsed: true, matched: false, untrusted: true };
@@ -1250,27 +991,19 @@ async function handleSmsWebhook(request, env) {
     await fsSet(env, `sms_transactions/${fingerprint}`, {
       raw_text: String(text).slice(0, 500),
       status: 'unparsed',
-      received_at: receivedAt,
-      created_at: nowIso(),
+      received_at: receivedAt, created_at: nowIso(),
     });
     return { success: true, parsed: false };
   }
 
-  const rate = parsed.network === 'almadar'
-    ? num(s0.rate_almadar, 12.5)
-    : num(s0.rate_libyana, 11.8);
+  const rate = parsed.network === 'almadar' ? num(s0.rate_almadar, 12.5) : num(s0.rate_libyana, 11.8);
   const amountUsd = round2(parsed.amount_lyd / rate);
 
   const record = {
     raw_text: String(text).slice(0, 500),
-    amount_lyd: parsed.amount_lyd,
-    amount_usd: amountUsd,
-    rate,
-    sender: parsed.sender,
-    from: from.slice(0, 60),
-    method: parsed.network,
-    received_at: receivedAt,
-    created_at: nowIso(),
+    amount_lyd: parsed.amount_lyd, amount_usd: amountUsd, rate,
+    sender: parsed.sender, from: from.slice(0, 60), method: parsed.network,
+    received_at: receivedAt, created_at: nowIso(),
   };
 
   let claim = null;
@@ -1289,22 +1022,15 @@ async function handleSmsWebhook(request, env) {
           status: 'approved', auto: true,
           awaiting_sms: false, approved_at: nowIso(),
         });
-        tx.update(`users/${claim.uid}`, {
-          wallet_balance: round2(curBalance + amountUsd),
-        });
+        tx.update(`users/${claim.uid}`, { wallet_balance: round2(curBalance + amountUsd) });
         tx.create('sms_transactions', fingerprint, {
           ...record, status: 'claimed', uid: claim.uid,
           claimed_at: nowIso(), matched_by: 'pending_claim',
         });
         tx.create('wallet_transactions', `txn_sms_${fingerprint}`, {
-          uid: claim.uid,
-          type: 'credit',
-          amount: amountUsd,
-          balance_before: curBalance,
-          balance_after: round2(curBalance + amountUsd),
-          reason: 'sms_deposit',
-          reference: fingerprint,
-          created_at: nowIso(),
+          uid: claim.uid, type: 'credit', amount: amountUsd,
+          balance_before: curBalance, balance_after: round2(curBalance + amountUsd),
+          reason: 'sms_deposit', reference: fingerprint, created_at: nowIso(),
         });
       });
 
@@ -1316,8 +1042,7 @@ async function handleSmsWebhook(request, env) {
           { credited: amountUsd }, true),
       ]);
 
-      return { success: true, parsed: true, matched: true,
-               via: 'claim', credited_usd: amountUsd };
+      return { success: true, parsed: true, matched: true, via: 'claim', credited_usd: amountUsd };
     } catch (e) {
       if (e.message === 'DUPLICATE') {
         return { success: true, parsed: true, matched: false, duplicate: true };
@@ -1331,16 +1056,12 @@ async function handleSmsWebhook(request, env) {
     }
   }
 
-  await fsSet(env, `sms_transactions/${fingerprint}`, {
-    ...record, status: 'unclaimed',
-  });
-
+  await fsSet(env, `sms_transactions/${fingerprint}`, { ...record, status: 'unclaimed' });
   return { success: true, parsed: true, matched: false, amount_lyd: parsed.amount_lyd };
 }
 
 async function handleAdminSmsAssign(user, body, env) {
   await requireAdmin(user, env);
-
   const smsId = String(body.sms_id || '').trim();
   const uid = String(body.uid || '').trim();
   if (!smsId || !uid) throw httpError(400, 'بيانات ناقصة');
@@ -1355,7 +1076,6 @@ async function handleAdminSmsAssign(user, body, env) {
   await fsRunTransaction(env, async (tx) => {
     const cur = await tx.get(`sms_transactions/${smsId}`);
     if (cur.status === 'claimed') throw httpError(400, 'مربوطة بالفعل');
-
     const u = await tx.get(`users/${uid}`);
     const curBalance = num(u?.wallet_balance, 0);
 
@@ -1364,35 +1084,24 @@ async function handleAdminSmsAssign(user, body, env) {
     });
     tx.update(`users/${uid}`, { wallet_balance: round2(curBalance + amountUsd) });
     tx.create('wallet_deposits', smsId, {
-      uid,
-      amount_usd: amountUsd,
-      amount_lyd: num(sms.amount_lyd, 0),
-      method: 'ليبيانا — ربط يدوي',
-      proof_url: '',
+      uid, amount_usd: amountUsd, amount_lyd: num(sms.amount_lyd, 0),
+      method: 'ليبيانا — ربط يدوي', proof_url: '',
       note: 'حوالة من ' + (sms.sender || '—'),
-      status: 'approved',
-      auto: false,
-      created_at: nowIso(),
+      status: 'approved', auto: false, created_at: nowIso(),
     });
     tx.create('wallet_transactions', `txn_sms_manual_${smsId}`, {
-      uid,
-      type: 'credit',
-      amount: amountUsd,
-      balance_before: curBalance,
-      balance_after: round2(curBalance + amountUsd),
-      reason: 'sms_manual',
-      reference: smsId,
-      created_at: nowIso(),
+      uid, type: 'credit', amount: amountUsd,
+      balance_before: curBalance, balance_after: round2(curBalance + amountUsd),
+      reason: 'sms_manual', reference: smsId, created_at: nowIso(),
     });
   });
 
   await logOp(env, user.uid, 'sms_manual_assign', { smsId, uid }, { credited: amountUsd }, true);
-
   return { success: true, credited: amountUsd };
 }
 
 /* ═══════════════════════════════════════════════════════════
-   المتجر
+   Store
    ═══════════════════════════════════════════════════════════ */
 
 async function handleCatalog(env) {
@@ -1401,8 +1110,7 @@ async function handleCatalog(env) {
     fsQueryRaw(env, { from: [{ collectionId: 'products' }], limit: 300 }),
   ]);
 
-  const categories = cats
-    .map(r => withId(r, 'categories'))
+  const categories = cats.map(r => withId(r, 'categories'))
     .filter(c => c.active !== false)
     .sort((a, b) => num(a.sort, 99) - num(b.sort, 99))
     .map(c => ({
@@ -1412,8 +1120,7 @@ async function handleCatalog(env) {
     }));
 
   const now = Date.now();
-  const products = prods
-    .map(r => withId(r, 'products'))
+  const products = prods.map(r => withId(r, 'products'))
     .filter(p => p.active !== false)
     .sort((a, b) => num(a.sort, 99) - num(b.sort, 99))
     .map(p => {
@@ -1445,7 +1152,6 @@ function withId(row, coll) {
 
 function proration(p, nowMs) {
   if (p.countdown !== true) return null;
-
   const DAY = 86400000;
   const start = Date.parse(p.starts_at || '');
   const endRaw = Date.parse(p.ends_at || '');
@@ -1471,8 +1177,8 @@ function proration(p, nowMs) {
   let price = Math.min(full, round2(perDay * left));
   if (minP > 0 && price < minP) price = minP;
 
-  return { state: 'active', total_days: total, days_left: left,
-           per_day: perDay, price, starts_at: p.starts_at, ends_at: p.ends_at };
+  return { state: 'active', total_days: total, days_left: left, per_day: perDay, price,
+           starts_at: p.starts_at, ends_at: p.ends_at };
 }
 
 function cleanProductFields(arr) {
@@ -1487,9 +1193,6 @@ function cleanProductFields(arr) {
   })).filter(f => f.label);
 }
 
-/**
- * ✅ مُحسّن: Transaction كامل + stock آمن
- */
 async function handleStoreOrder(user, body, env) {
   const s = await getSettings(env);
   assertLive(s);
@@ -1516,9 +1219,7 @@ async function handleStoreOrder(user, body, env) {
     if (!p || p.active === false) throw httpError(404, 'منتج غير متاح');
 
     const kind = p.kind === 'stock' ? 'stock' : 'manual';
-    if (kind === 'stock' && num(p.stock_count, 0) < qty) {
-      throw httpError(409, `الكمية غير متوفرة من ${p.name || 'المنتج'}`);
-    }
+    if (kind === 'stock' && num(p.stock_count, 0) < qty) throw httpError(409, `الكمية غير متوفرة`);
 
     const defs = cleanProductFields(p.fields);
     const vals = {};
@@ -1529,11 +1230,7 @@ async function handleStoreOrder(user, body, env) {
     }
 
     const pr = proration(p, Date.now());
-    if (pr && pr.state !== 'active') {
-      throw httpError(409, pr.state === 'upcoming'
-        ? `${p.name || 'المنتج'} لم يبدأ بعد`
-        : `انتهت مدة ${p.name || 'المنتج'}`);
-    }
+    if (pr && pr.state !== 'active') throw httpError(409, `المنتج غير متاح`);
     const price = pr ? pr.price : round2(num(p.price, 0));
     totalLyd = round2(totalLyd + price * qty);
 
@@ -1541,8 +1238,7 @@ async function handleStoreOrder(user, body, env) {
       pid, qty, kind, values: vals,
       name: p.name || '', image: p.image || '',
       price_lyd: price, line_lyd: round2(price * qty),
-      days_left: pr ? pr.days_left : null,
-      ends_at: pr ? pr.ends_at : '',
+      days_left: pr ? pr.days_left : null, ends_at: pr ? pr.ends_at : '',
     });
   }
 
@@ -1561,8 +1257,6 @@ async function handleStoreOrder(user, body, env) {
   const orderId = `ORD${Date.now()}${randomSuffix(4)}`;
   const allStock = lines.every(l => l.kind === 'stock');
 
-  // ✅ Transaction كامل
-  let stockCodes = {};
   await fsRunTransaction(env, async (tx) => {
     const idemDoc = await tx.get(`idempotency/${idem}`);
     if (idemDoc) throw httpError(409, 'هذا الطلب قيد التنفيذ بالفعل');
@@ -1572,82 +1266,54 @@ async function handleStoreOrder(user, body, env) {
     if (me.banned === true) throw httpError(403, 'الحساب موقوف');
 
     const balance = num(me.wallet_balance, 0);
-    if (balance < totalUsd) {
-      throw httpError(402, `رصيدك غير كافٍ — تحتاج ${round2(totalUsd - balance)}$`);
-    }
+    if (balance < totalUsd) throw httpError(402, `رصيدك غير كافٍ`);
 
-    // خصم الرصيد
     const newBalance = round2(balance - totalUsd);
     tx.update(`users/${user.uid}`, {
       wallet_balance: newBalance,
       total_spent: round2(num(me.total_spent, 0) + totalUsd),
     });
 
-    // إنشاء الطلب
     tx.create('orders', orderId, {
-      uid: user.uid,
-      items: lines,
+      uid: user.uid, items: lines,
       coupon: coupon ? coupon.code : '',
-      discount_lyd: discountLyd,
-      total_lyd: totalLyd,
-      total_usd: totalUsd,
-      rate: rateVal,
+      discount_lyd: discountLyd, total_lyd: totalLyd, total_usd: totalUsd, rate: rateVal,
       status: allStock ? 'completed' : 'pending',
       idempotency_key: idem,
-      created_at: nowIso(),
-      updated_at: nowIso(),
+      created_at: nowIso(), updated_at: nowIso(),
     });
 
-    // بصمة منع التكرار
     tx.create('idempotency', idem, { uid: user.uid, order_id: orderId, created_at: nowIso() });
 
-    // سجل المعاملة
     tx.create('wallet_transactions', `txn_order_${orderId}`, {
-      uid: user.uid,
-      type: 'debit',
-      amount: totalUsd,
-      balance_before: balance,
-      balance_after: newBalance,
-      reason: 'store_order',
-      reference: orderId,
-      created_at: nowIso(),
+      uid: user.uid, type: 'debit', amount: totalUsd,
+      balance_before: balance, balance_after: newBalance,
+      reason: 'store_order', reference: orderId, created_at: nowIso(),
     });
 
-    // خصم المخزون
     if (allStock) {
       for (const l of lines) {
         if (l.kind !== 'stock') continue;
-        // (سحب الأكواد يتم خارج Transaction — نحدّث العداد فقط)
         tx.increment(`products/${l.pid}`, 'stock_count', -l.qty);
       }
     }
   });
 
-  // سحب الأكواد الفعلي خارج Transaction
   if (allStock) {
     try {
       for (const l of lines) {
         if (l.kind !== 'stock') continue;
         const codes = await takeStock(env, l.pid, l.qty);
-        stockCodes[l.pid] = codes;
         l.codes = codes;
       }
-      // تحديث الطلب بالأكواد
       await fsPatch(env, `orders/${orderId}`, { items: lines });
     } catch (e) {
       console.error('STOCK_TAKE_FAILED', e.message);
-      // نُعيد المال للعميل
-      await fsRunTransaction(env, async (tx) => {
-        const me = await tx.get(`users/${user.uid}`);
-        tx.update(`users/${user.uid}`, {
-          wallet_balance: round2(num(me.wallet_balance, 0) + totalUsd),
-        });
-      });
+      await fsIncrement(env, `users/${user.uid}`, { wallet_balance: totalUsd });
       throw httpError(503, 'نفد المخزون — أُعيد رصيدك');
     }
   }
 
-  // المهام الجانبية (لا تؤثر على المعاملة الأساسية)
   await Promise.all([
     maybePayReferral(env, s, user.uid, totalUsd),
     awardPoints(env, s, user.uid, totalLyd),
@@ -1675,10 +1341,8 @@ async function takeStock(env, pid, qty) {
       compositeFilter: {
         op: 'AND',
         filters: [
-          { fieldFilter: { field: { fieldPath: 'pid' }, op: 'EQUAL',
-            value: { stringValue: pid } } },
-          { fieldFilter: { field: { fieldPath: 'used' }, op: 'EQUAL',
-            value: { booleanValue: false } } },
+          { fieldFilter: { field: { fieldPath: 'pid' }, op: 'EQUAL', value: { stringValue: pid } } },
+          { fieldFilter: { field: { fieldPath: 'used' }, op: 'EQUAL', value: { booleanValue: false } } },
         ],
       },
     },
@@ -1696,7 +1360,6 @@ async function takeStock(env, pid, qty) {
 
 async function handleAdminOrder(user, body, env) {
   await requireAdmin(user, env);
-
   const id = String(body.order_id || '').trim();
   const action = body.action === 'reject' ? 'reject' : 'complete';
   if (!id) throw httpError(400, 'رقم الطلب مفقود');
@@ -1705,9 +1368,7 @@ async function handleAdminOrder(user, body, env) {
     await fsRunTransaction(env, async (tx) => {
       const o = await tx.get(`orders/${id}`);
       if (!o) throw httpError(404, 'الطلب غير موجود');
-      if (o.status !== 'pending' && o.status !== 'processing') {
-        throw httpError(400, 'الطلب مُغلق بالفعل');
-      }
+      if (o.status !== 'pending' && o.status !== 'processing') throw httpError(400, 'الطلب مُغلق');
 
       const back = round2(num(o.total_usd, 0));
       const u = await tx.get(`users/${o.uid}`);
@@ -1723,17 +1384,11 @@ async function handleAdminOrder(user, body, env) {
         total_spent: round2(num(u?.total_spent, 0) - back),
       });
       tx.create('wallet_transactions', `txn_order_refund_${id}`, {
-        uid: o.uid,
-        type: 'credit',
-        amount: back,
-        balance_before: curBalance,
-        balance_after: round2(curBalance + back),
-        reason: 'order_rejected',
-        reference: id,
-        created_at: nowIso(),
+        uid: o.uid, type: 'credit', amount: back,
+        balance_before: curBalance, balance_after: round2(curBalance + back),
+        reason: 'order_rejected', reference: id, created_at: nowIso(),
       });
     });
-
     await logOp(env, user.uid, 'order_rejected', { id }, { refunded: true }, true);
     return { success: true, refunded: true };
   }
@@ -1748,7 +1403,7 @@ async function handleAdminOrder(user, body, env) {
 }
 
 /* ═══════════════════════════════════════════════════════════
-   السحب والتحويل
+   Withdraw / Transfer
    ═══════════════════════════════════════════════════════════ */
 
 async function handleWithdrawRequest(user, body, env) {
@@ -1764,13 +1419,11 @@ async function handleWithdrawRequest(user, body, env) {
   if (!method) throw httpError(400, 'اختر طريقة السحب');
   if (!dest) throw httpError(400, 'أدخل وجهة السحب');
 
-  const mn = num(s.withdraw_min, 10);
-  const mx = num(s.withdraw_max, 500);
+  const mn = num(s.withdraw_min, 10), mx = num(s.withdraw_max, 500);
   if (amount < mn) throw httpError(400, `الحد الأدنى ${mn}$`);
   if (amount > mx) throw httpError(400, `الحد الأقصى ${mx}$`);
 
-  const feePct = num(s.withdraw_fee_pct, 0);
-  const feeFix = num(s.withdraw_fee_fixed, 0);
+  const feePct = num(s.withdraw_fee_pct, 0), feeFix = num(s.withdraw_fee_fixed, 0);
   const fee = round2(feeFix + amount * feePct / 100);
   const net = round2(amount - fee);
   if (net <= 0) throw httpError(400, 'المبلغ لا يغطي الرسوم');
@@ -1788,19 +1441,13 @@ async function handleWithdrawRequest(user, body, env) {
     tx.update(`users/${user.uid}`, { wallet_balance: round2(curBalance - amount) });
     tx.create('withdrawals', id, {
       uid: user.uid, amount_usd: amount, fee, net,
-      method, destination: dest,
-      status: 'pending',
+      method, destination: dest, status: 'pending',
       created_at: nowIso(), updated_at: nowIso(),
     });
     tx.create('wallet_transactions', `txn_wd_${id}`, {
-      uid: user.uid,
-      type: 'debit',
-      amount: amount,
-      balance_before: curBalance,
-      balance_after: round2(curBalance - amount),
-      reason: 'withdraw_request',
-      reference: id,
-      created_at: nowIso(),
+      uid: user.uid, type: 'debit', amount,
+      balance_before: curBalance, balance_after: round2(curBalance - amount),
+      reason: 'withdraw_request', reference: id, created_at: nowIso(),
     });
   });
 
@@ -1818,7 +1465,7 @@ async function handleAdminWithdraw(user, body, env) {
     await fsRunTransaction(env, async (tx) => {
       const w = await tx.get(`withdrawals/${id}`);
       if (!w) throw httpError(404, 'الطلب غير موجود');
-      if (w.status !== 'pending') throw httpError(400, 'الطلب مُغلق بالفعل');
+      if (w.status !== 'pending') throw httpError(400, 'الطلب مُغلق');
 
       const back = round2(num(w.amount_usd, 0));
       const u = await tx.get(`users/${w.uid}`);
@@ -1831,14 +1478,9 @@ async function handleAdminWithdraw(user, body, env) {
       });
       tx.update(`users/${w.uid}`, { wallet_balance: round2(curBalance + back) });
       tx.create('wallet_transactions', `txn_wd_refund_${id}`, {
-        uid: w.uid,
-        type: 'credit',
-        amount: back,
-        balance_before: curBalance,
-        balance_after: round2(curBalance + back),
-        reason: 'withdraw_rejected',
-        reference: id,
-        created_at: nowIso(),
+        uid: w.uid, type: 'credit', amount: back,
+        balance_before: curBalance, balance_after: round2(curBalance + back),
+        reason: 'withdraw_rejected', reference: id, created_at: nowIso(),
       });
     });
     await logOp(env, user.uid, 'withdraw_rejected', { id }, { refunded: true }, true);
@@ -1847,7 +1489,7 @@ async function handleAdminWithdraw(user, body, env) {
 
   const w = await fsGet(env, `withdrawals/${id}`);
   if (!w) throw httpError(404, 'الطلب غير موجود');
-  if (w.status !== 'pending') throw httpError(400, 'الطلب مُغلق بالفعل');
+  if (w.status !== 'pending') throw httpError(400, 'الطلب مُغلق');
 
   await fsPatch(env, `withdrawals/${id}`, {
     status: 'completed',
@@ -1879,10 +1521,7 @@ async function handleTransfer(user, body, env) {
   if (to.includes('@')) {
     const rows = await fsQueryRaw(env, {
       from: [{ collectionId: 'users' }],
-      where: {
-        fieldFilter: { field: { fieldPath: 'email' }, op: 'EQUAL',
-          value: { stringValue: to } },
-      },
+      where: { fieldFilter: { field: { fieldPath: 'email' }, op: 'EQUAL', value: { stringValue: to } } },
       limit: 2,
     });
     if (rows.length === 1) target = rows[0];
@@ -1890,10 +1529,7 @@ async function handleTransfer(user, body, env) {
     const key = normalizePhone(to);
     const rows = await fsQueryRaw(env, {
       from: [{ collectionId: 'users' }],
-      where: {
-        fieldFilter: { field: { fieldPath: 'phone_key' }, op: 'EQUAL',
-          value: { stringValue: key } },
-      },
+      where: { fieldFilter: { field: { fieldPath: 'phone_key' }, op: 'EQUAL', value: { stringValue: key } } },
       limit: 2,
     });
     if (rows.length === 1) target = rows[0];
@@ -1920,28 +1556,17 @@ async function handleTransfer(user, body, env) {
     tx.update(`users/${toUid}`, { wallet_balance: round2(yourBalance + amount) });
     tx.create('transfers', id, {
       from_uid: user.uid, to_uid: toUid,
-      amount_usd: amount, fee,
-      status: 'completed', created_at: nowIso(),
+      amount_usd: amount, fee, status: 'completed', created_at: nowIso(),
     });
     tx.create('wallet_transactions', `txn_tr_out_${id}`, {
-      uid: user.uid,
-      type: 'debit',
-      amount: total,
-      balance_before: curBalance,
-      balance_after: round2(curBalance - total),
-      reason: 'transfer_out',
-      reference: id,
-      created_at: nowIso(),
+      uid: user.uid, type: 'debit', amount: total,
+      balance_before: curBalance, balance_after: round2(curBalance - total),
+      reason: 'transfer_out', reference: id, created_at: nowIso(),
     });
     tx.create('wallet_transactions', `txn_tr_in_${id}`, {
-      uid: toUid,
-      type: 'credit',
-      amount: amount,
-      balance_before: yourBalance,
-      balance_after: round2(yourBalance + amount),
-      reason: 'transfer_in',
-      reference: id,
-      created_at: nowIso(),
+      uid: toUid, type: 'credit', amount,
+      balance_before: yourBalance, balance_after: round2(yourBalance + amount),
+      reason: 'transfer_in', reference: id, created_at: nowIso(),
     });
   });
 
@@ -1950,7 +1575,7 @@ async function handleTransfer(user, body, env) {
 }
 
 /* ═══════════════════════════════════════════════════════════
-   التذاكر
+   Tickets
    ═══════════════════════════════════════════════════════════ */
 
 async function handleTicketCreate(user, body, env) {
@@ -2006,7 +1631,7 @@ async function isAdminUid(env, uid) {
 }
 
 /* ═══════════════════════════════════════════════════════════
-   الكوبونات والنقاط
+   Coupons & Points
    ═══════════════════════════════════════════════════════════ */
 
 async function checkCoupon(env, code, uid, subtotalLyd) {
@@ -2016,21 +1641,14 @@ async function checkCoupon(env, code, uid, subtotalLyd) {
   const cp = await fsGet(env, `coupons/${c}`);
   if (!cp || cp.active === false) throw httpError(404, 'كوبون غير صالح');
 
-  if (cp.expires_at && new Date(cp.expires_at) < new Date()) {
-    throw httpError(400, 'انتهت صلاحية الكوبون');
-  }
+  if (cp.expires_at && new Date(cp.expires_at) < new Date()) throw httpError(400, 'انتهت صلاحية الكوبون');
   const maxUses = num(cp.max_uses, 0);
-  if (maxUses > 0 && num(cp.used_count, 0) >= maxUses) {
-    throw httpError(400, 'استُنفد هذا الكوبون');
-  }
+  if (maxUses > 0 && num(cp.used_count, 0) >= maxUses) throw httpError(400, 'استُنفد هذا الكوبون');
   const minOrder = num(cp.min_order_lyd, 0);
-  if (minOrder > 0 && subtotalLyd < minOrder) {
-    throw httpError(400, `الكوبون يتطلب طلبًا بـ${minOrder} د.ل`);
-  }
+  if (minOrder > 0 && subtotalLyd < minOrder) throw httpError(400, `الكوبون يتطلب طلبًا بـ${minOrder} د.ل`);
+
   const used = await fsGet(env, `coupon_uses/${c}_${uid}`);
-  if (used && cp.once_per_user !== false) {
-    throw httpError(400, 'استخدمت هذا الكوبون من قبل');
-  }
+  if (used && cp.once_per_user !== false) throw httpError(400, 'استخدمت هذا الكوبون من قبل');
 
   const pct = num(cp.percent, 0);
   const fixed = num(cp.amount_lyd, 0);
@@ -2063,9 +1681,8 @@ async function awardPoints(env, s, uid, spentLyd) {
   const per = num(s.points_per_lyd, 1);
   const pts = Math.floor(spentLyd * per);
   if (pts <= 0) return;
-  try {
-    await fsIncrement(env, `users/${uid}`, { points: pts });
-  } catch (e) { console.error('POINTS_FAILED', e.message); }
+  try { await fsIncrement(env, `users/${uid}`, { points: pts }); }
+  catch (e) { console.error('POINTS_FAILED', e.message); }
 }
 
 async function handleRedeemPoints(user, body, env) {
@@ -2105,7 +1722,7 @@ async function handleRedeemPoints(user, body, env) {
 }
 
 /* ═══════════════════════════════════════════════════════════
-   الدعوات
+   Referrals
    ═══════════════════════════════════════════════════════════ */
 
 function makeRefCode() {
@@ -2119,9 +1736,7 @@ async function handleRefCode(user, body, env) {
   if (s.referral_enabled !== true) throw httpError(503, 'نظام الدعوات غير مفعّل');
 
   const me = await fsGet(env, `users/${user.uid}`);
-  if (me && me.ref_code) {
-    return { success: true, code: me.ref_code, bonus: num(s.referral_bonus_invitee, 1) };
-  }
+  if (me && me.ref_code) return { success: true, code: me.ref_code, bonus: num(s.referral_bonus_invitee, 1) };
 
   let code = null;
   for (let i = 0; i < 12; i++) {
@@ -2156,16 +1771,10 @@ async function handleRefClaim(user, body, env) {
   if (owner.uid === user.uid) throw httpError(400, 'لا يمكنك استخدام رمزك');
 
   await fsPatch(env, `users/${user.uid}`, {
-    referred_by: owner.uid,
-    referred_code: code,
-    referral_paid: false,
+    referred_by: owner.uid, referred_code: code, referral_paid: false,
   });
 
-  return {
-    success: true,
-    bonus: num(s.referral_bonus_invitee, 1),
-    min_spend: num(s.referral_min_spend, 10),
-  };
+  return { success: true, bonus: num(s.referral_bonus_invitee, 1), min_spend: num(s.referral_min_spend, 10) };
 }
 
 async function maybePayReferral(env, s, uid, spent) {
@@ -2183,57 +1792,41 @@ async function maybePayReferral(env, s, uid, spent) {
 
     await Promise.all([
       fsPatch(env, `users/${uid}`, { referral_paid: true }),
-      forInvitee > 0
-        ? fsIncrement(env, `users/${uid}`, { wallet_balance: forInvitee })
-        : Promise.resolve(),
-      forInviter > 0
-        ? fsIncrement(env, `users/${me.referred_by}`,
-            { wallet_balance: forInviter, referrals_count: 1 })
-        : Promise.resolve(),
+      forInvitee > 0 ? fsIncrement(env, `users/${uid}`, { wallet_balance: forInvitee }) : Promise.resolve(),
+      forInviter > 0 ? fsIncrement(env, `users/${me.referred_by}`, { wallet_balance: forInviter, referrals_count: 1 }) : Promise.resolve(),
       fsSet(env, `wallet_deposits/REF${Date.now()}${randomSuffix(3)}`, {
         uid, amount_usd: forInvitee, amount_lyd: 0,
-        method: 'مكافأة دعوة', proof_url: '',
-        note: 'رمز ' + (me.referred_code || ''),
+        method: 'مكافأة دعوة', proof_url: '', note: 'رمز ' + (me.referred_code || ''),
         status: 'approved', auto: true, created_at: nowIso(),
       }),
-      logOp(env, uid, 'referral_paid',
-        { inviter: me.referred_by }, { forInvitee, forInviter }, true),
+      logOp(env, uid, 'referral_paid', { inviter: me.referred_by }, { forInvitee, forInviter }, true),
     ]);
-  } catch (e) {
-    console.error('REFERRAL_FAILED', e.message);
-  }
+  } catch (e) { console.error('REFERRAL_FAILED', e.message); }
 }
 
 /* ═══════════════════════════════════════════════════════════
-   الإدارة
+   Admin Settings / Deposits / Adjust
    ═══════════════════════════════════════════════════════════ */
 
 async function handleAdminSettings(user, body, env) {
   await requireAdmin(user, env);
 
   const allowedOps = [
-    'issuing_enabled', 'funding_enabled', 'provider_float',
-    'low_balance_threshold', 'maintenance_message', 'deposit_phone',
-    'm_libyana_on', 'm_libyana_label', 'm_almadar_on', 'm_almadar_label',
-    'm_bank_on', 'm_bank_label', 'm_usdt_on', 'm_usdt_label',
-    'm_binance_on', 'm_binance_label',
+    'issuing_enabled', 'funding_enabled', 'provider_float', 'low_balance_threshold', 'maintenance_message', 'deposit_phone',
+    'm_libyana_on', 'm_libyana_label', 'm_almadar_on', 'm_almadar_label', 'm_bank_on', 'm_bank_label',
+    'm_usdt_on', 'm_usdt_label', 'm_binance_on', 'm_binance_label',
     'm_libyana_phone', 'm_almadar_phone', 'method_order', 'sms_allowed_senders',
     'banners', 'banner_rotate_sec', 'custom_methods',
     'kill_switch', 'kill_message',
-    'daily_cards_max', 'daily_amount_max', 'daily_deposit_max',
-    'platform_daily_max', 'limits_enabled',
-    'referral_enabled', 'referral_bonus_inviter', 'referral_bonus_invitee',
-    'referral_min_spend', 'activity_log_enabled',
+    'daily_cards_max', 'daily_amount_max', 'daily_deposit_max', 'platform_daily_max', 'limits_enabled',
+    'referral_enabled', 'referral_bonus_inviter', 'referral_bonus_invitee', 'referral_min_spend', 'activity_log_enabled',
     'usdt_address', 'usdt_min', 'usdt_max', 'usdt_window_min',
-    'm_libyana_logo', 'm_almadar_logo', 'm_bank_logo',
-    'm_usdt_logo', 'm_binance_logo',
+    'm_libyana_logo', 'm_almadar_logo', 'm_bank_logo', 'm_usdt_logo', 'm_binance_logo',
     'm_bank_fields', 'm_usdt_fields', 'm_binance_fields', 'deposit_note',
     'theme_navy', 'theme_emerald', 'theme_bg', 'theme_radius',
-    'nav_home', 'nav_mcards', 'nav_wallet', 'nav_tx',
-    'nav_help', 'nav_settings',
+    'nav_home', 'nav_mcards', 'nav_wallet', 'nav_tx', 'nav_help', 'nav_settings',
     'brand_tagline', 'hero_title', 'hero_sub', 'support_url',
-    'withdraw_enabled', 'withdraw_min', 'withdraw_max',
-    'withdraw_fee_pct', 'withdraw_fee_fixed', 'withdraw_methods',
+    'withdraw_enabled', 'withdraw_min', 'withdraw_max', 'withdraw_fee_pct', 'withdraw_fee_fixed', 'withdraw_methods',
     'transfer_enabled', 'transfer_min', 'transfer_fee_pct',
     'tickets_enabled', 'coupons_enabled',
     'points_enabled', 'points_per_lyd', 'points_value_lyd', 'points_min_redeem',
@@ -2241,18 +1834,15 @@ async function handleAdminSettings(user, body, env) {
     'mc_create_min', 'mc_create_max', 'mc_create_fee_fixed', 'mc_create_fee_pct',
     'mc_topup_min', 'mc_topup_max', 'mc_topup_fee_fixed', 'mc_topup_fee_pct',
     'mc_tx_fee', 'mc_reveal_hours',
-    'rate_libyana', 'rate_almadar', 'rate_bank', 'rate_usdt', 'usd_to_lyd',
-    'max_deposit_lyd',
+    'rate_libyana', 'rate_almadar', 'rate_bank', 'rate_usdt', 'usd_to_lyd', 'max_deposit_lyd',
   ];
 
   const ops = {};
   for (const k of allowedOps) if (k in body) ops[k] = body[k];
-
   if (!Object.keys(ops).length) throw httpError(400, 'لا يوجد شيء للتحديث');
 
   await fsPatch(env, 'settings/main', ops);
   await logOp(env, user.uid, 'admin_settings', { ops }, { ok: true }, true);
-
   return { success: true, updated: ops };
 }
 
@@ -2288,14 +1878,9 @@ async function handleAdminDeposit(user, body, env) {
     });
     tx.update(`users/${dep.uid}`, { wallet_balance: round2(curBalance + amountUsd) });
     tx.create('wallet_transactions', `txn_dep_manual_${depositId}`, {
-      uid: dep.uid,
-      type: 'credit',
-      amount: amountUsd,
-      balance_before: curBalance,
-      balance_after: round2(curBalance + amountUsd),
-      reason: 'deposit_approved',
-      reference: depositId,
-      created_at: nowIso(),
+      uid: dep.uid, type: 'credit', amount: amountUsd,
+      balance_before: curBalance, balance_after: round2(curBalance + amountUsd),
+      reason: 'deposit_approved', reference: depositId, created_at: nowIso(),
     });
   });
 
@@ -2305,7 +1890,6 @@ async function handleAdminDeposit(user, body, env) {
 
 async function handleAdminWalletAdjust(user, body, env) {
   await requireAdmin(user, env);
-
   const uid = String(body.uid || '').trim();
   const delta = num(body.delta, NaN);
   const reason = String(body.reason || '').trim();
@@ -2326,15 +1910,11 @@ async function handleAdminWalletAdjust(user, body, env) {
 
     tx.update(`users/${uid}`, { wallet_balance: newBalance });
     tx.create('wallet_transactions', id, {
-      uid,
-      type: delta > 0 ? 'credit' : 'debit',
+      uid, type: delta > 0 ? 'credit' : 'debit',
       amount: Math.abs(delta),
-      balance_before: curBalance,
-      balance_after: newBalance,
-      reason: 'admin_adjust: ' + reason,
-      reference: id,
-      admin_uid: user.uid,
-      created_at: nowIso(),
+      balance_before: curBalance, balance_after: newBalance,
+      reason: 'admin_adjust: ' + reason, reference: id,
+      admin_uid: user.uid, created_at: nowIso(),
     });
   });
 
@@ -2343,13 +1923,11 @@ async function handleAdminWalletAdjust(user, body, env) {
 }
 
 /* ═══════════════════════════════════════════════════════════
-   الحدود والطوارئ
+   Limits
    ═══════════════════════════════════════════════════════════ */
 
 function assertLive(s) {
-  if (s.kill_switch === true) {
-    throw httpError(503, s.kill_message || 'الخدمة متوقفة مؤقتًا للصيانة.');
-  }
+  if (s.kill_switch === true) throw httpError(503, s.kill_message || 'الخدمة متوقفة مؤقتًا للصيانة.');
 }
 
 function todayKey() {
@@ -2359,11 +1937,7 @@ function todayKey() {
 
 async function readCounter(env, uid) {
   const d = await fsGet(env, `daily_counters/${uid}_${todayKey()}`);
-  return {
-    cards: num(d && d.cards, 0),
-    amount: num(d && d.amount, 0),
-    deposit: num(d && d.deposit, 0),
-  };
+  return { cards: num(d && d.cards, 0), amount: num(d && d.amount, 0), deposit: num(d && d.deposit, 0) };
 }
 
 async function bumpCounter(env, uid, deltas) {
@@ -2381,38 +1955,27 @@ async function bumpCounter(env, uid, deltas) {
     } else {
       await fsIncrement(env, `daily_counters/${id}`, deltas);
     }
-  } catch (e) {
-    console.error('COUNTER_FAILED', id, e.message);
-  }
+  } catch (e) { console.error('COUNTER_FAILED', id, e.message); }
 }
 
 async function assertDailyLimit(env, s, uid, kind, amount) {
   if (s.limits_enabled === false) return;
-
   const me = await readCounter(env, uid);
 
   if (kind === 'card') {
     const maxCards = num(s.daily_cards_max, 3);
     const maxAmt = num(s.daily_amount_max, 200);
-    if (maxCards > 0 && me.cards >= maxCards) {
-      throw httpError(429, `بلغت حدّك اليومي (${maxCards} بطاقات). حاول غدًا.`);
-    }
-    if (maxAmt > 0 && me.amount + amount > maxAmt) {
-      throw httpError(429, `بلغت حدّك اليومي ($${maxAmt}). حاول غدًا.`);
-    }
+    if (maxCards > 0 && me.cards >= maxCards) throw httpError(429, `بلغت حدّك اليومي (${maxCards} بطاقات). حاول غدًا.`);
+    if (maxAmt > 0 && me.amount + amount > maxAmt) throw httpError(429, `بلغت حدّك اليومي ($${maxAmt}). حاول غدًا.`);
   }
 
   if (kind === 'deposit') {
     const maxDep = num(s.daily_deposit_max, 500);
-    if (maxDep > 0 && me.deposit + amount > maxDep) {
-      throw httpError(429, `بلغت حدّ الإيداع اليومي ($${maxDep}).`);
-    }
+    if (maxDep > 0 && me.deposit + amount > maxDep) throw httpError(429, `بلغت حدّ الإيداع اليومي ($${maxDep}).`);
     const platMax = num(s.platform_daily_max, 0);
     if (platMax > 0) {
       const plat = await readCounter(env, '_platform');
-      if (plat.deposit + amount > platMax) {
-        throw httpError(503, 'بلغت المنصة سقفها اليومي. حاول غدًا.');
-      }
+      if (plat.deposit + amount > platMax) throw httpError(503, 'بلغت المنصة سقفها اليومي. حاول غدًا.');
     }
   }
 }
@@ -2429,7 +1992,7 @@ async function logActivity(env, s, uid, request, action) {
       ua: (request.headers.get('user-agent') || '').slice(0, 160),
       created_at: nowIso(),
     });
-  } catch { /* غير حرج */ }
+  } catch { }
 }
 
 async function handleActivityPing(user, body, env, request) {
@@ -2439,62 +2002,40 @@ async function handleActivityPing(user, body, env, request) {
 }
 
 /* ═══════════════════════════════════════════════════════════
-   الإعدادات
+   Settings
    ═══════════════════════════════════════════════════════════ */
 
 async function getSettings(env) {
   const ops = await fsGet(env, 'settings/main');
   return {
-    usd_to_lyd: 11.8,
-    rate_libyana: 11.8, rate_almadar: 12.5,
-    rate_bank: 9.5, rate_usdt: 1.0,
-    max_deposit_lyd: 5000,
-    issuing_enabled: false, funding_enabled: false,
-    provider_float: 0, low_balance_threshold: 30,
-    maintenance_message: '', deposit_phone: '',
-    m_libyana_on: true, m_libyana_label: 'ليبيانا',
-    m_almadar_on: true, m_almadar_label: 'المدار',
-    m_bank_on: false, m_bank_label: 'تحويل مصرفي',
-    m_usdt_on: false, m_usdt_label: 'USDT',
+    usd_to_lyd: 11.8, rate_libyana: 11.8, rate_almadar: 12.5, rate_bank: 9.5, rate_usdt: 1.0,
+    max_deposit_lyd: 5000, issuing_enabled: false, funding_enabled: false,
+    provider_float: 0, low_balance_threshold: 30, maintenance_message: '', deposit_phone: '',
+    m_libyana_on: true, m_libyana_label: 'ليبيانا', m_almadar_on: true, m_almadar_label: 'المدار',
+    m_bank_on: false, m_bank_label: 'تحويل مصرفي', m_usdt_on: false, m_usdt_label: 'USDT',
     m_binance_on: false, m_binance_label: 'Binance Pay',
     m_libyana_phone: '', m_almadar_phone: '',
     sms_allowed_senders: 'Libyana,ليبيانا,المدار,Almadar',
-    banners: [], banner_rotate_sec: 6,
-    custom_methods: [],
-    method_order: 'libyana,almadar,usdt,bank,binance',
-    deposit_note: '',
-    store_enabled: true,
-    subscriptions_visible: true,
-    manual_cards_enabled: true,
-    mc_create_min: 10, mc_create_max: 500,
-    mc_create_fee_fixed: 8, mc_create_fee_pct: 2.5,
-    mc_topup_min: 10, mc_topup_max: 500,
-    mc_topup_fee_fixed: 8, mc_topup_fee_pct: 2.5,
+    banners: [], banner_rotate_sec: 6, custom_methods: [],
+    method_order: 'libyana,almadar,usdt,bank,binance', deposit_note: '',
+    store_enabled: true, subscriptions_visible: true, manual_cards_enabled: true,
+    mc_create_min: 10, mc_create_max: 500, mc_create_fee_fixed: 8, mc_create_fee_pct: 2.5,
+    mc_topup_min: 10, mc_topup_max: 500, mc_topup_fee_fixed: 8, mc_topup_fee_pct: 2.5,
     mc_tx_fee: 0, mc_reveal_hours: 24,
-    withdraw_enabled: false, withdraw_min: 10, withdraw_max: 500,
-    withdraw_fee_pct: 0, withdraw_fee_fixed: 0,
+    withdraw_enabled: false, withdraw_min: 10, withdraw_max: 500, withdraw_fee_pct: 0, withdraw_fee_fixed: 0,
     withdraw_methods: 'ليبيانا,المدار,تحويل مصرفي,USDT',
     transfer_enabled: false, transfer_min: 1, transfer_fee_pct: 0,
-    tickets_enabled: true,
-    points_enabled: false, points_per_lyd: 1,
-    points_value_lyd: 0.01, points_min_redeem: 100,
-    coupons_enabled: true,
-    kill_switch: false,
-    kill_message: 'الخدمة متوقفة مؤقتًا للصيانة.',
-    daily_cards_max: 3, daily_amount_max: 200,
-    daily_deposit_max: 500, platform_daily_max: 2000,
-    limits_enabled: true,
-    referral_enabled: false, referral_bonus_inviter: 1,
-    referral_bonus_invitee: 1, referral_min_spend: 10,
-    activity_log_enabled: true,
+    tickets_enabled: true, points_enabled: false, points_per_lyd: 1,
+    points_value_lyd: 0.01, points_min_redeem: 100, coupons_enabled: true,
+    kill_switch: false, kill_message: 'الخدمة متوقفة مؤقتًا للصيانة.',
+    daily_cards_max: 3, daily_amount_max: 200, daily_deposit_max: 500, platform_daily_max: 2000,
+    limits_enabled: true, referral_enabled: false, referral_bonus_inviter: 1,
+    referral_bonus_invitee: 1, referral_min_spend: 10, activity_log_enabled: true,
     usdt_address: '', usdt_min: 5, usdt_max: 1000, usdt_window_min: 30,
-    m_libyana_logo: '', m_almadar_logo: '', m_bank_logo: '',
-    m_usdt_logo: '', m_binance_logo: '',
+    m_libyana_logo: '', m_almadar_logo: '', m_bank_logo: '', m_usdt_logo: '', m_binance_logo: '',
     m_bank_fields: [], m_usdt_fields: [], m_binance_fields: [],
-    theme_navy: '#0F172A', theme_emerald: '#10B981',
-    theme_bg: '#F8FAFC', theme_radius: 14,
-    nav_home: true, nav_mcards: true, nav_wallet: true,
-    nav_tx: true, nav_help: true, nav_settings: true,
+    theme_navy: '#0F172A', theme_emerald: '#10B981', theme_bg: '#F8FAFC', theme_radius: 14,
+    nav_home: true, nav_mcards: true, nav_wallet: true, nav_tx: true, nav_help: true, nav_settings: true,
     brand_tagline: 'بطاقات أكثر .. فرص أكبر',
     hero_title: 'بطاقة تعمل في كل مكان يقبل الدفع الإلكتروني',
     hero_sub: 'بالدولار · بدون رسوم شهرية · تُصدر خلال دقائق',
@@ -2505,26 +2046,20 @@ async function getSettings(env) {
 
 function cleanBanners(arr) {
   if (!Array.isArray(arr)) return [];
-  return arr
-    .filter(b => b && String(b.img || '').trim())
-    .slice(0, 8)
-    .map(b => ({
-      img: String(b.img).slice(0, 900000),
-      link: String(b.link || '').slice(0, 300),
-      title: String(b.title || '').slice(0, 80),
-    }));
+  return arr.filter(b => b && String(b.img || '').trim()).slice(0, 8).map(b => ({
+    img: String(b.img).slice(0, 900000),
+    link: String(b.link || '').slice(0, 300),
+    title: String(b.title || '').slice(0, 80),
+  }));
 }
 
 function cleanFields(arr) {
   if (!Array.isArray(arr)) return [];
-  return arr
-    .filter(f => f && String(f.value || '').trim())
-    .slice(0, 8)
-    .map(f => ({
-      label: String(f.label || '').slice(0, 40),
-      value: String(f.value || '').slice(0, 120),
-      copy: f.copy === true,
-    }));
+  return arr.filter(f => f && String(f.value || '').trim()).slice(0, 8).map(f => ({
+    label: String(f.label || '').slice(0, 40),
+    value: String(f.value || '').slice(0, 120),
+    copy: f.copy === true,
+  }));
 }
 
 function cleanCustomMethods(arr) {
@@ -2532,15 +2067,12 @@ function cleanCustomMethods(arr) {
   const out = {};
   arr.slice(0, 10).forEach((m, i) => {
     if (!m || !m.label) return;
-    const key = String(m.key || `custom${i}`)
-      .replace(/[^a-z0-9_]/gi, '').slice(0, 20) || `custom${i}`;
+    const key = String(m.key || `custom${i}`).replace(/[^a-z0-9_]/gi, '').slice(0, 20) || `custom${i}`;
     out[key] = {
-      on: m.on !== false,
-      custom: true,
+      on: m.on !== false, custom: true,
       logo: String(m.logo || '').slice(0, 400000),
       label: String(m.label).slice(0, 40),
-      rate: num(m.rate, 1),
-      auto: false,
+      rate: num(m.rate, 1), auto: false,
       fields: cleanFields(m.fields),
     };
   });
@@ -2559,8 +2091,7 @@ async function getAccessToken(env) {
     iss: env.FIREBASE_CLIENT_EMAIL,
     scope: 'https://www.googleapis.com/auth/datastore',
     aud: 'https://oauth2.googleapis.com/token',
-    iat: now,
-    exp: now + 3600,
+    iat: now, exp: now + 3600,
   };
 
   const jwt = await signRS256(claim, env.FIREBASE_PRIVATE_KEY);
@@ -2623,7 +2154,6 @@ async function fsFetch(env, suffix, init = {}) {
       ...(init.headers || {}),
     },
   });
-
   if (res.status === 404) return null;
   const data = await res.json().catch(() => null);
   if (!res.ok) {
@@ -2691,16 +2221,17 @@ async function fsQueryRaw(env, structuredQuery) {
   }
 }
 
-/**
- * ✅ Transaction كامل مع rollback تلقائي
- */
+/* ✅ Transaction مُصلحة — تستخدم :batchGet */
 async function fsRunTransaction(env, fn) {
   const token = await getAccessToken(env);
   const base = `${FS_BASE}/projects/${env.FIREBASE_PROJECT_ID}/databases/(default)/documents`;
 
   const beginRes = await fetch(`${base}:beginTransaction`, {
     method: 'POST',
-    headers: { authorization: `Bearer ${token}`, 'content-type': 'application/json' },
+    headers: {
+      authorization: `Bearer ${token}`,
+      'content-type': 'application/json',
+    },
     body: JSON.stringify({ options: { readWrite: {} } }),
   });
   if (!beginRes.ok) throw httpError(500, 'تعذّر بدء المعاملة');
@@ -2710,17 +2241,34 @@ async function fsRunTransaction(env, fn) {
 
   const tx = {
     async get(path) {
-      const res = await fetch(`${base}/${path}?transaction=${transaction}`, {
-        headers: { authorization: `Bearer ${token}` },
+      const res = await fetch(`${base}:batchGet`, {
+        method: 'POST',
+        headers: {
+          authorization: `Bearer ${token}`,
+          'content-type': 'application/json',
+        },
+        body: JSON.stringify({
+          documents: [`${base}/${path}`],
+          transaction,
+        }),
       });
-      if (res.status === 404) return null;
-      if (!res.ok) throw httpError(500, 'خطأ في القراءة');
-      const doc = await res.json();
-      return fromFsFields(doc.fields || {});
+      if (!res.ok) {
+        const t = await res.text();
+        console.error('TX_GET_FAILED', path, res.status, t);
+        throw httpError(500, `خطأ في القراءة (${res.status})`);
+      }
+      const data = await res.json();
+      const arr = Array.isArray(data) ? data : [];
+      const found = arr[0] && arr[0].found;
+      if (!found) return null;
+      return fromFsFields(found.fields || {});
     },
     update(path, data, merge = true) {
       const entry = {
-        update: { name: docPath(env, path), fields: toFsFields(data) },
+        update: {
+          name: docPath(env, path),
+          fields: toFsFields(data),
+        },
       };
       if (merge) entry.updateMask = { fieldPaths: Object.keys(data) };
       writes.push(entry);
@@ -2757,12 +2305,16 @@ async function fsRunTransaction(env, fn) {
     if (writes.length) {
       const commitRes = await fetch(`${base}:commit`, {
         method: 'POST',
-        headers: { authorization: `Bearer ${token}`, 'content-type': 'application/json' },
+        headers: {
+          authorization: `Bearer ${token}`,
+          'content-type': 'application/json',
+        },
         body: JSON.stringify({ transaction, writes }),
       });
       if (!commitRes.ok) {
         const t = await commitRes.text();
-        throw new Error(`commit failed: ${t}`);
+        console.error('TX_COMMIT_FAILED', commitRes.status, t);
+        throw new Error(`commit failed: ${commitRes.status}`);
       }
     }
     return result;
@@ -2770,7 +2322,10 @@ async function fsRunTransaction(env, fn) {
     try {
       await fetch(`${base}:rollback`, {
         method: 'POST',
-        headers: { authorization: `Bearer ${token}`, 'content-type': 'application/json' },
+        headers: {
+          authorization: `Bearer ${token}`,
+          'content-type': 'application/json',
+        },
         body: JSON.stringify({ transaction }),
       });
     } catch {}
@@ -2826,11 +2381,8 @@ async function requireAuth(request, env) {
 
   const payload = await verifyIdToken(m[1], env.FIREBASE_PROJECT_ID);
 
-  // ✅ فحص الإيقاف
   const userDoc = await fsGet(env, `users/${payload.user_id || payload.sub}`).catch(() => null);
-  if (userDoc && userDoc.banned === true) {
-    throw httpError(403, 'حسابك موقوف — تواصل مع الدعم');
-  }
+  if (userDoc && userDoc.banned === true) throw httpError(403, 'حسابك موقوف — تواصل مع الدعم');
 
   return { uid: payload.user_id || payload.sub, email: payload.email || '' };
 }
@@ -2844,9 +2396,7 @@ async function verifyIdToken(idToken, projectId) {
   const now = Math.floor(Date.now() / 1000);
 
   if (payload.aud !== projectId) throw httpError(401, 'رمز الدخول غير صالح');
-  if (payload.iss !== `https://securetoken.google.com/${projectId}`) {
-    throw httpError(401, 'رمز الدخول غير صالح');
-  }
+  if (payload.iss !== `https://securetoken.google.com/${projectId}`) throw httpError(401, 'رمز الدخول غير صالح');
   if (!payload.sub) throw httpError(401, 'رمز الدخول غير صالح');
   if (payload.exp <= now) throw httpError(401, 'انتهت صلاحية الجلسة');
 
@@ -2875,9 +2425,7 @@ async function getJwks() {
   const now = Date.now();
   if (_jwksCache.keys && _jwksCache.exp > now) return _jwksCache.keys;
 
-  const res = await fetch(
-    'https://www.googleapis.com/service_accounts/v1/jwk/securetoken@system.gserviceaccount.com'
-  );
+  const res = await fetch('https://www.googleapis.com/service_accounts/v1/jwk/securetoken@system.gserviceaccount.com');
   const data = await res.json();
   _jwksCache = { keys: data.keys, exp: now + 3600_000 };
   return data.keys;
@@ -2890,7 +2438,7 @@ async function requireAdmin(user, env) {
 }
 
 /* ═══════════════════════════════════════════════════════════
-   أدوات
+   Utilities
    ═══════════════════════════════════════════════════════════ */
 
 function corsHeaders(origin) {
@@ -2905,10 +2453,7 @@ function corsHeaders(origin) {
 function json(data, status, origin) {
   return new Response(JSON.stringify(data), {
     status,
-    headers: {
-      'content-type': 'application/json; charset=utf-8',
-      ...corsHeaders(origin),
-    },
+    headers: { 'content-type': 'application/json; charset=utf-8', ...corsHeaders(origin) },
   });
 }
 
@@ -2946,14 +2491,11 @@ async function logOp(env, uid, action, request, response, ok) {
       response: JSON.stringify(response || {}).slice(0, 900),
       created_at: nowIso(),
     });
-  } catch (e) {
-    console.error('LOG_FAILED', e.message);
-  }
+  } catch (e) { console.error('LOG_FAILED', e.message); }
 }
 
 function b64url(str) {
-  return btoa(unescape(encodeURIComponent(str)))
-    .replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+  return btoa(unescape(encodeURIComponent(str))).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
 }
 
 function bytesToB64url(bytes) {
@@ -2971,4 +2513,4 @@ function b64urlToBytes(s) {
   const b64 = s.replace(/-/g, '+').replace(/_/g, '/');
   const raw = atob(b64 + '='.repeat((4 - b64.length % 4) % 4));
   return Uint8Array.from(raw, c => c.charCodeAt(0));
-}
+                  }
