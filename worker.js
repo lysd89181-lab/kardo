@@ -2,6 +2,7 @@
    KARDO — Cloudflare Worker
    Firestore REST API مباشرة (بدون Cloud Functions، بدون KV)
    النسخة الآمنة — PAN/CVV في manual_card_reveal مع TTL
+   + ضمان وجود ملف شخصي تلقائياً لكل مستخدم
    ═══════════════════════════════════════════════════════════ */
 
 const FS_BASE = (env) =>
@@ -361,6 +362,10 @@ async function saveIdempotency(env, key, response) {
   }).catch(e => console.warn('Idempotency save failed:', e.message));
 }
 
+/* ═══════════════════════════════════════════════════════════
+   Auth — verifyIdToken (معدّل: + name)
+   ═══════════════════════════════════════════════════════════ */
+
 async function verifyIdToken(token, env) {
   const res = await fetch(
     'https://identitytoolkit.googleapis.com/v1/accounts:lookup?key=' + env.FIREBASE_API_KEY,
@@ -381,7 +386,12 @@ async function verifyIdToken(token, env) {
   const userDoc = await fsGet(env, `users/${uid}`).catch(() => null);
   if (userDoc && userDoc.banned === true) throw new Error('ACCOUNT_BANNED');
 
-  return { uid, email: user.email || '' };
+  // ✅ التعديل 1: إضافة name
+  return {
+    uid,
+    email: user.email || '',
+    name: user.displayName || (userDoc && userDoc.name) || ''
+  };
 }
 
 async function checkAdmin(env, uid) {
@@ -589,6 +599,38 @@ async function handleSmsWebhook(request, env, headers) {
 }
 
 /* ═══════════════════════════════════════════════════════════
+   Handlers — User Profile (ensure-profile)
+   ═══════════════════════════════════════════════════════════ */
+
+async function handleEnsureProfile(env, user, headers) {
+  try {
+    const existing = await fsGet(env, `users/${user.uid}`);
+    if (existing) {
+      return json({ success: true, created: false }, 200, headers);
+    }
+
+    await fsSet(env, `users/${user.uid}`, {
+      name: user.name || user.email.split('@')[0],
+      email: user.email,
+      phone: '',
+      wallet_balance: 0,
+      total_spent: 0,
+      banned: false,
+      vip_status: 'none',
+      vip_plan_id: '',
+      vip_expires_at: null,
+      created_at: nowIso(),
+      _auto_created: true
+    });
+
+    return json({ success: true, created: true }, 200, headers);
+  } catch (e) {
+    console.error('ensure-profile error:', e.message);
+    return json({ success: false, error: e.message }, 500, headers);
+  }
+}
+
+/* ═══════════════════════════════════════════════════════════
    Handlers — Wallet
    ═══════════════════════════════════════════════════════════ */
 
@@ -728,7 +770,6 @@ async function handleMcardList(env, user, headers) {
       limit: 100
     });
 
-    // ⚠️ لا نُرسل PAN / CVV / expiry من القائمة
     const safeCards = cards.map(c => ({
       _id: c._id,
       card_label: c.card_label || 'البطاقة',
@@ -752,12 +793,10 @@ async function handleMcardReveal(request, env, user, headers) {
     const { card_id } = body;
     if (!card_id) return json({ success: false, error: 'Invalid card' }, 400, headers);
 
-    // 1. تحقق أن البطاقة تخص المستخدم
     const card = await fsGet(env, `manual_cards/${card_id}`);
     if (!card) return json({ success: false, error: 'البطاقة غير موجودة' }, 404, headers);
     if (card.uid !== user.uid) return json({ success: false, error: 'غير مصرّح' }, 403, headers);
 
-    // 2. اقرأ البيانات الحساسة من manual_card_reveal فقط
     const reveal = await fsGet(env, `manual_card_reveal/${card_id}`);
     if (!reveal) {
       return json({ success: false, error: 'بيانات البطاقة غير متوفرة' }, 404, headers);
@@ -766,7 +805,6 @@ async function handleMcardReveal(request, env, user, headers) {
       return json({ success: false, error: 'غير مصرّح' }, 403, headers);
     }
 
-    // 3. تحقق من انتهاء الصلاحية
     const expiresAt = new Date(reveal.expires_at);
     const now = new Date();
     if (isNaN(expiresAt) || expiresAt < now) {
@@ -776,7 +814,6 @@ async function handleMcardReveal(request, env, user, headers) {
       }, 410, headers);
     }
 
-    // 4. سجّل عملية العرض للتدقيق
     const logId = newId('reveal_log');
     await fsSet(env, `reveal_logs/${logId}`, {
       uid: user.uid,
@@ -786,7 +823,6 @@ async function handleMcardReveal(request, env, user, headers) {
       user_agent: request.headers.get('User-Agent') || ''
     }).catch(e => console.warn('Reveal log failed:', e.message));
 
-    // 5. أعِد البيانات مع الوقت المتبقي
     const ttlRemaining = Math.max(0, Math.floor((expiresAt - now) / 1000));
 
     return json({
@@ -1687,6 +1723,11 @@ export default {
       }
 
       const idempotencyKey = request.headers.get('Idempotency-Key');
+
+      // ✅ التعديل 2: User Profile — قبل User Endpoints
+      if (path === '/api/user/ensure-profile' && method === 'POST') {
+        return handleEnsureProfile(env, user, corsHeaders);
+      }
 
       // User
       if (path === '/api/wallet/deposit' && method === 'POST')
