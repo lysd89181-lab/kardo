@@ -1,6 +1,7 @@
 /* ═══════════════════════════════════════════════════════════
    KARDO — Cloudflare Worker
    Firestore REST API مباشرة (بدون Cloud Functions، بدون KV)
+   النسخة الآمنة — PAN/CVV في manual_card_reveal مع TTL
    ═══════════════════════════════════════════════════════════ */
 
 const FS_BASE = (env) =>
@@ -10,7 +11,7 @@ const FS_DOC_ROOT = (env) =>
   `projects/${env.FIREBASE_PROJECT_ID}/databases/(default)/documents`;
 
 /* ═══════════════════════════════════════════════════════════
-   OAuth 2.0 — Service Account → Access Token
+   OAuth 2.0
    ═══════════════════════════════════════════════════════════ */
 
 let _tokenCache = { token: null, exp: 0 };
@@ -85,7 +86,7 @@ async function getAccessToken(env) {
 }
 
 /* ═══════════════════════════════════════════════════════════
-   Firestore Value Conversions
+   Firestore Conversions
    ═══════════════════════════════════════════════════════════ */
 
 function toFsValue(v) {
@@ -456,7 +457,7 @@ const V = {
 };
 
 /* ═══════════════════════════════════════════════════════════
-   Wallet Operations (Transactions)
+   Wallet Operations
    ═══════════════════════════════════════════════════════════ */
 
 async function creditWallet(env, uid, amount, reason, reference) {
@@ -514,7 +515,7 @@ async function debitWallet(env, uid, amount, reason, reference) {
 }
 
 /* ═══════════════════════════════════════════════════════════
-   Rate / Limit Helpers
+   Daily Limits
    ═══════════════════════════════════════════════════════════ */
 
 async function checkDailyLimits(env, uid, kind, amount) {
@@ -579,7 +580,7 @@ async function handleSmsWebhook(request, env, headers) {
     return json({ success: false, error: 'Unauthorized' }, 401, headers);
   }
   try {
-    const body = await request.json();
+    await request.json();
     console.log('SMS webhook received');
     return json({ success: true }, 200, headers);
   } catch {
@@ -727,19 +728,20 @@ async function handleMcardList(env, user, headers) {
       limit: 100
     });
 
-    // لا نُرسل البيانات الحساسة في القائمة
+    // ⚠️ لا نُرسل PAN / CVV / expiry من القائمة
     const safeCards = cards.map(c => ({
       _id: c._id,
-      card_label: c.card_label,
-      last4: c.last4 || (c.card_number ? String(c.card_number).slice(-4) : '****'),
-      expiry: c.expiry,
-      balance: c.balance || 0,
+      card_label: c.card_label || 'البطاقة',
+      name_on_card: c.name_on_card || '',
+      last4: c.last4 || '****',
+      balance: parseFloat(c.balance || 0),
       status: c.status || 'active',
-      created_at: c.created_at
+      created_at: c.created_at || null
     }));
 
     return json({ success: true, cards: safeCards, orders }, 200, headers);
   } catch (e) {
+    console.error('McardList error:', e.message);
     return json({ success: false, error: e.message }, 500, headers);
   }
 }
@@ -750,28 +752,53 @@ async function handleMcardReveal(request, env, user, headers) {
     const { card_id } = body;
     if (!card_id) return json({ success: false, error: 'Invalid card' }, 400, headers);
 
+    // 1. تحقق أن البطاقة تخص المستخدم
     const card = await fsGet(env, `manual_cards/${card_id}`);
     if (!card) return json({ success: false, error: 'البطاقة غير موجودة' }, 404, headers);
     if (card.uid !== user.uid) return json({ success: false, error: 'غير مصرّح' }, 403, headers);
 
-    const settings = await getSettings(env);
-    const ttl = parseInt(settings.mcard_reveal_seconds || 300);
+    // 2. اقرأ البيانات الحساسة من manual_card_reveal فقط
+    const reveal = await fsGet(env, `manual_card_reveal/${card_id}`);
+    if (!reveal) {
+      return json({ success: false, error: 'بيانات البطاقة غير متوفرة' }, 404, headers);
+    }
+    if (reveal.uid !== user.uid) {
+      return json({ success: false, error: 'غير مصرّح' }, 403, headers);
+    }
 
-    await fsSet(env, `manual_card_reveal/${card_id}_${user.uid}`, {
+    // 3. تحقق من انتهاء الصلاحية
+    const expiresAt = new Date(reveal.expires_at);
+    const now = new Date();
+    if (isNaN(expiresAt) || expiresAt < now) {
+      return json({
+        success: false,
+        error: 'انتهت صلاحية عرض بيانات البطاقة، يرجى التواصل مع الدعم'
+      }, 410, headers);
+    }
+
+    // 4. سجّل عملية العرض للتدقيق
+    const logId = newId('reveal_log');
+    await fsSet(env, `reveal_logs/${logId}`, {
       uid: user.uid,
       card_id,
       revealed_at: nowIso(),
-      expires_at: new Date(Date.now() + ttl * 1000).toISOString()
-    });
+      ip: request.headers.get('CF-Connecting-IP') || '',
+      user_agent: request.headers.get('User-Agent') || ''
+    }).catch(e => console.warn('Reveal log failed:', e.message));
+
+    // 5. أعِد البيانات مع الوقت المتبقي
+    const ttlRemaining = Math.max(0, Math.floor((expiresAt - now) / 1000));
 
     return json({
       success: true,
-      card_number: card.card_number,
-      expiry: card.expiry,
-      cvv: card.cvv,
-      ttl_seconds: ttl
+      card_number: reveal.card_number,
+      expiry: reveal.expiry,
+      cvv: reveal.cvv,
+      name_on_card: reveal.name_on_card || card.name_on_card || '',
+      ttl_seconds: ttlRemaining
     }, 200, headers);
   } catch (e) {
+    console.error('McardReveal error:', e.message);
     return json({ success: false, error: e.message }, 500, headers);
   }
 }
@@ -828,7 +855,7 @@ async function handleMcardTopupRequest(request, env, user, idempotencyKey, heade
 }
 
 /* ═══════════════════════════════════════════════════════════
-   Handlers — USDT (مبدئي)
+   Handlers — USDT
    ═══════════════════════════════════════════════════════════ */
 
 async function handleUsdtInvoice(request, env, user, idempotencyKey, headers) {
@@ -1230,23 +1257,20 @@ async function handleAdminMcardFulfil(request, env, admin, idempotencyKey, heade
 
     if (order.kind === 'create') {
       if (!V.pan(card_number)) return json({ success: false, error: 'رقم بطاقة غير صالح' }, 400, headers);
-      if (!V.exp(cvv ? expiry : expiry)) {
-        // نتحقق من expiry فقط
-      }
-      if (!V.exp(expiry)) return json({ success: false, error: 'صيغة تاريخ غير صالحة' }, 400, headers);
+      if (!V.exp(expiry)) return json({ success: false, error: 'صيغة تاريخ غير صالحة (MM/YY)' }, 400, headers);
       if (!V.cvv(cvv)) return json({ success: false, error: 'CVV غير صالح' }, 400, headers);
 
       const cardId = newId('card');
       const cleanPan = String(card_number).replace(/\s+/g, '');
       const last4 = cleanPan.slice(-4);
+      const settings = await getSettings(env);
+      const ttl = parseInt(settings.mcard_reveal_seconds || 300);
 
+      // ✅ 1. manual_cards — بيانات آمنة فقط
       await fsSet(env, `manual_cards/${cardId}`, {
         uid: order.uid,
         card_label: order.card_label || 'البطاقة',
         name_on_card: order.name_on_card,
-        card_number: cleanPan,
-        expiry,
-        cvv,
         last4,
         balance: parseFloat(order.amount || 0),
         status: 'active',
@@ -1254,6 +1278,19 @@ async function handleAdminMcardFulfil(request, env, admin, idempotencyKey, heade
         created_by: admin.uid
       });
 
+      // ✅ 2. manual_card_reveal — بيانات حساسة + TTL
+      await fsSet(env, `manual_card_reveal/${cardId}`, {
+        uid: order.uid,
+        card_id: cardId,
+        card_number: cleanPan,
+        expiry,
+        cvv,
+        name_on_card: order.name_on_card,
+        created_at: nowIso(),
+        expires_at: new Date(Date.now() + ttl * 1000).toISOString()
+      });
+
+      // ✅ 3. تحديث الطلب
       await fsSet(env, `manual_card_orders/${id}`, {
         status: 'completed',
         card_id: cardId,
@@ -1261,7 +1298,12 @@ async function handleAdminMcardFulfil(request, env, admin, idempotencyKey, heade
         completed_by: admin.uid
       }, true);
 
-      const response = { success: true, card_id: cardId, order_id: id };
+      const response = {
+        success: true,
+        card_id: cardId,
+        order_id: id,
+        reveal_expires_in: ttl
+      };
       await saveIdempotency(env, idempotencyKey, response);
       return json(response, 200, headers);
 
@@ -1567,7 +1609,6 @@ async function handleAdminSettings(request, env, admin, headers) {
       return json({ success: false, error: 'بيانات غير صالحة' }, 400, headers);
     }
 
-    // Whitelist الحقول المسموح بها
     const allowed = [
       'kill_switch', 'kill_message',
       'mcard_enabled', 'mcard_min', 'mcard_max',
@@ -1599,7 +1640,7 @@ async function handleAdminSettings(request, env, admin, headers) {
 }
 
 /* ═══════════════════════════════════════════════════════════
-   ROUTER — Main Fetch Handler
+   ROUTER
    ═══════════════════════════════════════════════════════════ */
 
 export default {
@@ -1620,16 +1661,15 @@ export default {
     }
 
     try {
-      // ─── Public ───
+      // Public
       if (path === '/api/status' && method === 'GET') {
         return handleStatus(env, corsHeaders);
       }
-
       if (path === '/api/sms/webhook' && method === 'POST') {
         return handleSmsWebhook(request, env, corsHeaders);
       }
 
-      // ─── Auth ───
+      // Auth
       const authHeader = request.headers.get('Authorization');
       if (!authHeader?.startsWith('Bearer ')) {
         return json({ success: false, error: 'Unauthorized' }, 401, corsHeaders);
@@ -1648,107 +1688,77 @@ export default {
 
       const idempotencyKey = request.headers.get('Idempotency-Key');
 
-      // ─── User Endpoints ───
+      // User
       if (path === '/api/wallet/deposit' && method === 'POST')
         return handleWalletDeposit(request, env, user, idempotencyKey, corsHeaders);
-
       if (path === '/api/wallet/usdt/invoice' && method === 'POST')
         return handleUsdtInvoice(request, env, user, idempotencyKey, corsHeaders);
-
       if (path === '/api/wallet/usdt/verify' && method === 'POST')
         return handleUsdtVerify(request, env, user, corsHeaders);
-
       if (path === '/api/mcard/request' && method === 'POST')
         return handleMcardRequest(request, env, user, idempotencyKey, corsHeaders);
-
       if (path === '/api/mcard/list' && method === 'POST')
         return handleMcardList(env, user, corsHeaders);
-
       if (path === '/api/mcard/reveal' && method === 'POST')
         return handleMcardReveal(request, env, user, corsHeaders);
-
       if (path === '/api/mcard/topup-request' && method === 'POST')
         return handleMcardTopupRequest(request, env, user, idempotencyKey, corsHeaders);
-
       if (path === '/api/vip/plans' && method === 'POST')
         return handleVipPlans(env, corsHeaders);
-
       if (path === '/api/vip/subscribe' && method === 'POST')
         return handleVipSubscribe(request, env, user, idempotencyKey, corsHeaders);
-
       if (path === '/api/vip/status' && method === 'POST')
         return handleVipStatus(env, user, corsHeaders);
-
       if (path === '/api/ticket/create' && method === 'POST')
         return handleTicketCreate(request, env, user, idempotencyKey, corsHeaders);
-
       if (path === '/api/ticket/list' && method === 'POST')
         return handleTicketList(env, user, corsHeaders);
-
       if (path === '/api/ticket/reply' && method === 'POST')
         return handleTicketReply(request, env, user, corsHeaders);
 
-      // ─── Admin Check ───
+      // Admin check
       const isAdmin = await checkAdmin(env, user.uid);
       if (!isAdmin) {
         return json({ success: false, error: 'Admin only' }, 403, corsHeaders);
       }
 
-      // ─── Admin Endpoints ───
+      // Admin
       if (path === '/api/admin/wallet-adjust' && method === 'POST')
         return handleWalletAdjust(request, env, user, idempotencyKey, corsHeaders);
-
       if (path === '/api/admin/deposits/list' && method === 'POST')
         return handleAdminDepositsList(request, env, corsHeaders);
-
       if (path === '/api/admin/deposits/act' && method === 'POST')
         return handleAdminDepositsAct(request, env, user, idempotencyKey, corsHeaders);
-
       if (path === '/api/admin/users/list' && method === 'POST')
         return handleAdminUsersList(request, env, corsHeaders);
-
       if (path === '/api/admin/users/ban' && method === 'POST')
         return handleAdminUsersBan(request, env, user, corsHeaders);
-
       if (path === '/api/admin/mcard/list' && method === 'POST')
         return handleAdminMcardList(request, env, corsHeaders);
-
       if (path === '/api/admin/mcard/fulfil' && method === 'POST')
         return handleAdminMcardFulfil(request, env, user, idempotencyKey, corsHeaders);
-
       if (path === '/api/admin/mcard/reject' && method === 'POST')
         return handleAdminMcardReject(request, env, user, idempotencyKey, corsHeaders);
-
       if (path === '/api/admin/vip/plans' && method === 'POST')
         return handleAdminVipPlans(env, corsHeaders);
-
       if (path === '/api/admin/vip/save' && method === 'POST')
         return handleAdminVipSave(request, env, user, corsHeaders);
-
       if (path === '/api/admin/vip/list' && method === 'POST')
         return handleAdminVipList(env, corsHeaders);
-
       if (path === '/api/admin/ads/list' && method === 'POST')
         return handleAdminAdsList(env, corsHeaders);
-
       if (path === '/api/admin/ads/save' && method === 'POST')
         return handleAdminAdsSave(request, env, user, corsHeaders);
-
       if (path === '/api/admin/ads/delete' && method === 'POST')
         return handleAdminAdsDelete(request, env, user, corsHeaders);
-
       if (path === '/api/admin/stats' && method === 'POST')
         return handleAdminStats(env, corsHeaders);
-
       if (path === '/api/admin/tickets/list' && method === 'POST')
         return handleAdminTicketsList(request, env, corsHeaders);
-
       if (path === '/api/admin/tickets/reply' && method === 'POST')
         return handleAdminTicketsReply(request, env, user, corsHeaders);
-
       if (path === '/api/admin/tickets/close' && method === 'POST')
         return handleAdminTicketsClose(request, env, user, corsHeaders);
-
       if (path === '/api/admin/settings' && method === 'POST')
         return handleAdminSettings(request, env, user, corsHeaders);
 
