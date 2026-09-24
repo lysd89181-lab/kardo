@@ -1,7 +1,7 @@
 /**
  * ═══════════════════════════════════════════════════════════
- *  KARDO — App Logic (v3.0.0)
- *  Digital Banking UI
+ *  KARDO — App Logic (v3.1.0)
+ *  Digital Banking + Digital Services
  * ═══════════════════════════════════════════════════════════
  */
 
@@ -36,6 +36,8 @@ const S = {
   cards: [], orders: [], deposits: [], shopOrders: [],
   catalog: { categories: [], products: [] },
   subscriptions: [],
+  services: [],
+  svcOrders: [],
   cart: [], cat: null, q: '', filter: 'all',
   config: {
     usd_to_lyd: 11.8,
@@ -48,7 +50,6 @@ const S = {
   },
   withdrawals: [], tickets: [], coupon: null, dataErr: {},
   manualCards: [], manualOrders: [],
-  services: [], svcOrders: [],
   page: 'dashboard', dir: null, unsub: [],
 };
 
@@ -118,10 +119,13 @@ const I = {
   shield: '<path d="M12 2.5 4 6v6c0 5 3.4 8.6 8 9.5 4.6-.9 8-4.5 8-9.5V6z"/>',
   bell: '<path d="M18 8.5a6 6 0 1 0-12 0c0 6-2.5 7.5-2.5 7.5h17S18 14.5 18 8.5"/><path d="M13.7 20a2 2 0 0 1-3.4 0"/>',
   x: '<path d="M18 6 6 18M6 6l12 12"/>',
+  box: '<path d="M21 8 12 3 3 8v8l9 5 9-5z"/><path d="M3 8l9 5 9-5M12 13v8"/>',
+  bolt: '<path d="M13 2 4.5 12.5H11l-1 9.5 8.5-11H12z"/>',
+  tag: '<path d="M20.5 13.5 13 21a2 2 0 0 1-2.8 0l-7.2-7.2A2 2 0 0 1 2.4 12V4.4A2 2 0 0 1 4.4 2.4H12a2 2 0 0 1 1.4.6l7.1 7.1a2 2 0 0 1 0 2.8z"/><circle cx="7.5" cy="7.5" r=".8"/>',
 };
 const svg = (d, w = 1.75) => `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="${w}" stroke-linecap="round" stroke-linejoin="round">${d}</svg>`;
 
-/* ═══ Firebase ═══ */
+/* ═══ UI Helpers ═══ */
 const setHTML = (sel, html) => { const el = $(sel); if (el) el.innerHTML = html; };
 const onTap = (sel, fn) => { const el = $(sel); if (el) el.onclick = fn; };
 
@@ -182,7 +186,6 @@ onAuthStateChanged(auth, async user => {
   dropLazy(null);
 
   if (!user) {
-    // Public view
     $('#public').style.display = 'block';
     $('#app').style.display = 'none';
     return;
@@ -195,7 +198,6 @@ onAuthStateChanged(auth, async user => {
   await ensureProfile(user);
   subscribe(user.uid);
 
-  // Load config
   try {
     const c = JSON.parse(localStorage.getItem('kardo_cfg') || 'null');
     if (c && c.methods) S.config = { ...S.config, ...c };
@@ -206,6 +208,11 @@ onAuthStateChanged(auth, async user => {
     try { localStorage.setItem('kardo_cfg', JSON.stringify(d)); } catch {}
     render();
   }).catch(e => console.warn('status:', e.message));
+
+  apiGet('/api/services/list').then(d => {
+    S.services = d.services || [];
+    render();
+  }).catch(e => console.warn('services:', e.message));
 
   api('/api/activity/ping', {}).catch(() => {});
   loadCatalog();
@@ -254,6 +261,15 @@ function subscribe(uid) {
       render();
     },
     e => { S.dataErr.subs = e.code; render(); }));
+
+  // Service orders (realtime)
+  S.unsub.push(onSnapshot(query(collection(db, 'service_orders'),
+    where('uid', '==', uid), limit(60)),
+    s => {
+      S.svcOrders = sortByDate(s.docs.map(d => ({ id: d.id, ...d.data() })));
+      render();
+    },
+    e => { S.dataErr.svcOrders = e.code; render(); }));
 }
 
 const _lazy = {};
@@ -315,7 +331,6 @@ window.go = (page) => {
   ensurePageData();
   window.scrollTo({ top: 0, behavior: 'instant' });
   render();
-  // Update active nav
   $$('[data-nav]').forEach(b => b.classList.toggle('active', b.dataset.nav === page));
 };
 
@@ -331,11 +346,9 @@ function render() {
 function paint() {
   if (!S.user) return;
 
-  // Avatar
   const av = $('#avatarInitial');
   if (av) av.textContent = (S.profile.name || '؟').trim().charAt(0).toUpperCase();
 
-  // Balance in bar
   const barBal = $('#barBalance');
   const barVal = $('#barBalanceVal');
   if (barBal && barVal) {
@@ -343,10 +356,8 @@ function paint() {
     barVal.textContent = lyd(S.profile.wallet_balance * rate());
   }
 
-  // Update active nav
   $$('[data-nav]').forEach(b => b.classList.toggle('active', b.dataset.nav === S.page));
 
-  // Page content
   const view = $('#view');
   if (!view) return;
 
@@ -378,7 +389,7 @@ function vDashboard() {
   const hour = new Date().getHours();
   const greeting = hour < 12 ? 'صباح الخير' : hour < 17 ? 'مساء الخير' : 'مساء الخير';
 
-  const recentTx = [...S.manualOrders.slice(0, 3), ...S.subscriptions.slice(0, 3)]
+  const recentTx = [...S.manualOrders.slice(0, 3), ...S.subscriptions.slice(0, 3), ...S.svcOrders.slice(0, 3)]
     .sort((a, b) => {
       const av = a.created_at?.toDate?.() || new Date(a.created_at || 0);
       const bv = b.created_at?.toDate?.() || new Date(b.created_at || 0);
@@ -388,13 +399,11 @@ function vDashboard() {
 
   return `
   <div class="page-enter">
-    <!-- Greeting -->
     <div style="margin-bottom:32px">
       <h1 class="h2" style="margin-bottom:6px">${greeting}، ${esc(name.split(' ')[0])}</h1>
       <p class="body-sm text-2">إليك ملخص حسابك اليوم</p>
     </div>
 
-    <!-- Balance -->
     <div class="balance-card" style="margin-bottom:24px">
       <div class="balance-label">الرصيد المتاح</div>
       <div class="balance-value">${lyd(S.profile.wallet_balance * rate())}</div>
@@ -416,7 +425,6 @@ function vDashboard() {
       </div>
     </div>
 
-    <!-- Cards -->
     <div class="flex-between mb-4">
       <div>
         <div class="h4">بطاقاتي</div>
@@ -444,7 +452,6 @@ function vDashboard() {
       </div>
     `}
 
-    <!-- Recent transactions -->
     <div class="flex-between mb-4">
       <div class="h4">آخر العمليات</div>
       <button class="btn btn-ghost btn-sm" data-nav="transactions">
@@ -465,19 +472,18 @@ function vDashboard() {
       </div>
     `}
 
-    <!-- Services -->
     <div class="flex-between mb-4">
       <div class="h4">خدمات سريعة</div>
     </div>
 
     <div class="grid-4">
+      <button class="service-card" data-nav="services" style="text-align:center;align-items:center">
+        <div class="service-logo">${svg(I.box, 2)}</div>
+        <div class="service-name">الخدمات</div>
+      </button>
       <button class="service-card" data-nav="subscriptions" style="text-align:center;align-items:center">
         <div class="service-logo">${svg(I.clock, 2)}</div>
         <div class="service-name">الاشتراكات</div>
-      </button>
-      <button class="service-card" data-nav="shop" style="text-align:center;align-items:center">
-        <div class="service-logo">${svg(I.grid, 2)}</div>
-        <div class="service-name">المتجر</div>
       </button>
       <button class="service-card" data-nav="referral" style="text-align:center;align-items:center">
         <div class="service-logo">${svg(I.gift, 2)}</div>
@@ -523,39 +529,376 @@ function cardMiniHtml(c) {
 }
 
 function txRow(t) {
-  const kind = t.kind || (t.plan_name ? 'subscription' : 'order');
+  const kind = t.kind || (t.plan_name ? 'subscription' : (t.service_id ? 'service' : 'order'));
   const isSub = kind === 'subscription';
+  const isSvc = kind === 'service';
   const isIn = kind === 'deposit';
 
   const labels = {
     subscription: t.plan_name || 'اشتراك',
     order: (t.items && t.items[0] && t.items[0].name) || 'طلب',
+    service: t.service_name || 'خدمة رقمية',
     deposit: 'إيداع رصيد',
     card_create: 'إصدار بطاقة',
     card_topup: 'شحن بطاقة',
   };
 
-  const amount = t.total_lyd || t.amount_lyd || t.total_usd || 0;
+  const amount = t.total_lyd || t.amount_lyd || t.total_usd || t.price_usd || 0;
   const sign = isIn ? '+' : '−';
 
   return `
     <div class="list-row" style="cursor:default">
-      <div class="list-icon ${isIn ? 'success' : isSub ? 'brand' : ''}">
-        ${svg(isIn ? I.up : isSub ? I.clock : I.bag, 2)}
+      <div class="list-icon ${isIn ? 'success' : isSvc ? 'brand' : isSub ? 'brand' : ''}">
+        ${svg(isIn ? I.up : isSvc ? I.box : isSub ? I.clock : I.bag, 2)}
       </div>
       <div class="list-content">
         <div class="list-title">${esc(labels[kind] || 'عملية')}</div>
         <div class="list-meta">${esc(dt(t.created_at))}</div>
       </div>
       <div class="list-end">
-        <div class="list-amount ${isIn ? 'credit' : ''}">${sign}${esc(lyd(amount))}</div>
+        <div class="list-amount ${isIn ? 'credit' : ''}">${sign}${esc(isSvc || isSub ? usd(amount) : lyd(amount))}</div>
       </div>
     </div>
   `;
 }
 
 /* ═══════════════════════════════════════════════════════════
-   Subscriptions (NEW)
+   Digital Services (NEW)
+   ═══════════════════════════════════════════════════════════ */
+
+function vServices() {
+  const services = S.services || [];
+  const myOrders = S.svcOrders || [];
+  const pending = myOrders.filter(o => o.status === 'pending');
+  const delivered = myOrders.filter(o => o.status === 'delivered');
+
+  return `
+  <div class="page-enter">
+    <div class="mb-6">
+      <h1 class="h2" style="margin-bottom:6px">الخدمات الرقمية</h1>
+      <p class="body-sm text-2">اشترِ الأكواد والحسابات فوراً — تسليم تلقائي أو يدوي</p>
+    </div>
+
+    ${delivered.length ? `
+      <div class="mb-6">
+        <div class="flex-between mb-3">
+          <div class="h4">✅ طلباتك المُسلَّمة (${delivered.length})</div>
+          <button class="btn btn-ghost btn-sm" id="showAllOrders">عرض الكل</button>
+        </div>
+        <div class="list">
+          ${delivered.slice(0, 3).map(o => svcOrderRow(o, true)).join('')}
+        </div>
+      </div>
+    ` : ''}
+
+    ${pending.length ? `
+      <div class="mb-6">
+        <div class="h4" style="margin-bottom:12px">⏳ طلباتك قيد التنفيذ (${pending.length})</div>
+        <div class="list">
+          ${pending.map(o => svcOrderRow(o, false)).join('')}
+        </div>
+      </div>
+    ` : ''}
+
+    ${services.length ? `
+      <div class="flex-between mb-4">
+        <div class="h4">${myOrders.length ? 'اطلب المزيد' : 'الخدمات المتاحة'}</div>
+      </div>
+      <div class="grid-2">
+        ${services.map(s => svcCard(s)).join('')}
+      </div>
+    ` : `
+      <div class="card" style="text-align:center;padding:48px 24px">
+        <div class="empty-icon" style="margin:0 auto 16px">${svg(I.box, 2)}</div>
+        <div class="h4" style="margin-bottom:8px">لا خدمات متاحة حالياً</div>
+        <p class="body-sm text-2">عذراً، لم نتمكن من تحميل الخدمات. حاول لاحقاً.</p>
+      </div>
+    `}
+  </div>
+  `;
+}
+
+function svcCard(s) {
+  const isAuto = s.delivery_type === 'auto';
+  const badge = isAuto ? '🤖 تلقائي' : '👤 يدوي';
+  const stock = s.in_stock;
+
+  return `
+    <button class="service-card" data-buy-svc="${esc(s.id)}" style="position:relative">
+      <div style="display:flex;gap:12px;align-items:center;width:100%">
+        <div class="service-logo" style="font-size:28px;width:52px;height:52px;padding:0;overflow:hidden">
+          ${s.icon_url
+            ? `<img src="${esc(s.icon_url)}" alt="" style="width:100%;height:100%;object-fit:cover">`
+            : esc(s.icon_emoji || '📦')}
+        </div>
+        <div style="flex:1;min-width:0;text-align:right">
+          <div class="service-name">${esc(s.name)}</div>
+          <div class="service-desc">${esc((s.desc || '').slice(0, 60))}</div>
+        </div>
+      </div>
+      <div style="display:flex;justify-content:space-between;align-items:baseline;width:100%;margin-top:8px">
+        <div class="service-price">${usd(s.price_usd)}</div>
+        <span class="badge badge-info" style="font-size:10px">${esc(badge)}</span>
+      </div>
+      ${isAuto && stock === false ? `
+        <span class="badge badge-error" style="position:absolute;top:10px;left:10px;font-size:10px">نفد</span>
+      ` : ''}
+    </button>
+  `;
+}
+
+function svcOrderRow(o, delivered) {
+  const st = o.status;
+  const label = { pending: 'قيد التنفيذ', delivered: 'تم التسليم', rejected: 'مرفوض' }[st] || st;
+  const cls = { pending: 'badge-warning', delivered: 'badge-success', rejected: 'badge-error' }[st];
+
+  return `
+    <div class="list-row" data-svc-order="${esc(o.id)}">
+      <div class="list-icon ${delivered ? 'success' : ''}">
+        ${svg(delivered ? I.check : I.clock, 2)}
+      </div>
+      <div class="list-content">
+        <div class="list-title">${esc(o.service_name || 'خدمة')}</div>
+        <div class="list-meta">${esc(dt(o.created_at))}</div>
+      </div>
+      <div class="list-end">
+        <div class="list-amount">${esc(usd(o.price_usd))}</div>
+        <span class="badge ${cls}" style="margin-top:4px;font-size:10px">${esc(label)}</span>
+      </div>
+    </div>
+  `;
+}
+
+function openServiceOrderDetail(orderId) {
+  const o = (S.svcOrders || []).find(x => x.id === orderId);
+  if (!o) return;
+
+  const isDelivered = o.status === 'delivered';
+  const isRejected = o.status === 'rejected';
+
+  modal(`
+    <div class="modal-head">
+      <div class="modal-title">${esc(o.service_name || 'خدمة')}</div>
+      <button class="modal-close" onclick="closeModal()">${svg(I.x, 2)}</button>
+    </div>
+
+    <div class="card card-sm mb-4" style="background:var(--surface-2);border:none">
+      <div class="flex-between" style="padding:4px 0">
+        <span class="caption">رقم الطلب</span>
+        <span class="mono" style="font-size:11px">${esc(o.id)}</span>
+      </div>
+      <div class="flex-between" style="padding:4px 0">
+        <span class="caption">التاريخ</span>
+        <span class="body-sm">${esc(dt(o.created_at))}</span>
+      </div>
+      <div class="flex-between" style="padding:4px 0">
+        <span class="caption">السعر</span>
+        <span class="tabular" style="font-weight:700">${esc(usd(o.price_usd))}</span>
+      </div>
+      <div class="flex-between" style="padding:4px 0">
+        <span class="caption">الحالة</span>
+        <span class="badge ${isDelivered ? 'badge-success' : isRejected ? 'badge-error' : 'badge-warning'}">
+          ${isDelivered ? 'تم التسليم' : isRejected ? 'مرفوض' : 'قيد التنفيذ'}
+        </span>
+      </div>
+    </div>
+
+    ${o.inputs && Object.keys(o.inputs).length ? `
+      <div class="field-label mb-2">بيانات الطلب</div>
+      <div class="card card-sm mb-4" style="background:var(--surface-2);border:none">
+        ${Object.entries(o.inputs).map(([k, v]) => `
+          <div class="flex-between" style="padding:4px 0">
+            <span class="caption">${esc(k)}</span>
+            <span class="mono body-sm" dir="ltr">${esc(v)}</span>
+          </div>
+        `).join('')}
+      </div>
+    ` : ''}
+
+    ${isDelivered ? `
+      <div class="field-label mb-2">البيانات المُسلَّمة</div>
+      <div class="copy-box mb-4" style="text-align:center;padding:16px">
+        <div class="mono" style="font-size:14px;word-break:break-all;line-height:1.7;white-space:pre-wrap">${esc(o.delivered_data || '')}</div>
+        <button class="copy-btn" id="copyDelivered" style="margin-top:8px">${svg(I.copy, 2)} نسخ</button>
+      </div>
+    ` : ''}
+
+    ${isRejected ? `
+      <div class="alert alert-error mb-4">
+        ${svg(I.x, 2)}
+        <div><strong>تم رفض الطلب</strong><br>${esc(o.rejected_reason || 'بدون سبب')}</div>
+      </div>
+    ` : ''}
+
+    ${!isDelivered && !isRejected ? `
+      <div class="alert alert-info mb-4">
+        ${svg(I.clock, 2)}
+        <div>طلبك قيد التنفيذ — سيتواصل معك الفريق قريباً</div>
+      </div>
+    ` : ''}
+
+    <button class="btn btn-secondary btn-block" onclick="closeModal()">إغلاق</button>
+  `);
+
+  onTap('#copyDelivered', async () => {
+    try {
+      await navigator.clipboard.writeText(o.delivered_data || '');
+      toast('نُسخ', 'ok');
+    } catch { toast('تعذّر النسخ', 'bad'); }
+  });
+}
+window.openServiceOrderDetail = openServiceOrderDetail;
+
+async function openServiceBuy(svcId) {
+  const svc = (S.services || []).find(x => x.id === svcId);
+  if (!svc) return;
+
+  const price = n(svc.price_usd);
+  const balance = n(S.profile.wallet_balance);
+  const canBuy = balance >= price;
+  const fields = Array.isArray(svc.fields) ? svc.fields : [];
+
+  modal(`
+    <div class="modal-head">
+      <div class="modal-title">${esc(svc.name)}</div>
+      <button class="modal-close" onclick="closeModal()">${svg(I.x, 2)}</button>
+    </div>
+
+    <div class="card card-sm mb-4" style="background:var(--surface-2);border:none;text-align:center;padding:20px">
+      <div style="font-size:44px;margin-bottom:10px;line-height:1">
+        ${svc.icon_url
+          ? `<img src="${esc(svc.icon_url)}" alt="" style="width:60px;height:60px;object-fit:cover;border-radius:14px">`
+          : esc(svc.icon_emoji || '📦')}
+      </div>
+      <div class="h4" style="margin-bottom:4px">${esc(svc.name)}</div>
+      ${svc.desc ? `<div class="body-sm text-2">${esc(svc.desc)}</div>` : ''}
+      <div class="tabular" style="font-size:26px;font-weight:700;color:var(--brand);margin-top:12px">${esc(usd(svc.price_usd))}</div>
+    </div>
+
+    ${fields.length ? `
+      <div class="field-label mb-3">أدخل البيانات المطلوبة</div>
+      ${fields.map((f, i) => renderField(f, i)).join('')}
+    ` : ''}
+
+    <div class="card card-sm mb-4" style="background:${canBuy ? 'var(--success-bg)' : 'var(--error-bg)'};border:none">
+      <div class="flex-between">
+        <span class="body-sm">رصيدك:</span>
+        <span class="tabular" style="font-weight:700">${esc(usd(balance))}</span>
+      </div>
+      ${!canBuy ? `
+        <div class="caption" style="color:var(--error);margin-top:6px">
+          رصيدك غير كافٍ — ينقصك ${esc(usd(price - balance))}
+        </div>
+      ` : ''}
+    </div>
+
+    <button class="btn btn-primary btn-block" id="svcBuyBtn" ${!canBuy ? 'disabled' : ''}>
+      ${canBuy ? `${svg(I.check, 2)} تأكيد الشراء — ${esc(usd(price))}` : 'رصيد غير كافٍ'}
+    </button>
+  `);
+
+  onTap('#svcBuyBtn', async () => {
+    const inputs = {};
+    for (let i = 0; i < fields.length; i++) {
+      const el = $('#svcField' + i);
+      if (!el) continue;
+      const v = String(el.value || '').trim();
+      const f = fields[i];
+      if (f.required && !v) return toast(`${f.label} مطلوب`, 'bad');
+      inputs[f.key] = v;
+    }
+
+    const btn = $('#svcBuyBtn');
+    btn.disabled = true;
+    btn.classList.add('loading');
+
+    try {
+      const r = await api('/api/service/create-order', {
+        service_id: svcId,
+        inputs,
+      });
+
+      const ord = r.order || {};
+
+      if (ord.delivery_type === 'auto' && ord.delivered_data) {
+        modal(`
+          <div class="modal-head">
+            <div class="modal-title">✅ تم الشراء بنجاح</div>
+            <button class="modal-close" onclick="closeModal()">${svg(I.x, 2)}</button>
+          </div>
+
+          <div class="alert alert-success mb-4">
+            ${svg(I.check, 2)}
+            <div><strong>تم التسليم الفوري!</strong><br>بيانات الخدمة أدناه:</div>
+          </div>
+
+          <div class="field-label mb-2">بيانات الخدمة</div>
+          <div class="copy-box mb-4" style="text-align:center;padding:16px">
+            <div class="mono" style="font-size:14px;word-break:break-all;line-height:1.7;white-space:pre-wrap">${esc(ord.delivered_data)}</div>
+          </div>
+
+          <button class="btn btn-secondary btn-block" id="copySvcCode">${svg(I.copy, 2)} نسخ</button>
+          <button class="btn btn-ghost btn-block" style="margin-top:8px" onclick="closeModal()">إغلاق</button>
+        `);
+
+        try {
+          await navigator.clipboard.writeText(ord.delivered_data);
+          toast('نُسخ تلقائياً', 'ok');
+        } catch {}
+
+        onTap('#copySvcCode', async () => {
+          try {
+            await navigator.clipboard.writeText(ord.delivered_data);
+            toast('نُسخ', 'ok');
+          } catch { toast('تعذّر النسخ', 'bad'); }
+        });
+      } else {
+        closeModal();
+        toast('طلبك قيد التنفيذ — سيصلك قريباً', 'ok');
+      }
+
+    } catch (e) {
+      toast(e.message, 'bad');
+      btn.disabled = false;
+      btn.classList.remove('loading');
+    }
+  });
+}
+window.openServiceBuy = openServiceBuy;
+
+function renderField(f, i) {
+  const id = 'svcField' + i;
+  const label = `${esc(f.label)}${f.required ? ' *' : ''}`;
+
+  if (f.type === 'select') {
+    return `
+      <div class="field mb-3">
+        <label class="field-label">${label}</label>
+        <select class="input" id="${id}">
+          <option value="">— اختر —</option>
+          ${(f.options || []).map(o => `<option value="${esc(o)}">${esc(o)}</option>`).join('')}
+        </select>
+      </div>
+    `;
+  }
+  if (f.type === 'textarea') {
+    return `
+      <div class="field mb-3">
+        <label class="field-label">${label}</label>
+        <textarea class="input" id="${id}" rows="3" placeholder="${esc(f.placeholder || '')}"></textarea>
+      </div>
+    `;
+  }
+  return `
+    <div class="field mb-3">
+      <label class="field-label">${label}</label>
+      <input class="input" id="${id}" type="${esc(f.type || 'text')}" placeholder="${esc(f.placeholder || '')}" dir="${['password', 'tel'].includes(f.type) ? 'ltr' : 'auto'}">
+    </div>
+  `;
+}
+
+/* ═══════════════════════════════════════════════════════════
+   Subscriptions
    ═══════════════════════════════════════════════════════════ */
 
 function vSubscriptions() {
@@ -576,7 +919,7 @@ function vSubscriptions() {
   <div class="page-enter">
     <div class="mb-6">
       <h1 class="h2" style="margin-bottom:6px">الاشتراكات</h1>
-      <p class="body-sm text-2">اشترك في خدماتك المفضلة بأسعار واضحة، وادفع من رصيد كاردو.</p>
+      <p class="body-sm text-2">اشترك في خدماتك المفضلة بأسعار واضحة</p>
     </div>
 
     ${active.length ? `
@@ -629,52 +972,6 @@ function vSubscriptions() {
 }
 
 /* ═══════════════════════════════════════════════════════════
-   Digital Services
-   ═══════════════════════════════════════════════════════════ */
-
-function vServices() {
-  const services = S.services || [];
-  
-  return `
-  <div class="page-enter">
-    <div class="mb-6">
-      <h1 class="h2" style="margin-bottom:6px">الخدمات الرقمية</h1>
-      <p class="body-sm text-2">اشترِ الأكواد والخدمات الرقمية فوراً بدون تأخير</p>
-    </div>
-
-    ${services.length ? `
-      <div class="grid-2">
-        ${services.map(s => `
-          <button class="service-card" data-buy-svc="${esc(s.id)}">
-            <div style="display:flex;gap:12px;align-items:center;width:100%">
-              <div class="service-logo" style="font-size:32px">${esc(s.icon_emoji || '⚙️')}</div>
-              <div style="flex:1;min-width:0;text-align:right">
-                <div class="service-name">${esc(s.name)}</div>
-                <div class="service-desc">${esc(s.desc)}</div>
-              </div>
-            </div>
-            <div style="display:flex;justify-content:space-between;align-items:baseline;width:100%;margin-top:4px">
-              <div class="service-price">
-                ${usd(n(s.price_usd))}
-                <span class="service-price-unit">${s.delivery_type === 'auto' ? '🤖' : '👤'}</span>
-              </div>
-              <span class="badge badge-success">اشترِ</span>
-            </div>
-          </button>
-        `).join('')}
-      </div>
-    ` : `
-      <div style="text-align:center;padding:48px 24px">
-        <div style="font-size:48px;margin-bottom:16px">📭</div>
-        <div class="h4">لا توجد خدمات متاحة</div>
-        <p class="body-sm text-2">عذراً، لم نتمكن من تحميل الخدمات الآن</p>
-      </div>
-    `}
-  </div>
-  `;
-}
-
-/* ═══════════════════════════════════════════════════════════
    Shop
    ═══════════════════════════════════════════════════════════ */
 
@@ -709,7 +1006,6 @@ function vShop() {
   </div>
   `;
 }
-
 /* ═══════════════════════════════════════════════════════════
    Cards
    ═══════════════════════════════════════════════════════════ */
@@ -881,13 +1177,23 @@ function vWallet() {
    ═══════════════════════════════════════════════════════════ */
 
 function vTransactions() {
-  const rows = [...S.manualOrders, ...S.subscriptions, ...S.deposits]
+  const rows = [
+    ...S.manualOrders,
+    ...S.subscriptions,
+    ...S.deposits,
+    ...S.svcOrders.map(o => ({
+      ...o,
+      kind: 'service',
+      total_lyd: 0,
+      total_usd: n(o.price_usd),
+    })),
+  ]
     .sort((a, b) => {
       const av = a.created_at?.toDate?.() || new Date(a.created_at || 0);
       const bv = b.created_at?.toDate?.() || new Date(b.created_at || 0);
       return bv - av;
     })
-    .slice(0, 50);
+    .slice(0, 80);
 
   return `
   <div class="page-enter">
@@ -898,7 +1204,7 @@ function vTransactions() {
 
     ${rows.length ? `
       <div class="list">
-        ${rows.map(t => txRow({ ...t, kind: t.kind || (t.plan_name ? 'subscription' : t.status ? 'deposit' : 'order') })).join('')}
+        ${rows.map(t => txRow(t)).join('')}
       </div>
     ` : `
       <div class="card" style="text-align:center;padding:48px 24px">
@@ -1233,6 +1539,20 @@ function bind() {
 
   // Digital Services
   $$('[data-buy-svc]').forEach(b => b.onclick = () => openServiceBuy(b.dataset.buySvc));
+  $$('[data-svc-order]').forEach(b => b.onclick = () => openServiceOrderDetail(b.dataset.svcOrder));
+
+  onTap('#showAllOrders', () => {
+    modal(`
+      <div class="modal-head">
+        <div class="modal-title">كل طلباتي</div>
+        <button class="modal-close" onclick="closeModal()">${svg(I.x, 2)}</button>
+      </div>
+      <div class="list">
+        ${S.svcOrders.map(o => svcOrderRow(o, o.status === 'delivered')).join('')}
+      </div>
+    `);
+    $$('[data-svc-order]').forEach(b => b.onclick = () => openServiceOrderDetail(b.dataset.svcOrder));
+  });
 
   // Deposit methods
   $$('[data-method]').forEach(b => b.onclick = () => openDepositMethod(b.dataset.method));
@@ -1396,117 +1716,6 @@ async function openNewCard() {
       btn.classList.remove('loading');
     }
   };
-}
-
-async function openServiceBuy(svcId) {
-  const service = (S.services || []).find(s => s.id === svcId);
-  if (!service) return;
-
-  const fields = service.fields || [];
-  let html = `
-    <div class="modal-head">
-      <div class="modal-title">${service.icon_emoji || '⚙️'} ${esc(service.name)}</div>
-      <button class="modal-close" onclick="closeModal()">${svg(I.x, 2)}</button>
-    </div>
-    <p class="body-sm text-2 mb-4">${esc(service.desc)}</p>
-  `;
-
-  if (fields.length) {
-    html += `<div style="margin-bottom:20px">`;
-    fields.forEach((f, i) => {
-      if (f.type === 'select') {
-        html += `
-          <div class="field mb-3">
-            <label class="field-label">${esc(f.label)} ${f.required ? '*' : ''}</label>
-            <select class="input" id="svcField${i}">
-              <option value="">— اختر —</option>
-              ${(f.options || []).map(o => `<option value="${esc(o)}">${esc(o)}</option>`).join('')}
-            </select>
-          </div>
-        `;
-      } else if (f.type === 'textarea') {
-        html += `
-          <div class="field mb-3">
-            <label class="field-label">${esc(f.label)} ${f.required ? '*' : ''}</label>
-            <textarea class="input" id="svcField${i}" rows="3" placeholder="${esc(f.placeholder)}"></textarea>
-          </div>
-        `;
-      } else {
-        html += `
-          <div class="field mb-3">
-            <label class="field-label">${esc(f.label)} ${f.required ? '*' : ''}</label>
-            <input class="input" id="svcField${i}" type="${f.type}" placeholder="${esc(f.placeholder)}" ${f.required ? 'required' : ''}>
-          </div>
-        `;
-      }
-    });
-    html += `</div>`;
-  }
-
-  const balance = S.profile.wallet_balance || 0;
-  const canBuy = balance >= service.price_usd;
-
-  html += `
-    <div class="info-box" style="margin-bottom:16px;background:${canBuy ? 'var(--success-bg)' : 'var(--error-bg)'}">
-      <div class="body-sm" style="color:${canBuy ? 'var(--success)' : 'var(--error)'}">
-        <strong>${usd(service.price_usd)}</strong> — رصيدك: <strong>${usd(balance)}</strong>
-        <br><small>${canBuy ? '✅ يمكنك الشراء' : '❌ رصيد غير كافي'}</small>
-      </div>
-    </div>
-
-    <button class="btn btn-primary btn-block" id="svcBuyBtn" ${!canBuy ? 'disabled' : ''}>شراء الآن</button>
-  `;
-
-  modal(html);
-
-  onTap('#svcBuyBtn', async () => {
-    const inputs = {};
-    fields.forEach((f, i) => {
-      inputs[f.key] = $('#svcField' + i).value;
-    });
-
-    for (const f of fields) {
-      if (f.required && !inputs[f.key]) {
-        return toast(`${f.label} مطلوب`, 'bad');
-      }
-    }
-
-    const btn = $('#svcBuyBtn');
-    btn.disabled = true;
-    btn.classList.add('loading');
-
-    try {
-      const res = await api('/api/services/order', {
-        service_id: svcId,
-        inputs,
-      });
-
-      if (service.delivery_type === 'auto') {
-        modal(`
-          <div class="modal-head">
-            <div class="modal-title">✅ تم التسليم</div>
-          </div>
-          <p class="body-sm text-2 mb-4">تم استلام طلبك بنجاح!</p>
-          <div class="card" style="background:var(--surface-2);padding:16px;margin-bottom:16px;border-radius:8px;direction:ltr;text-align:center">
-            <div class="mono" style="font-size:18px;font-weight:700;letter-spacing:.05em;word-break:break-all">${esc(res.delivered_data)}</div>
-          </div>
-          <p class="body-sm text-2 mb-4" style="text-align:center">تم نسخ الكود إلى الحافظة</p>
-          <button class="btn btn-primary btn-block" onclick="closeModal()">تمام</button>
-        `);
-        navigator.clipboard.writeText(res.delivered_data).catch(() => {});
-      } else {
-        toast('طلبك قيد التنفيذ — سيتم الانتهاء منه قريباً', 'ok');
-        closeModal();
-      }
-
-      S.profile.wallet_balance = (S.profile.wallet_balance || 0) - service.price_usd;
-      render();
-    } catch (e) {
-      toast(e.message, 'bad');
-      btn.disabled = false;
-      btn.classList.remove('loading');
-    }
-  });
 }
 
 async function openDeposit() {
@@ -1817,13 +2026,25 @@ async function openOrderDetails(orderId) {
   `);
 }
 
+async function loadCatalog() {
+  try {
+    const d = await apiGet('/api/catalog');
+    S.catalog = {
+      categories: d.categories || [],
+      products: d.products || [],
+    };
+    S.config = { ...S.config, categories: S.catalog.categories };
+    render();
+  } catch (e) {
+    console.warn('catalog:', e.message);
+  }
+}
+
 /* ═══ Expose helpers to inline handlers ═══ */
 window.__toast = toast;
 
 /* ═══ Public page interactions ═══ */
 function bindPublic() {
-  // FAQ details toggles handled by native <details>
-  // Public nav links (desktop)
   $$('#public nav a').forEach(a => {
     a.onclick = (e) => {
       const href = a.getAttribute('href');
@@ -1842,4 +2063,4 @@ bindPublic();
 if (!auth.currentUser) {
   $('#public').style.display = 'block';
   $('#app').style.display = 'none';
-                          }
+                                                     }
