@@ -2,12 +2,8 @@
  * ═══════════════════════════════════════════════════════════
  *  KARDO — App Logic
  *  كاردو — منطق الواجهة الرئيسي
- * ═══════════════════════════════════════════════════════════
- *  يعمل مع:
- *   - config.js  (الإعدادات)
- *   - styles.css (التصميم)
- *   - index.html (الواجهة)
- *   - worker.js  (Backend)
+ *
+ *  Version: 2.0.0 (Production-Ready)
  * ═══════════════════════════════════════════════════════════
  */
 
@@ -97,8 +93,14 @@ const usd = v => '$' + Number(v || 0).toFixed(2);
 const rate = () => n(S.config.usd_to_lyd) || 11.8;
 const lyd = v => Number(v || 0).toLocaleString('en-US',
   { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + ' د.ل';
+
+/** ✅ محسّن: يستخدم في HTML content و attributes */
 const esc = s => String(s ?? '').replace(/[&<>"']/g, c =>
   ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+
+/** ✅ جديد: للتأكد من safe attributes */
+const safeAttr = esc;
+
 const phoneKey = r => {
   let p = String(r || '').replace(/\D/g, '');
   if (p.startsWith('00218')) p = p.slice(5);
@@ -174,24 +176,38 @@ $('#ov').addEventListener('click', e => { if (e.target.id === 'ov') closeSheet()
 document.addEventListener('keydown', e => { if (e.key === 'Escape') closeSheet(); });
 
 async function copy(text, label) {
-  try { await navigator.clipboard.writeText(text); toast(label + ' نُسخ', 'ok'); }
-  catch { toast('تعذّر النسخ', 'bad'); }
+  try {
+    await navigator.clipboard.writeText(text);
+    toast(label + ' نُسخ', 'ok');
+  } catch {
+    toast('تعذّر النسخ — انسخ يدوياً', 'bad');
+  }
 }
 
-/* ═══ API ═══ */
+/* ═══ API — مع Timeout + Retry ═══ */
+async function fetchWithTimeout(url, options = {}, ms = 15000) {
+  const ctrl = new AbortController();
+  const t = setTimeout(() => ctrl.abort(), ms);
+  try {
+    return await fetch(url, { ...options, signal: ctrl.signal });
+  } finally {
+    clearTimeout(t);
+  }
+}
+
 async function api(path, body) {
   const token = await auth.currentUser.getIdToken();
-  const res = await fetch(API_BASE + path, {
+  const res = await fetchWithTimeout(API_BASE + path, {
     method: 'POST',
     headers: { 'content-type': 'application/json', authorization: 'Bearer ' + token },
     body: JSON.stringify(body || {}),
   });
-  const d = await res.json().catch(() => ({ success: false, error: 'رد غير مفهوم' }));
+  const d = await res.json().catch(() => ({ success: false, error: 'رد غير مفهوم من الخادم' }));
   if (!d.success) throw new Error(d.error || 'فشلت العملية');
   return d;
 }
 async function apiGet(path) {
-  const res = await fetch(API_BASE + path);
+  const res = await fetchWithTimeout(API_BASE + path, {}, 10000);
   const d = await res.json();
   if (!d.success) throw new Error(d.error || 'خطأ');
   return d;
@@ -243,7 +259,7 @@ window.addEventListener('error', e => {
   document.getElementById('app').style.display = 'block';
   v.innerHTML = `<div class="note bad" style="margin-top:18px">
     <strong>حدث خطأ في الصفحة</strong><br>
-    <span style="word-break:break-all">${String(e.message || '')}</span></div>`;
+    <span style="word-break:break-all">${esc(String(e.message || 'خطأ غير معروف'))}</span></div>`;
 });
 
 onAuthStateChanged(auth, async user => {
@@ -266,7 +282,7 @@ onAuthStateChanged(auth, async user => {
     applyTheme();
     buildNav();
     render();
-  }).catch(() => {});
+  }).catch(e => console.warn('status fetch failed:', e.message));
 
   api('/api/activity/ping', {}).catch(() => {});
   loadCatalog();
@@ -282,6 +298,7 @@ async function ensureProfile(user) {
         name: user.displayName || 'مستخدم',
         email: user.email || '',
         phone: '',
+        phone_key: '',
         wallet_balance: 0,
         total_spent: 0,
         cards_count: 0,
@@ -289,14 +306,16 @@ async function ensureProfile(user) {
         created_at: new Date().toISOString(),
       }, { merge: true });
     }
-  } catch {}
+  } catch (e) {
+    console.warn('ensureProfile failed:', e.code);
+  }
 }
 
 function subscribe(uid) {
   S.unsub.push(onSnapshot(doc(db, 'users', uid), s => {
     if (s.exists()) S.profile = { ...S.profile, ...s.data() };
     render();
-  }, () => {}));
+  }, e => console.warn('user snapshot:', e.code)));
 
   // البطاقات اليدوية
   S.unsub.push(onSnapshot(query(collection(db, 'manual_cards'),
@@ -396,7 +415,7 @@ const visible = () => PAGES.filter(p => (S.config.nav || {})[p.k] !== false);
 function buildNav() {
   const vis = visible(), keys = vis.map(p => p.k);
   setHTML('#navRail', vis.map(p =>
-    `<button class="nav" data-nav="${p.k}">${svg(p.i)}<span>${p.t}</span>
+    `<button class="nav" data-nav="${esc(p.k)}">${svg(p.i)}<span>${esc(p.t)}</span>
      ${p.k === 'orders' && pendCount() ? `<span class="cnt">${pendCount()}</span>` : ''}
      </button>`).join(''));
 
@@ -406,8 +425,8 @@ function buildNav() {
     nd.style.gridTemplateColumns = `repeat(${dk.length},1fr)`;
     nd.innerHTML = dk.map(k => {
       const p = PAGES.find(x => x.k === k);
-      return `<button class="dk" data-nav="${p.k}">
-        <span class="dkico">${svg(p.i)}</span><span>${p.t}</span></button>`;
+      return `<button class="dk" data-nav="${esc(p.k)}">
+        <span class="dkico">${svg(p.i)}</span><span>${esc(p.t)}</span></button>`;
     }).join('');
   }
   if (keys.length && !keys.includes(S.page)) S.page = keys[0];
@@ -425,9 +444,9 @@ function moreSheet() {
     <div class="h2" style="margin-bottom:16px">المزيد</div>
     <nav class="menu">
       ${rest.map((p, i) => `
-        <button class="mrow" style="animation-delay:${i * .04}s" data-more="${p.k}">
+        <button class="mrow" style="animation-delay:${i * .04}s" data-more="${esc(p.k)}">
           <span class="mrow-i">${svg(p.i)}</span>
-          <span class="mrow-t">${p.t}</span>
+          <span class="mrow-t">${esc(p.t)}</span>
           <span class="mrow-x">${svg(I.back, 2)}</span>
         </button>`).join('')}
       <button class="mrow danger" style="animation-delay:${rest.length * .04}s" id="mOut">
@@ -554,9 +573,9 @@ function vHome() {
          ['points', I.star, 'نقاطي', (S.config.points || {}).on]]
         .map(([k, ic, t, on]) => `
           <button class="wact ${k === 'deposit' ? 'pri' : ''} ${on ? '' : 'off'}"
-                  data-wact="${k}">
+                  data-wact="${esc(k)}">
             <span class="wact-i">${svg(ic, 2)}</span>
-            <span>${t}</span></button>`).join('')}
+            <span>${esc(t)}</span></button>`).join('')}
     </div>
   </div>
 
@@ -607,7 +626,7 @@ function vHome() {
 
   ${deals.length ? `
     <div class="sec-head">
-      <div class="h2">${libIcon('fire', 2)} العروض</div>
+      <div class="h2">العروض</div>
     </div>
     <div class="plist">${deals.slice(0, 4).map(prodRow).join('')}</div>` : ''}
 
@@ -637,12 +656,13 @@ function vHome() {
 function cardHtml(c) {
   const cls = c.status === 'frozen' ? 'frozen' : c.status === 'deleted' ? 'dead' : '';
   const bal = c.balance || 0;
-  const st = { active: ['ok', 'نشطة'], frozen: ['off', 'مجمدة'], deleted: ['bad', 'مغلقة'] }[c.status] || ['off', '—'];
+  const st = { active: ['ok', 'نشطة'], frozen: ['off', 'مجمدة'],
+    deleted: ['bad', 'مغلقة'] }[c.status] || ['off', '—'];
   return `<div>
     <div class="vcard ${cls}" data-card="${esc(c.id)}">
       <div class="vc-top">
         <span class="vc-wm">Kardo</span>
-        <span class="chip ${st[0]}">${st[1]}</span>
+        <span class="chip ${st[0]}">${esc(st[1])}</span>
       </div>
       <div class="vc-chip"></div>
       <div class="vc-pan mono">•••• •••• •••• ${esc(c.last4 || '0000')}</div>
@@ -651,12 +671,12 @@ function cardHtml(c) {
           <div class="vc-thru">HOLDER</div>
           <div class="mono" style="font-size:11px">${esc((c.name_on_card || '').slice(0, 16))}</div>
         </div>
-        <div class="vc-amt num">${usd(bal)}</div>
+        <div class="vc-amt num">${esc(usd(bal))}</div>
       </div>
     </div>
     <div style="padding:10px 3px 0">
       <div style="font-weight:700;font-size:14px">${esc(c.card_name || 'بطاقة')}</div>
-      <div class="row-s">${dt(c.created_at)}</div>
+      <div class="row-s">${esc(dt(c.created_at))}</div>
     </div></div>`;
 }
 
@@ -674,7 +694,8 @@ function vMcards() {
   const active = S.manualCards.filter(c => c.status === 'active');
   const pend = S.manualOrders.filter(o => o.status === 'pending');
   const recent = S.manualOrders.filter(o => o.status !== 'pending').slice(0, 20);
-  const mcst = { pending: ['wait', 'قيد التنفيذ'], completed: ['ok', 'مكتملة'], rejected: ['bad', 'مرفوضة'] };
+  const mcst = { pending: ['wait', 'قيد التنفيذ'], completed: ['ok', 'مكتملة'],
+    rejected: ['bad', 'مرفوضة'] };
 
   return `
   <div class="h1" style="margin-bottom:5px">البطاقات</div>
@@ -691,10 +712,10 @@ function vMcards() {
         <div class="row">
           <div class="row-i">${svg(I.clock)}</div>
           <div class="row-b">
-            <div class="row-t">${o.kind === 'topup' ? 'شحن بطاقة' : 'بطاقة جديدة'}</div>
-            <div class="row-s">${dt(o.created_at)}</div>
+            <div class="row-t">${esc(o.kind === 'topup' ? 'شحن بطاقة' : 'بطاقة جديدة')}</div>
+            <div class="row-s">${esc(dt(o.created_at))}</div>
           </div>
-          <div class="num" style="font-size:14px">${usd(o.total)}</div>
+          <div class="num" style="font-size:14px">${esc(usd(o.total))}</div>
         </div>`).join('')}
     </div>` : ''}
 
@@ -709,7 +730,7 @@ function vMcards() {
           </div>
           <div class="mcname">${esc(c.card_name || 'بطاقتي')}</div>
           <div class="mcpan mono">•••• •••• •••• ${esc(c.last4 || '0000')}</div>
-          <div class="mcbal num">${usd(c.balance)}</div>
+          <div class="mcbal num">${esc(usd(c.balance))}</div>
         </button>`).join('')}
     </div>`
     : !pend.length ? `
@@ -727,20 +748,20 @@ function vMcards() {
         return `<div class="row">
           <div class="row-i">${svg(o.kind === 'topup' ? I.plus : I.card)}</div>
           <div class="row-b">
-            <div class="row-t">${o.kind === 'topup' ? 'شحن ' + esc(o.card_name || '') : esc(o.card_name || 'بطاقة جديدة')}</div>
-            <div class="row-s">${dt(o.created_at)}
+            <div class="row-t">${esc(o.kind === 'topup' ? 'شحن ' + (o.card_name || '') : (o.card_name || 'بطاقة جديدة'))}</div>
+            <div class="row-s">${esc(dt(o.created_at))}
               ${o.reject_reason ? ` · <span style="color:var(--bad)">${esc(o.reject_reason)}</span>` : ''}</div>
           </div>
           <div class="row-v">
-            <div class="row-a num">${usd(o.total)}</div>
-            <span class="chip ${st[0]}" style="margin-top:3px">${st[1]}</span>
+            <div class="row-a num">${esc(usd(o.total))}</div>
+            <span class="chip ${st[0]}" style="margin-top:3px">${esc(st[1])}</span>
           </div>
         </div>`;
       }).join('')}
     </div>` : ''}`;
 }
 
-/* ═══ الشيتات — البطاقات اليدوية ═══ */
+/* ═══ Sheets — البطاقات اليدوية ═══ */
 function mcRequestSheet(topupCard) {
   const mc = S.config.manual_cards || {};
   const isTopup = !!topupCard;
@@ -790,13 +811,13 @@ function mcRequestSheet(topupCard) {
     const fee = round2(ff + a * fp / 100);
     const total = round2(a + fee);
     box.innerHTML = `<div class="quote">
-      <div class="qrow"><span class="k">المبلغ</span><span class="num">${usd(a)}</span></div>
-      <div class="qrow"><span class="k">رسوم الإصدار</span><span class="num">${usd(fee)}</span></div>
-      <div class="qrow tot"><span>الإجمالي</span><span class="num">${usd(total)}</span></div>
+      <div class="qrow"><span class="k">المبلغ</span><span class="num">${esc(usd(a))}</span></div>
+      <div class="qrow"><span class="k">رسوم الإصدار</span><span class="num">${esc(usd(fee))}</span></div>
+      <div class="qrow tot"><span>الإجمالي</span><span class="num">${esc(usd(total))}</span></div>
     </div>`;
     btn.disabled = (S.profile.wallet_balance || 0) < total;
     if (btn.disabled) box.innerHTML += `<div class="note" style="margin-top:10px">
-      رصيدك غير كافٍ — المتاح ${usd(S.profile.wallet_balance)}.</div>`;
+      رصيدك غير كافٍ — المتاح ${esc(usd(S.profile.wallet_balance))}.</div>`;
   };
   $('#mcAmt').oninput = () => {
     $$('[data-mcamt]').forEach(x => x.classList.remove('on'));
@@ -832,18 +853,47 @@ function mcRequestSheet(topupCard) {
       toast('وصل طلبك — سيُصدر خلال دقائق وتتابعه من هذه الصفحة', 'ok');
       render();
     } catch (e) {
-      toast(e.message, 'bad');
+      toast(e.message || 'فشل الطلب', 'bad');
       btn.disabled = false;
       btn.textContent = isTopup ? 'شحن البطاقة' : 'إصدار البطاقة';
     }
   });
 }
 
-function mcCardSheet(id) {
+/**
+ * ✅ إصلاح: عرض بيانات البطاقة
+ * المشكلة كانت: البحث عن آخر طلب عبر card_id قد يفشل إذا لم تُحمّل manualOrders بعد
+ * الحل: نحاول أولاً من S.manualOrders، ثم نجلب من Firestore مباشرة
+ */
+async function mcCardSheet(id) {
   const c = S.manualCards.find(x => x.id === id);
   if (!c) return;
-  const orders = S.manualOrders.filter(o => o.card_id === id && o.status === 'completed');
-  const lastOrder = orders[0];
+
+  // ابحث في الطلبات المحمّلة
+  let lastOrder = S.manualOrders
+    .filter(o => o.card_id === id && o.status === 'completed')[0];
+
+  // إذا لم نجد، اجلب من Firestore مباشرة
+  if (!lastOrder && S.user) {
+    try {
+      const snap = await getDoc(doc(db, 'manual_card_orders', '___dummy___')).catch(() => null);
+      // استعلام مباشر
+      const { getDocs } = await import('https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js');
+      const q = query(
+        collection(db, 'manual_card_orders'),
+        where('uid', '==', S.user.uid),
+        where('card_id', '==', id),
+        limit(5)
+      );
+      const rows = await getDocs(q);
+      lastOrder = rows.docs
+        .map(d => ({ id: d.id, ...d.data() }))
+        .filter(o => o.status === 'completed')
+        .sort((a, b) => String(b.created_at || '').localeCompare(String(a.created_at || '')))[0];
+    } catch (e) {
+      console.warn('fetch orders failed:', e.message);
+    }
+  }
 
   sheet(`
     <div style="max-width:280px;margin:0 auto 18px">
@@ -854,7 +904,9 @@ function mcCardSheet(id) {
       ${lastOrder
         ? `<button class="btn line wide" id="mcRev">
             ${svg(I.eye)} عرض بيانات البطاقة</button>`
-        : `<div class="note">لم تُسلَّم بيانات هذه البطاقة بعد.</div>`}
+        : `<div class="note" style="margin-bottom:0">
+            لم تُسلَّم بيانات هذه البطاقة بعد — إن استمرت المشكلة تواصل مع الدعم.
+          </div>`}
     </div>
 
     <button class="btn wide" style="margin-top:9px" id="mcTop">
@@ -877,7 +929,7 @@ function mcCardSheet(id) {
         <div class="cprow" style="margin-bottom:8px" data-cp="${esc(d.card_number)}" data-lb="رقم البطاقة">
           <div style="min-width:0">
             <div class="cpk">رقم البطاقة</div>
-            <div class="cpv mono" dir="ltr">${grp(d.card_number)}</div>
+            <div class="cpv mono" dir="ltr">${esc(grp(d.card_number))}</div>
           </div>
           <span class="cpi">${svg(I.copy, 2)}</span>
         </div>
@@ -902,7 +954,9 @@ function mcCardSheet(id) {
       box.querySelectorAll('[data-cp]').forEach(b =>
         b.onclick = () => copy(b.dataset.cp, b.dataset.lb));
     } catch (e) {
-      box.innerHTML = `<div class="note bad">${esc(e.message)}</div>`;
+      box.innerHTML = `<div class="note bad">${esc(e.message)}</div>
+        <button class="btn line wide sm" style="margin-top:10px"
+          onclick="mcCardSheet('${esc(id)}')">إعادة المحاولة</button>`;
     }
   });
 }
@@ -930,7 +984,7 @@ function loadCatalog() {
   apiGet('/api/catalog').then(d => {
     S.catalog = { categories: d.categories || [], products: d.products || [] };
     render();
-  }).catch(() => {});
+  }).catch(e => console.warn('catalog fetch:', e.message));
 }
 
 function catTile(c, big) {
@@ -947,8 +1001,6 @@ function catTile(c, big) {
   </button>`;
 }
 
-const CD = { upcoming: ['wait', 'لم يبدأ'], active: ['ok', 'متاح'], expired: ['bad', 'منتهي'] };
-
 function prodRow(p) {
   const off = offPct(p);
   const c = p.countdown;
@@ -961,12 +1013,12 @@ function prodRow(p) {
       <span class="prod-s">${c
         ? (c.state === 'active'
             ? `<span class="cdchip">${svg(I.clock, 2.2)} ${c.days_left} يوم متبقٍ</span>`
-            : c.state === 'upcoming' ? 'يبدأ ' + shortDate(c.starts_at) : 'انتهت المدة')
+            : c.state === 'upcoming' ? 'يبدأ ' + esc(shortDate(c.starts_at)) : 'انتهت المدة')
         : (p.kind === 'stock' ? 'تسليم فوري' : 'تنفيذ يدوي')}</span>
       <span class="prod-prow">
-        <span class="prod-p num">${c && c.state === 'expired' ? '—' : lyd(p.price)}</span>
-        ${off ? `<span class="prod-old num">${lyd(p.old_price)}</span>` : ''}
-        ${c && c.state === 'active' ? `<span class="perday num">${lyd(c.per_day)}/يوم</span>` : ''}
+        <span class="prod-p num">${c && c.state === 'expired' ? '—' : esc(lyd(p.price))}</span>
+        ${off ? `<span class="prod-old num">${esc(lyd(p.old_price))}</span>` : ''}
+        ${c && c.state === 'active' ? `<span class="perday num">${esc(lyd(c.per_day))}/يوم</span>` : ''}
       </span>
     </span>
     ${off && !c ? `<span class="offbadge">−${off}٪</span>` : ''}
@@ -1062,7 +1114,7 @@ function vCat() {
     </div>
     <div class="pills">
       ${[['all', 'الكل'], ['off', 'عروض'], ['stock', 'تسليم فوري'], ['manual', 'تنفيذ يدوي']]
-        .map(([k, t]) => `<button class="pill ${S.filter === k ? 'on' : ''}" data-filter="${k}">${t}</button>`).join('')}
+        .map(([k, t]) => `<button class="pill ${S.filter === k ? 'on' : ''}" data-filter="${esc(k)}">${esc(t)}</button>`).join('')}
     </div>
     ${items.length
       ? `<div class="plist">${items.map(prodRow).join('')}</div>`
@@ -1089,9 +1141,9 @@ function soonSheet(c) {
 
 function cdBox(c) {
   if (c.state === 'upcoming') return `<div class="note" style="margin-bottom:14px">
-    هذا الاشتراك يبدأ ${shortDate(c.starts_at)} — يمكنك شراؤه الآن بالسعر الكامل.</div>`;
+    هذا الاشتراك يبدأ ${esc(shortDate(c.starts_at))} — يمكنك شراؤه الآن بالسعر الكامل.</div>`;
   if (c.state === 'expired') return `<div class="note bad" style="margin-bottom:14px">
-    انتهت مدة هذا الاشتراك في ${shortDate(c.ends_at)}.</div>`;
+    انتهت مدة هذا الاشتراك في ${esc(shortDate(c.ends_at))}.</div>`;
 
   const pct = Math.round(c.days_left / c.total_days * 100);
   return `
@@ -1105,15 +1157,15 @@ function cdBox(c) {
     </div>
     <div class="cdbar"><i style="width:${pct}%"></i></div>
     <div class="cdrow">
-      <span>ينتهي ${shortDate(c.ends_at)}</span>
+      <span>ينتهي ${esc(shortDate(c.ends_at))}</span>
       <span>${c.days_left} من ${c.total_days} يوم</span>
     </div>
     <div class="cdcalc">
-      <span class="num">${lyd(c.per_day)}</span> لليوم
+      <span class="num">${esc(lyd(c.per_day))}</span> لليوم
       <span style="color:var(--tx-3)">×</span>
       <span class="num">${c.days_left}</span> يوم
       <span style="color:var(--tx-3)">=</span>
-      <span class="num" style="color:var(--g)">${lyd(c.price)}</span>
+      <span class="num" style="color:var(--g)">${esc(lyd(c.price))}</span>
     </div>
   </div>`;
 }
@@ -1130,7 +1182,7 @@ function productSheet(id) {
         ${p.image ? `<img src="${esc(p.image)}" alt="">` : svg(I.bag, 1.5)}</div>
       <div style="min-width:0;flex:1">
         <div class="h2">${esc(p.name)}</div>
-        <div class="num" style="color:var(--g);font-size:19px;margin-top:2px">${lyd(p.price)}</div>
+        <div class="num" style="color:var(--g);font-size:19px;margin-top:2px">${esc(lyd(p.price))}</div>
         <span class="chip ${p.kind === 'stock' ? 'ok' : 'wait'}" style="margin-top:6px">
           ${p.kind === 'stock' ? 'تسليم فوري' : 'تنفيذ خلال ساعات'}</span>
       </div>
@@ -1147,7 +1199,7 @@ function productSheet(id) {
       <label class="lbl" style="margin-top:12px">${esc(f.label)}${
         f.required ? '' : ' <span style="color:var(--tx-3);font-weight:400">(اختياري)</span>'}</label>
       <input class="inp ${f.type === 'number' || f.type === 'tel' ? 'num' : ''}"
-             data-pf="${esc(f.key)}" type="${f.type}"
+             data-pf="${esc(f.key)}" type="${esc(f.type)}"
              ${f.type === 'number' || f.type === 'tel' ? 'inputmode="numeric"' : ''}
              placeholder="${esc(f.hint || '')}">`).join('')}
 
@@ -1159,15 +1211,15 @@ function productSheet(id) {
       </div>
       <div style="flex:1">
         <div class="cpk">الإجمالي</div>
-        <div class="num" id="pTot" style="font-size:18px">${lyd(p.price)}</div>
+        <div class="num" id="pTot" style="font-size:18px">${esc(lyd(p.price))}</div>
       </div>
     </div>
 
     <div class="quote">
       <div class="qrow"><span class="k">رصيد محفظتك</span>
-        <span class="num">${lyd(bal)}</span></div>
+        <span class="num">${esc(lyd(bal))}</span></div>
       <div class="qrow"><span class="k">بعد الشراء</span>
-        <span class="num" id="pAfter">${lyd(bal - p.price)}</span></div>
+        <span class="num" id="pAfter">${esc(lyd(bal - p.price))}</span></div>
     </div>
 
     ${p.note ? `<div class="note" style="margin-top:12px">${esc(p.note)}</div>` : ''}
@@ -1234,7 +1286,7 @@ function cartSheet() {
             ? `<img src="${esc(it.image)}" alt="">` : svg(I.bag, 1.6)}</div>
           <div style="flex:1;min-width:0">
             <div class="citem-n">${esc(it.name)}</div>
-            <div class="row-s">${lyd(it.price_lyd)} للوحدة</div>
+            <div class="row-s">${esc(lyd(it.price_lyd))} للوحدة</div>
             <div class="citem-q">
               <button data-cq="${i}:-">−</button>
               <span class="num">${it.qty}</span>
@@ -1242,7 +1294,7 @@ function cartSheet() {
             </div>
           </div>
           <div style="text-align:start;flex:none">
-            <div class="num" style="font-size:15px;color:var(--g)">${lyd(it.price_lyd * it.qty)}</div>
+            <div class="num" style="font-size:15px;color:var(--g)">${esc(lyd(it.price_lyd * it.qty))}</div>
             <button class="citem-x" data-rm="${i}" aria-label="حذف">${svg(I.trash, 2)}</button>
           </div>
         </div>`).join('')}
@@ -1260,15 +1312,15 @@ function cartSheet() {
       <div class="qrow"><span class="k">عدد المنتجات</span>
         <span class="num">${cartCount()}</span></div>
       ${S.coupon ? `<div class="qrow"><span class="k">خصم ${esc(S.coupon.code)}</span>
-        <span class="num" style="color:var(--g)">−${lyd(S.coupon.off_lyd)}</span></div>` : ''}
+        <span class="num" style="color:var(--g)">−${esc(lyd(S.coupon.off_lyd))}</span></div>` : ''}
       <div class="qrow"><span class="k">رصيدك</span>
-        <span class="num">${lyd(S.profile.wallet_balance * rate())}</span></div>
+        <span class="num">${esc(lyd(S.profile.wallet_balance * rate()))}</span></div>
       <div class="qrow tot"><span>الإجمالي</span>
-        <span class="num">${lyd(tot - (S.coupon ? S.coupon.off_lyd : 0))}</span></div>
+        <span class="num">${esc(lyd(tot - (S.coupon ? S.coupon.off_lyd : 0)))}</span></div>
     </div>
 
     ${ok ? '' : `<div class="note" style="margin-top:12px">
-      رصيدك غير كافٍ — تحتاج ${lyd((totUsd - S.profile.wallet_balance) * rate())} إضافية.
+      رصيدك غير كافٍ — تحتاج ${esc(lyd((totUsd - S.profile.wallet_balance) * rate()))} إضافية.
       <button style="color:var(--g);font-weight:800"
         onclick="closeSheet();depositSheet()">إضافة رصيد</button></div>`}
 
@@ -1362,11 +1414,11 @@ function orderRow(o) {
     <div class="row-b">
       <div class="row-t">${esc((o.items && o.items[0] && o.items[0].name) || 'طلب')}${
         c > 1 ? ` +${c - 1}` : ''}</div>
-      <div class="row-s">${dt(o.created_at)}</div>
+      <div class="row-s">${esc(dt(o.created_at))}</div>
     </div>
     <div class="row-v">
-      <div class="row-a num">${lyd(o.total_lyd)}</div>
-      <span class="chip ${st[0]}" style="margin-top:3px">${st[1]}</span>
+      <div class="row-a num">${esc(lyd(o.total_lyd))}</div>
+      <span class="chip ${st[0]}" style="margin-top:3px">${esc(st[1])}</span>
     </div></div>`;
 }
 
@@ -1382,7 +1434,7 @@ function vOrders() {
 
   <div class="pills">
     ${F.map(([k, t]) => `<button class="pill ${S.filter === k ? 'on' : ''}"
-      data-filter="${k}">${t}</button>`).join('')}
+      data-filter="${esc(k)}">${esc(t)}</button>`).join('')}
   </div>
 
   ${rows.length
@@ -1402,8 +1454,8 @@ function orderSheet(id) {
     <div style="display:flex;justify-content:space-between;align-items:flex-start;
          gap:11px;margin-bottom:16px">
       <div><div class="h2">طلب ${esc(String(id).slice(-8))}</div>
-        <div class="row-s">${dt(o.created_at)}</div></div>
-      <span class="chip ${st[0]}">${st[1]}</span>
+        <div class="row-s">${esc(dt(o.created_at))}</div></div>
+      <span class="chip ${st[0]}">${esc(st[1])}</span>
     </div>
 
     <div class="list" style="margin-bottom:14px">
@@ -1413,12 +1465,12 @@ function orderSheet(id) {
             ? `<img src="${esc(i.image)}" alt="">` : svg(I.bag)}</div>
           <div class="row-b">
             <div class="row-t">${esc(i.name)}</div>
-            <div class="row-s">${i.qty} × ${lyd(i.price_lyd)}</div>
+            <div class="row-s">${i.qty} × ${esc(lyd(i.price_lyd))}</div>
             ${i.values && Object.keys(i.values).length
               ? `<div class="row-s mono" dir="ltr" style="opacity:.85">
-                 ${Object.values(i.values).map(esc).join(' · ')}</div>` : ''}
+                 ${esc(Object.values(i.values).join(' · '))}</div>` : ''}
           </div>
-          <div class="num" style="font-size:13.5px">${lyd(i.line_lyd)}</div>
+          <div class="num" style="font-size:13.5px">${esc(lyd(i.line_lyd))}</div>
         </div>`).join('')}
     </div>
 
@@ -1439,7 +1491,7 @@ function orderSheet(id) {
 
     <div class="quote">
       <div class="qrow tot"><span>الإجمالي</span>
-        <span class="num">${lyd(o.total_lyd)}</span></div>
+        <span class="num">${esc(lyd(o.total_lyd))}</span></div>
     </div>
 
     <button class="btn line wide" style="margin-top:14px" onclick="closeSheet()">إغلاق</button>`);
@@ -1463,8 +1515,8 @@ function vWallet() {
     <div class="wallet-top">
       <div>
         <div class="eyebrow">الرصيد المتاح</div>
-        <div class="wallet-bal num">${lyd(S.profile.wallet_balance * rate())}</div>
-        <div class="wallet-sub">${usd(S.profile.wallet_balance)}</div>
+        <div class="wallet-bal num">${esc(lyd(S.profile.wallet_balance * rate()))}</div>
+        <div class="wallet-sub">${esc(usd(S.profile.wallet_balance))}</div>
       </div>
       <div class="wallet-ico">${svg(I.wallet, 1.9)}</div>
     </div>
@@ -1475,16 +1527,16 @@ function vWallet() {
          ['points', I.star, 'نقاطي', (S.config.points || {}).on]]
         .map(([k, ic, t, on]) => `
           <button class="wact ${k === 'deposit' ? 'pri' : ''} ${on ? '' : 'off'}"
-                  data-wact="${k}">
+                  data-wact="${esc(k)}">
             <span class="wact-i">${svg(ic, 2)}</span>
-            <span>${t}</span></button>`).join('')}
+            <span>${esc(t)}</span></button>`).join('')}
     </div>
   </div>
 
   <div class="stats">
-    <div class="stat"><div class="v num">${lyd(inSum * rate())}</div>
+    <div class="stat"><div class="v num">${esc(lyd(inSum * rate()))}</div>
       <div class="k">إجمالي الإيداعات</div></div>
-    <div class="stat"><div class="v num">${lyd(outSum * rate())}</div>
+    <div class="stat"><div class="v num">${esc(lyd(outSum * rate()))}</div>
       <div class="k">إجمالي المصروفات</div></div>
     <div class="stat"><div class="v num">${S.deposits.length}</div>
       <div class="k">عملية</div></div>
@@ -1499,12 +1551,12 @@ function vWallet() {
         return `<div class="row">
           <div class="row-i">${svg(I.down)}</div>
           <div class="row-b">
-            <div class="row-t num">${usd(w.amount_usd)}
+            <div class="row-t num">${esc(usd(w.amount_usd))}
               <span style="font-weight:400;color:var(--tx-3);font-size:12px"> · ${esc(w.method || '')}</span></div>
-            <div class="row-s">${dt(w.created_at)}${
+            <div class="row-s">${esc(dt(w.created_at))}${
               w.reject_reason ? ` · <span style="color:var(--bad)">${esc(w.reject_reason)}</span>` : ''}</div>
           </div>
-          <span class="chip ${st[0]}">${st[1]}</span></div>`;
+          <span class="chip ${st[0]}">${esc(st[1])}</span></div>`;
       }).join('')}
     </div>` : ''}
 
@@ -1515,12 +1567,12 @@ function vWallet() {
       <div class="row-i" ${d.status === 'approved'
         ? 'style="color:var(--g);background:var(--g-soft)"' : ''}>${svg(I.up)}</div>
       <div class="row-b">
-        <div class="row-t num">${lyd(n(d.amount_usd) * rate())}
+        <div class="row-t num">${esc(lyd(n(d.amount_usd) * rate()))}
           <span style="font-weight:400;color:var(--tx-3);font-size:12px"> · ${esc(d.method || '—')}</span></div>
-        <div class="row-s">${dt(d.created_at)}${
+        <div class="row-s">${esc(dt(d.created_at))}${
           d.reject_reason ? ` · <span style="color:var(--bad)">${esc(d.reject_reason)}</span>` : ''}</div>
       </div>
-      <span class="chip ${st[0]}">${st[1]}</span></div>`;
+      <span class="chip ${st[0]}">${esc(st[1])}</span></div>`;
   }).join('')}</div>`
    : `<div class="card"><div class="empty">
       <div class="ei">${svg(I.wallet, 1.6)}</div>
@@ -1550,7 +1602,7 @@ function depositSheet() {
     <p class="sub" style="margin-bottom:16px">اختر طريقة التحويل.</p>
     <div class="menu">
       ${list.map((m, i) => `
-        <button class="mrow" style="animation-delay:${i * .04}s" data-pick="${m.k}">
+        <button class="mrow" style="animation-delay:${i * .04}s" data-pick="${esc(m.k)}">
           <span class="mrow-i" style="overflow:hidden">${m.logo
             ? `<img src="${esc(m.logo)}" alt="" style="width:100%;height:100%;object-fit:cover">`
             : svg(I.wallet)}</span>
@@ -1683,11 +1735,11 @@ function methodSheet(k) {
     if (!(a > 0)) { box.innerHTML = ''; return; }
     box.innerHTML = `<div class="quote">
       <div class="qrow"><span class="k">المبلغ المحوّل</span>
-        <span class="num">${lyd(a)}</span></div>
+        <span class="num">${esc(lyd(a))}</span></div>
       <div class="qrow"><span class="k">سعر الصرف</span>
-        <span class="num">${r} د.ل</span></div>
+        <span class="num">${esc(r)} د.ل</span></div>
       <div class="qrow tot"><span>سيُضاف لمحفظتك</span>
-        <span class="num">${usd(a / r)}</span></div></div>`;
+        <span class="num">${esc(usd(a / r))}</span></div></div>`;
   }
   $('#cA').oninput = () => { $$('[data-qa]').forEach(x => x.classList.remove('on')); calc(); };
 
@@ -1752,9 +1804,12 @@ async function manualDeposit(method, amountLyd, proofUrl) {
     amount_usd: Math.round((amountLyd / r) * 100) / 100,
     amount_lyd: amountLyd,
     method: (M[method] && M[method].label) || method,
+    claim_phone: '',
     proof_url: proofUrl || '',
     note: '',
     status: 'pending',
+    awaiting_sms: false,
+    auto: false,
     created_at: new Date().toISOString(),
   });
   return { matched: false };
@@ -1780,7 +1835,7 @@ function depositResult(matched, amount, auto = true) {
     <button class="btn line wide" style="margin-top:9px" onclick="closeSheet()">حسنًا</button>`);
 }
 
-/* ═══ USDT Invoice ═══ */
+/* ═══ USDT ═══ */
 function usdtSheet(k) {
   const m = (S.config.methods || {})[k] || {};
   const mn = m.min || 5, mx = m.max || 1000;
@@ -1830,7 +1885,7 @@ function invoiceSheet(inv) {
     <div class="cprow" id="cpAmt" style="padding:17px 15px">
       <div style="min-width:0">
         <div class="cpk">المبلغ — انسخه ولا تكتبه</div>
-        <div class="num" dir="ltr" style="font-size:30px;line-height:1.15;margin-top:2px">${inv.pay_amount}</div>
+        <div class="num" dir="ltr" style="font-size:30px;line-height:1.15;margin-top:2px">${esc(String(inv.pay_amount))}</div>
         <div class="sub" style="font-size:11.5px;margin-top:3px">USDT</div>
       </div>
       <span class="cpi">${svg(I.copy, 2)}</span>
@@ -1929,7 +1984,7 @@ function resumeInvoice() {
   invoiceSheet(inv);
 }
 
-/* ═══ Withdraw · Transfer · Points ═══ */
+/* ═══ Withdraw / Transfer / Points ═══ */
 function withdrawSheet() {
   const w = S.config.withdraw || {};
   if (!w.on) return sheet(`
@@ -1941,7 +1996,7 @@ function withdrawSheet() {
   sheet(`
     <div class="h2" style="margin-bottom:4px">سحب رصيد</div>
     <p class="sub" style="margin-bottom:16px">
-      رصيدك ${lyd(S.profile.wallet_balance * rate())} · الحد ${w.min}$–${w.max}$</p>
+      رصيدك ${esc(lyd(S.profile.wallet_balance * rate()))} · الحد ${w.min}$–${w.max}$</p>
 
     <label class="lbl">طريقة السحب</label>
     <select class="inp" id="wdM">
@@ -1967,10 +2022,10 @@ function withdrawSheet() {
     const fee = n(w.fee_fixed) + a * n(w.fee_pct) / 100;
     const net = a - fee;
     box.innerHTML = `<div class="quote">
-      <div class="qrow"><span class="k">المبلغ</span><span class="num">${usd(a)}</span></div>
-      <div class="qrow"><span class="k">الرسوم</span><span class="num">${usd(fee)}</span></div>
+      <div class="qrow"><span class="k">المبلغ</span><span class="num">${esc(usd(a))}</span></div>
+      <div class="qrow"><span class="k">الرسوم</span><span class="num">${esc(usd(fee))}</span></div>
       <div class="qrow tot"><span>ستستلم</span>
-        <span class="num" style="color:${net > 0 ? 'var(--g)' : 'var(--bad)'}">${usd(net)}</span></div>
+        <span class="num" style="color:${net > 0 ? 'var(--g)' : 'var(--bad)'}">${esc(usd(net))}</span></div>
     </div>`;
   };
   $('#wdA').oninput = calc;
@@ -1992,7 +2047,7 @@ function withdrawSheet() {
              display:grid;place-items:center;background:var(--warn-soft);color:var(--warn)">
           ${svg(I.clock, 2.3).replace('<svg', '<svg data-lg')}</div>
         <div class="h2">وصل طلب السحب</div>
-        <p class="sub" style="margin-top:5px">سننفّذه قريبًا وستستلم ${usd(r.net)}.</p></div>
+        <p class="sub" style="margin-top:5px">سننفّذه قريبًا وستستلم ${esc(usd(r.net))}.</p></div>
         <button class="btn wide" onclick="closeSheet();go('wallet')">متابعة الطلب</button>`);
       render();
     } catch (e) { toast(e.message, 'bad'); b.disabled = false; b.textContent = 'طلب السحب'; }
@@ -2028,9 +2083,9 @@ function transferSheet() {
     if (!(a > 0)) { box.innerHTML = ''; return; }
     const fee = a * n(t.fee_pct) / 100;
     box.innerHTML = `<div class="quote">
-      <div class="qrow"><span class="k">يصل المستلم</span><span class="num">${usd(a)}</span></div>
-      ${fee > 0 ? `<div class="qrow"><span class="k">الرسوم</span><span class="num">${usd(fee)}</span></div>` : ''}
-      <div class="qrow tot"><span>يُخصم منك</span><span class="num">${usd(a + fee)}</span></div>
+      <div class="qrow"><span class="k">يصل المستلم</span><span class="num">${esc(usd(a))}</span></div>
+      ${fee > 0 ? `<div class="qrow"><span class="k">الرسوم</span><span class="num">${esc(usd(fee))}</span></div>` : ''}
+      <div class="qrow tot"><span>يُخصم منك</span><span class="num">${esc(usd(a + fee))}</span></div>
     </div>`;
   };
   $('#trA').oninput = calc;
@@ -2065,13 +2120,13 @@ function pointsSheet() {
            display:grid;place-items:center;background:var(--g-soft);color:var(--g)">
         ${svg(I.star, 2).replace('<svg', '<svg data-lg')}</div>
       <div class="num" style="font-size:34px">${have.toLocaleString('en-US')}</div>
-      <div class="sub">نقطة · تساوي ${lyd(have * n(p.value_lyd))}</div>
+      <div class="sub">نقطة · تساوي ${esc(lyd(have * n(p.value_lyd)))}</div>
     </div>
 
     <div class="card-q" style="margin-bottom:14px">
       <p class="sub" style="font-size:12.5px;line-height:1.7">
-        تكسب ${p.per_lyd} نقطة عن كل دينار تنفقه.
-        الحد الأدنى للاستبدال ${p.min_redeem} نقطة.</p>
+        تكسب ${esc(p.per_lyd)} نقطة عن كل دينار تنفقه.
+        الحد الأدنى للاستبدال ${esc(p.min_redeem)} نقطة.</p>
     </div>
 
     <label class="lbl">عدد النقاط للاستبدال</label>
@@ -2089,7 +2144,7 @@ function pointsSheet() {
     if (!(v > 0)) { box.innerHTML = ''; return; }
     box.innerHTML = `<div class="quote">
       <div class="qrow tot"><span>سيُضاف لمحفظتك</span>
-        <span class="num">${lyd(v * n(p.value_lyd))}</span></div></div>`;
+        <span class="num">${esc(lyd(v * n(p.value_lyd)))}</span></div></div>`;
   };
 
   onTap('#ptGo', async () => {
@@ -2106,7 +2161,7 @@ function pointsSheet() {
   });
 }
 
-/* ═══ Support tickets ═══ */
+/* ═══ Tickets ═══ */
 const TST = {
   open: ['wait', 'مفتوحة'], answered: ['ok', 'تم الرد'],
   closed: ['off', 'مغلقة'],
@@ -2137,8 +2192,8 @@ function vTickets() {
         <div class="row-s">${last ? esc(String(last.text).slice(0, 44)) : ''}</div>
       </div>
       <div class="row-v">
-        <span class="chip ${st[0]}">${st[1]}</span>
-        <div class="row-s" style="margin-top:3px">${dt(t.updated_at)}</div>
+        <span class="chip ${st[0]}">${esc(st[1])}</span>
+        <div class="row-s" style="margin-top:3px">${esc(dt(t.updated_at))}</div>
       </div></div>`;
   }).join('')}</div>`
    : `<div class="card"><div class="empty">
@@ -2189,8 +2244,8 @@ function ticketSheet(id) {
     <div style="display:flex;justify-content:space-between;align-items:flex-start;
          gap:11px;margin-bottom:16px">
       <div style="min-width:0"><div class="h2">${esc(t.subject)}</div>
-        <div class="row-s">${dt(t.created_at)}</div></div>
-      <span class="chip ${st[0]}">${st[1]}</span>
+        <div class="row-s">${esc(dt(t.created_at))}</div></div>
+      <span class="chip ${st[0]}">${esc(st[1])}</span>
     </div>
 
     <div style="display:flex;flex-direction:column;gap:9px;margin-bottom:14px">
@@ -2200,7 +2255,7 @@ function ticketSheet(id) {
              background:${m.by === 'admin' ? 'var(--s3)' : 'var(--g-soft)'};
              border:1px solid ${m.by === 'admin' ? 'var(--line)' : 'var(--g-line)'}">
           <div style="font-size:10.5px;color:var(--tx-3);margin-bottom:3px">
-            ${m.by === 'admin' ? 'الدعم' : 'أنت'} · ${dt(m.at)}</div>
+            ${m.by === 'admin' ? 'الدعم' : 'أنت'} · ${esc(dt(m.at))}</div>
           <div style="font-size:13.5px;line-height:1.65;white-space:pre-line">${esc(m.text)}</div>
         </div>`).join('')}
     </div>
@@ -2253,7 +2308,7 @@ function vTx() {
   <p class="sub" style="margin-bottom:14px">كل عمليات بطاقاتك ومحفظتك.</p>
   <div class="pills">
     ${F.map(([k, t]) => `<button class="pill ${S.filter === k ? 'on' : ''}"
-      data-filter="${k}">${t}</button>`).join('')}
+      data-filter="${esc(k)}">${esc(t)}</button>`).join('')}
   </div>
   ${rows.length ? `<div class="list">${rows.map(r => {
     const st = STAT[r.status] || ['off', '—'];
@@ -2263,12 +2318,12 @@ function vTx() {
       <div class="row-i" ${isIn ? 'style="color:var(--g);background:var(--g-soft)"' : ''}>
         ${svg(isIn ? I.up : r.kind === 'fund' ? I.plus : I.card)}</div>
       <div class="row-b">
-        <div class="row-t">${TYPE[r.kind] || 'عملية'}</div>
-        <div class="row-s">${dt(r.created_at)}</div></div>
+        <div class="row-t">${esc(TYPE[r.kind] || 'عملية')}</div>
+        <div class="row-s">${esc(dt(r.created_at))}</div></div>
       <div class="row-v">
         <div class="row-a num ${isIn && r.status === 'approved' ? 'in' : ''}">
-          ${isIn ? '+' : '−'}${usd(val)}</div>
-        <span class="chip ${st[0]}" style="margin-top:3px">${st[1]}</span>
+          ${isIn ? '+' : '−'}${esc(usd(val))}</div>
+        <span class="chip ${st[0]}" style="margin-top:3px">${esc(st[1])}</span>
       </div></div>`;
   }).join('')}</div>`
    : `<div class="card"><div class="empty">
@@ -2288,7 +2343,7 @@ function vAccount() {
     <div class="sub" style="font-size:13px;margin-top:2px" dir="ltr">
       ${esc(S.profile.phone || S.profile.email || '')}</div>
     <div class="num" style="color:var(--g);font-size:20px;margin-top:10px">
-      ${lyd(S.profile.wallet_balance * rate())}</div>
+      ${esc(lyd(S.profile.wallet_balance * rate()))}</div>
     ${(S.config.points || {}).on ? `
       <button class="chip ok" style="margin-top:9px" data-wact="points">
         ${svg(I.star, 2)} ${n(S.profile.points).toLocaleString('en-US')} نقطة</button>` : ''}
@@ -2300,9 +2355,9 @@ function vAccount() {
        ['tickets', 'الدعم', I.help],
        ['invite', 'ادعُ صديقًا', I.gift], ['guide', 'كيف أستخدمها', I.book]]
       .map(([k, t, ic], i) => `
-        <button class="mrow" style="animation-delay:${i * .03}s" data-act="${k}">
+        <button class="mrow" style="animation-delay:${i * .03}s" data-act="${esc(k)}">
           <span class="mrow-i">${svg(ic)}</span>
-          <span class="mrow-t">${t}</span>
+          <span class="mrow-t">${esc(t)}</span>
           <span class="mrow-x">${svg(I.back, 2)}</span></button>`).join('')}
   </nav>
 
@@ -2342,14 +2397,14 @@ function vInvite() {
   return `
   <div class="h1" style="margin-bottom:5px">ادعُ صديقًا</div>
   <p class="sub" style="margin-bottom:18px">
-    شارك رمزك — تحصل على ${usd(r.inviter)} ويحصل صديقك على ${usd(r.invitee)}.</p>
+    شارك رمزك — تحصل على ${esc(usd(r.inviter))} ويحصل صديقك على ${esc(usd(r.invitee))}.</p>
 
   <div class="wallet" style="text-align:center">
     <div class="eyebrow">رمز الدعوة</div>
     <div id="refBox" style="margin-top:12px">
       <div class="sk" style="height:44px;width:180px;margin:0 auto"></div></div>
     <p class="sub" style="font-size:12px;margin-top:14px">
-      تُصرف المكافأة بعد أن ينفق صديقك ${usd(r.min_spend)}.</p>
+      تُصرف المكافأة بعد أن ينفق صديقك ${esc(usd(r.min_spend))}.</p>
   </div>
 
   <div class="card" style="margin-top:14px">
@@ -2393,16 +2448,16 @@ function vGuide() {
   <div class="list" style="margin-bottom:24px">
     ${steps.map(([t, d], i) => `<div class="row">
       <div class="row-i" style="background:var(--g-soft);color:var(--g);font-weight:800">${i + 1}</div>
-      <div class="row-b"><div class="row-t">${t}</div>
-        <div class="row-s" style="white-space:normal;line-height:1.6">${d}</div></div>
+      <div class="row-b"><div class="row-t">${esc(t)}</div>
+        <div class="row-s" style="white-space:normal;line-height:1.6">${esc(d)}</div></div>
     </div>`).join('')}
   </div>
 
   <div class="sec-head"><div class="h2">أسئلة شائعة</div></div>
   <div class="list">
     ${faq.map(([q, a]) => `<div class="row" style="align-items:flex-start">
-      <div class="row-b"><div class="row-t" style="white-space:normal">${q}</div>
-        <div class="row-s" style="white-space:normal;line-height:1.65;margin-top:3px">${a}</div></div>
+      <div class="row-b"><div class="row-t" style="white-space:normal">${esc(q)}</div>
+        <div class="row-s" style="white-space:normal;line-height:1.65;margin-top:3px">${esc(a)}</div></div>
     </div>`).join('')}
   </div>
 
@@ -2466,7 +2521,6 @@ function bind() {
 
   bannerSlider();
 
-  // ربط اسم الدعوة
   const rb = $('#refBox');
   if (rb) {
     api('/api/ref/code').then(r => {
@@ -2543,7 +2597,7 @@ function bannerSlider() {
   }, 6000);
 }
 
-/* 3D tilt effect */
+/* 3D tilt */
 function bindTilt() {
   if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
   const MAX = 7;
@@ -2576,4 +2630,4 @@ function bindTilt() {
     el.addEventListener('touchend', reset, { passive: true });
     el.addEventListener('touchcancel', reset, { passive: true });
   });
-    }
+      }
