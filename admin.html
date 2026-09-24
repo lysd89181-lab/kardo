@@ -317,6 +317,7 @@ const S = {
   settings: {},
   q: '',
   filter: 'all',
+  setTab: 'ops',
 };
 
 /* ═══ Icons ═══ */
@@ -431,16 +432,24 @@ onAuthStateChanged(auth, async user => {
   S.unsub.forEach(u => { try { u(); } catch {} });
   S.unsub = [];
   if (!user) { $('#gate').style.display = 'grid'; $('#app').style.display = 'none'; return; }
-  const snap = await getDoc(doc(db, 'admins', user.uid)).catch(() => null);
-  if (!snap || !snap.exists()) {
+  
+  try {
+    const snap = await getDoc(doc(db, 'admins', user.uid));
+    if (!snap.exists()) {
+      await signOut(auth);
+      $('#gate').style.display = 'grid';
+      showErr('هذا الحساب ليس لديه صلاحية إدارة.');
+      return;
+    }
+    S.admin = { uid: user.uid, email: user.email, ...snap.data() };
+    subscribe();
+    boot();
+  } catch (e) {
+    console.error('auth check failed:', e);
     await signOut(auth);
     $('#gate').style.display = 'grid';
-    showErr('هذا الحساب ليس لديه صلاحية إدارة.');
-    return;
+    showErr('تعذّر التحقق من الصلاحيات.');
   }
-  S.admin = { uid: user.uid, email: user.email, ...snap.data() };
-  subscribe();
-  boot();
 });
 
 function sub(q, key) {
@@ -449,10 +458,15 @@ function sub(q, key) {
     render();
   }, err => {
     console.warn(key, err.code);
+    // ✅ logout تلقائي عند فشل الصلاحيات
+    if (err.code === 'permission-denied' && key === 'users') {
+      console.warn('Lost admin permissions');
+    }
   }));
 }
 
 function subscribe() {
+  // ✅ limit مضبوط لكل collection لتقليل Firebase bill
   sub(query(collection(db, 'users'), orderBy('created_at', 'desc'), limit(200)), 'users');
   sub(query(collection(db, 'manual_cards'), orderBy('created_at', 'desc'), limit(200)), 'manualCards');
   sub(query(collection(db, 'manual_card_orders'), orderBy('created_at', 'desc'), limit(300)), 'manualOrders');
@@ -460,7 +474,7 @@ function subscribe() {
   sub(query(collection(db, 'wallet_deposits'), orderBy('created_at', 'desc'), limit(200)), 'deposits');
   sub(query(collection(db, 'withdrawals'), orderBy('created_at', 'desc'), limit(100)), 'withdrawals');
   sub(query(collection(db, 'tickets'), orderBy('updated_at', 'desc'), limit(80)), 'tickets');
-  sub(query(collection(db, 'coupons')), 'coupons');
+  sub(query(collection(db, 'coupons'), limit(100)), 'coupons');
   sub(query(collection(db, 'sms_transactions'), orderBy('created_at', 'desc'), limit(100)), 'sms');
   sub(query(collection(db, 'card_logs'), orderBy('created_at', 'desc'), limit(80)), 'logs');
   S.unsub.push(onSnapshot(doc(db, 'settings', 'main'), s => {
@@ -504,15 +518,15 @@ const BADGES = { pendMc, pendOrd, pendDep, pendWd, openTic };
 function buildNav() {
   $('#navDesk').innerHTML = PAGES.map(p => {
     const c = p.badge ? BADGES[p.badge]() : 0;
-    return `<button class="navlink" data-nav="${p.k}">
-      <span class="l">${svg(p.i)}${p.t}</span>
+    return `<button class="navlink" data-nav="${esc(p.k)}">
+      <span class="l">${svg(p.i)}${esc(p.t)}</span>
       ${c ? `<span class="badge">${c}</span>` : ''}</button>`;
   }).join('');
   $('#navMob').innerHTML = PAGES.map(p => {
     const c = p.badge ? BADGES[p.badge]() : 0;
-    return `<button class="tab" data-nav="${p.k}">
+    return `<button class="tab" data-nav="${esc(p.k)}">
       ${c ? '<span class="dot"></span>' : ''}
-      ${svg(p.i)}<span>${p.t}</span></button>`;
+      ${svg(p.i)}<span>${esc(p.t)}</span></button>`;
   }).join('');
   document.querySelectorAll('[data-nav]').forEach(b =>
     b.onclick = () => go(b.dataset.nav));
@@ -536,8 +550,10 @@ function render() {
   const fl = n(S.settings.provider_float, 0);
   const th = n(S.settings.low_balance_threshold, 30);
   const chip = $('#floatChip');
-  chip.textContent = 'رصيد المزود ' + usd(fl);
-  chip.className = 'pill ' + (fl < th ? 'bad' : 'ok');
+  if (chip) {
+    chip.textContent = 'رصيد المزود ' + usd(fl);
+    chip.className = 'pill ' + (fl < th ? 'bad' : 'ok');
+  }
 
   const V = {
     home: vHome,
@@ -560,15 +576,15 @@ function render() {
 function kpi(icon, val, key, bg, fg) {
   return `<div class="kpi">
     <div class="ico" style="background:${bg};color:${fg}">${svg(icon)}</div>
-    <div class="v num">${val}</div>
-    <div class="k">${key}</div>
+    <div class="v num">${esc(String(val))}</div>
+    <div class="k">${esc(key)}</div>
   </div>`;
 }
 
 function empty(icon, t, d = '') {
   return `<div class="box"><div class="empty">${svg(icon, 1.5)}
-    <div style="font-weight:600;color:var(--navy)">${t}</div>
-    ${d ? `<p style="font-size:13px;margin-top:4px">${d}</p>` : ''}</div></div>`;
+    <div style="font-weight:600;color:var(--navy)">${esc(t)}</div>
+    ${d ? `<p style="font-size:13px;margin-top:4px">${esc(d)}</p>` : ''}</div></div>`;
 }
 
 const userName = uid => {
@@ -650,7 +666,7 @@ function vHome() {
     : empty(I.mcards, 'لا طلبات بعد')}`;
 }
 
-/* ═══ MCard Orders (البطاقات اليدوية) ═══ */
+/* ═══ MCard Orders ═══ */
 const MCST = {
   completed: ['ok', 'مكتملة'],
   pending: ['wait', 'قيد التنفيذ'],
@@ -680,7 +696,7 @@ function vMcardOrders() {
 
   <div style="display:flex;gap:7px;overflow-x:auto;padding-bottom:4px;margin-bottom:14px">
     ${F.map(([k, t]) => `<button class="btn ${S.filter === k ? 'dark' : 'ghost'} sm"
-      data-filter="${k}" style="flex:none">${t} (${k === 'all'
+      data-filter="${esc(k)}" style="flex:none">${esc(t)} (${k === 'all'
         ? S.manualOrders.length
         : S.manualOrders.filter(o => o.status === k).length})</button>`).join('')}
   </div>
@@ -703,12 +719,12 @@ function mcardTable(rows) {
       <td class="mono" style="font-size:11.5px">${esc(o.id)}</td>
       <td>${esc(userName(o.uid))}</td>
       <td>${isTopup ? 'شحن بطاقة' : 'بطاقة جديدة'}</td>
-      <td class="num">${usd(o.amount)}</td>
-      <td class="num" style="color:var(--muted)">${usd(o.fee)}</td>
-      <td class="num" style="font-weight:700">${usd(o.total)}</td>
+      <td class="num">${esc(usd(o.amount))}</td>
+      <td class="num" style="color:var(--muted)">${esc(usd(o.fee))}</td>
+      <td class="num" style="font-weight:700">${esc(usd(o.total))}</td>
       <td class="mono" dir="ltr" style="font-size:11.5px">${esc(o.name_on_card || '—')}</td>
-      <td><span class="pill ${st[0]}">${st[1]}</span></td>
-      <td class="sub" style="font-size:11.5px">${dt(o.created_at)}</td>
+      <td><span class="pill ${st[0]}">${esc(st[1])}</span></td>
+      <td class="sub" style="font-size:11.5px">${esc(dt(o.created_at))}</td>
       <td>${o.status === 'pending'
         ? `<button class="btn sm" data-mc-fulfil="${esc(o.id)}">تنفيذ</button>`
         : ''}</td>
@@ -725,15 +741,15 @@ function mcFulfilSheet(id) {
     <div class="h2" style="margin-bottom:4px">
       ${isTopup ? 'شحن بطاقة' : 'إصدار بطاقة جديدة'}</div>
     <p class="sub" style="margin-bottom:16px">
-      ${esc(userName(o.uid))} · ${usd(o.total)}</p>
+      ${esc(userName(o.uid))} · ${esc(usd(o.total))}</p>
 
     <div class="box" style="background:var(--bg);padding:14px;margin-bottom:16px">
       <div class="field"><span class="n">المبلغ</span>
-        <span class="num">${usd(o.amount)}</span></div>
+        <span class="num">${esc(usd(o.amount))}</span></div>
       <div class="field"><span class="n">الرسوم</span>
-        <span class="num">${usd(o.fee)}</span></div>
+        <span class="num">${esc(usd(o.fee))}</span></div>
       <div class="field"><span class="n">الإجمالي</span>
-        <span class="num" style="color:var(--emerald-d);font-weight:700">${usd(o.total)}</span></div>
+        <span class="num" style="color:var(--emerald-d);font-weight:700">${esc(usd(o.total))}</span></div>
       ${o.name_on_card ? `<div class="field"><span class="n">الاسم على البطاقة</span>
         <span class="mono" dir="ltr">${esc(o.name_on_card)}</span></div>` : ''}
       ${o.card_name ? `<div class="field"><span class="n">اسم البطاقة</span>
@@ -760,7 +776,7 @@ function mcFulfilSheet(id) {
       <label class="lbl">رقم مرجعي عند المزود (اختياري)</label>
       <input class="inp mono" id="fRef" dir="ltr" placeholder="ORDER-123456"
              style="margin-bottom:14px">
-    ` : `<div class="banner">أضف ${usd(o.amount)} على البطاقة عند مزوّدك، ثم أكّد هنا.</div>`}
+    ` : `<div class="banner">أضف ${esc(usd(o.amount))} على البطاقة عند مزوّدك، ثم أكّد هنا.</div>`}
 
     <button class="btn wide" id="fGo">
       ${isTopup ? 'تأكيد الشحن' : 'تسليم البيانات للعميل'}
@@ -819,7 +835,7 @@ function mcFulfilSheet(id) {
 
   $('#fRej').onclick = () => {
     sheet(`<div class="h2" style="margin-bottom:10px">رفض الطلب</div>
-      <div class="alert">${svg(I.warn)}<div>سيُعاد ${usd(o.total)} إلى محفظة العميل فوراً.</div></div>
+      <div class="alert">${svg(I.warn)}<div>سيُعاد ${esc(usd(o.total))} إلى محفظة العميل فوراً.</div></div>
       <label class="lbl">سبب الرفض (اختياري)</label>
       <input class="inp" id="rjWhy" placeholder="مثال: تعذّر التنفيذ لدى المزود"
              style="margin-bottom:16px">
@@ -845,7 +861,7 @@ function mcFulfilSheet(id) {
 }
 window.mcFulfilSheet = mcFulfilSheet;
 
-/* ═══ Cards (البطاقات المُصدرة) ═══ */
+/* ═══ Cards ═══ */
 function vCards() {
   let rows = S.manualCards;
   if (S.q) rows = rows.filter(c =>
@@ -858,7 +874,7 @@ function vCards() {
   <div style="display:flex;justify-content:space-between;align-items:flex-start;
        gap:11px;margin-bottom:16px;flex-wrap:wrap">
     <div><div class="h1">البطاقات المُصدرة</div>
-      <p class="sub">${rows.length} بطاقة · إجمالي الرصيد ${usd(totalBal)}</p></div>
+      <p class="sub">${rows.length} بطاقة · إجمالي الرصيد ${esc(usd(totalBal))}</p></div>
     <button class="btn ghost sm" onclick="exportCardsCsv()">تصدير CSV</button>
   </div>
 
@@ -871,15 +887,16 @@ function vCards() {
       <th>الرصيد</th><th>الحالة</th><th>المزود</th>
       <th>التاريخ</th><th></th>
     </tr></thead><tbody>${rows.map(c => {
-      const st = { active: ['ok', 'نشطة'], frozen: ['off', 'مجمدة'], deleted: ['bad', 'مغلقة'] }[c.status] || ['off', '—'];
+      const st = { active: ['ok', 'نشطة'], frozen: ['off', 'مجمدة'],
+        deleted: ['bad', 'مغلقة'] }[c.status] || ['off', '—'];
       return `<tr>
         <td>${esc(userName(c.uid))}</td>
         <td>${esc(c.card_name || '—')}</td>
         <td class="mono">••${esc(c.last4 || '')}</td>
-        <td class="num" style="font-weight:700">${usd(c.balance)}</td>
-        <td><span class="pill ${st[0]}">${st[1]}</span></td>
+        <td class="num" style="font-weight:700">${esc(usd(c.balance))}</td>
+        <td><span class="pill ${st[0]}">${esc(st[1])}</span></td>
         <td class="sub" style="font-size:11.5px">${esc(c.provider_ref || '—')}</td>
-        <td class="sub" style="font-size:11.5px">${dt(c.created_at)}</td>
+        <td class="sub" style="font-size:11.5px">${esc(dt(c.created_at))}</td>
         <td><button class="btn ghost sm" data-viewcard="${esc(c.id)}">تفاصيل</button></td>
       </tr>`;
     }).join('')}</tbody></table></div></div>
@@ -917,13 +934,13 @@ function cardDetailSheet(id) {
 
     <div class="box" style="background:var(--bg);padding:14px;margin-bottom:16px">
       <div class="field"><span class="n">الرصيد الحالي</span>
-        <span class="num" style="color:var(--emerald-d);font-weight:700">${usd(c.balance)}</span></div>
+        <span class="num" style="color:var(--emerald-d);font-weight:700">${esc(usd(c.balance))}</span></div>
       <div class="field"><span class="n">الاسم على البطاقة</span>
         <span class="mono" dir="ltr">${esc(c.name_on_card || '—')}</span></div>
       <div class="field"><span class="n">الحالة</span>
         <span>${esc(c.status || 'active')}</span></div>
       <div class="field"><span class="n">أُنشئت</span>
-        <span class="sub">${dt(c.created_at)}</span></div>
+        <span class="sub">${esc(dt(c.created_at))}</span></div>
     </div>
 
     ${orders.length ? `<div class="h2" style="margin-bottom:10px">سجل الطلبات</div>
@@ -932,9 +949,9 @@ function cardDetailSheet(id) {
              display:flex;justify-content:space-between;align-items:center;gap:10px">
           <div>
             <div style="font-weight:600;font-size:13.5px">${o.kind === 'topup' ? 'شحن' : 'إصدار'}</div>
-            <div class="sub" style="font-size:11.5px">${dt(o.created_at)}</div>
+            <div class="sub" style="font-size:11.5px">${esc(dt(o.created_at))}</div>
           </div>
-          <div class="num" style="font-weight:700">${usd(o.amount)}</div>
+          <div class="num" style="font-weight:700">${esc(usd(o.amount))}</div>
         </div>`).join('')}` : ''}
 
     <button class="btn ghost wide" style="margin-top:14px" onclick="closeSheet()">إغلاق</button>`);
@@ -971,7 +988,7 @@ function vShopOrders() {
 
   <div style="display:flex;gap:7px;overflow-x:auto;padding-bottom:4px;margin-bottom:14px">
     ${F.map(([k, t]) => `<button class="btn ${S.filter === k ? 'dark' : 'ghost'} sm"
-      data-filter="${k}" style="flex:none">${t} (${k === 'all'
+      data-filter="${esc(k)}" style="flex:none">${esc(t)} (${k === 'all'
         ? S.orders.length
         : S.orders.filter(o => o.status === k).length})</button>`).join('')}
   </div>
@@ -982,20 +999,20 @@ function vShopOrders() {
     return `<div class="order-card">
       <div class="order-head">
         <div style="min-width:0">
-          <div style="font-weight:700;font-size:15px">${lyd(o.total_lyd)}</div>
+          <div style="font-weight:700;font-size:15px">${esc(lyd(o.total_lyd))}</div>
           <div class="order-id">${esc(o.id)}</div>
         </div>
-        <span class="pill ${st[0]}">${st[1]}</span>
+        <span class="pill ${st[0]}">${esc(st[1])}</span>
       </div>
       <div class="sub" style="font-size:12.5px;margin-bottom:9px">
-        ${esc(userName(o.uid))} · ${dt(o.created_at)}
+        ${esc(userName(o.uid))} · ${esc(dt(o.created_at))}
       </div>
       <div style="font-size:13px;padding:8px 0;border-top:1px dashed var(--border)">
         ${items.map(i => `<div style="padding:3px 0">
           ${esc(i.name)} × ${i.qty}
           ${i.values && Object.keys(i.values).length
             ? `<span class="mono" dir="ltr" style="color:var(--muted);font-size:11.5px">
-               — ${Object.values(i.values).map(esc).join(' · ')}</span>` : ''}
+               — ${esc(Object.values(i.values).join(' · '))}</span>` : ''}
         </div>`).join('')}
       </div>
       ${o.status === 'pending' ? `
@@ -1015,10 +1032,10 @@ function shopOrderSheet(id, action) {
   sheet(`
     <div class="h2" style="margin-bottom:6px">${rej ? 'رفض الطلب' : 'تنفيذ الطلب'}</div>
     <p class="sub" style="margin-bottom:14px">
-      ${lyd(o.total_lyd)} · ${(o.items || []).map(i => esc(i.name)).join(' · ')}</p>
+      ${esc(lyd(o.total_lyd))} · ${esc((o.items || []).map(i => i.name).join(' · '))}</p>
 
     ${rej ? `<div class="alert">${svg(I.warn)}<div>
-        سيُعاد ${usd(o.total_usd)} إلى محفظة العميل فوراً.</div></div>
+        سيُعاد ${esc(usd(o.total_usd))} إلى محفظة العميل فوراً.</div></div>
       <label class="lbl">سبب الرفض</label>
       <input class="inp" id="fReason" placeholder="نفد المخزون">`
      : `<label class="lbl">ما تسلّمه للعميل</label>
@@ -1083,7 +1100,7 @@ function vDeposits() {
 
   <div style="display:flex;gap:7px;overflow-x:auto;padding-bottom:4px;margin-bottom:14px">
     ${F.map(([k, t]) => `<button class="btn ${S.filter === k ? 'dark' : 'ghost'} sm"
-      data-filter="${k}" style="flex:none">${t} (${k === 'all'
+      data-filter="${esc(k)}" style="flex:none">${esc(t)} (${k === 'all'
         ? S.deposits.length
         : S.deposits.filter(d => d.status === k).length})</button>`).join('')}
   </div>
@@ -1096,12 +1113,12 @@ function vDeposits() {
       const st = DST[d.status] || ['off', '—'];
       return `<tr>
         <td>${esc(userName(d.uid))}</td>
-        <td class="num" style="font-weight:700">${usd(d.amount_usd)}</td>
-        <td class="num">${lyd(d.amount_lyd)}</td>
+        <td class="num" style="font-weight:700">${esc(usd(d.amount_usd))}</td>
+        <td class="num">${esc(lyd(d.amount_lyd))}</td>
         <td>${esc(d.method || '—')}</td>
         <td class="mono" dir="ltr" style="font-size:11.5px">${esc(d.claim_phone || '—')}</td>
-        <td><span class="pill ${st[0]}">${st[1]}</span></td>
-        <td class="sub" style="font-size:11.5px">${dt(d.created_at)}</td>
+        <td><span class="pill ${st[0]}">${esc(st[1])}</span></td>
+        <td class="sub" style="font-size:11.5px">${esc(dt(d.created_at))}</td>
         <td>${d.status === 'pending'
           ? `<button class="btn sm" data-dep="${esc(d.id)}">مراجعة</button>`
           : ''}</td>
@@ -1116,15 +1133,15 @@ function depositSheet(id) {
 
   sheet(`
     <div class="h2" style="margin-bottom:6px">مراجعة إيداع</div>
-    <p class="sub" style="margin-bottom:16px">${dt(d.created_at)}</p>
+    <p class="sub" style="margin-bottom:16px">${esc(dt(d.created_at))}</p>
 
     <div class="box" style="background:var(--bg);padding:14px;margin-bottom:16px">
       <div class="field"><span class="n">العميل</span>
         <span>${esc(userName(d.uid))}</span></div>
       <div class="field"><span class="n">المبلغ</span>
-        <span class="num">${usd(d.amount_usd)}</span></div>
+        <span class="num">${esc(usd(d.amount_usd))}</span></div>
       <div class="field"><span class="n">بالدينار</span>
-        <span class="num">${lyd(d.amount_lyd)}</span></div>
+        <span class="num">${esc(lyd(d.amount_lyd))}</span></div>
       <div class="field"><span class="n">الطريقة</span>
         <span>${esc(d.method || '—')}</span></div>
       <div class="field"><span class="n">الهاتف</span>
@@ -1195,7 +1212,7 @@ function vWithdraw() {
 
   <div style="display:flex;gap:7px;overflow-x:auto;padding-bottom:4px;margin-bottom:14px">
     ${F.map(([k, t]) => `<button class="btn ${S.filter === k ? 'dark' : 'ghost'} sm"
-      data-filter="${k}" style="flex:none">${t} (${k === 'all'
+      data-filter="${esc(k)}" style="flex:none">${esc(t)} (${k === 'all'
         ? S.withdrawals.length
         : S.withdrawals.filter(w => w.status === k).length})</button>`).join('')}
   </div>
@@ -1205,21 +1222,21 @@ function vWithdraw() {
     return `<div class="order-card">
       <div class="order-head">
         <div style="min-width:0">
-          <div style="font-weight:700;font-size:15px">${usd(w.amount_usd)}</div>
+          <div style="font-weight:700;font-size:15px">${esc(usd(w.amount_usd))}</div>
           <div class="order-id">${esc(w.id)}</div>
         </div>
-        <span class="pill ${st[0]}">${st[1]}</span>
+        <span class="pill ${st[0]}">${esc(st[1])}</span>
       </div>
       <div class="sub" style="font-size:12.5px;margin-bottom:9px">
-        ${esc(userName(w.uid))} · ${dt(w.created_at)}
+        ${esc(userName(w.uid))} · ${esc(dt(w.created_at))}
       </div>
       <div class="order-meta">
         <div class="order-meta-item"><div class="k">الطريقة</div>
           <div class="v">${esc(w.method || '—')}</div></div>
         <div class="order-meta-item"><div class="k">الرسوم</div>
-          <div class="v num">${usd(w.fee)}</div></div>
+          <div class="v num">${esc(usd(w.fee))}</div></div>
         <div class="order-meta-item"><div class="k">يستلم</div>
-          <div class="v num">${usd(w.net)}</div></div>
+          <div class="v num">${esc(usd(w.net))}</div></div>
       </div>
       <div class="copy-row" style="margin-top:9px">
         <code dir="ltr">${esc(w.destination || '—')}</code>
@@ -1244,13 +1261,13 @@ function withdrawSheet(id, action) {
   sheet(`
     <div class="h2" style="margin-bottom:6px">${rej ? 'رفض السحب' : 'تنفيذ السحب'}</div>
     <p class="sub" style="margin-bottom:14px">
-      ${usd(w.amount_usd)} · ${esc(w.method)} · ${esc(w.destination)}</p>
+      ${esc(usd(w.amount_usd))} · ${esc(w.method)} · ${esc(w.destination)}</p>
 
     ${rej ? `<div class="alert">${svg(I.warn)}<div>
-        سيُعاد ${usd(w.amount_usd)} إلى محفظة العميل فوراً.</div></div>
+        سيُعاد ${esc(usd(w.amount_usd))} إلى محفظة العميل فوراً.</div></div>
       <label class="lbl">سبب الرفض</label>
       <input class="inp" id="wReason" placeholder="بيانات غير صحيحة">`
-     : `<div class="banner">حوّل ${usd(w.net)} إلى الوجهة أعلاه ثم أكّد.</div>
+     : `<div class="banner">حوّل ${esc(usd(w.net))} إلى الوجهة أعلاه ثم أكّد.</div>
       <label class="lbl">ملاحظة (اختياري)</label>
       <input class="inp" id="wNote" placeholder="رقم عملية التحويل">`}
 
@@ -1296,7 +1313,7 @@ function vTickets() {
 
   <div style="display:flex;gap:7px;overflow-x:auto;padding-bottom:4px;margin-bottom:14px">
     ${F.map(([k, t]) => `<button class="btn ${S.filter === k ? 'dark' : 'ghost'} sm"
-      data-filter="${k}" style="flex:none">${t} (${k === 'all'
+      data-filter="${esc(k)}" style="flex:none">${esc(t)} (${k === 'all'
         ? S.tickets.length
         : S.tickets.filter(x => x.status === k).length})</button>`).join('')}
   </div>
@@ -1309,9 +1326,9 @@ function vTickets() {
         <div style="min-width:0">
           <div style="font-weight:700;font-size:14.5px">${esc(t.subject)}</div>
           <div class="sub" style="font-size:12px">
-            ${esc(userName(t.uid))} · ${dt(t.updated_at)}</div>
+            ${esc(userName(t.uid))} · ${esc(dt(t.updated_at))}</div>
         </div>
-        <span class="pill ${st[0]}">${st[1]}</span>
+        <span class="pill ${st[0]}">${esc(st[1])}</span>
       </div>
       ${last ? `<div class="sub" style="font-size:12.5px;margin-bottom:11px;
         overflow:hidden;text-overflow:ellipsis;white-space:nowrap">
@@ -1330,7 +1347,7 @@ function ticketSheet(id) {
     <div style="margin-bottom:14px">
       <div class="h2">${esc(t.subject)}</div>
       <div class="sub" style="font-size:12px">
-        ${esc(userName(t.uid))} · ${dt(t.created_at)}</div>
+        ${esc(userName(t.uid))} · ${esc(dt(t.created_at))}</div>
     </div>
 
     <div style="display:flex;flex-direction:column;gap:9px;margin-bottom:14px;
@@ -1341,7 +1358,7 @@ function ticketSheet(id) {
              background:${m.by === 'admin' ? '#ECFDF5' : 'var(--bg)'};
              border:1px solid var(--border)">
           <div style="font-size:10.5px;color:var(--muted);margin-bottom:3px">
-            ${m.by === 'admin' ? 'أنت' : 'العميل'} · ${dt(m.at)}</div>
+            ${m.by === 'admin' ? 'أنت' : 'العميل'} · ${esc(dt(m.at))}</div>
           <div style="font-size:13.5px;line-height:1.65;white-space:pre-line">${esc(m.text)}</div>
         </div>`).join('')}
     </div>
@@ -1547,12 +1564,12 @@ function vUsers() {
         ${u.banned ? ' <span class="pill bad">موقوف</span>' : ''}</td>
       <td class="mono" style="font-size:11.5px" dir="ltr">${esc(u.email || '—')}</td>
       <td class="mono" style="font-size:12px" dir="ltr">${esc(u.phone || '—')}</td>
-      <td class="num" style="font-weight:600">${usd(u.wallet_balance)}</td>
-      <td class="num">${usd(u.total_spent)}</td>
+      <td class="num" style="font-weight:600">${esc(usd(u.wallet_balance))}</td>
+      <td class="num">${esc(usd(u.total_spent))}</td>
       <td class="num">${n(u.cards_count)}</td>
       <td>${u.banned ? '<span class="pill bad">موقوف</span>'
                     : '<span class="pill ok">نشط</span>'}</td>
-      <td class="sub" style="font-size:11.5px">${dt(u.created_at)}</td>
+      <td class="sub" style="font-size:11.5px">${esc(dt(u.created_at))}</td>
       <td><button class="btn ghost sm" data-user="${esc(u.id)}">إدارة</button></td>
     </tr>`).join('')}</tbody></table></div></div>`
     : empty(I.users, 'لا مستخدمين')}`;
@@ -1568,15 +1585,15 @@ function userSheet(uid) {
 
     <div class="box" style="background:var(--bg);padding:14px;margin-bottom:16px">
       <div class="field"><span class="n">الرصيد</span>
-        <span class="num" style="color:var(--emerald-d);font-weight:700">${usd(u.wallet_balance)}</span></div>
+        <span class="num" style="color:var(--emerald-d);font-weight:700">${esc(usd(u.wallet_balance))}</span></div>
       <div class="field"><span class="n">الإنفاق</span>
-        <span class="num">${usd(u.total_spent)}</span></div>
+        <span class="num">${esc(usd(u.total_spent))}</span></div>
       <div class="field"><span class="n">الهاتف</span>
         <span class="mono" dir="ltr">${esc(u.phone || '—')}</span></div>
       <div class="field"><span class="n">البطاقات</span>
         <span class="num">${n(u.cards_count)}</span></div>
       <div class="field"><span class="n">التسجيل</span>
-        <span class="sub">${dt(u.created_at)}</span></div>
+        <span class="sub">${esc(dt(u.created_at))}</span></div>
     </div>
 
     <div class="h2" style="font-size:14px;margin-bottom:9px">تعديل الرصيد</div>
@@ -1611,7 +1628,6 @@ function userSheet(uid) {
   $('#banGo').onclick = async () => {
     $('#banGo').disabled = true;
     try {
-      // toggle عبر تحديث المستند مباشرة (admin rules تسمح)
       await setDoc(doc(db, 'users', uid), {
         banned: !u.banned,
         banned_at: !u.banned ? new Date().toISOString() : null,
@@ -1645,7 +1661,7 @@ function vSms() {
 
   <div style="display:flex;gap:7px;overflow-x:auto;padding-bottom:4px;margin-bottom:14px">
     ${F.map(([k, t]) => `<button class="btn ${S.filter === k ? 'dark' : 'ghost'} sm"
-      data-filter="${k}" style="flex:none">${t} (${k === 'all'
+      data-filter="${esc(k)}" style="flex:none">${esc(t)} (${k === 'all'
         ? S.sms.length
         : S.sms.filter(s => s.status === k).length})</button>`).join('')}
   </div>
@@ -1656,14 +1672,14 @@ function vSms() {
       <div class="order-head">
         <div style="min-width:0">
           <div style="font-weight:700;font-size:15px">
-            ${s.amount_lyd ? lyd(s.amount_lyd) : '—'}</div>
+            ${s.amount_lyd ? esc(lyd(s.amount_lyd)) : '—'}</div>
           <div class="sub" style="font-size:12px">
             من <span dir="ltr" class="mono">${esc(s.sender || s.from || '—')}</span></div>
         </div>
-        <span class="pill ${st[0]}">${st[1]}</span>
+        <span class="pill ${st[0]}">${esc(st[1])}</span>
       </div>
       <div class="sub" style="font-size:12.5px;margin-bottom:9px">
-        ${dt(s.created_at)} · ${esc(s.method || '')}</div>
+        ${esc(dt(s.created_at))} · ${esc(s.method || '')}</div>
       <div class="copy-row">
         <code dir="rtl" style="font-size:11.5px;line-height:1.5">${esc((s.raw_text || '').slice(0, 120))}</code>
       </div>
@@ -1681,7 +1697,7 @@ function smsAssignSheet(id) {
   sheet(`
     <div class="h2" style="margin-bottom:4px">ربط الحوالة بعميل</div>
     <p class="sub" style="margin-bottom:14px">
-      ${lyd(x.amount_lyd)} · من <span dir="ltr">${esc(x.sender || '—')}</span></p>
+      ${esc(lyd(x.amount_lyd))} · من <span dir="ltr">${esc(x.sender || '—')}</span></p>
 
     <div class="banner" style="font-size:12.5px">
       ${esc(String(x.raw_text || '').slice(0, 140))}</div>
@@ -1728,7 +1744,7 @@ function vLogs() {
       <td class="mono" style="font-size:11px;color:var(--muted)">
         ${esc(String(l.request || '').slice(0, 40))}</td>
       <td><span class="pill ${l.ok ? 'ok' : 'bad'}">${l.ok ? 'ناجح' : 'فاشل'}</span></td>
-      <td class="sub" style="font-size:11.5px">${dt(l.created_at)}</td>
+      <td class="sub" style="font-size:11.5px">${esc(dt(l.created_at))}</td>
     </tr>`).join('')}</tbody></table></div></div>`
     : empty(I.chart, 'لا سجلات')}`;
 }
@@ -1750,7 +1766,7 @@ function vSettings() {
 
   <div style="display:flex;gap:7px;overflow-x:auto;padding-bottom:6px;margin-bottom:18px">
     ${TABS.map(([k, t]) => `<button class="btn ${S.setTab === k ? 'dark' : 'ghost'} sm"
-      data-settab="${k}" style="flex:none">${t}</button>`).join('')}
+      data-settab="${esc(k)}" style="flex:none">${esc(t)}</button>`).join('')}
   </div>
 
   ${S.setTab === 'ops' ? settingsOps(s) : ''}
@@ -2067,15 +2083,12 @@ function bind() {
       } catch { toast('تعذّر النسخ', 'bad'); }
     });
 
-  // Settings tabs
   document.querySelectorAll('[data-settab]').forEach(b =>
     b.onclick = () => { S.setTab = b.dataset.settab; render(); });
 
-  // Switches
   document.querySelectorAll('.sw[data-op]').forEach(el =>
     el.onclick = () => el.classList.toggle('on'));
 
-  // Save buttons
   document.querySelectorAll('[data-save="ops"]').forEach(b =>
     b.onclick = () => saveSettings('ops', b));
 }
