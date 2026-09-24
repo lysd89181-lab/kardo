@@ -475,6 +475,8 @@ const firebaseConfig = {
   appId: "1:593934928630:web:d36ea455a284e974043ad7"
 };
 
+const WORKER_URL = 'https://kardo.sdkhyrallh08.workers.dev';
+
 const app = initializeApp(firebaseConfig);
 const auth = getAuth(app);
 const db = getFirestore(app);
@@ -635,7 +637,8 @@ function fbMsg(code) {
 }
 
 /* ═══════════════════════════════════════════════════════════
-   التوجيه بعد تسجيل الدخول — admins/{uid}
+   التوجيه بعد تسجيل الدخول
+   ✅ التعديل 3: ensure-profile → admins/{uid} → redirect
    ═══════════════════════════════════════════════════════════ */
 let _redirecting = false;
 
@@ -643,6 +646,22 @@ onAuthStateChanged(auth, async user => {
   if (!user || _redirecting) return;
   _redirecting = true;
 
+  // ✅ ضمان وجود الملف الشخصي قبل التوجيه
+  try {
+    const token = await user.getIdToken();
+    await fetch(WORKER_URL + '/api/user/ensure-profile', {
+      method: 'POST',
+      headers: {
+        'content-type': 'application/json',
+        'authorization': 'Bearer ' + token
+      },
+      body: '{}'
+    });
+  } catch (e) {
+    console.warn('ensure-profile failed:', e.message);
+  }
+
+  // فحص الأدمن
   let isAdmin = false;
   try {
     const adminSnap = await getDoc(doc(db, 'admins', user.uid));
