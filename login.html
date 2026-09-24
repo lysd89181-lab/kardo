@@ -34,8 +34,6 @@ body{
   display:flex;align-items:center;justify-content:center;
   padding:20px;position:relative;overflow:hidden;
 }
-
-/* ═══ Ambient Background ═══ */
 body::before{
   content:'';position:fixed;inset:0;pointer-events:none;z-index:0;
   background:
@@ -57,7 +55,6 @@ body::after{
   mask-image:radial-gradient(ellipse at center, black 20%, transparent 75%);
   -webkit-mask-image:radial-gradient(ellipse at center, black 20%, transparent 75%);
 }
-
 .orb{position:fixed;border-radius:50%;filter:blur(80px);pointer-events:none;z-index:0}
 .orb-1{
   width:400px;height:400px;
@@ -75,8 +72,6 @@ body::after{
   0%,100%{transform:translate(0,0) scale(1)}
   50%{transform:translate(-30px,40px) scale(1.08)}
 }
-
-/* ═══ Shell ═══ */
 .shell{
   position:relative;z-index:1;
   width:100%;max-width:430px;
@@ -87,38 +82,17 @@ body::after{
   from{opacity:0;transform:translateY(24px) scale(.98)}
   to{opacity:1;transform:none}
 }
-
-/* ═══ Logo ═══ */
-.brand{
-  display:flex;flex-direction:column;align-items:center;gap:14px;
-  text-align:center;
-}
-.brand-mark{
-  animation:markFloat 4.5s ease-in-out infinite;
-  filter:drop-shadow(0 10px 30px rgba(16,185,129,.32));
-}
-@keyframes markFloat{
-  0%,100%{transform:translateY(0)}
-  50%{transform:translateY(-5px)}
-}
+.brand{display:flex;flex-direction:column;align-items:center;gap:14px;text-align:center}
+.brand-mark{animation:markFloat 4.5s ease-in-out infinite;filter:drop-shadow(0 10px 30px rgba(16,185,129,.32))}
+@keyframes markFloat{0%,100%{transform:translateY(0)}50%{transform:translateY(-5px)}}
 .brand-en{
   font-size:26px;font-weight:800;letter-spacing:-.04em;
   background:linear-gradient(135deg,var(--tx) 0%,var(--tx-2) 100%);
   -webkit-background-clip:text;background-clip:text;
   -webkit-text-fill-color:transparent;
   margin-top:-6px;
-  animation:fadeUp .8s var(--ease) .1s backwards;
 }
-.brand-ar{
-  font-size:14px;color:var(--tx-3);font-weight:500;
-  animation:fadeUp .8s var(--ease) .15s backwards;
-}
-@keyframes fadeUp{
-  from{opacity:0;transform:translateY(8px)}
-  to{opacity:1;transform:none}
-}
-
-/* ═══ Card ═══ */
+.brand-ar{font-size:14px;color:var(--tx-3);font-weight:500}
 .card{
   background:linear-gradient(180deg,rgba(13,20,33,.95) 0%,rgba(2,6,23,.92) 100%);
   border:1px solid var(--line);
@@ -133,137 +107,88 @@ body::after{
   animation:cardIn .85s var(--ease) .2s backwards;
   position:relative;overflow:hidden;
 }
-.card::before{
-  content:'';position:absolute;inset:0;border-radius:24px;
-  padding:1px;
-  background:linear-gradient(180deg,rgba(16,185,129,.16),transparent 40%);
-  -webkit-mask:linear-gradient(#000 0 0) content-box,linear-gradient(#000 0 0);
-  -webkit-mask-composite:xor;
-  mask-composite:exclude;
-  pointer-events:none;
-}
-@keyframes cardIn{
-  from{opacity:0;transform:translateY(20px)}
-  to{opacity:1;transform:none}
-}
-
-/* ═══ Tabs ═══ */
+@keyframes cardIn{from{opacity:0;transform:translateY(20px)}to{opacity:1;transform:none}}
 .tabs{
-  display:flex;gap:4px;
-  background:var(--s1);
-  border:1px solid var(--line);
-  border-radius:14px;
-  padding:4px;
-  margin-bottom:24px;
-  position:relative;
+  display:flex;gap:4px;background:var(--s1);
+  border:1px solid var(--line);border-radius:14px;
+  padding:4px;margin-bottom:24px;position:relative;
 }
 .tab{
   flex:1;padding:11px 12px;
   font-size:13.5px;font-weight:700;
-  color:var(--tx-3);
-  border-radius:10px;
-  transition:color .22s;
-  position:relative;z-index:1;
-  text-align:center;
-  font-family:inherit;
+  color:var(--tx-3);border-radius:10px;
+  transition:color .22s;position:relative;z-index:1;
+  text-align:center;font-family:inherit;
   background:none;border:none;cursor:pointer;
 }
 .tab.on{color:var(--tx)}
 .tab::before{
   content:'';position:absolute;inset:0;
   background:linear-gradient(180deg,var(--s3) 0%,var(--s2) 100%);
-  border-radius:10px;
-  opacity:0;transform:scale(.92);
+  border-radius:10px;opacity:0;transform:scale(.92);
   transition:opacity .25s var(--ease),transform .3s var(--spring);
   z-index:-1;
-  box-shadow:
-    0 1px 0 rgba(255,255,255,.05) inset,
-    0 6px 16px -8px rgba(0,0,0,.5);
 }
 .tab.on::before{opacity:1;transform:scale(1)}
-
-/* ═══ Views ═══ */
 .view{display:none}
 .view.on{display:block}
 .form{display:flex;flex-direction:column;gap:16px}
-
-.field{
-  display:flex;flex-direction:column;gap:9px;
-  opacity:0;transform:translateY(10px);
-  animation:fieldIn .55s var(--ease) forwards;
-}
-.form.on .field:nth-child(1){animation-delay:.05s}
-.form.on .field:nth-child(2){animation-delay:.10s}
-.form.on .field:nth-child(3){animation-delay:.15s}
-.form.on .field:nth-child(4){animation-delay:.20s}
-.form.on .field:nth-child(5){animation-delay:.25s}
-@keyframes fieldIn{to{opacity:1;transform:none}}
-
+.field{display:flex;flex-direction:column;gap:9px}
 .lbl{
   display:flex;justify-content:space-between;align-items:center;
   font-size:12.5px;font-weight:700;color:var(--tx-2);
 }
 .lbl a{color:var(--g);font-weight:600;font-size:12px;transition:color .18s;text-decoration:none}
 .lbl a:hover{color:var(--g-3)}
-
 .inp-wrap{position:relative}
 .inp-wrap .lead{
   position:absolute;inset-inline-start:14px;top:50%;
   transform:translateY(-50%);
   color:var(--tx-3);pointer-events:none;
-  width:18px;height:18px;
-  transition:color .2s;
+  width:18px;height:18px;transition:color .2s;
 }
 .inp-wrap .trail{
   position:absolute;inset-inline-end:8px;top:50%;
   transform:translateY(-50%);
   width:34px;height:34px;border-radius:9px;
   display:grid;place-items:center;
-  color:var(--tx-3);
-  transition:.18s var(--swift);
+  color:var(--tx-3);transition:.18s var(--swift);
   background:transparent;border:none;cursor:pointer;
 }
 .inp-wrap .trail:hover{background:var(--s3);color:var(--tx)}
-.inp-wrap .trail:active{transform:translateY(-50%) scale(.9)}
-
 .inp{
   background:var(--s1);
   border:1.5px solid var(--line);
   border-radius:12px;
   padding:13px 46px 13px 14px;
-  color:var(--tx);
-  font-size:15px;
+  color:var(--tx);font-size:15px;
   transition:border-color .2s,background .2s,box-shadow .2s;
-  font-family:inherit;
-  width:100%;
+  font-family:inherit;width:100%;
 }
 .inp::placeholder{color:var(--tx-3)}
 .inp:hover:not(:focus){border-color:var(--line-2)}
 .inp:focus{
-  outline:none;
-  border-color:var(--g);
-  background:var(--s2);
+  outline:none;border-color:var(--g);background:var(--s2);
   box-shadow:0 0 0 4px var(--g-soft);
 }
 .inp-wrap:focus-within .lead{color:var(--g)}
 .inp.bad{border-color:var(--bad)}
-.inp.bad:focus{box-shadow:0 0 0 4px var(--bad-soft)}
 .inp.num-inp{font-variant-numeric:tabular-nums;letter-spacing:.02em}
-
-.pw-strength{display:flex;gap:3px;margin-top:6px;height:3px;opacity:0;transition:opacity .3s}
+.pw-strength{
+  display:flex;gap:3px;margin-top:6px;height:3px;
+  opacity:0;transition:opacity .3s;
+}
 .pw-strength.show{opacity:1}
 .pw-strength span{flex:1;height:100%;border-radius:99px;background:var(--s3);transition:background .3s}
 .pw-strength[data-level="1"] span:nth-child(1){background:var(--bad)}
 .pw-strength[data-level="2"] span:nth-child(-n+2){background:#F59E0B}
 .pw-strength[data-level="3"] span:nth-child(-n+3){background:#EAB308}
 .pw-strength[data-level="4"] span{background:var(--g)}
-
-/* ═══ Buttons ═══ */
 .btn{
   display:inline-flex;align-items:center;justify-content:center;gap:9px;
   padding:15px 22px;border-radius:13px;
   font-weight:800;font-size:15px;font-family:inherit;
-  transition:transform .18s var(--spring),box-shadow .2s,background .2s;
+  transition:transform .18s var(--spring),box-shadow .2s;
   background:linear-gradient(135deg,var(--g) 0%,var(--g-2) 100%);
   color:#04121B;
   box-shadow:
@@ -275,8 +200,7 @@ body::after{
 .btn::before{
   content:'';position:absolute;inset:0;
   background:linear-gradient(135deg,transparent 35%,rgba(255,255,255,.35) 50%,transparent 65%);
-  transform:translateX(-120%);
-  transition:transform .8s var(--ease);
+  transform:translateX(-120%);transition:transform .8s var(--ease);
   pointer-events:none;
 }
 .btn:hover:not(:disabled){transform:translateY(-2px)}
@@ -286,21 +210,14 @@ body::after{
 .btn svg{width:18px;height:18px;flex:none}
 .btn.loading{color:transparent;pointer-events:none}
 .btn.loading::after{
-  content:'';position:absolute;
-  width:20px;height:20px;
+  content:'';position:absolute;width:20px;height:20px;
   border:2.5px solid rgba(4,18,27,.25);
-  border-top-color:#04121B;
-  border-radius:50%;
+  border-top-color:#04121B;border-radius:50%;
   animation:spin .7s linear infinite;
 }
 @keyframes spin{to{transform:rotate(360deg)}}
-.btn.line{
-  background:transparent;color:var(--tx-2);
-  border:1px solid var(--line);box-shadow:none;
-}
+.btn.line{background:transparent;color:var(--tx-2);border:1px solid var(--line);box-shadow:none}
 .btn.line:hover:not(:disabled){background:var(--s2);border-color:var(--line-2);color:var(--tx)}
-
-/* ═══ Alert ═══ */
 .alert{
   display:flex;gap:10px;align-items:flex-start;
   padding:13px 15px;border-radius:12px;
@@ -310,21 +227,13 @@ body::after{
   background:var(--bad-soft);color:#F5A0A0;
 }
 .alert svg{width:18px;height:18px;flex:none;margin-top:1px}
-.alert.ok{
-  border-color:var(--g-line);
-  background:var(--g-soft);
-  color:var(--g-3);
-}
 @keyframes alertIn{from{opacity:0;transform:translateY(-6px)}to{opacity:1;transform:none}}
 .hidden{display:none!important}
-
-/* ═══ Success ═══ */
 .success{text-align:center;padding:20px 8px;animation:successIn .5s var(--spring)}
 @keyframes successIn{from{opacity:0;transform:scale(.94)}to{opacity:1;transform:none}}
 .success-ic{
   width:76px;height:76px;border-radius:22px;
-  margin:0 auto 18px;
-  display:grid;place-items:center;
+  margin:0 auto 18px;display:grid;place-items:center;
   background:var(--g-soft);color:var(--g);
   animation:successPop .7s var(--spring);
 }
@@ -341,17 +250,9 @@ body::after{
 }
 .success h2{font-size:21px;font-weight:800;letter-spacing:-.03em;margin-bottom:8px}
 .success p{color:var(--tx-2);font-size:13.5px;margin-bottom:22px;line-height:1.7}
-
-/* ═══ Footer ═══ */
-.foot{
-  text-align:center;color:var(--tx-3);font-size:12px;
-  padding-top:6px;line-height:1.7;
-  animation:fadeUp .8s var(--ease) .5s backwards;
-}
+.foot{text-align:center;color:var(--tx-3);font-size:12px;padding-top:6px;line-height:1.7}
 .foot a{color:var(--tx-2);font-weight:600;transition:color .18s;text-decoration:none}
 .foot a:hover{color:var(--g)}
-
-/* ═══ Reduced motion ═══ */
 @media(prefers-reduced-motion:reduce){
   *,*::before,*::after{
     animation-duration:.01ms!important;
@@ -369,7 +270,6 @@ body::after{
 
 <div class="shell">
 
-  <!-- Logo -->
   <div class="brand">
     <svg class="brand-mark" width="72" height="72" viewBox="0 0 40 40">
       <defs>
@@ -389,16 +289,13 @@ body::after{
     <div class="brand-ar">بطاقتك الرقمية الأولى في ليبيا</div>
   </div>
 
-  <!-- Card -->
   <div class="card">
 
-    <!-- Tabs -->
     <div class="tabs" role="tablist">
       <button class="tab on" data-view="login" role="tab" type="button">دخول</button>
       <button class="tab" data-view="register" role="tab" type="button">حساب جديد</button>
     </div>
 
-    <!-- ═══ LOGIN ═══ -->
     <div class="view on" id="vLogin">
       <form class="form on" id="fLogin" autocomplete="on" novalidate>
         <div class="field">
@@ -443,7 +340,6 @@ body::after{
       </form>
     </div>
 
-    <!-- ═══ REGISTER ═══ -->
     <div class="view" id="vRegister">
       <form class="form" id="fRegister" autocomplete="on" novalidate>
         <div class="field">
@@ -510,7 +406,6 @@ body::after{
       </form>
     </div>
 
-    <!-- ═══ RESET ═══ -->
     <div class="view" id="vReset">
       <form class="form" id="fReset" novalidate>
         <div class="field">
@@ -534,7 +429,6 @@ body::after{
       </form>
     </div>
 
-    <!-- ═══ SUCCESS ═══ -->
     <div class="view" id="vSuccess">
       <div class="success">
         <div class="success-ic">
@@ -557,28 +451,20 @@ body::after{
   </div>
 
 </div>
+
 <script type="module">
 import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js';
 import {
-  getAuth,
-  signInWithEmailAndPassword,
-  createUserWithEmailAndPassword,
-  sendPasswordResetEmail,
-  updateProfile,
-  onAuthStateChanged,
-  setPersistence,
-  browserLocalPersistence
+  getAuth, signInWithEmailAndPassword, createUserWithEmailAndPassword,
+  sendPasswordResetEmail, updateProfile, onAuthStateChanged,
+  setPersistence, browserLocalPersistence
 } from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js';
 import {
-  getFirestore,
-  doc,
-  setDoc,
-  getDoc,
-  serverTimestamp
+  getFirestore, doc, setDoc, getDoc, serverTimestamp
 } from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js';
 
 /* ═══════════════════════════════════════════════════════════
-   Firebase Config — المفتاح عام، الأمان في Rules
+   Firebase Config
    ═══════════════════════════════════════════════════════════ */
 const firebaseConfig = {
   apiKey: "AIzaSyC-GntWur6r_Ow_v0wTNymQqQa6brzgvW8",
@@ -593,10 +479,7 @@ const app = initializeApp(firebaseConfig);
 const auth = getAuth(app);
 const db = getFirestore(app);
 
-/* ═══ Persistence — الجلسة تبقى بعد إغلاق المتصفح ═══ */
-setPersistence(auth, browserLocalPersistence).catch(() => {
-  /* إذا فشل، يكمل بالوضع الافتراضي */
-});
+setPersistence(auth, browserLocalPersistence).catch(() => {});
 
 /* ═══ Helpers ═══ */
 const $ = s => document.querySelector(s);
@@ -606,7 +489,6 @@ const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({
   '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'
 }[c]));
 
-/* ═══ Error Display ═══ */
 function showErr(id, msg) {
   const el = $('#' + id);
   el.classList.remove('hidden');
@@ -625,7 +507,7 @@ function setLoading(btn, on) {
   btn.classList.toggle('loading', on);
 }
 
-/* ═══ Views Management ═══ */
+/* ═══ Views ═══ */
 const VIEWS = {
   login:    { view: 'vLogin',    err: 'liErr' },
   register: { view: 'vRegister', err: 'rgErr' },
@@ -637,15 +519,7 @@ function showView(name) {
     $('#' + v.view).classList.toggle('on', k === name);
   });
   $('#vSuccess').classList.remove('on');
-
   $$('.tab').forEach(t => t.classList.toggle('on', t.dataset.view === name));
-
-  const form = document.querySelector('#' + VIEWS[name].view + ' .form');
-  if (form) {
-    form.classList.remove('on');
-    void form.offsetWidth;
-    form.classList.add('on');
-  }
 }
 
 $$('.tab').forEach(t => {
@@ -665,12 +539,10 @@ function showSuccess(title, text, btnText = 'حسنًا', onBtn = null) {
   $('#vSuccess').classList.add('on');
 }
 
-/* ═══════════════════════════════════════════════════════════
-   Rate Limiting — يمنع هجمات القوة الغاشمة
-   ═══════════════════════════════════════════════════════════ */
+/* ═══ Rate Limiting ═══ */
 const RL_KEY = 'kardo_rl';
 const RL_MAX = 5;
-const RL_WINDOW = 30000; // 30 ثانية
+const RL_WINDOW = 30000;
 
 function getRL() {
   try {
@@ -707,7 +579,7 @@ function clearRL() {
   try { sessionStorage.removeItem(RL_KEY); } catch {}
 }
 
-/* ═══ Eye toggle ═══ */
+/* ═══ Eye Toggle ═══ */
 const eyeOpen  = '<path d="M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7-10-7-10-7"/><circle cx="12" cy="12" r="3"/>';
 const eyeClose = '<path d="M17.9 17.9A10.6 10.6 0 0 1 12 19c-6.4 0-10-7-10-7a18 18 0 0 1 4.1-5M9.9 4.2A10.6 10.6 0 0 1 12 5c6.4 0 10 7 10 7a18 18 0 0 1-2.2 3.2M3 3l18 18"/>';
 
@@ -721,7 +593,7 @@ $$('[data-eye]').forEach(btn => {
   });
 });
 
-/* ═══ Phone normalizer ═══ */
+/* ═══ Phone Normalize ═══ */
 function phoneKey(raw) {
   let p = String(raw || '').replace(/\D/g, '');
   if (p.startsWith('00218')) p = p.slice(5);
@@ -745,9 +617,7 @@ pwInput.addEventListener('input', () => {
   pwBar.dataset.level = String(Math.max(1, score));
 });
 
-/* ═══════════════════════════════════════════════════════════
-   Firebase Error Messages — رسائل عامة (لا تكشف تفاصيل)
-   ═══════════════════════════════════════════════════════════ */
+/* ═══ Firebase Error Messages ═══ */
 function fbMsg(code) {
   const map = {
     'auth/invalid-email':           'البريد الإلكتروني غير صحيح',
@@ -759,16 +629,13 @@ function fbMsg(code) {
     'auth/weak-password':           'كلمة المرور ضعيفة — 8 أحرف على الأقل',
     'auth/too-many-requests':       'محاولات كثيرة — حاول بعد قليل',
     'auth/network-request-failed':  'تعذّر الاتصال — تحقق من الإنترنت',
-    'auth/operation-not-allowed':   'هذه العملية غير مسموح بها حاليًا',
-    'auth/requires-recent-login':   'يجب تسجيل الدخول من جديد'
+    'auth/operation-not-allowed':   'هذه العملية غير مسموح بها حاليًا'
   };
   return map[code] || 'حدث خطأ — حاول مجددًا';
 }
 
 /* ═══════════════════════════════════════════════════════════
-   التوجيه بعد تسجيل الدخول
-   - يفحص admins/{uid} فقط — مصدر الحقيقة
-   - لا يستخدم users.role أبدًا
+   التوجيه بعد تسجيل الدخول — admins/{uid}
    ═══════════════════════════════════════════════════════════ */
 let _redirecting = false;
 
@@ -781,7 +648,6 @@ onAuthStateChanged(auth, async user => {
     const adminSnap = await getDoc(doc(db, 'admins', user.uid));
     if (adminSnap.exists()) isAdmin = true;
   } catch (e) {
-    /* فشل الفحص — يفترض مستخدم عادي */
     isAdmin = false;
   }
 
@@ -795,7 +661,6 @@ $('#fLogin').addEventListener('submit', async e => {
   e.preventDefault();
   clearErr('liErr');
 
-  // Rate limit check
   if (isLocked()) {
     showErr('liErr', lockMsg());
     return;
@@ -814,7 +679,6 @@ $('#fLogin').addEventListener('submit', async e => {
   try {
     await signInWithEmailAndPassword(auth, email, pass);
     clearRL();
-    // onAuthStateChanged سيتكفل بالتحويل
   } catch (err) {
     const rl = recordFail();
     if (rl.attempts >= RL_MAX) {
@@ -840,7 +704,6 @@ $('#fRegister').addEventListener('submit', async e => {
   const phone = $('#rgPhone').value.trim();
   const pass = $('#rgPass').value;
 
-  /* Validation */
   if (!name || name.length < 2) {
     showErr('rgErr', 'الاسم قصير جدًا');
     return;
@@ -864,27 +727,22 @@ $('#fRegister').addEventListener('submit', async e => {
     const cred = await createUserWithEmailAndPassword(auth, email, pass);
     await updateProfile(cred.user, { displayName: name });
 
-    /* إنشاء مستند المستخدم — مع حقول محدودة فقط */
+    /* إنشاء مستند المستخدم — الحقول المسموحة فقط في Firestore Rules */
     try {
       await setDoc(doc(db, 'users', cred.user.uid), {
         name: name,
         email: email,
         phone: phone,
-        phone_key: pk,
         wallet_balance: 0,
         total_spent: 0,
-        points: 0,
-        vip_status: 'none',
-        vip_cards_limit: 1,
-        cards_count: 0,
-        referrals_count: 0,
         banned: false,
-        role: 'user',
+        vip_status: 'none',
+        vip_plan_id: '',
+        vip_expires_at: null,
         created_at: serverTimestamp()
       });
     } catch (docErr) {
-      /* إذا فشل إنشاء المستند، نكمل — القواعد قد تمنع حقولًا معينة */
-      console.warn('user doc creation failed:', docErr.code);
+      console.warn('user doc creation failed:', docErr.code, docErr.message);
     }
 
     _redirecting = true;
@@ -945,9 +803,7 @@ $('#fReset').addEventListener('submit', async e => {
   }
 });
 
-/* ═══════════════════════════════════════════════════════════
-   Invitation code (ref) من URL
-   ═══════════════════════════════════════════════════════════ */
+/* ═══ URL params ═══ */
 const params = new URLSearchParams(location.search);
 const ref = params.get('ref');
 if (ref && /^[A-Z0-9]{4,12}$/i.test(ref)) {
@@ -958,9 +814,6 @@ if (ref && /^[A-Z0-9]{4,12}$/i.test(ref)) {
 } else {
   showView('login');
 }
-
-/* ═══ Boot ═══ */
-showView('login');
 </script>
 </body>
 </html>
