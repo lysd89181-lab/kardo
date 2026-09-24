@@ -23,7 +23,6 @@ button{font:inherit;color:inherit;background:none;border:none;cursor:pointer}
 input{font:inherit;color:inherit;width:100%}
 :focus-visible{outline:2px solid var(--emerald);outline-offset:2px;border-radius:6px}
 
-/* خلفية: نفس زاوية حرف K في الشعار */
 body::before{content:'';position:fixed;inset:auto -18% -34% auto;width:78vw;max-width:520px;
   aspect-ratio:1;background:var(--emerald);opacity:.09;
   clip-path:polygon(0 0,100% 34%,44% 50%,100% 66%,0 100%);pointer-events:none}
@@ -68,6 +67,7 @@ input[type=password],input[type=text].pw{padding-left:46px}
 .msg.on{display:block}
 .msg.err{background:#FEF2F2;border:1px solid #FECACA;color:#991B1B}
 .msg.ok{background:#ECFDF5;border:1px solid #A7F3D0;color:#065F46}
+.msg.info{background:#EFF6FF;border:1px solid #BFDBFE;color:#1E40AF}
 
 .foot{text-align:center;margin-top:18px;font-size:13.5px;color:var(--muted)}
 .foot button{color:var(--emerald-d);font-weight:600}
@@ -126,6 +126,12 @@ input[type=password],input[type=text].pw{padding-left:46px}
       </button>
     </div>
 
+    <div class="field hide" id="phoneField">
+      <label for="phone">رقم الهاتف</label>
+      <input class="inp" id="phone" type="tel" inputmode="numeric"
+             placeholder="0912345678" autocomplete="tel" dir="ltr" maxlength="13">
+    </div>
+
     <div class="link" id="forgotWrap">
       <button id="forgot">نسيت كلمة المرور؟</button>
     </div>
@@ -167,9 +173,6 @@ const firebaseConfig = {
   appId: "1:593934928630:web:d36ea455a284e974043ad7"
 };
 
-/* وجهة التحويل بعد نجاح الدخول */
-const HOME = 'index.html';
-
 const app = initializeApp(firebaseConfig);
 const auth = getAuth(app);
 const db = getFirestore(app);
@@ -178,18 +181,26 @@ const $ = s => document.querySelector(s);
 let signup = false;
 let busy = false;
 
-/* أي خطأ يظهر على الشاشة بدل صفحة صامتة */
-window.addEventListener('error', e=>
-  show('خطأ: ' + (e.message||'') + ' — سطر ' + (e.lineno||''), 'err'));
+/** ✅ helper: توحيد رقم الهاتف */
+function phoneKey(raw) {
+  let p = String(raw || '').replace(/\D/g, '');
+  if (p.startsWith('00218')) p = p.slice(5);
+  else if (p.startsWith('218')) p = p.slice(3);
+  if (p.startsWith('0')) p = p.slice(1);
+  return p.slice(-9);
+}
 
-function show(text, kind='err'){
+window.addEventListener('error', e =>
+  show('خطأ: ' + (e.message || '') + ' — سطر ' + (e.lineno || ''), 'err'));
+
+function show(text, kind = 'err') {
   const m = $('#msg');
   m.textContent = text;
   m.className = 'msg on ' + kind;
 }
-function clearMsg(){ $('#msg').className = 'msg'; }
+function clearMsg() { $('#msg').className = 'msg'; }
 
-function loading(on, label){
+function loading(on, label) {
   busy = on;
   const b = $('#submit');
   b.disabled = on;
@@ -198,10 +209,11 @@ function loading(on, label){
 }
 
 /* ── تبديل دخول / تسجيل ── */
-$('#switch').onclick = ()=>{
+$('#switch').onclick = () => {
   signup = !signup;
   clearMsg();
   $('#nameField').classList.toggle('hide', !signup);
+  $('#phoneField').classList.toggle('hide', !signup);
   $('#forgotWrap').classList.toggle('hide', signup);
   $('#title').textContent = signup ? 'إنشاء حساب' : 'تسجيل الدخول';
   $('#subtitle').textContent = signup
@@ -214,7 +226,7 @@ $('#switch').onclick = ()=>{
 };
 
 /* ── إظهار كلمة المرور ── */
-$('#peek').onclick = ()=>{
+$('#peek').onclick = () => {
   const p = $('#pass');
   const hidden = p.type === 'password';
   p.type = hidden ? 'text' : 'password';
@@ -225,10 +237,12 @@ $('#peek').onclick = ()=>{
 
 /* ── إرسال ── */
 $('#submit').onclick = submit;
-['email','pass','name'].forEach(id=>
-  $('#'+id).addEventListener('keydown', e=>{ if(e.key==='Enter' && !busy) submit(); }));
+['email', 'pass', 'name', 'phone'].forEach(id =>
+  $('#' + id).addEventListener('keydown', e => {
+    if (e.key === 'Enter' && !busy) submit();
+  }));
 
-async function submit(){
+async function submit() {
   clearMsg();
   const email = $('#email').value.trim();
   const pass = $('#pass').value;
@@ -236,93 +250,133 @@ async function submit(){
 
   $('#email').classList.remove('bad');
   $('#pass').classList.remove('bad');
+  $('#phone').classList.remove('bad');
 
-  if(!email){ $('#email').classList.add('bad'); return show('أدخل بريدك الإلكتروني'); }
-  if(!pass){ $('#pass').classList.add('bad'); return show('أدخل كلمة المرور'); }
-  if(signup && pass.length < 6){
+  if (!email) { $('#email').classList.add('bad'); return show('أدخل بريدك الإلكتروني'); }
+  if (!pass) { $('#pass').classList.add('bad'); return show('أدخل كلمة المرور'); }
+  if (signup && pass.length < 6) {
     $('#pass').classList.add('bad');
     return show('كلمة المرور يجب أن تكون 6 أحرف على الأقل');
   }
+  if (signup) {
+    const phone = $('#phone').value.trim();
+    const pk = phoneKey(phone);
+    if (pk.length !== 9) {
+      $('#phone').classList.add('bad');
+      return show('رقم الهاتف يجب أن يكون 9 أرقام');
+    }
+  }
 
   loading(true, label);
-  try{
-    if(signup){
+  try {
+    if (signup) {
       const name = $('#name').value.trim() || 'مستخدم';
+      const phone = $('#phone').value.trim();
       const cred = await createUserWithEmailAndPassword(auth, email, pass);
       await updateProfile(cred.user, { displayName: name });
-      await ensureProfile(cred.user, name);
+      await ensureProfile(cred.user, name, phone);
+      show('تم إنشاء الحساب — جاري التحويل…', 'ok');
     } else {
       await signInWithEmailAndPassword(auth, email, pass);
     }
-    location.replace(HOME);
-  }catch(e){
+    // التوجيه يتم تلقائياً في onAuthStateChanged
+  } catch (e) {
     show(msgFor(e.code));
     loading(false, label);
   }
 }
 
 /* ── Google ── */
-$('#google').onclick = async ()=>{
+$('#google').onclick = async () => {
   clearMsg();
   $('#google').disabled = true;
-  try{
+  try {
     const cred = await signInWithPopup(auth, new GoogleAuthProvider());
-    await ensureProfile(cred.user, cred.user.displayName || 'مستخدم');
-    location.replace(HOME);
-  }catch(e){
+    await ensureProfile(cred.user, cred.user.displayName || 'مستخدم', '');
+    // التوجيه في onAuthStateChanged
+  } catch (e) {
     show(msgFor(e.code));
     $('#google').disabled = false;
   }
 };
 
 /* ── نسيت كلمة المرور ── */
-$('#forgot').onclick = async ()=>{
+$('#forgot').onclick = async () => {
   const email = $('#email').value.trim();
-  if(!email){
+  if (!email) {
     $('#email').classList.add('bad');
     $('#email').focus();
     return show('اكتب بريدك أولًا ثم اضغط "نسيت كلمة المرور"');
   }
-  try{
+  try {
     await sendPasswordResetEmail(auth, email);
     show('أرسلنا رابط إعادة التعيين إلى ' + email + ' — تحقق من بريدك.', 'ok');
-  }catch(e){ show(msgFor(e.code)); }
+  } catch (e) { show(msgFor(e.code)); }
 };
 
 /* ── إنشاء ملف المستخدم ── */
-async function ensureProfile(user, name){
+async function ensureProfile(user, name, phone) {
   const ref = doc(db, 'users', user.uid);
-  try{
+  try {
     const snap = await getDoc(ref);
-    if(!snap.exists()){
+    if (!snap.exists()) {
+      const pk = phone ? phoneKey(phone) : '';
       await setDoc(ref, {
-        name, email: user.email || '', phone: '',
-        wallet_balance: 0, total_spent: 0, cards_count: 0,
-        banned: false, created_at: new Date().toISOString()
+        name: name,
+        email: user.email || '',
+        phone: phone || '',
+        phone_key: pk,
+        wallet_balance: 0,
+        total_spent: 0,
+        cards_count: 0,
+        banned: false,
+        created_at: new Date().toISOString(),
       }, { merge: true });
     }
-  }catch{ /* القواعد قد تمنع الكتابة — الـWorker ينشئه لاحقًا */ }
+  } catch (e) {
+    console.warn('ensureProfile failed:', e.code);
+    // القواعد قد تمنع الكتابة — الـWorker ينشئه لاحقًا
+  }
 }
 
-function msgFor(code){
+function msgFor(code) {
   return {
-    'auth/invalid-credential':'البريد أو كلمة المرور غير صحيحة',
-    'auth/wrong-password':'كلمة المرور غير صحيحة',
-    'auth/user-not-found':'لا يوجد حساب بهذا البريد — أنشئ حسابًا جديدًا',
-    'auth/email-already-in-use':'هذا البريد مسجّل بالفعل — سجّل الدخول بدلًا من ذلك',
-    'auth/invalid-email':'صيغة البريد غير صحيحة',
-    'auth/weak-password':'كلمة المرور ضعيفة — استخدم 6 أحرف فأكثر',
-    'auth/too-many-requests':'محاولات كثيرة — انتظر قليلًا ثم أعد المحاولة',
-    'auth/network-request-failed':'تعذّر الاتصال — تحقّق من الإنترنت',
-    'auth/popup-closed-by-user':'أُغلقت النافذة قبل إكمال الدخول',
-    'auth/popup-blocked':'المتصفح حجب النافذة — اسمح بالنوافذ المنبثقة',
-    'auth/operation-not-allowed':'طريقة الدخول غير مفعّلة في Firebase',
-    'auth/unauthorized-domain':'هذا النطاق غير مُصرّح به في Firebase → Authentication → Settings'
+    'auth/invalid-credential': 'البريد أو كلمة المرور غير صحيحة',
+    'auth/wrong-password': 'كلمة المرور غير صحيحة',
+    'auth/user-not-found': 'لا يوجد حساب بهذا البريد — أنشئ حسابًا جديدًا',
+    'auth/email-already-in-use': 'هذا البريد مسجّل بالفعل — سجّل الدخول بدلًا من ذلك',
+    'auth/invalid-email': 'صيغة البريد غير صحيحة',
+    'auth/weak-password': 'كلمة المرور ضعيفة — استخدم 6 أحرف فأكثر',
+    'auth/too-many-requests': 'محاولات كثيرة — انتظر قليلًا ثم أعد المحاولة',
+    'auth/network-request-failed': 'تعذّر الاتصال — تحقّق من الإنترنت',
+    'auth/popup-closed-by-user': 'أُغلقت النافذة قبل إكمال الدخول',
+    'auth/popup-blocked': 'المتصفح حجب النافذة — اسمح بالنوافذ المنبثقة',
+    'auth/operation-not-allowed': 'طريقة الدخول غير مفعّلة في Firebase',
+    'auth/unauthorized-domain': 'هذا النطاق غير مُصرّح به في Firebase'
   }[code] || 'تعذّر إتمام العملية، حاول مرة أخرى';
 }
 
-/* من سجّل دخوله يُحوّل مباشرة */
-onAuthStateChanged(auth, user=>{ if(user) location.replace(HOME); });
+/**
+ * ✅ التوجيه الذكي — الأدمن للوحة، العميل للمتجر
+ * هذه أهم إصلاح في هذا الملف
+ */
+onAuthStateChanged(auth, async user => {
+  if (!user) return;
+
+  // فحص إذا كان المستخدم أدمن
+  try {
+    const adminSnap = await getDoc(doc(db, 'admins', user.uid));
+    if (adminSnap.exists()) {
+      location.replace('admin.html');
+      return;
+    }
+  } catch (e) {
+    console.warn('admin check failed:', e.code);
+  }
+
+  // عميل عادي → للمتجر
+  location.replace('index.html');
+});
 </script>
 </body>
 </html>
