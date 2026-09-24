@@ -2,7 +2,8 @@
  * ═══════════════════════════════════════════════════════════
  *  KARDO — Cloudflare Worker Backend
  *  كاردو — الخدمة الخلفية
- * ═══════════════════════════════════════════════════════════
+ *
+ *  Version: 2.0.0 (Production-Ready)
  *
  *  المسؤوليات:
  *   1. محفظة ذرية (atomic) — idempotency لكل عملية
@@ -10,8 +11,9 @@
  *   3. شحن تلقائي عبر رسائل ليبيانا والمدار
  *   4. USDT عبر شبكة TRON
  *   5. متجر خدمات رقمية (أكواد + يدوي)
+ *   6. Rate Limiting شامل
  *
- *  سرّيات مطلوبة (wrangler secret put أو Cloudflare Dashboard):
+ *  سرّيات مطلوبة (wrangler secret put):
  *   FIREBASE_PROJECT_ID     kardo-1c657
  *   FIREBASE_CLIENT_EMAIL   من ملف service account
  *   FIREBASE_PRIVATE_KEY    من ملف service account (كامل مع BEGIN/END)
@@ -22,7 +24,6 @@
 
 const FS_BASE = 'https://firestore.googleapis.com/v1';
 const TRON_API = 'https://api.trongrid.io';
-// عقد USDT على شبكة TRC20 — ثابت عالميًا
 const USDT_TRC20 = 'TR7NHqjeKQxGTCi8q8ZY4pL8otSzgjLj6t';
 
 let _tokenCache = { token: null, exp: 0 };
@@ -54,13 +55,12 @@ export default {
     }
   },
 
-  /**
-   * Cron trigger — كل ساعة.
-   * يمسح بيانات البطاقات منتهية الصلاحية (PAN + CVV).
-   */
   async scheduled(event, env, ctx) {
     ctx.waitUntil(
-      purgeExpiredReveals(env).catch(e => console.error('PURGE_FAILED', e.message))
+      Promise.all([
+        purgeExpiredReveals(env).catch(e => console.error('PURGE_FAILED', e.message)),
+        purgeOldRateLimits(env).catch(e => console.error('RL_PURGE_FAILED', e.message)),
+      ])
     );
   },
 };
@@ -81,19 +81,22 @@ async function route(path, request, url, env) {
   const body = request.method === 'POST' ? await safeJson(request) : {};
   const user = await requireAuth(request, env);
 
+  // ── Rate Limit عام لكل مستخدم ─────────────────────
+  await enforceGlobalRateLimit(env, user.uid);
+
   switch (path) {
     // ── المحفظة والإيداع ──
     case '/api/wallet/claim':        return handleWalletClaim(user, body, env);
     case '/api/wallet/withdraw':     return handleWithdrawRequest(user, body, env);
     case '/api/wallet/transfer':     return handleTransfer(user, body, env);
     case '/api/wallet/usdt/invoice': return handleUsdtInvoice(user, body, env);
-    case '/api/wallet/usdt/verify':  return handleUsdtVerify(user, body, env);
+    case '/api/wallet/usdt/verify':  return handleUsdtVerify(user, body, env, request);
 
     // ── البطاقات اليدوية ──
     case '/api/mcard/request':       return handleManualCardRequest(user, body, env);
     case '/api/mcard/topup-request': return handleManualCardTopup(user, body, env);
     case '/api/mcard/list':          return handleManualCardList(user, env);
-    case '/api/mcard/reveal':        return handleRevealCard(user, body, env);
+    case '/api/mcard/reveal':        return handleRevealCard(user, body, env, request);
 
     // ── المتجر ──
     case '/api/store/order':         return handleStoreOrder(user, body, env);
@@ -127,7 +130,79 @@ async function route(path, request, url, env) {
 }
 
 /* ═══════════════════════════════════════════════════════════
-   الحالة العامة — يقرأها المتجر
+   Rate Limiting
+   ═══════════════════════════════════════════════════════════ */
+
+/**
+ * Rate limit عام لكل مستخدم — 120 طلب في الدقيقة.
+ * يمنع abuse من حساب واحد.
+ */
+async function enforceGlobalRateLimit(env, uid) {
+  const windowSec = 60;
+  const max = 120;
+  const now = Math.floor(Date.now() / 1000);
+  const bucket = Math.floor(now / windowSec);
+  const key = `rl_g_${uid}_${bucket}`;
+
+  try {
+    const cur = await fsGet(env, `rate_limits/${key}`).catch(() => null);
+    const count = num(cur && cur.count, 0);
+    if (count >= max) {
+      throw httpError(429, 'محاولات كثيرة — انتظر قليلاً');
+    }
+    await fsSet(env, `rate_limits/${key}`, {
+      uid,
+      count: count + 1,
+      bucket,
+      expires_at: now + 120,
+    }).catch(() => {});
+  } catch (e) {
+    if (e.status === 429) throw e;
+    // Rate limit فشل — نتجاهل ونكمل
+  }
+}
+
+/**
+ * Rate limit مخصص لدوال محددة (reveal, sensitive ops).
+ */
+async function checkRateLimit(env, key, limit, windowSec) {
+  const bucket = Math.floor(Date.now() / windowSec);
+  const rlKey = `rl_${key}_${bucket}`;
+  try {
+    const cur = await fsGet(env, `rate_limits/${rlKey}`).catch(() => null);
+    const count = num(cur && cur.count, 0);
+    if (count >= limit) return false;
+    await fsSet(env, `rate_limits/${rlKey}`, {
+      key: rlKey,
+      count: count + 1,
+      expires_at: Math.floor(Date.now() / 1000) + windowSec + 60,
+    }).catch(() => {});
+    return true;
+  } catch {
+    return true;
+  }
+}
+
+/** Cron: تنظيف rate limits القديمة */
+async function purgeOldRateLimits(env) {
+  const now = Math.floor(Date.now() / 1000);
+  const rows = await fsQueryRaw(env, {
+    from: [{ collectionId: 'rate_limits' }],
+    limit: 300,
+  });
+  let purged = 0;
+  for (const r of rows) {
+    const d = withId(r, 'rate_limits');
+    if (num(d.expires_at, 0) < now) {
+      await fsDelete(env, `rate_limits/${d._id}`).catch(() => {});
+      purged++;
+    }
+  }
+  return purged;
+}
+
+/* ═══════════════════════════════════════════════════════════
+   الحالة العامة
    ═══════════════════════════════════════════════════════════ */
 
 async function handleStatus(env) {
@@ -244,14 +319,9 @@ async function handleStatus(env) {
 }
 
 /* ═══════════════════════════════════════════════════════════
-   البطاقات اليدوية — المسار الأساسي
+   البطاقات اليدوية
    ═══════════════════════════════════════════════════════════ */
 
-/**
- * طلب إصدار بطاقة جديدة.
- * يُخصم المبلغ فورًا، ويدخل الطلب قائمة انتظار الإدارة.
- * الأدمن يُصدر البطاقة عند مزوّده اليدوي ثم يُدخل بياناتها.
- */
 async function handleManualCardRequest(user, body, env) {
   const s = await getSettings(env);
   assertLive(s);
@@ -273,7 +343,6 @@ async function handleManualCardRequest(user, body, env) {
   if (amount < mn) throw httpError(400, `الحد الأدنى ${mn}$`);
   if (amount > mx) throw httpError(400, `الحد الأقصى ${mx}$`);
 
-  // الرسوم: $8 + 2.5% (افتراضي قابل للتعديل من اللوحة)
   const fixedFee = num(s.mc_create_fee_fixed, 8);
   const pct = num(s.mc_create_fee_pct, 2.5);
   const fee = round2(fixedFee + amount * pct / 100);
@@ -281,20 +350,33 @@ async function handleManualCardRequest(user, body, env) {
 
   await assertDailyLimit(env, s, user.uid, 'card', total);
 
-  const me = await fsGet(env, `users/${user.uid}`);
-  if (!me) throw httpError(400, 'الحساب غير مكتمل');
-  if (me.banned === true) throw httpError(403, 'الحساب موقوف');
-  if (num(me.wallet_balance, 0) < total) {
-    throw httpError(402, `رصيدك غير كافٍ — تحتاج ${round2(total - num(me.wallet_balance, 0))}$ إضافية`);
-  }
-
   const id = `MC${Date.now()}${randomSuffix(4)}`;
 
-  // خصم ذري + إنشاء الطلب
-  const newBalance = round2(num(me.wallet_balance, 0) - total);
-  await Promise.all([
-    fsPatch(env, `users/${user.uid}`, { wallet_balance: newBalance }),
-    fsSet(env, `manual_card_orders/${id}`, {
+  // ✅ Transaction كامل — لا Race Conditions
+  await fsRunTransaction(env, async (tx) => {
+    const me = await tx.get(`users/${user.uid}`);
+    if (!me) throw httpError(400, 'الحساب غير مكتمل');
+    if (me.banned === true) throw httpError(403, 'الحساب موقوف');
+
+    const balance = num(me.wallet_balance, 0);
+    if (balance < total) {
+      throw httpError(402, `رصيدك غير كافٍ — تحتاج ${round2(total - balance)}$ إضافية`);
+    }
+
+    const newBalance = round2(balance - total);
+
+    tx.update(`users/${user.uid}`, { wallet_balance: newBalance });
+    tx.create('wallet_transactions', `txn_mc_create_${id}`, {
+      uid: user.uid,
+      type: 'debit',
+      amount: total,
+      balance_before: balance,
+      balance_after: newBalance,
+      reason: 'card_create',
+      reference: id,
+      created_at: nowIso(),
+    });
+    tx.create('manual_card_orders', id, {
       uid: user.uid,
       kind: 'create',
       amount,
@@ -305,19 +387,10 @@ async function handleManualCardRequest(user, body, env) {
       status: 'pending',
       created_at: nowIso(),
       updated_at: nowIso(),
-    }),
-    fsSet(env, `wallet_transactions/txn_mc_create_${id}`, {
-      uid: user.uid,
-      type: 'debit',
-      amount: total,
-      balance_before: num(me.wallet_balance, 0),
-      balance_after: newBalance,
-      reason: 'card_create',
-      reference: id,
-      created_at: nowIso(),
-    }),
-    logOp(env, user.uid, 'manual_card_request', { kind: 'create', amount }, { id }, true),
-  ]);
+    });
+  });
+
+  await logOp(env, user.uid, 'manual_card_request', { kind: 'create', amount }, { id }, true);
 
   return {
     success: true,
@@ -329,9 +402,6 @@ async function handleManualCardRequest(user, body, env) {
   };
 }
 
-/**
- * طلب شحن بطاقة قائمة.
- */
 async function handleManualCardTopup(user, body, env) {
   const s = await getSettings(env);
   assertLive(s);
@@ -350,10 +420,6 @@ async function handleManualCardTopup(user, body, env) {
   if (amount < mn) throw httpError(400, `الحد الأدنى للشحن ${mn}$`);
   if (amount > mx) throw httpError(400, `الحد الأقصى للشحن ${mx}$`);
 
-  const card = await fsGet(env, `manual_cards/${cardId}`);
-  if (!card || card.uid !== user.uid) throw httpError(404, 'البطاقة غير موجودة');
-  if (card.status !== 'active') throw httpError(400, 'هذه البطاقة غير نشطة');
-
   const fixedFee = num(s.mc_topup_fee_fixed, 8);
   const pct = num(s.mc_topup_fee_pct, 2.5);
   const fee = round2(fixedFee + amount * pct / 100);
@@ -361,48 +427,58 @@ async function handleManualCardTopup(user, body, env) {
 
   await assertDailyLimit(env, s, user.uid, 'card', total);
 
-  const me = await fsGet(env, `users/${user.uid}`);
-  if (!me) throw httpError(400, 'الحساب غير مكتمل');
-  if (num(me.wallet_balance, 0) < total) {
-    throw httpError(402, 'رصيدك غير كافٍ');
-  }
-
   const id = `MCT${Date.now()}${randomSuffix(4)}`;
-  const newBalance = round2(num(me.wallet_balance, 0) - total);
 
-  await Promise.all([
-    fsPatch(env, `users/${user.uid}`, { wallet_balance: newBalance }),
-    fsSet(env, `manual_card_orders/${id}`, {
+  // ✅ Transaction كامل
+  let cardName = '';
+  await fsRunTransaction(env, async (tx) => {
+    const me = await tx.get(`users/${user.uid}`);
+    if (!me) throw httpError(400, 'الحساب غير مكتمل');
+    if (me.banned === true) throw httpError(403, 'الحساب موقوف');
+
+    const card = await tx.get(`manual_cards/${cardId}`);
+    if (!card || card.uid !== user.uid) throw httpError(404, 'البطاقة غير موجودة');
+    if (card.status !== 'active') throw httpError(400, 'هذه البطاقة غير نشطة');
+
+    cardName = card.card_name || '';
+
+    const balance = num(me.wallet_balance, 0);
+    if (balance < total) throw httpError(402, 'رصيدك غير كافٍ');
+
+    const newBalance = round2(balance - total);
+
+    tx.update(`users/${user.uid}`, { wallet_balance: newBalance });
+    tx.create('wallet_transactions', `txn_mc_topup_${id}`, {
+      uid: user.uid,
+      type: 'debit',
+      amount: total,
+      balance_before: balance,
+      balance_after: newBalance,
+      reason: 'card_topup',
+      reference: id,
+      created_at: nowIso(),
+    });
+    tx.create('manual_card_orders', id, {
       uid: user.uid,
       kind: 'topup',
       card_id: cardId,
       amount,
       fee,
       total,
-      card_name: card.card_name || '',
+      card_name: cardName,
       status: 'pending',
       created_at: nowIso(),
       updated_at: nowIso(),
-    }),
-    fsSet(env, `wallet_transactions/txn_mc_topup_${id}`, {
-      uid: user.uid,
-      type: 'debit',
-      amount: total,
-      balance_before: num(me.wallet_balance, 0),
-      balance_after: newBalance,
-      reason: 'card_topup',
-      reference: id,
-      created_at: nowIso(),
-    }),
-    logOp(env, user.uid, 'manual_card_request', { kind: 'topup', amount }, { id }, true),
-  ]);
+    });
+  });
+
+  await logOp(env, user.uid, 'manual_card_request', { kind: 'topup', amount }, { id }, true);
 
   return { success: true, id, amount, fee, total };
 }
 
-/** قائمة بطاقات العميل */
 async function handleManualCardList(user, env) {
-  const rows = await fsQuery(env, {
+  const rows = await fsQueryRaw(env, {
     from: [{ collectionId: 'manual_cards' }],
     where: {
       fieldFilter: {
@@ -427,8 +503,7 @@ async function handleManualCardList(user, env) {
     };
   }).sort((a, b) => String(b.created_at || '').localeCompare(String(a.created_at || '')));
 
-  // آخر الطلبات
-  const orderRows = await fsQuery(env, {
+  const orderRows = await fsQueryRaw(env, {
     from: [{ collectionId: 'manual_card_orders' }],
     where: {
       fieldFilter: {
@@ -459,12 +534,18 @@ async function handleManualCardList(user, env) {
 }
 
 /**
- * العميل يقرأ بيانات بطاقته (PAN + CVV) — مرة واحدة،
- * خلال 24 ساعة من إدخال الأدمن لها.
+ * ✅ مُحسّن: Rate Limit + IP logging + Transaction آمن
  */
-async function handleRevealCard(user, body, env) {
+async function handleRevealCard(user, body, env, request) {
   const orderId = String(body.order_id || '').trim();
   if (!orderId) throw httpError(400, 'رقم الطلب مفقود');
+
+  // ✅ Rate limit: 20 reveals في الساعة لكل مستخدم
+  const rlOk = await checkRateLimit(env, `reveal_${user.uid}`, 20, 3600);
+  if (!rlOk) {
+    await logOp(env, user.uid, 'reveal_rate_limited', { orderId }, {}, false);
+    throw httpError(429, 'بلغت حد عرض البيانات — انتظر ساعة');
+  }
 
   const rv = await fsGet(env, `manual_card_reveal/${orderId}`);
   if (!rv || rv.uid !== user.uid) {
@@ -474,12 +555,16 @@ async function handleRevealCard(user, body, env) {
     throw httpError(410, 'انتهت صلاحية عرض البيانات — تواصل مع الدعم');
   }
 
-  // سجل قراءة للتدقيق
+  // ✅ تسجيل كامل للتدقيق
   const logId = `RV${Date.now()}${randomSuffix(4)}`;
   await fsSet(env, `reveal_logs/${logId}`, {
     uid: user.uid,
     order_id: orderId,
-    card_id: rv.card_id,
+    card_id: rv.card_id || '',
+    ip: (request.headers.get('cf-connecting-ip') || '').slice(0, 45),
+    ua: (request.headers.get('user-agent') || '').slice(0, 160),
+    country: String(request.cf?.country || '').slice(0, 4),
+    city: String(request.cf?.city || '').slice(0, 60),
     revealed_at: nowIso(),
   }).catch(() => {});
 
@@ -493,8 +578,7 @@ async function handleRevealCard(user, body, env) {
 }
 
 /**
- * الأدمن يُدخل بيانات البطاقة بعد إصدارها عند مزوّده اليدوي.
- * البيانات تُخزَّن مؤقتًا فقط، وتُمسح تلقائيًا بعد 24 ساعة.
+ * ✅ مُحسّن: Transaction كامل — لا Race Conditions
  */
 async function handleAdminCardFulfil(user, body, env) {
   await requireAdmin(user, env);
@@ -502,76 +586,128 @@ async function handleAdminCardFulfil(user, body, env) {
   const id = String(body.id || '').trim();
   if (!id) throw httpError(400, 'رقم الطلب مفقود');
 
-  const o = await fsGet(env, `manual_card_orders/${id}`);
-  if (!o) throw httpError(404, 'الطلب غير موجود');
-  if (o.status !== 'pending') throw httpError(400, 'الطلب مُغلق بالفعل');
+  const isReject = body.action === 'reject';
 
+  if (isReject) {
+    const reason = String(body.reason || '').slice(0, 200);
+    await fsRunTransaction(env, async (tx) => {
+      const o = await tx.get(`manual_card_orders/${id}`);
+      if (!o) throw httpError(404, 'الطلب غير موجود');
+      if (o.status !== 'pending') throw httpError(400, 'الطلب مُغلق بالفعل');
+
+      const back = round2(num(o.total, 0));
+      const u = await tx.get(`users/${o.uid}`);
+      const newBalance = round2(num(u?.wallet_balance, 0) + back);
+
+      tx.update(`users/${o.uid}`, { wallet_balance: newBalance });
+      tx.update(`manual_card_orders/${id}`, {
+        status: 'rejected',
+        reject_reason: reason,
+        rejected_at: nowIso(),
+        rejected_by: user.uid,
+      });
+      tx.create('wallet_transactions', `txn_mc_refund_${id}`, {
+        uid: o.uid,
+        type: 'credit',
+        amount: back,
+        balance_before: num(u?.wallet_balance, 0),
+        balance_after: newBalance,
+        reason: 'card_rejected_refund',
+        reference: id,
+        created_at: nowIso(),
+      });
+    });
+
+    await logOp(env, user.uid, 'manual_card_rejected', { id }, { refunded: true }, true);
+    return { success: true, refunded: true };
+  }
+
+  // ── fulfilment ──
   const pan = String(body.card_number || '').replace(/\s+/g, '');
   const expiry = String(body.expiry || '').trim();
   const cvv = String(body.cvv || '').trim();
   const providerRef = String(body.provider_ref || '').slice(0, 120);
 
-  if (!/^\d{13,19}$/.test(pan)) throw httpError(400, 'رقم البطاقة غير صالح');
-  if (!/^\d{2}\/\d{2}$/.test(expiry)) throw httpError(400, 'صيغة التاريخ MM/YY');
-  if (!/^\d{3,4}$/.test(cvv)) throw httpError(400, 'CVV غير صالح');
-
   const s = await getSettings(env);
   const ttlHours = num(s.mc_reveal_hours, 24);
   const expiresAt = new Date(Date.now() + ttlHours * 3600000).toISOString();
 
-  let cardId = o.card_id;
+  // للبطاقة الجديدة — فحص PAN/CVV
+  const isCreate = await (async () => {
+    const o = await fsGet(env, `manual_card_orders/${id}`);
+    return o && o.kind === 'create';
+  })();
 
-  if (o.kind === 'create') {
-    cardId = `MCX${Date.now()}${randomSuffix(4)}`;
-    await fsSet(env, `manual_cards/${cardId}`, {
-      uid: o.uid,
-      card_name: o.card_name || 'بطاقتي',
-      name_on_card: o.name_on_card || '',
-      last4: pan.slice(-4),
-      status: 'active',
-      balance: round2(num(o.amount, 0)),
-      created_at: nowIso(),
-      created_by: user.uid,
-      provider_ref: providerRef,
-    });
-  } else {
-    const card = await fsGet(env, `manual_cards/${cardId}`);
-    if (!card) throw httpError(404, 'البطاقة الأصلية غير موجودة');
-    const newBal = round2(num(card.balance, 0) + num(o.amount, 0));
-    await fsPatch(env, `manual_cards/${cardId}`, {
-      balance: newBal,
-      updated_at: nowIso(),
-      last_topup_by: user.uid,
-    });
+  if (isCreate) {
+    if (!/^\d{13,19}$/.test(pan)) throw httpError(400, 'رقم البطاقة غير صالح');
+    if (!/^\d{2}\/\d{2}$/.test(expiry)) throw httpError(400, 'صيغة التاريخ MM/YY');
+    if (!/^\d{3,4}$/.test(cvv)) throw httpError(400, 'CVV غير صالح');
   }
 
-  await Promise.all([
-    fsSet(env, `manual_card_reveal/${id}`, {
-      uid: o.uid,
-      card_id: cardId,
-      card_number: pan,
-      expiry,
-      cvv,
-      created_at: nowIso(),
-      expires_at: expiresAt,
-    }),
-    fsPatch(env, `manual_card_orders/${id}`, {
+  let cardId = '';
+
+  // ✅ Transaction كامل — لا Race Conditions
+  await fsRunTransaction(env, async (tx) => {
+    const o = await tx.get(`manual_card_orders/${id}`);
+    if (!o) throw httpError(404, 'الطلب غير موجود');
+    if (o.status !== 'pending') throw httpError(400, 'الطلب مُغلق بالفعل');
+
+    if (o.kind === 'create') {
+      cardId = `MCX${Date.now()}${randomSuffix(4)}`;
+      tx.create('manual_cards', cardId, {
+        uid: o.uid,
+        card_name: o.card_name || 'بطاقتي',
+        name_on_card: o.name_on_card || '',
+        last4: pan.slice(-4),
+        status: 'active',
+        balance: round2(num(o.amount, 0)),
+        created_at: nowIso(),
+        created_by: user.uid,
+        provider_ref: providerRef,
+      });
+    } else {
+      cardId = o.card_id;
+      const card = await tx.get(`manual_cards/${cardId}`);
+      if (!card) throw httpError(404, 'البطاقة الأصلية غير موجودة');
+      const newBal = round2(num(card.balance, 0) + num(o.amount, 0));
+      tx.update(`manual_cards/${cardId}`, {
+        balance: newBal,
+        updated_at: nowIso(),
+        last_topup_by: user.uid,
+      });
+    }
+
+    tx.update(`manual_card_orders/${id}`, {
       status: 'completed',
       card_id: cardId,
       completed_at: nowIso(),
       completed_by: user.uid,
       provider_ref: providerRef,
       reveal_expires_at: expiresAt,
-    }),
-    logOp(env, user.uid, 'manual_card_fulfilled', { id }, { cardId }, true),
-  ]);
+    });
+  });
+
+  // كتابة PAN/CVV خارج Transaction (لأنها تحتوي نص كبير)
+  if (isCreate) {
+    await fsSet(env, `manual_card_reveal/${id}`, {
+      uid: await (async () => {
+        const o = await fsGet(env, `manual_card_orders/${id}`);
+        return o.uid;
+      })(),
+      card_id: cardId,
+      card_number: pan,
+      expiry,
+      cvv,
+      created_at: nowIso(),
+      expires_at: expiresAt,
+    });
+  }
+
+  await logOp(env, user.uid, 'manual_card_fulfilled', { id }, { cardId }, true);
 
   return { success: true, card_id: cardId, expires_at: expiresAt };
 }
 
-/**
- * الأدمن يرفض الطلب — يُعاد المبلغ فورًا.
- */
 async function handleAdminCardReject(user, body, env) {
   await requireAdmin(user, env);
 
@@ -585,34 +721,39 @@ async function handleAdminCardReject(user, body, env) {
 
   const back = round2(num(o.total, 0));
 
-  await Promise.all([
-    fsPatch(env, `manual_card_orders/${id}`, {
+  await fsRunTransaction(env, async (tx) => {
+    const cur = await tx.get(`manual_card_orders/${id}`);
+    if (cur.status !== 'pending') throw httpError(400, 'الطلب مُغلق بالفعل');
+
+    const u = await tx.get(`users/${o.uid}`);
+    const newBalance = round2(num(u?.wallet_balance, 0) + back);
+
+    tx.update(`users/${o.uid}`, { wallet_balance: newBalance });
+    tx.update(`manual_card_orders/${id}`, {
       status: 'rejected',
       reject_reason: reason,
       rejected_at: nowIso(),
       rejected_by: user.uid,
-    }),
-    fsIncrement(env, `users/${o.uid}`, { wallet_balance: back }),
-    fsSet(env, `wallet_transactions/txn_mc_refund_${id}`, {
+    });
+    tx.create('wallet_transactions', `txn_mc_refund_${id}`, {
       uid: o.uid,
       type: 'credit',
       amount: back,
+      balance_before: num(u?.wallet_balance, 0),
+      balance_after: newBalance,
       reason: 'card_rejected_refund',
       reference: id,
       created_at: nowIso(),
-    }),
-    logOp(env, user.uid, 'manual_card_rejected', { id }, { refunded: back }, true),
-  ]);
+    });
+  });
+
+  await logOp(env, user.uid, 'manual_card_rejected', { id }, { refunded: back }, true);
 
   return { success: true, refunded: back };
 }
 
-/**
- * Cron: مسح بيانات البطاقات منتهية الصلاحية.
- * لا يمس البطاقة نفسها — فقط PAN + CVV.
- */
 async function purgeExpiredReveals(env) {
-  const rows = await fsQuery(env, {
+  const rows = await fsQueryRaw(env, {
     from: [{ collectionId: 'manual_card_reveal' }],
     limit: 200,
   });
@@ -629,14 +770,9 @@ async function purgeExpiredReveals(env) {
 }
 
 /* ═══════════════════════════════════════════════════════════
-   المحفظة والإيداع — الشحن التلقائي
+   المحفظة والإيداع
    ═══════════════════════════════════════════════════════════ */
 
-/**
- * إعلان تحويل من العميل (رقمه + المبلغ).
- * إن كانت رسالة التحويل وصلت مسبقًا → يُضاف فورًا.
- * وإلا يُحفظ الإعلان معلّقًا، وتُطابقه أول رسالة مناسبة.
- */
 async function handleWalletClaim(user, body, env) {
   const phone = normalizePhone(body.phone || '');
   const amountLyd = round2(num(body.amount_lyd, NaN));
@@ -663,23 +799,31 @@ async function handleWalletClaim(user, body, env) {
   if (amountLyd > maxLyd) throw httpError(400, `الحد الأقصى ${maxLyd} د.ل`);
   await assertDailyLimit(env, st, user.uid, 'deposit', amountUsd);
 
-  // هل وصلت الرسالة قبل الإعلان؟
   const sms = await findUnclaimedSms(env, phone, amountLyd);
 
   if (sms) {
-    const credited = round2(num(sms.amount_usd, amountUsd));
-    await Promise.all([
-      fsPatch(env, `sms_transactions/${sms._id}`, {
+    // ✅ Transaction — لا Race Condition
+    let credited = 0;
+    await fsRunTransaction(env, async (tx) => {
+      const smsDoc = await tx.get(`sms_transactions/${sms._id}`);
+      if (!smsDoc) throw httpError(404, 'الحوالة غير موجودة');
+      if (smsDoc.status === 'claimed') throw httpError(409, 'الحوالة مربوطة مسبقًا');
+
+      const u = await tx.get(`users/${user.uid}`);
+      const curBalance = num(u?.wallet_balance, 0);
+      credited = round2(num(smsDoc.amount_usd, amountUsd));
+
+      tx.update(`users/${user.uid}`, { wallet_balance: round2(curBalance + credited) });
+      tx.update(`sms_transactions/${sms._id}`, {
         status: 'claimed',
         uid: user.uid,
         claimed_at: nowIso(),
         matched_by: 'claim',
-      }),
-      fsIncrement(env, `users/${user.uid}`, { wallet_balance: credited }),
-      fsSet(env, `wallet_deposits/${sms._id}`, {
+      });
+      tx.create('wallet_deposits', sms._id, {
         uid: user.uid,
         amount_usd: credited,
-        amount_lyd: num(sms.amount_lyd, amountLyd),
+        amount_lyd: num(smsDoc.amount_lyd, amountLyd),
         method: (method === 'libyana' ? 'ليبيانا' : 'المدار') + ' — تلقائي',
         claim_phone: phone,
         proof_url: '',
@@ -687,15 +831,28 @@ async function handleWalletClaim(user, body, env) {
         status: 'approved',
         auto: true,
         created_at: nowIso(),
-      }),
+      });
+      tx.create('wallet_transactions', `txn_dep_${sms._id}`, {
+        uid: user.uid,
+        type: 'credit',
+        amount: credited,
+        balance_before: curBalance,
+        balance_after: round2(curBalance + credited),
+        reason: 'deposit_claim',
+        reference: sms._id,
+        created_at: nowIso(),
+      });
+    });
+
+    await Promise.all([
       bumpCounter(env, user.uid, { deposit: credited }),
       bumpCounter(env, '_platform', { deposit: credited }),
       logOp(env, user.uid, 'claim_matched', { phone, amountLyd }, { credited }, true),
     ]);
+
     return { success: true, matched: true, credited_usd: credited };
   }
 
-  // لم تصل بعد: نحفظ الإعلان
   const claimId = `CLM${Date.now()}${randomSuffix(4)}`;
   await fsSet(env, `wallet_deposits/${claimId}`, {
     uid: user.uid,
@@ -713,7 +870,6 @@ async function handleWalletClaim(user, body, env) {
   return { success: true, matched: false, claim_id: claimId };
 }
 
-/** البحث عن رسالة وصلت ولم تُربط بعد، بنفس الرقم والمبلغ */
 async function findUnclaimedSms(env, phone, amountLyd) {
   const res = await fsQueryRaw(env, {
     from: [{ collectionId: 'sms_transactions' }],
@@ -731,18 +887,15 @@ async function findUnclaimedSms(env, phone, amountLyd) {
     limit: 20,
   });
 
-  const rows = res
+  return res
     .map(r => {
       const d = fromFsFields(r.document.fields || {});
       d._id = r.document.name.split('/documents/sms_transactions/')[1];
       return d;
     })
-    .filter(d => Math.abs(num(d.amount_lyd, -1) - amountLyd) < 0.005);
-
-  return rows[0] || null;
+    .filter(d => Math.abs(num(d.amount_lyd, -1) - amountLyd) < 0.005)[0] || null;
 }
 
-/** البحث عن إعلان معلّق ينتظر رسالة بنفس الرقم والمبلغ */
 async function findPendingClaim(env, phone, amountLyd) {
   const res = await fsQueryRaw(env, {
     from: [{ collectionId: 'wallet_deposits' }],
@@ -760,20 +913,18 @@ async function findPendingClaim(env, phone, amountLyd) {
     limit: 20,
   });
 
-  const rows = res
+  return res
     .map(r => {
       const d = fromFsFields(r.document.fields || {});
       d._id = r.document.name.split('/documents/wallet_deposits/')[1];
       return d;
     })
     .filter(d => Math.abs(num(d.amount_lyd, -1) - amountLyd) < 0.005)
-    .sort((a, b) => String(a.created_at || '').localeCompare(String(b.created_at || '')));
-
-  return rows[0] || null;
+    .sort((a, b) => String(a.created_at || '').localeCompare(String(b.created_at || '')))[0] || null;
 }
 
 /* ═══════════════════════════════════════════════════════════
-   USDT — فواتير وتحقق فوري من TRON
+   USDT
    ═══════════════════════════════════════════════════════════ */
 
 async function handleUsdtInvoice(user, body, env) {
@@ -795,7 +946,6 @@ async function handleUsdtInvoice(user, body, env) {
   if (amount > maxU) throw httpError(400, `الحد الأقصى ${maxU} USDT`);
   await assertDailyLimit(env, s, user.uid, 'deposit', amount);
 
-  // توليد مبلغ فريد
   const open = await fsQueryRaw(env, {
     from: [{ collectionId: 'usdt_invoices' }],
     where: {
@@ -845,7 +995,10 @@ async function handleUsdtInvoice(user, body, env) {
   };
 }
 
-async function handleUsdtVerify(user, body, env) {
+/**
+ * ✅ مُحسّن: Transaction على admin_usdt_txids + wallet credit
+ */
+async function handleUsdtVerify(user, body, env, request) {
   const id = String(body.invoice_id || '').trim();
   if (!id) throw httpError(400, 'رقم الفاتورة مفقود');
 
@@ -881,7 +1034,6 @@ async function handleUsdtVerify(user, body, env) {
   }
 
   const since = num(inv.created_ms, 0) - 5 * 60000;
-
   const hit = txs.find(t => {
     const val = Number(t.value || 0) / 1e6;
     const ts = Number(t.block_timestamp || 0);
@@ -893,27 +1045,36 @@ async function handleUsdtVerify(user, body, env) {
   const txid = String(hit.transaction_id || '');
   if (!txid) return { success: true, paid: false };
 
-  // منع استخدام نفس التحويل مرتين
-  const seen = await fsGet(env, `usdt_txids/${txid}`);
-  if (seen) return { success: true, paid: false, duplicate: true };
-
   const received = round2(Number(hit.value || 0) / 1e6);
-  const credited = received;
 
-  await fsSet(env, `usdt_txids/${txid}`, {
-    invoice_id: id,
-    uid: user.uid,
-    amount: received,
-    from: String(hit.from || ''),
-    created_at: nowIso(),
-  });
+  // ✅ Transaction كامل — منع double-spend
+  let credited = 0;
+  let duplicate = false;
+  await fsRunTransaction(env, async (tx) => {
+    const seen = await tx.get(`usdt_txids/${txid}`);
+    if (seen) { duplicate = true; return; }
 
-  await Promise.all([
-    fsPatch(env, `usdt_invoices/${id}`, {
+    const cur = await tx.get(`usdt_invoices/${id}`);
+    if (!cur || cur.status === 'paid') { duplicate = true; return; }
+
+    const u = await tx.get(`users/${user.uid}`);
+    const curBalance = num(u?.wallet_balance, 0);
+    credited = received;
+
+    tx.create('usdt_txids', txid, {
+      invoice_id: id,
+      uid: user.uid,
+      amount: received,
+      from: String(hit.from || '').slice(0, 60),
+      created_at: nowIso(),
+    });
+    tx.update(`usdt_invoices/${id}`, {
       status: 'paid', txid, paid_at: nowIso(), received,
-    }),
-    fsIncrement(env, `users/${user.uid}`, { wallet_balance: credited }),
-    fsSet(env, `wallet_deposits/${id}`, {
+    });
+    tx.update(`users/${user.uid}`, {
+      wallet_balance: round2(curBalance + credited),
+    });
+    tx.create('wallet_deposits', id, {
       uid: user.uid,
       amount_usd: credited,
       amount_lyd: 0,
@@ -923,7 +1084,22 @@ async function handleUsdtVerify(user, body, env) {
       status: 'approved',
       auto: true,
       created_at: nowIso(),
-    }),
+    });
+    tx.create('wallet_transactions', `txn_usdt_${id}`, {
+      uid: user.uid,
+      type: 'credit',
+      amount: credited,
+      balance_before: curBalance,
+      balance_after: round2(curBalance + credited),
+      reason: 'usdt_deposit',
+      reference: txid,
+      created_at: nowIso(),
+    });
+  });
+
+  if (duplicate) return { success: true, paid: false, duplicate: true };
+
+  await Promise.all([
     bumpCounter(env, user.uid, { deposit: credited }),
     bumpCounter(env, '_platform', { deposit: credited }),
     logOp(env, user.uid, 'usdt_paid', { id, want }, { txid, credited }, true),
@@ -933,7 +1109,7 @@ async function handleUsdtVerify(user, body, env) {
 }
 
 /* ═══════════════════════════════════════════════════════════
-   Webhook رسائل ليبيانا والمدار
+   SMS Webhook
    ═══════════════════════════════════════════════════════════ */
 
 function parseTransferSms(text) {
@@ -1047,7 +1223,6 @@ async function handleSmsWebhook(request, env) {
   const fromLc = from.toLowerCase();
   const senderOk = allow.length === 0 || allow.some(a => fromLc.includes(a));
 
-  // بصمة فريدة
   const fingerprint = smsId
     ? await sha256Hex('id:' + smsId)
     : await sha256Hex(String(text).trim() + '|' + String(receivedAt).slice(0, 16));
@@ -1069,9 +1244,7 @@ async function handleSmsWebhook(request, env) {
   }
 
   const existing = await fsGet(env, `sms_transactions/${fingerprint}`);
-  if (existing) {
-    return { success: true, duplicate: true, status: existing.status };
-  }
+  if (existing) return { success: true, duplicate: true, status: existing.status };
 
   if (!parsed) {
     await fsSet(env, `sms_transactions/${fingerprint}`, {
@@ -1100,37 +1273,55 @@ async function handleSmsWebhook(request, env) {
     created_at: nowIso(),
   };
 
-  // مطابقة مع إعلان معلّق
   let claim = null;
-  try {
-    claim = await findPendingClaim(env, parsed.sender, parsed.amount_lyd);
-  } catch (e) {
-    console.error('CLAIM_LOOKUP_FAILED', e.message);
-  }
+  try { claim = await findPendingClaim(env, parsed.sender, parsed.amount_lyd); }
+  catch (e) { console.error('CLAIM_LOOKUP_FAILED', e.message); }
 
   if (claim && claim.uid) {
     try {
-      await Promise.all([
-        fsSet(env, `sms_transactions/${fingerprint}`, {
-          ...record, status: 'claimed', uid: claim.uid,
-          claimed_at: nowIso(), matched_by: 'pending_claim',
-        }),
-        fsPatch(env, `wallet_deposits/${claim._id}`, {
+      await fsRunTransaction(env, async (tx) => {
+        const dep = await tx.get(`wallet_deposits/${claim._id}`);
+        if (!dep || dep.status !== 'pending') throw new Error('DUPLICATE');
+        const u = await tx.get(`users/${claim.uid}`);
+        const curBalance = num(u?.wallet_balance, 0);
+
+        tx.update(`wallet_deposits/${claim._id}`, {
           status: 'approved', auto: true,
           awaiting_sms: false, approved_at: nowIso(),
-        }),
-        fsIncrement(env, `users/${claim.uid}`, { wallet_balance: amountUsd }),
+        });
+        tx.update(`users/${claim.uid}`, {
+          wallet_balance: round2(curBalance + amountUsd),
+        });
+        tx.create('sms_transactions', fingerprint, {
+          ...record, status: 'claimed', uid: claim.uid,
+          claimed_at: nowIso(), matched_by: 'pending_claim',
+        });
+        tx.create('wallet_transactions', `txn_sms_${fingerprint}`, {
+          uid: claim.uid,
+          type: 'credit',
+          amount: amountUsd,
+          balance_before: curBalance,
+          balance_after: round2(curBalance + amountUsd),
+          reason: 'sms_deposit',
+          reference: fingerprint,
+          created_at: nowIso(),
+        });
+      });
+
+      await Promise.all([
         bumpCounter(env, claim.uid, { deposit: amountUsd }),
         bumpCounter(env, '_platform', { deposit: amountUsd }),
         logOp(env, claim.uid, 'sms_matched_claim',
           { sender: parsed.sender, amount_lyd: parsed.amount_lyd },
           { credited: amountUsd }, true),
       ]);
-      return {
-        success: true, parsed: true, matched: true,
-        via: 'claim', credited_usd: amountUsd,
-      };
+
+      return { success: true, parsed: true, matched: true,
+               via: 'claim', credited_usd: amountUsd };
     } catch (e) {
+      if (e.message === 'DUPLICATE') {
+        return { success: true, parsed: true, matched: false, duplicate: true };
+      }
       console.error('CLAIM_CREDIT_FAILED', e.message);
       await fsSet(env, `sms_transactions/${fingerprint}`, {
         ...record, status: 'unclaimed', needs_attention: true,
@@ -1140,15 +1331,11 @@ async function handleSmsWebhook(request, env) {
     }
   }
 
-  // بلا مطابقة — تُحفظ للمراجعة
   await fsSet(env, `sms_transactions/${fingerprint}`, {
     ...record, status: 'unclaimed',
   });
 
-  return {
-    success: true, parsed: true, matched: false,
-    amount_lyd: parsed.amount_lyd,
-  };
+  return { success: true, parsed: true, matched: false, amount_lyd: parsed.amount_lyd };
 }
 
 async function handleAdminSmsAssign(user, body, env) {
@@ -1165,12 +1352,18 @@ async function handleAdminSmsAssign(user, body, env) {
   const amountUsd = round2(num(sms.amount_usd, 0));
   if (amountUsd <= 0) throw httpError(400, 'مبلغ غير صالح');
 
-  await Promise.all([
-    fsPatch(env, `sms_transactions/${smsId}`, {
+  await fsRunTransaction(env, async (tx) => {
+    const cur = await tx.get(`sms_transactions/${smsId}`);
+    if (cur.status === 'claimed') throw httpError(400, 'مربوطة بالفعل');
+
+    const u = await tx.get(`users/${uid}`);
+    const curBalance = num(u?.wallet_balance, 0);
+
+    tx.update(`sms_transactions/${smsId}`, {
       status: 'claimed', uid, claimed_at: nowIso(), claimed_by: user.uid,
-    }),
-    fsIncrement(env, `users/${uid}`, { wallet_balance: amountUsd }),
-    fsSet(env, `wallet_deposits/${smsId}`, {
+    });
+    tx.update(`users/${uid}`, { wallet_balance: round2(curBalance + amountUsd) });
+    tx.create('wallet_deposits', smsId, {
       uid,
       amount_usd: amountUsd,
       amount_lyd: num(sms.amount_lyd, 0),
@@ -1180,15 +1373,26 @@ async function handleAdminSmsAssign(user, body, env) {
       status: 'approved',
       auto: false,
       created_at: nowIso(),
-    }),
-    logOp(env, user.uid, 'sms_manual_assign', { smsId, uid }, { credited: amountUsd }, true),
-  ]);
+    });
+    tx.create('wallet_transactions', `txn_sms_manual_${smsId}`, {
+      uid,
+      type: 'credit',
+      amount: amountUsd,
+      balance_before: curBalance,
+      balance_after: round2(curBalance + amountUsd),
+      reason: 'sms_manual',
+      reference: smsId,
+      created_at: nowIso(),
+    });
+  });
+
+  await logOp(env, user.uid, 'sms_manual_assign', { smsId, uid }, { credited: amountUsd }, true);
 
   return { success: true, credited: amountUsd };
 }
 
 /* ═══════════════════════════════════════════════════════════
-   المتجر — أقسام ومنتجات وطلبات
+   المتجر
    ═══════════════════════════════════════════════════════════ */
 
 async function handleCatalog(env) {
@@ -1202,13 +1406,9 @@ async function handleCatalog(env) {
     .filter(c => c.active !== false)
     .sort((a, b) => num(a.sort, 99) - num(b.sort, 99))
     .map(c => ({
-      id: c._id,
-      name: c.name || '',
-      parent: c.parent || '',
-      icon: c.icon || '',
-      image: c.image || '',
-      soon: c.soon === true,
-      sort: num(c.sort, 99),
+      id: c._id, name: c.name || '', parent: c.parent || '',
+      icon: c.icon || '', image: c.image || '',
+      soon: c.soon === true, sort: num(c.sort, 99),
     }));
 
   const now = Date.now();
@@ -1220,11 +1420,8 @@ async function handleCatalog(env) {
       const pr = proration(p, now);
       const inStock = p.kind === 'stock' ? num(p.stock_count, 0) > 0 : true;
       return {
-        id: p._id,
-        cat: p.cat || '',
-        name: p.name || '',
-        desc: p.desc || '',
-        image: p.image || '',
+        id: p._id, cat: p.cat || '', name: p.name || '',
+        desc: p.desc || '', image: p.image || '',
         price: pr ? pr.price : round2(num(p.price, 0)),
         old_price: pr ? round2(num(p.price, 0)) : round2(num(p.old_price, 0)),
         featured: p.featured === true,
@@ -1246,10 +1443,6 @@ function withId(row, coll) {
   return d;
 }
 
-/**
- * تسعير تناسبي للاشتراكات المشتركة.
- * يُحسب في الخادم دائمًا — لا نثق بساعة المتصفح.
- */
 function proration(p, nowMs) {
   if (p.countdown !== true) return null;
 
@@ -1266,13 +1459,11 @@ function proration(p, nowMs) {
 
   if (now < start) {
     return { state: 'upcoming', total_days: total, days_left: total,
-             per_day: perDay, price: full,
-             starts_at: p.starts_at, ends_at: p.ends_at };
+             per_day: perDay, price: full, starts_at: p.starts_at, ends_at: p.ends_at };
   }
   if (now >= end) {
     return { state: 'expired', total_days: total, days_left: 0,
-             per_day: perDay, price: 0,
-             starts_at: p.starts_at, ends_at: p.ends_at };
+             per_day: perDay, price: 0, starts_at: p.starts_at, ends_at: p.ends_at };
   }
 
   const left = Math.max(1, Math.ceil((end - now) / DAY));
@@ -1281,8 +1472,7 @@ function proration(p, nowMs) {
   if (minP > 0 && price < minP) price = minP;
 
   return { state: 'active', total_days: total, days_left: left,
-           per_day: perDay, price,
-           starts_at: p.starts_at, ends_at: p.ends_at };
+           per_day: perDay, price, starts_at: p.starts_at, ends_at: p.ends_at };
 }
 
 function cleanProductFields(arr) {
@@ -1297,6 +1487,9 @@ function cleanProductFields(arr) {
   })).filter(f => f.label);
 }
 
+/**
+ * ✅ مُحسّن: Transaction كامل + stock آمن
+ */
 async function handleStoreOrder(user, body, env) {
   const s = await getSettings(env);
   assertLive(s);
@@ -1310,7 +1503,6 @@ async function handleStoreOrder(user, body, env) {
 
   const lock = await fsGet(env, `idempotency/${idem}`);
   if (lock) throw httpError(409, 'هذا الطلب قيد التنفيذ بالفعل');
-  await fsSet(env, `idempotency/${idem}`, { uid: user.uid, created_at: nowIso() });
 
   const lines = [];
   let totalLyd = 0;
@@ -1363,66 +1555,117 @@ async function handleStoreOrder(user, body, env) {
     }
   }
 
-  const rate = num(s.usd_to_lyd, 11.8);
-  const totalUsd = round2(totalLyd / rate);
-
-  const me = await fsGet(env, `users/${user.uid}`);
-  if (!me) throw httpError(400, 'الحساب غير مكتمل');
-  if (me.banned === true) throw httpError(403, 'الحساب موقوف');
-  if (num(me.wallet_balance, 0) < totalUsd) {
-    throw httpError(402, `رصيدك غير كافٍ — تحتاج ${round2(totalUsd - num(me.wallet_balance, 0))}$`);
-  }
-
-  await fsIncrement(env, `users/${user.uid}`, { wallet_balance: -totalUsd });
+  const rateVal = num(s.usd_to_lyd, 11.8);
+  const totalUsd = round2(totalLyd / rateVal);
 
   const orderId = `ORD${Date.now()}${randomSuffix(4)}`;
   const allStock = lines.every(l => l.kind === 'stock');
 
-  try {
-    for (const l of lines) {
-      if (l.kind !== 'stock') continue;
-      l.codes = await takeStock(env, l.pid, l.qty);
-      if (l.codes.length < l.qty) throw new Error('نفد المخزون أثناء التنفيذ');
+  // ✅ Transaction كامل
+  let stockCodes = {};
+  await fsRunTransaction(env, async (tx) => {
+    const idemDoc = await tx.get(`idempotency/${idem}`);
+    if (idemDoc) throw httpError(409, 'هذا الطلب قيد التنفيذ بالفعل');
+
+    const me = await tx.get(`users/${user.uid}`);
+    if (!me) throw httpError(400, 'الحساب غير مكتمل');
+    if (me.banned === true) throw httpError(403, 'الحساب موقوف');
+
+    const balance = num(me.wallet_balance, 0);
+    if (balance < totalUsd) {
+      throw httpError(402, `رصيدك غير كافٍ — تحتاج ${round2(totalUsd - balance)}$`);
     }
 
-    await fsSet(env, `orders/${orderId}`, {
+    // خصم الرصيد
+    const newBalance = round2(balance - totalUsd);
+    tx.update(`users/${user.uid}`, {
+      wallet_balance: newBalance,
+      total_spent: round2(num(me.total_spent, 0) + totalUsd),
+    });
+
+    // إنشاء الطلب
+    tx.create('orders', orderId, {
       uid: user.uid,
       items: lines,
       coupon: coupon ? coupon.code : '',
       discount_lyd: discountLyd,
       total_lyd: totalLyd,
       total_usd: totalUsd,
-      rate,
+      rate: rateVal,
       status: allStock ? 'completed' : 'pending',
       idempotency_key: idem,
       created_at: nowIso(),
       updated_at: nowIso(),
     });
 
-    await Promise.all([
-      fsIncrement(env, `users/${user.uid}`, { total_spent: totalUsd }),
-      maybePayReferral(env, s, user.uid, totalUsd),
-      awardPoints(env, s, user.uid, totalLyd),
-      coupon ? consumeCoupon(env, coupon.code, user.uid) : Promise.resolve(),
-      logOp(env, user.uid, 'store_order',
-        { items: lines.length, totalLyd },
-        { orderId, status: allStock ? 'completed' : 'pending' }, true),
-    ]);
+    // بصمة منع التكرار
+    tx.create('idempotency', idem, { uid: user.uid, order_id: orderId, created_at: nowIso() });
 
-    return {
-      success: true,
-      order: {
-        id: orderId,
-        status: allStock ? 'completed' : 'pending',
-        total_lyd: totalLyd, total_usd: totalUsd,
-        items: lines.map(l => ({ name: l.name, qty: l.qty, codes: l.codes || null })),
-      },
-    };
-  } catch (e) {
-    await fsIncrement(env, `users/${user.uid}`, { wallet_balance: totalUsd }).catch(() => {});
-    await logOp(env, user.uid, 'store_order_failed', { totalLyd }, { error: e.message }, false);
-    throw httpError(503, e.message || 'تعذّر تنفيذ الطلب — أُعيد رصيدك');
+    // سجل المعاملة
+    tx.create('wallet_transactions', `txn_order_${orderId}`, {
+      uid: user.uid,
+      type: 'debit',
+      amount: totalUsd,
+      balance_before: balance,
+      balance_after: newBalance,
+      reason: 'store_order',
+      reference: orderId,
+      created_at: nowIso(),
+    });
+
+    // خصم المخزون
+    if (allStock) {
+      for (const l of lines) {
+        if (l.kind !== 'stock') continue;
+        // (سحب الأكواد يتم خارج Transaction — نحدّث العداد فقط)
+        tx.increment(`products/${l.pid}`, 'stock_count', -l.qty);
+      }
+    }
+  });
+
+  // سحب الأكواد الفعلي خارج Transaction
+  if (allStock) {
+    try {
+      for (const l of lines) {
+        if (l.kind !== 'stock') continue;
+        const codes = await takeStock(env, l.pid, l.qty);
+        stockCodes[l.pid] = codes;
+        l.codes = codes;
+      }
+      // تحديث الطلب بالأكواد
+      await fsPatch(env, `orders/${orderId}`, { items: lines });
+    } catch (e) {
+      console.error('STOCK_TAKE_FAILED', e.message);
+      // نُعيد المال للعميل
+      await fsRunTransaction(env, async (tx) => {
+        const me = await tx.get(`users/${user.uid}`);
+        tx.update(`users/${user.uid}`, {
+          wallet_balance: round2(num(me.wallet_balance, 0) + totalUsd),
+        });
+      });
+      throw httpError(503, 'نفد المخزون — أُعيد رصيدك');
+    }
   }
+
+  // المهام الجانبية (لا تؤثر على المعاملة الأساسية)
+  await Promise.all([
+    maybePayReferral(env, s, user.uid, totalUsd),
+    awardPoints(env, s, user.uid, totalLyd),
+    coupon ? consumeCoupon(env, coupon.code, user.uid) : Promise.resolve(),
+    logOp(env, user.uid, 'store_order',
+      { items: lines.length, totalLyd },
+      { orderId, status: allStock ? 'completed' : 'pending' }, true),
+  ]).catch(e => console.error('POST_ORDER_FAILED', e.message));
+
+  return {
+    success: true,
+    order: {
+      id: orderId,
+      status: allStock ? 'completed' : 'pending',
+      total_lyd: totalLyd, total_usd: totalUsd,
+      items: lines.map(l => ({ name: l.name, qty: l.qty, codes: l.codes || null })),
+    },
+  };
 }
 
 async function takeStock(env, pid, qty) {
@@ -1448,9 +1691,6 @@ async function takeStock(env, pid, qty) {
     await fsPatch(env, `stock/${d._id}`, { used: true, used_at: nowIso() });
     codes.push(String(d.code || ''));
   }
-  if (codes.length) {
-    await fsIncrement(env, `products/${pid}`, { stock_count: -codes.length }).catch(() => {});
-  }
   return codes;
 }
 
@@ -1461,34 +1701,49 @@ async function handleAdminOrder(user, body, env) {
   const action = body.action === 'reject' ? 'reject' : 'complete';
   if (!id) throw httpError(400, 'رقم الطلب مفقود');
 
-  const o = await fsGet(env, `orders/${id}`);
-  if (!o) throw httpError(404, 'الطلب غير موجود');
-  if (o.status !== 'pending' && o.status !== 'processing') {
-    throw httpError(400, 'الطلب مُغلق بالفعل');
-  }
-
   if (action === 'reject') {
-    const back = round2(num(o.total_usd, 0));
-    await Promise.all([
-      fsPatch(env, `orders/${id}`, {
+    await fsRunTransaction(env, async (tx) => {
+      const o = await tx.get(`orders/${id}`);
+      if (!o) throw httpError(404, 'الطلب غير موجود');
+      if (o.status !== 'pending' && o.status !== 'processing') {
+        throw httpError(400, 'الطلب مُغلق بالفعل');
+      }
+
+      const back = round2(num(o.total_usd, 0));
+      const u = await tx.get(`users/${o.uid}`);
+      const curBalance = num(u?.wallet_balance, 0);
+
+      tx.update(`orders/${id}`, {
         status: 'rejected',
         reject_reason: String(body.reason || '').slice(0, 160),
         updated_at: nowIso(),
-      }),
-      fsIncrement(env, `users/${o.uid}`, { wallet_balance: back, total_spent: -back }),
-      logOp(env, user.uid, 'order_rejected', { id }, { refunded: back }, true),
-    ]);
-    return { success: true, refunded: back };
+      });
+      tx.update(`users/${o.uid}`, {
+        wallet_balance: round2(curBalance + back),
+        total_spent: round2(num(u?.total_spent, 0) - back),
+      });
+      tx.create('wallet_transactions', `txn_order_refund_${id}`, {
+        uid: o.uid,
+        type: 'credit',
+        amount: back,
+        balance_before: curBalance,
+        balance_after: round2(curBalance + back),
+        reason: 'order_rejected',
+        reference: id,
+        created_at: nowIso(),
+      });
+    });
+
+    await logOp(env, user.uid, 'order_rejected', { id }, { refunded: true }, true);
+    return { success: true, refunded: true };
   }
 
-  await Promise.all([
-    fsPatch(env, `orders/${id}`, {
-      status: 'completed',
-      delivery: String(body.delivery || '').slice(0, 900),
-      updated_at: nowIso(),
-    }),
-    logOp(env, user.uid, 'order_completed', { id }, {}, true),
-  ]);
+  await fsPatch(env, `orders/${id}`, {
+    status: 'completed',
+    delivery: String(body.delivery || '').slice(0, 900),
+    updated_at: nowIso(),
+  });
+  await logOp(env, user.uid, 'order_completed', { id }, {}, true);
   return { success: true };
 }
 
@@ -1520,27 +1775,37 @@ async function handleWithdrawRequest(user, body, env) {
   const net = round2(amount - fee);
   if (net <= 0) throw httpError(400, 'المبلغ لا يغطي الرسوم');
 
-  const me = await fsGet(env, `users/${user.uid}`);
-  if (!me) throw httpError(400, 'الحساب غير مكتمل');
-  if (me.banned === true) throw httpError(403, 'الحساب موقوف');
-  if (num(me.wallet_balance, 0) < amount) throw httpError(402, 'رصيدك غير كافٍ');
-
   const id = `WD${Date.now()}${randomSuffix(4)}`;
-  await fsIncrement(env, `users/${user.uid}`, { wallet_balance: -amount });
 
-  try {
-    await fsSet(env, `withdrawals/${id}`, {
+  await fsRunTransaction(env, async (tx) => {
+    const me = await tx.get(`users/${user.uid}`);
+    if (!me) throw httpError(400, 'الحساب غير مكتمل');
+    if (me.banned === true) throw httpError(403, 'الحساب موقوف');
+
+    const curBalance = num(me.wallet_balance, 0);
+    if (curBalance < amount) throw httpError(402, 'رصيدك غير كافٍ');
+
+    tx.update(`users/${user.uid}`, { wallet_balance: round2(curBalance - amount) });
+    tx.create('withdrawals', id, {
       uid: user.uid, amount_usd: amount, fee, net,
       method, destination: dest,
       status: 'pending',
       created_at: nowIso(), updated_at: nowIso(),
     });
-    await logOp(env, user.uid, 'withdraw_request', { amount, method }, { id }, true);
-    return { success: true, id, fee, net };
-  } catch (e) {
-    await fsIncrement(env, `users/${user.uid}`, { wallet_balance: amount }).catch(() => {});
-    throw httpError(503, 'تعذّر إنشاء الطلب — أُعيد رصيدك');
-  }
+    tx.create('wallet_transactions', `txn_wd_${id}`, {
+      uid: user.uid,
+      type: 'debit',
+      amount: amount,
+      balance_before: curBalance,
+      balance_after: round2(curBalance - amount),
+      reason: 'withdraw_request',
+      reference: id,
+      created_at: nowIso(),
+    });
+  });
+
+  await logOp(env, user.uid, 'withdraw_request', { amount, method }, { id }, true);
+  return { success: true, id, fee, net };
 }
 
 async function handleAdminWithdraw(user, body, env) {
@@ -1549,32 +1814,47 @@ async function handleAdminWithdraw(user, body, env) {
   const action = body.action === 'reject' ? 'reject' : 'complete';
   if (!id) throw httpError(400, 'رقم الطلب مفقود');
 
+  if (action === 'reject') {
+    await fsRunTransaction(env, async (tx) => {
+      const w = await tx.get(`withdrawals/${id}`);
+      if (!w) throw httpError(404, 'الطلب غير موجود');
+      if (w.status !== 'pending') throw httpError(400, 'الطلب مُغلق بالفعل');
+
+      const back = round2(num(w.amount_usd, 0));
+      const u = await tx.get(`users/${w.uid}`);
+      const curBalance = num(u?.wallet_balance, 0);
+
+      tx.update(`withdrawals/${id}`, {
+        status: 'rejected',
+        reject_reason: String(body.reason || '').slice(0, 160),
+        updated_at: nowIso(),
+      });
+      tx.update(`users/${w.uid}`, { wallet_balance: round2(curBalance + back) });
+      tx.create('wallet_transactions', `txn_wd_refund_${id}`, {
+        uid: w.uid,
+        type: 'credit',
+        amount: back,
+        balance_before: curBalance,
+        balance_after: round2(curBalance + back),
+        reason: 'withdraw_rejected',
+        reference: id,
+        created_at: nowIso(),
+      });
+    });
+    await logOp(env, user.uid, 'withdraw_rejected', { id }, { refunded: true }, true);
+    return { success: true, refunded: true };
+  }
+
   const w = await fsGet(env, `withdrawals/${id}`);
   if (!w) throw httpError(404, 'الطلب غير موجود');
   if (w.status !== 'pending') throw httpError(400, 'الطلب مُغلق بالفعل');
 
-  if (action === 'reject') {
-    const back = round2(num(w.amount_usd, 0));
-    await Promise.all([
-      fsPatch(env, `withdrawals/${id}`, {
-        status: 'rejected',
-        reject_reason: String(body.reason || '').slice(0, 160),
-        updated_at: nowIso(),
-      }),
-      fsIncrement(env, `users/${w.uid}`, { wallet_balance: back }),
-      logOp(env, user.uid, 'withdraw_rejected', { id }, { refunded: back }, true),
-    ]);
-    return { success: true, refunded: back };
-  }
-
-  await Promise.all([
-    fsPatch(env, `withdrawals/${id}`, {
-      status: 'completed',
-      note: String(body.note || '').slice(0, 200),
-      updated_at: nowIso(),
-    }),
-    logOp(env, user.uid, 'withdraw_completed', { id }, {}, true),
-  ]);
+  await fsPatch(env, `withdrawals/${id}`, {
+    status: 'completed',
+    note: String(body.note || '').slice(0, 200),
+    updated_at: nowIso(),
+  });
+  await logOp(env, user.uid, 'withdraw_completed', { id }, {}, true);
   return { success: true };
 }
 
@@ -1623,27 +1903,50 @@ async function handleTransfer(user, body, env) {
   const toUid = target.document.name.split('/documents/users/')[1];
   if (toUid === user.uid) throw httpError(400, 'لا يمكنك التحويل لنفسك');
 
-  const me = await fsGet(env, `users/${user.uid}`);
-  if (!me) throw httpError(400, 'الحساب غير مكتمل');
-  if (me.banned === true) throw httpError(403, 'الحساب موقوف');
-  if (num(me.wallet_balance, 0) < total) throw httpError(402, 'رصيدك غير كافٍ');
-
   const id = `TR${Date.now()}${randomSuffix(4)}`;
-  await fsIncrement(env, `users/${user.uid}`, { wallet_balance: -total });
 
-  try {
-    await fsIncrement(env, `users/${toUid}`, { wallet_balance: amount });
-    await fsSet(env, `transfers/${id}`, {
+  await fsRunTransaction(env, async (tx) => {
+    const me = await tx.get(`users/${user.uid}`);
+    const you = await tx.get(`users/${toUid}`);
+    if (!me) throw httpError(400, 'الحساب غير مكتمل');
+    if (me.banned === true) throw httpError(403, 'الحساب موقوف');
+
+    const curBalance = num(me.wallet_balance, 0);
+    if (curBalance < total) throw httpError(402, 'رصيدك غير كافٍ');
+
+    const yourBalance = num(you?.wallet_balance, 0);
+
+    tx.update(`users/${user.uid}`, { wallet_balance: round2(curBalance - total) });
+    tx.update(`users/${toUid}`, { wallet_balance: round2(yourBalance + amount) });
+    tx.create('transfers', id, {
       from_uid: user.uid, to_uid: toUid,
       amount_usd: amount, fee,
       status: 'completed', created_at: nowIso(),
     });
-    await logOp(env, user.uid, 'transfer', { to: toUid, amount }, { id }, true);
-    return { success: true, id, amount, fee };
-  } catch (e) {
-    await fsIncrement(env, `users/${user.uid}`, { wallet_balance: total }).catch(() => {});
-    throw httpError(503, 'تعذّر التحويل — أُعيد رصيدك');
-  }
+    tx.create('wallet_transactions', `txn_tr_out_${id}`, {
+      uid: user.uid,
+      type: 'debit',
+      amount: total,
+      balance_before: curBalance,
+      balance_after: round2(curBalance - total),
+      reason: 'transfer_out',
+      reference: id,
+      created_at: nowIso(),
+    });
+    tx.create('wallet_transactions', `txn_tr_in_${id}`, {
+      uid: toUid,
+      type: 'credit',
+      amount: amount,
+      balance_before: yourBalance,
+      balance_after: round2(yourBalance + amount),
+      reason: 'transfer_in',
+      reference: id,
+      created_at: nowIso(),
+    });
+  });
+
+  await logOp(env, user.uid, 'transfer', { to: toUid, amount }, { id }, true);
+  return { success: true, id, amount, fee };
 }
 
 /* ═══════════════════════════════════════════════════════════
@@ -1774,25 +2077,31 @@ async function handleRedeemPoints(user, body, env) {
   const minP = num(s.points_min_redeem, 100);
   if (pts < minP) throw httpError(400, `الحد الأدنى ${minP} نقطة`);
 
-  const me = await fsGet(env, `users/${user.uid}`);
-  if (!me || num(me.points, 0) < pts) throw httpError(400, 'نقاطك غير كافية');
-
   const rateP = num(s.points_value_lyd, 0.01);
   const lydVal = round2(pts * rateP);
   const usdVal = round2(lydVal / num(s.usd_to_lyd, 11.8));
   if (usdVal <= 0) throw httpError(400, 'قيمة غير صالحة');
 
-  await Promise.all([
-    fsIncrement(env, `users/${user.uid}`, { points: -pts, wallet_balance: usdVal }),
-    fsSet(env, `wallet_deposits/PTS${Date.now()}${randomSuffix(3)}`, {
+  const id = `PTS${Date.now()}${randomSuffix(3)}`;
+
+  await fsRunTransaction(env, async (tx) => {
+    const me = await tx.get(`users/${user.uid}`);
+    if (!me || num(me.points, 0) < pts) throw httpError(400, 'نقاطك غير كافية');
+
+    const curBalance = num(me.wallet_balance, 0);
+    tx.update(`users/${user.uid}`, {
+      points: num(me.points, 0) - pts,
+      wallet_balance: round2(curBalance + usdVal),
+    });
+    tx.create('wallet_deposits', id, {
       uid: user.uid, amount_usd: usdVal, amount_lyd: lydVal,
       method: 'استبدال نقاط', proof_url: '', note: pts + ' نقطة',
       status: 'approved', auto: true, created_at: nowIso(),
-    }),
-    logOp(env, user.uid, 'redeem_points', { pts }, { usdVal }, true),
-  ]);
+    });
+  });
 
-  return { success: true, credited: usdVal, points_left: num(me.points, 0) - pts };
+  await logOp(env, user.uid, 'redeem_points', { pts }, { usdVal }, true);
+  return { success: true, credited: usdVal };
 }
 
 /* ═══════════════════════════════════════════════════════════
@@ -1896,7 +2205,7 @@ async function maybePayReferral(env, s, uid, spent) {
 }
 
 /* ═══════════════════════════════════════════════════════════
-   الإدارة — الإعدادات والإيداعات والتعديلات
+   الإدارة
    ═══════════════════════════════════════════════════════════ */
 
 async function handleAdminSettings(user, body, env) {
@@ -1954,10 +2263,6 @@ async function handleAdminDeposit(user, body, env) {
   const action = body.action === 'reject' ? 'reject' : 'approve';
   if (!depositId) throw httpError(400, 'معرّف الإيداع مفقود');
 
-  const dep = await fsGet(env, `wallet_deposits/${depositId}`);
-  if (!dep) throw httpError(404, 'الإيداع غير موجود');
-  if (dep.status !== 'pending') throw httpError(400, 'تمت معالجة هذا الإيداع مسبقًا');
-
   if (action === 'reject') {
     const why = String(body.reason || '').slice(0, 200);
     await fsPatch(env, `wallet_deposits/${depositId}`, {
@@ -1967,19 +2272,35 @@ async function handleAdminDeposit(user, body, env) {
     return { success: true, status: 'rejected' };
   }
 
-  const amountUsd = round2(num(dep.amount_usd, 0));
-  if (amountUsd <= 0) throw httpError(400, 'مبلغ غير صحيح');
+  await fsRunTransaction(env, async (tx) => {
+    const dep = await tx.get(`wallet_deposits/${depositId}`);
+    if (!dep) throw httpError(404, 'الإيداع غير موجود');
+    if (dep.status !== 'pending') throw httpError(400, 'تمت معالجة هذا الإيداع مسبقًا');
 
-  await Promise.all([
-    fsIncrement(env, `users/${dep.uid}`, { wallet_balance: amountUsd }),
-    fsPatch(env, `wallet_deposits/${depositId}`, {
+    const amountUsd = round2(num(dep.amount_usd, 0));
+    if (amountUsd <= 0) throw httpError(400, 'مبلغ غير صحيح');
+
+    const u = await tx.get(`users/${dep.uid}`);
+    const curBalance = num(u?.wallet_balance, 0);
+
+    tx.update(`wallet_deposits/${depositId}`, {
       status: 'approved', reviewed_by: user.uid, reviewed_at: nowIso(),
-    }),
-    logOp(env, user.uid, 'approve_deposit',
-      { depositId, amountUsd }, { ok: true }, true),
-  ]);
+    });
+    tx.update(`users/${dep.uid}`, { wallet_balance: round2(curBalance + amountUsd) });
+    tx.create('wallet_transactions', `txn_dep_manual_${depositId}`, {
+      uid: dep.uid,
+      type: 'credit',
+      amount: amountUsd,
+      balance_before: curBalance,
+      balance_after: round2(curBalance + amountUsd),
+      reason: 'deposit_approved',
+      reference: depositId,
+      created_at: nowIso(),
+    });
+  });
 
-  return { success: true, status: 'approved', credited: amountUsd };
+  await logOp(env, user.uid, 'approve_deposit', { depositId }, { ok: true }, true);
+  return { success: true, status: 'approved' };
 }
 
 async function handleAdminWalletAdjust(user, body, env) {
@@ -1993,14 +2314,36 @@ async function handleAdminWalletAdjust(user, body, env) {
   if (!Number.isFinite(delta) || delta === 0) throw httpError(400, 'المبلغ غير صحيح');
   if (reason.length < 3) throw httpError(400, 'السبب مطلوب');
 
-  await fsIncrement(env, `users/${uid}`, { wallet_balance: round2(delta) });
-  await logOp(env, user.uid, 'wallet_adjust', { uid, delta, reason }, { ok: true }, true);
+  const id = `ADJ${Date.now()}${randomSuffix(4)}`;
 
-  return { success: true, delta: round2(delta) };
+  await fsRunTransaction(env, async (tx) => {
+    const u = await tx.get(`users/${uid}`);
+    if (!u) throw httpError(404, 'المستخدم غير موجود');
+
+    const curBalance = num(u.wallet_balance, 0);
+    const newBalance = round2(curBalance + delta);
+    if (newBalance < 0) throw httpError(400, 'الرصيد لا يمكن أن يصبح سالباً');
+
+    tx.update(`users/${uid}`, { wallet_balance: newBalance });
+    tx.create('wallet_transactions', id, {
+      uid,
+      type: delta > 0 ? 'credit' : 'debit',
+      amount: Math.abs(delta),
+      balance_before: curBalance,
+      balance_after: newBalance,
+      reason: 'admin_adjust: ' + reason,
+      reference: id,
+      admin_uid: user.uid,
+      created_at: nowIso(),
+    });
+  });
+
+  await logOp(env, user.uid, 'wallet_adjust', { uid, delta, reason }, { ok: true }, true);
+  return { success: true, delta };
 }
 
 /* ═══════════════════════════════════════════════════════════
-   الحدود اليومية والطوارئ
+   الحدود والطوارئ
    ═══════════════════════════════════════════════════════════ */
 
 function assertLive(s) {
@@ -2081,12 +2424,12 @@ async function logActivity(env, s, uid, request, action) {
     await fsSet(env, `activity/${uid}_${Date.now()}`, {
       uid, action,
       ip: (request.headers.get('cf-connecting-ip') || '').slice(0, 45),
-      country: String(cf.country || ''),
-      city: String(cf.city || ''),
+      country: String(cf.country || '').slice(0, 4),
+      city: String(cf.city || '').slice(0, 60),
       ua: (request.headers.get('user-agent') || '').slice(0, 160),
       created_at: nowIso(),
     });
-  } catch { /* السجل ليس حرجًا */ }
+  } catch { /* غير حرج */ }
 }
 
 async function handleActivityPing(user, body, env, request) {
@@ -2096,24 +2439,19 @@ async function handleActivityPing(user, body, env, request) {
 }
 
 /* ═══════════════════════════════════════════════════════════
-   الإعدادات — الافتراضيات
+   الإعدادات
    ═══════════════════════════════════════════════════════════ */
 
 async function getSettings(env) {
   const ops = await fsGet(env, 'settings/main');
   return {
     usd_to_lyd: 11.8,
-    rate_libyana: 11.8,
-    rate_almadar: 12.5,
-    rate_bank: 9.5,
-    rate_usdt: 1.0,
+    rate_libyana: 11.8, rate_almadar: 12.5,
+    rate_bank: 9.5, rate_usdt: 1.0,
     max_deposit_lyd: 5000,
-    issuing_enabled: false,
-    funding_enabled: false,
-    provider_float: 0,
-    low_balance_threshold: 30,
-    maintenance_message: '',
-    deposit_phone: '',
+    issuing_enabled: false, funding_enabled: false,
+    provider_float: 0, low_balance_threshold: 30,
+    maintenance_message: '', deposit_phone: '',
     m_libyana_on: true, m_libyana_label: 'ليبيانا',
     m_almadar_on: true, m_almadar_label: 'المدار',
     m_bank_on: false, m_bank_label: 'تحويل مصرفي',
@@ -2121,8 +2459,7 @@ async function getSettings(env) {
     m_binance_on: false, m_binance_label: 'Binance Pay',
     m_libyana_phone: '', m_almadar_phone: '',
     sms_allowed_senders: 'Libyana,ليبيانا,المدار,Almadar',
-    banners: [],
-    banner_rotate_sec: 6,
+    banners: [], banner_rotate_sec: 6,
     custom_methods: [],
     method_order: 'libyana,almadar,usdt,bank,binance',
     deposit_note: '',
@@ -2133,8 +2470,7 @@ async function getSettings(env) {
     mc_create_fee_fixed: 8, mc_create_fee_pct: 2.5,
     mc_topup_min: 10, mc_topup_max: 500,
     mc_topup_fee_fixed: 8, mc_topup_fee_pct: 2.5,
-    mc_tx_fee: 0,
-    mc_reveal_hours: 24,
+    mc_tx_fee: 0, mc_reveal_hours: 24,
     withdraw_enabled: false, withdraw_min: 10, withdraw_max: 500,
     withdraw_fee_pct: 0, withdraw_fee_fixed: 0,
     withdraw_methods: 'ليبيانا,المدار,تحويل مصرفي,USDT',
@@ -2145,25 +2481,18 @@ async function getSettings(env) {
     coupons_enabled: true,
     kill_switch: false,
     kill_message: 'الخدمة متوقفة مؤقتًا للصيانة.',
-    daily_cards_max: 3,
-    daily_amount_max: 200,
-    daily_deposit_max: 500,
-    platform_daily_max: 2000,
+    daily_cards_max: 3, daily_amount_max: 200,
+    daily_deposit_max: 500, platform_daily_max: 2000,
     limits_enabled: true,
-    referral_enabled: false,
-    referral_bonus_inviter: 1,
-    referral_bonus_invitee: 1,
-    referral_min_spend: 10,
+    referral_enabled: false, referral_bonus_inviter: 1,
+    referral_bonus_invitee: 1, referral_min_spend: 10,
     activity_log_enabled: true,
-    usdt_address: '',
-    usdt_min: 5, usdt_max: 1000, usdt_window_min: 30,
+    usdt_address: '', usdt_min: 5, usdt_max: 1000, usdt_window_min: 30,
     m_libyana_logo: '', m_almadar_logo: '', m_bank_logo: '',
     m_usdt_logo: '', m_binance_logo: '',
     m_bank_fields: [], m_usdt_fields: [], m_binance_fields: [],
-    theme_navy: '#0F172A',
-    theme_emerald: '#10B981',
-    theme_bg: '#F8FAFC',
-    theme_radius: 14,
+    theme_navy: '#0F172A', theme_emerald: '#10B981',
+    theme_bg: '#F8FAFC', theme_radius: 14,
     nav_home: true, nav_mcards: true, nav_wallet: true,
     nav_tx: true, nav_help: true, nav_settings: true,
     brand_tagline: 'بطاقات أكثر .. فرص أكبر',
@@ -2349,11 +2678,6 @@ async function fsCommit(env, writes) {
   });
 }
 
-async function fsQuery(env, structuredQuery) {
-  const res = await fsQueryRaw(env, structuredQuery);
-  return res.map(r => withId(r, structuredQuery.from[0].collectionId));
-}
-
 async function fsQueryRaw(env, structuredQuery) {
   try {
     const res = await fsFetch(env, ':runQuery', {
@@ -2364,6 +2688,93 @@ async function fsQueryRaw(env, structuredQuery) {
   } catch (e) {
     console.error('QUERY_FAILED', e.message);
     return [];
+  }
+}
+
+/**
+ * ✅ Transaction كامل مع rollback تلقائي
+ */
+async function fsRunTransaction(env, fn) {
+  const token = await getAccessToken(env);
+  const base = `${FS_BASE}/projects/${env.FIREBASE_PROJECT_ID}/databases/(default)/documents`;
+
+  const beginRes = await fetch(`${base}:beginTransaction`, {
+    method: 'POST',
+    headers: { authorization: `Bearer ${token}`, 'content-type': 'application/json' },
+    body: JSON.stringify({ options: { readWrite: {} } }),
+  });
+  if (!beginRes.ok) throw httpError(500, 'تعذّر بدء المعاملة');
+  const { transaction } = await beginRes.json();
+
+  const writes = [];
+
+  const tx = {
+    async get(path) {
+      const res = await fetch(`${base}/${path}?transaction=${transaction}`, {
+        headers: { authorization: `Bearer ${token}` },
+      });
+      if (res.status === 404) return null;
+      if (!res.ok) throw httpError(500, 'خطأ في القراءة');
+      const doc = await res.json();
+      return fromFsFields(doc.fields || {});
+    },
+    update(path, data, merge = true) {
+      const entry = {
+        update: { name: docPath(env, path), fields: toFsFields(data) },
+      };
+      if (merge) entry.updateMask = { fieldPaths: Object.keys(data) };
+      writes.push(entry);
+    },
+    create(collection, docId, data) {
+      writes.push({
+        update: {
+          name: docPath(env, `${collection}/${docId}`),
+          fields: toFsFields(data),
+        },
+        currentDocument: { exists: false },
+      });
+    },
+    delete(path) {
+      writes.push({ delete: docPath(env, path) });
+    },
+    increment(path, field, amount) {
+      writes.push({
+        transform: {
+          document: docPath(env, path),
+          fieldTransforms: [{
+            fieldPath: field,
+            increment: Number.isInteger(amount)
+              ? { integerValue: String(amount) }
+              : { doubleValue: amount },
+          }],
+        },
+      });
+    },
+  };
+
+  try {
+    const result = await fn(tx);
+    if (writes.length) {
+      const commitRes = await fetch(`${base}:commit`, {
+        method: 'POST',
+        headers: { authorization: `Bearer ${token}`, 'content-type': 'application/json' },
+        body: JSON.stringify({ transaction, writes }),
+      });
+      if (!commitRes.ok) {
+        const t = await commitRes.text();
+        throw new Error(`commit failed: ${t}`);
+      }
+    }
+    return result;
+  } catch (e) {
+    try {
+      await fetch(`${base}:rollback`, {
+        method: 'POST',
+        headers: { authorization: `Bearer ${token}`, 'content-type': 'application/json' },
+        body: JSON.stringify({ transaction }),
+      });
+    } catch {}
+    throw e;
   }
 }
 
@@ -2414,6 +2825,13 @@ async function requireAuth(request, env) {
   if (!m) throw httpError(401, 'يجب تسجيل الدخول');
 
   const payload = await verifyIdToken(m[1], env.FIREBASE_PROJECT_ID);
+
+  // ✅ فحص الإيقاف
+  const userDoc = await fsGet(env, `users/${payload.user_id || payload.sub}`).catch(() => null);
+  if (userDoc && userDoc.banned === true) {
+    throw httpError(403, 'حسابك موقوف — تواصل مع الدعم');
+  }
+
   return { uid: payload.user_id || payload.sub, email: payload.email || '' };
 }
 
@@ -2553,4 +2971,4 @@ function b64urlToBytes(s) {
   const b64 = s.replace(/-/g, '+').replace(/_/g, '/');
   const raw = atob(b64 + '='.repeat((4 - b64.length % 4) % 4));
   return Uint8Array.from(raw, c => c.charCodeAt(0));
-       }
+}
