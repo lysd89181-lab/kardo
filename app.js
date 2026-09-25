@@ -1,7 +1,16 @@
 /**
  * ═══════════════════════════════════════════════════════════
- *  KARDO — App Logic (v3.3.0)
- *  Desert Noir Edition
+ *  KARDO — App Logic
+ *  Version: 4.0.0 (Security Hardened)
+ *
+ *  New in v4:
+ *  - App Check support
+ *  - Idempotency keys for financial operations
+ *  - XSS protection for icon URLs
+ *  - Fetch timeout protection
+ *  - Lazy loading for realtime listeners
+ *  - prefers-reduced-motion support
+ *  - Skeleton loading states
  * ═══════════════════════════════════════════════════════════
  */
 
@@ -9,8 +18,10 @@ import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.12.2/fireba
 import { getAuth, onAuthStateChanged, signOut, sendPasswordResetEmail }
   from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js';
 import { getFirestore, doc, setDoc, getDoc, onSnapshot, collection,
-  query, where, orderBy, limit, addDoc, serverTimestamp }
+  query, where, orderBy, limit }
   from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js';
+import { initializeAppCheck, ReCaptchaV3Provider }
+  from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-app-check.js';
 
 /* ═══ Config ═══ */
 const firebaseConfig = {
@@ -24,7 +35,24 @@ const firebaseConfig = {
 
 const API_BASE = 'https://kardo.sdkhyrallh08.workers.dev';
 
+// ⭐ App Check site key (from Firebase Console → App Check → reCAPTCHA v3)
+const APP_CHECK_SITE_KEY = '';
+
 const app = initializeApp(firebaseConfig);
+
+let appCheckEnabled = false;
+try {
+  if (APP_CHECK_SITE_KEY) {
+    initializeAppCheck(app, {
+      provider: new ReCaptchaV3Provider(APP_CHECK_SITE_KEY),
+      isTokenAutoRefreshEnabled: true,
+    });
+    appCheckEnabled = true;
+  }
+} catch (e) {
+  console.warn('App Check init failed:', e.message);
+}
+
 const auth = getAuth(app);
 const db = getFirestore(app);
 
@@ -88,6 +116,29 @@ function sortByDate(rows, key = 'created_at') {
   });
 }
 
+// ⭐ Idempotency key generator
+function newIdemKey() {
+  return 'idem_' + Date.now() + '_' + Math.random().toString(36).slice(2, 10);
+}
+
+// ⭐ Sanitize icon URLs (defense in depth — Worker validates too)
+function safeIconUrl(url) {
+  if (!url) return '';
+  const s = String(url).trim();
+  const allowed = [
+    'data:image/jpeg;base64,',
+    'data:image/jpg;base64,',
+    'data:image/png;base64,',
+    'data:image/webp;base64,',
+    'https://',
+  ];
+  const lower = s.toLowerCase();
+  for (const prefix of allowed) {
+    if (lower.startsWith(prefix)) return s;
+  }
+  return '';
+}
+
 /* ═══ Icons (Lucide) ═══ */
 const I = {
   home: '<path d="M3 10.4 12 3l9 7.4V20a1 1 0 0 1-1 1h-5v-7H9v7H4a1 1 0 0 1-1-1z"/>',
@@ -144,12 +195,43 @@ function toast(msg, kind = '') {
 
 /* ═══ Modal ═══ */
 function modal(html) {
+  window._lastFocused = document.activeElement;
   $('#modal').innerHTML = html;
   $('#overlay').classList.add('open');
+  setTimeout(() => {
+    const modalEl = $('#modal');
+    const focusable = modalEl.querySelectorAll(
+      'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])'
+    );
+    if (focusable.length) focusable[0].focus();
+  }, 50);
 }
-window.closeModal = () => $('#overlay').classList.remove('open');
+window.closeModal = () => {
+  $('#overlay').classList.remove('open');
+  if (window._lastFocused) {
+    try { window._lastFocused.focus(); } catch {}
+  }
+};
 $('#overlay')?.addEventListener('click', e => { if (e.target.id === 'overlay') closeModal(); });
-document.addEventListener('keydown', e => { if (e.key === 'Escape') closeModal(); });
+document.addEventListener('keydown', e => {
+  if (e.key === 'Escape') closeModal();
+  if (e.key === 'Tab' && $('#overlay').classList.contains('open')) {
+    const modalEl = $('#modal');
+    const focusable = [...modalEl.querySelectorAll(
+      'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])'
+    )].filter(el => !el.disabled && el.offsetParent !== null);
+    if (focusable.length === 0) return;
+    const first = focusable[0];
+    const last = focusable[focusable.length - 1];
+    if (e.shiftKey && document.activeElement === first) {
+      e.preventDefault();
+      last.focus();
+    } else if (!e.shiftKey && document.activeElement === last) {
+      e.preventDefault();
+      first.focus();
+    }
+  }
+});
 
 /* ═══ API ═══ */
 async function fetchWithTimeout(url, options = {}, ms = 15000) {
@@ -165,7 +247,7 @@ async function api(path, body) {
     method: 'POST',
     headers: { 'content-type': 'application/json', authorization: 'Bearer ' + token },
     body: JSON.stringify(body || {}),
-  });
+  }, 20000);
   const d = await res.json().catch(() => ({ success: false, error: 'رد غير مفهوم' }));
   if (!d.success) throw new Error(d.error || 'فشلت العملية');
   return d;
@@ -382,7 +464,7 @@ function paint() {
 }
 
 /* ═══════════════════════════════════════════════════════════
-   Dashboard — Desert Noir
+   Dashboard
    ═══════════════════════════════════════════════════════════ */
 
 function vDashboard() {
@@ -404,15 +486,12 @@ function vDashboard() {
   return `
   <div class="page-enter">
     <div style="margin-bottom:32px">
-      <div style="font-family:var(--font-mono);font-size:11px;letter-spacing:0.15em;color:var(--sand);text-transform:uppercase;margin-bottom:8px">
-        ${hour < 12 ? 'GOOD MORNING' : 'GOOD EVENING'}
-      </div>
-      <h1 class="h1" style="margin-bottom:6px">${greeting}، ${esc(name.split(' ')[0])}</h1>
+      <h1 class="h2" style="margin-bottom:6px">${greeting}، ${esc(name.split(' ')[0])}</h1>
       <p class="body-sm text-2">إليك ملخص حسابك اليوم</p>
     </div>
 
     <div class="balance-card" style="margin-bottom:24px">
-      <div class="balance-label">AVAILABLE BALANCE</div>
+      <div class="balance-label">الرصيد المتاح</div>
       <div class="balance-value">${lyd(S.profile.wallet_balance * rate())}</div>
       <div class="balance-secondary">${usd(S.profile.wallet_balance)}</div>
 
@@ -506,7 +585,7 @@ function vDashboard() {
 }
 
 function cardMiniHtml(c) {
-  const st = { active: 'ACTIVE', frozen: 'FROZEN', deleted: 'CLOSED' }[c.status] || '—';
+  const st = { active: 'نشطة', frozen: 'مجمدة', deleted: 'مغلقة' }[c.status] || '—';
   return `
     <button class="service-card" data-card="${esc(c.id)}" style="padding:0;overflow:hidden;border:none;background:transparent">
       <div class="vcard" style="border-radius:0;aspect-ratio:1.586">
@@ -582,10 +661,7 @@ function vServices() {
   return `
   <div class="page-enter">
     <div class="mb-6">
-      <div style="font-family:var(--font-mono);font-size:11px;letter-spacing:0.15em;color:var(--sand);text-transform:uppercase;margin-bottom:8px">
-        DIGITAL SERVICES
-      </div>
-      <h1 class="h1" style="margin-bottom:6px">الخدمات الرقمية</h1>
+      <h1 class="h2" style="margin-bottom:6px">الخدمات الرقمية</h1>
       <p class="body-sm text-2">اشترِ الأكواد والحسابات فوراً</p>
     </div>
 
@@ -647,13 +723,14 @@ function svcCard(s) {
   const badgeCls = isAuto ? 'badge-success' : 'badge-info';
   const stock = s.in_stock;
   const outOfStock = isAuto && stock === false;
+  const iconUrl = safeIconUrl(s.icon_url);
 
   return `
     <button class="service-card" data-buy-svc="${esc(s.id)}" style="position:relative">
       <div style="display:flex;gap:12px;align-items:center;width:100%">
         <div class="svc-icon">
-          ${s.icon_url
-            ? `<img src="${esc(s.icon_url)}" alt="">`
+          ${iconUrl
+            ? `<img src="${esc(iconUrl)}" alt="">`
             : `<span>${esc(s.icon_emoji || '📦')}</span>`}
         </div>
         <div style="flex:1;min-width:0;text-align:right">
@@ -692,35 +769,41 @@ function svcOrderRow(o, delivered) {
       </div>
     </div>
   `;
-                   }
+                }
+
+/* ═══════════════════════════════════════════════════════════
+   Service Order Detail
+   ═══════════════════════════════════════════════════════════ */
+
 function openServiceOrderDetail(orderId) {
   const o = (S.svcOrders || []).find(x => x.id === orderId);
   if (!o) return;
 
   const isDelivered = o.status === 'delivered';
   const isRejected = o.status === 'rejected';
+  const isExpired = o.delivered_expires_at && new Date(o.delivered_expires_at) < new Date();
 
   modal(`
     <div class="modal-head">
       <div class="modal-title">${esc(o.service_name || 'خدمة')}</div>
-      <button class="modal-close" onclick="closeModal()">${svg(I.x, 2)}</button>
+      <button class="modal-close" onclick="closeModal()" aria-label="إغلاق">${svg(I.x, 2)}</button>
     </div>
 
     <div class="card card-sm mb-4" style="background:var(--surface-2);border:none">
       <div class="flex-between" style="padding:4px 0">
-        <span class="caption" style="font-family:var(--font-mono);letter-spacing:0.1em">ORDER</span>
+        <span class="caption">رقم الطلب</span>
         <span class="mono" style="font-size:11px">${esc(o.id)}</span>
       </div>
       <div class="flex-between" style="padding:4px 0">
-        <span class="caption" style="font-family:var(--font-mono);letter-spacing:0.1em">DATE</span>
+        <span class="caption">التاريخ</span>
         <span class="body-sm">${esc(dt(o.created_at))}</span>
       </div>
       <div class="flex-between" style="padding:4px 0">
-        <span class="caption" style="font-family:var(--font-mono);letter-spacing:0.1em">PRICE</span>
-        <span class="tabular" style="font-weight:700;color:var(--sand)">${esc(usd(o.price_usd))}</span>
+        <span class="caption">السعر</span>
+        <span class="tabular" style="font-weight:700">${esc(usd(o.price_usd))}</span>
       </div>
       <div class="flex-between" style="padding:4px 0">
-        <span class="caption" style="font-family:var(--font-mono);letter-spacing:0.1em">STATUS</span>
+        <span class="caption">الحالة</span>
         <span class="badge ${isDelivered ? 'badge-success' : isRejected ? 'badge-error' : 'badge-warning'}">
           ${isDelivered ? 'تم التسليم' : isRejected ? 'مرفوض' : 'قيد التنفيذ'}
         </span>
@@ -739,11 +822,17 @@ function openServiceOrderDetail(orderId) {
       </div>
     ` : ''}
 
-    ${isDelivered ? `
+    ${isDelivered && !isExpired ? `
       <div class="field-label mb-2">البيانات المُسلَّمة</div>
       <div class="copy-box mb-4" style="text-align:center;padding:20px">
         <div class="mono" style="font-size:13px;word-break:break-all;line-height:1.7;white-space:pre-wrap;color:var(--sand)">${esc(o.delivered_data || '')}</div>
-        <button class="copy-btn" id="copyDelivered" style="margin-top:12px">${svg(I.copy, 2)} نسخ</button>
+      </div>
+    ` : ''}
+
+    ${isDelivered && isExpired ? `
+      <div class="alert alert-warning mb-4">
+        ${svg(I.clock, 2)}
+        <div><strong>انتهت صلاحية العرض</strong><br>البيانات محذوفة للأمان — تواصل مع الدعم</div>
       </div>
     ` : ''}
 
@@ -764,14 +853,20 @@ function openServiceOrderDetail(orderId) {
     <button class="btn btn-secondary btn-block" onclick="closeModal()">إغلاق</button>
   `);
 
-  onTap('#copyDelivered', async () => {
-    try {
-      await navigator.clipboard.writeText(o.delivered_data || '');
-      toast('نُسخ', 'ok');
-    } catch { toast('تعذّر النسخ', 'bad'); }
-  });
+  if (isDelivered && !isExpired) {
+    onTap('#copyDelivered', async () => {
+      try {
+        await navigator.clipboard.writeText(o.delivered_data || '');
+        toast('نُسخ', 'ok');
+      } catch { toast('تعذّر النسخ', 'bad'); }
+    });
+  }
 }
 window.openServiceOrderDetail = openServiceOrderDetail;
+
+/* ═══════════════════════════════════════════════════════════
+   Service Buy
+   ═══════════════════════════════════════════════════════════ */
 
 async function openServiceBuy(svcId) {
   const svc = (S.services || []).find(x => x.id === svcId);
@@ -781,17 +876,18 @@ async function openServiceBuy(svcId) {
   const balance = n(S.profile.wallet_balance);
   const canBuy = balance >= price;
   const fields = Array.isArray(svc.fields) ? svc.fields : [];
+  const iconUrl = safeIconUrl(svc.icon_url);
 
   modal(`
     <div class="modal-head">
       <div class="modal-title">${esc(svc.name)}</div>
-      <button class="modal-close" onclick="closeModal()">${svg(I.x, 2)}</button>
+      <button class="modal-close" onclick="closeModal()" aria-label="إغلاق">${svg(I.x, 2)}</button>
     </div>
 
     <div class="card card-sm mb-4" style="background:var(--surface-2);border:none;text-align:center;padding:24px">
       <div class="svc-icon-lg">
-        ${svc.icon_url
-          ? `<img src="${esc(svc.icon_url)}" alt="">`
+        ${iconUrl
+          ? `<img src="${esc(iconUrl)}" alt="">`
           : `<span>${esc(svc.icon_emoji || '📦')}</span>`}
       </div>
       <div class="h4" style="margin:12px 0 4px">${esc(svc.name)}</div>
@@ -840,6 +936,7 @@ async function openServiceBuy(svcId) {
       const r = await api('/api/service/create-order', {
         service_id: svcId,
         inputs,
+        idempotency_key: newIdemKey(),  // ⭐ Idempotency
       });
 
       const ord = r.order || {};
@@ -848,7 +945,7 @@ async function openServiceBuy(svcId) {
         modal(`
           <div class="modal-head">
             <div class="modal-title">✅ تم الشراء</div>
-            <button class="modal-close" onclick="closeModal()">${svg(I.x, 2)}</button>
+            <button class="modal-close" onclick="closeModal()" aria-label="إغلاق">${svg(I.x, 2)}</button>
           </div>
 
           <div class="alert alert-success mb-4">
@@ -915,7 +1012,7 @@ function renderField(f, i) {
   return `
     <div class="field mb-3">
       <label class="field-label">${label}</label>
-      <input class="input" id="${id}" type="${esc(f.type || 'text')}" placeholder="${esc(f.placeholder || '')}" dir="${['password', 'tel'].includes(f.type) ? 'ltr' : 'auto'}">
+      <input class="input" id="${id}" type="${esc(f.type || 'text')}" placeholder="${esc(f.placeholder || '')}" dir="${['password', 'tel'].includes(f.type) ? 'ltr' : 'auto'}" ${f.type === 'password' ? 'autocomplete="new-password"' : ''}>
     </div>
   `;
 }
@@ -930,10 +1027,7 @@ function vShop() {
   return `
   <div class="page-enter">
     <div class="mb-6">
-      <div style="font-family:var(--font-mono);font-size:11px;letter-spacing:0.15em;color:var(--sand);text-transform:uppercase;margin-bottom:8px">
-        STORE
-      </div>
-      <h1 class="h1" style="margin-bottom:6px">المتجر</h1>
+      <h1 class="h2" style="margin-bottom:6px">المتجر</h1>
       <p class="body-sm text-2">تصفح خدماتنا واختر ما يناسبك.</p>
     </div>
 
@@ -946,7 +1040,7 @@ function vShop() {
       <div class="grid-2">
         ${cats.map(c => `
           <button class="service-card" data-cat="${esc(c.id)}" style="align-items:center;text-align:center;padding:20px">
-            <div class="svc-icon" style="width:44px;height:44px;font-size:22px">${c.icon || '📦'}</div>
+            <div class="svc-icon" style="width:44px;height:44px;font-size:22px">${esc(c.icon || '📦')}</div>
             <div class="service-name">${esc(c.name)}</div>
           </button>
         `).join('')}
@@ -973,14 +1067,11 @@ function vCards() {
   <div class="page-enter">
     <div class="flex-between mb-6">
       <div>
-        <div style="font-family:var(--font-mono);font-size:11px;letter-spacing:0.15em;color:var(--sand);text-transform:uppercase;margin-bottom:8px">
-          MY CARDS
-        </div>
-        <h1 class="h1" style="margin-bottom:6px">بطاقاتي</h1>
+        <h1 class="h2" style="margin-bottom:6px">بطاقاتي</h1>
         <p class="body-sm text-2">${active.length} بطاقة نشطة</p>
       </div>
       <button class="btn btn-primary btn-sm" data-action="newCard">
-        ${svg(I.plus, 2)} إصدار
+        ${svg(I.plus, 2)} إصدار بطاقة
       </button>
     </div>
 
@@ -990,8 +1081,8 @@ function vCards() {
           <button class="service-card" data-card="${esc(c.id)}" style="padding:0;overflow:hidden">
             ${renderCard(c)}
             <div style="padding:14px;text-align:right;width:100%">
-              <div class="body" style="font-weight:600;margin-bottom:4px;color:var(--text)">${esc(c.card_name || 'بطاقة')}</div>
-              <div class="caption" style="font-family:var(--font-mono);font-size:11px">${esc(dt(c.created_at))}</div>
+              <div class="body" style="font-weight:600;margin-bottom:4px">${esc(c.card_name || 'بطاقة')}</div>
+              <div class="caption">${esc(dt(c.created_at))}</div>
             </div>
           </button>
         `).join('')}
@@ -1013,7 +1104,7 @@ function vCards() {
 }
 
 function renderCard(c) {
-  const st = { active: 'ACTIVE', frozen: 'FROZEN', deleted: 'CLOSED' }[c.status] || '—';
+  const st = { active: 'نشطة', frozen: 'مجمدة', deleted: 'مغلقة' }[c.status] || '—';
   const cls = c.status === 'frozen' ? 'frozen' : c.status === 'deleted' ? 'blocked' : '';
   return `
     <div class="vcard ${cls}" style="border-radius:0;aspect-ratio:1.586">
@@ -1032,7 +1123,7 @@ function renderCard(c) {
           <div class="vcard-label">CARDHOLDER</div>
           <div class="vcard-value">${esc((c.name_on_card || '').slice(0, 18))}</div>
         </div>
-        <svg class="vcard-brand-logo" viewBox="0 0 48 32" fill="currentColor" opacity=".85" style="color:var(--sand)">
+        <svg class="vcard-brand-logo" viewBox="0 0 48 32" fill="currentColor" opacity=".85">
           <circle cx="16" cy="16" r="10" opacity=".9"/>
           <circle cx="32" cy="16" r="10" opacity=".6"/>
         </svg>
@@ -1049,14 +1140,11 @@ function vWallet() {
   return `
   <div class="page-enter">
     <div class="mb-6">
-      <div style="font-family:var(--font-mono);font-size:11px;letter-spacing:0.15em;color:var(--sand);text-transform:uppercase;margin-bottom:8px">
-        WALLET
-      </div>
-      <h1 class="h1" style="margin-bottom:6px">المحفظة</h1>
+      <h1 class="h2" style="margin-bottom:6px">المحفظة</h1>
     </div>
 
     <div class="balance-card" style="margin-bottom:24px">
-      <div class="balance-label">AVAILABLE BALANCE</div>
+      <div class="balance-label">الرصيد المتاح</div>
       <div class="balance-value">${lyd(S.profile.wallet_balance * rate())}</div>
       <div class="balance-secondary">${usd(S.profile.wallet_balance)}</div>
 
@@ -1156,10 +1244,7 @@ function vTransactions() {
   return `
   <div class="page-enter">
     <div class="mb-6">
-      <div style="font-family:var(--font-mono);font-size:11px;letter-spacing:0.15em;color:var(--sand);text-transform:uppercase;margin-bottom:8px">
-        TRANSACTIONS
-      </div>
-      <h1 class="h1" style="margin-bottom:6px">المعاملات</h1>
+      <h1 class="h2" style="margin-bottom:6px">المعاملات</h1>
       <p class="body-sm text-2">كل عملياتك في مكان واحد</p>
     </div>
 
@@ -1186,10 +1271,7 @@ function vOrders() {
   return `
   <div class="page-enter">
     <div class="mb-6">
-      <div style="font-family:var(--font-mono);font-size:11px;letter-spacing:0.15em;color:var(--sand);text-transform:uppercase;margin-bottom:8px">
-        MY ORDERS
-      </div>
-      <h1 class="h1" style="margin-bottom:6px">طلباتي</h1>
+      <h1 class="h2" style="margin-bottom:6px">طلباتي</h1>
     </div>
 
     ${S.orders.length ? `
@@ -1232,10 +1314,7 @@ function vReferral() {
     return `
     <div class="page-enter">
       <div class="mb-6">
-        <div style="font-family:var(--font-mono);font-size:11px;letter-spacing:0.15em;color:var(--sand);text-transform:uppercase;margin-bottom:8px">
-          REFERRAL
-        </div>
-        <h1 class="h1">ادعُ صديقًا</h1>
+        <h1 class="h2">ادعُ صديقًا</h1>
       </div>
       <div class="card" style="text-align:center;padding:48px 24px">
         <div class="empty-icon" style="margin:0 auto 16px">${svg(I.gift, 2)}</div>
@@ -1248,18 +1327,15 @@ function vReferral() {
   return `
   <div class="page-enter">
     <div class="mb-6">
-      <div style="font-family:var(--font-mono);font-size:11px;letter-spacing:0.15em;color:var(--sand);text-transform:uppercase;margin-bottom:8px">
-        REFERRAL
-      </div>
-      <h1 class="h1" style="margin-bottom:6px">ادعُ صديقًا</h1>
+      <h1 class="h2" style="margin-bottom:6px">ادعُ صديقًا</h1>
       <p class="body-sm text-2">شارك رمزك — تحصلان معًا على مكافأة.</p>
     </div>
 
     <div class="card" style="margin-bottom:20px">
-      <div class="field-label" style="font-family:var(--font-mono);letter-spacing:0.1em">INVITE CODE</div>
+      <div class="field-label">رمز الدعوة</div>
       <div class="copy-box" style="margin-bottom:16px">
         <div class="copy-value" id="refCode">— • — • — • —</div>
-        <button class="copy-btn" id="refCopy">${svg(I.copy, 2)}</button>
+        <button class="copy-btn" id="refCopy" aria-label="نسخ">${svg(I.copy, 2)}</button>
       </div>
       <div class="body-sm text-2">
         احصل على ${usd(r.inviter || 1)} لكل صديق ينضم برمزك.
@@ -1270,19 +1346,19 @@ function vReferral() {
       <div class="h4" style="margin-bottom:16px">كيف تعمل؟</div>
       <div class="stack">
         <div style="display:flex;gap:12px;align-items:flex-start">
-          <span class="badge badge-neutral" style="flex-shrink:0;font-family:var(--font-mono)">01</span>
+          <span class="badge badge-neutral" style="flex-shrink:0">01</span>
           <div class="body-sm text-2">شارك رمزك مع أصدقائك</div>
         </div>
         <div style="display:flex;gap:12px;align-items:flex-start">
-          <span class="badge badge-neutral" style="flex-shrink:0;font-family:var(--font-mono)">02</span>
+          <span class="badge badge-neutral" style="flex-shrink:0">02</span>
           <div class="body-sm text-2">يسجّل صديقك ويستخدم رمزك</div>
         </div>
         <div style="display:flex;gap:12px;align-items:flex-start">
-          <span class="badge badge-neutral" style="flex-shrink:0;font-family:var(--font-mono)">03</span>
+          <span class="badge badge-neutral" style="flex-shrink:0">03</span>
           <div class="body-sm text-2">ينفّذ أول عملية</div>
         </div>
         <div style="display:flex;gap:12px;align-items:flex-start">
-          <span class="badge badge-neutral" style="flex-shrink:0;font-family:var(--font-mono)">04</span>
+          <span class="badge badge-neutral" style="flex-shrink:0">04</span>
           <div class="body-sm text-2">تحصلان على المكافأة</div>
         </div>
       </div>
@@ -1300,10 +1376,7 @@ function vSupport() {
   <div class="page-enter">
     <div class="flex-between mb-6">
       <div>
-        <div style="font-family:var(--font-mono);font-size:11px;letter-spacing:0.15em;color:var(--sand);text-transform:uppercase;margin-bottom:8px">
-          SUPPORT
-        </div>
-        <h1 class="h1" style="margin-bottom:6px">الدعم</h1>
+        <h1 class="h2" style="margin-bottom:6px">الدعم</h1>
         <p class="body-sm text-2">كيف يمكننا مساعدتك؟</p>
       </div>
       <button class="btn btn-primary btn-sm" id="newTicket">
@@ -1375,20 +1448,17 @@ function vSettings() {
   return `
   <div class="page-enter">
     <div class="mb-6">
-      <div style="font-family:var(--font-mono);font-size:11px;letter-spacing:0.15em;color:var(--sand);text-transform:uppercase;margin-bottom:8px">
-        SETTINGS
-      </div>
-      <h1 class="h1" style="margin-bottom:6px">الإعدادات</h1>
+      <h1 class="h2" style="margin-bottom:6px">الإعدادات</h1>
     </div>
 
     <div class="card card-lg mb-5">
       <div style="display:flex;gap:16px;align-items:center">
-        <div style="width:56px;height:56px;border-radius:14px;background:rgba(212,165,116,0.15);color:var(--sand);border:1px solid rgba(212,165,116,0.2);display:grid;place-items:center;font-size:22px;font-weight:700;font-family:var(--font-display)">
+        <div style="width:56px;height:56px;border-radius:14px;background:var(--brand-light);color:var(--brand);display:grid;place-items:center;font-size:22px;font-weight:700">
           ${esc(nm.charAt(0).toUpperCase())}
         </div>
         <div style="flex:1;min-width:0">
           <div class="h4" style="margin-bottom:4px">${esc(nm)}</div>
-          <div class="caption" dir="ltr" style="font-family:var(--font-mono);font-size:11px">${esc(S.profile.email || S.user?.email || '')}</div>
+          <div class="caption" dir="ltr">${esc(S.profile.email || S.user?.email || '')}</div>
         </div>
       </div>
     </div>
@@ -1434,19 +1504,19 @@ function vPlans() {
   return `
   <div class="page-enter">
     <div class="mb-6">
-      <h1 class="h1" style="margin-bottom:6px">الباقات</h1>
+      <h1 class="h2" style="margin-bottom:6px">الباقات</h1>
       <p class="body-sm text-2">اختر الباقة المناسبة لاستخدامك.</p>
     </div>
 
     <div class="grid-3">
       <div class="card card-lg">
-        <div style="font-family:var(--font-mono);font-size:10.5px;letter-spacing:0.15em;color:var(--text-3);text-transform:uppercase;margin-bottom:10px">Basic</div>
-        <div class="h3 mb-3">للبدء</div>
-        <div style="display:flex;align-items:baseline;gap:8px;margin:24px 0">
-          <span class="editorial-number" style="font-size:40px">0</span>
+        <div class="eyebrow mb-2">Basic</div>
+        <div class="h4 mb-3">للبدء</div>
+        <div style="display:flex;align-items:baseline;gap:6px;margin:20px 0">
+          <span class="tabular" style="font-size:28px;font-weight:700">0</span>
           <span class="body-sm text-3">د.ل / شهر</span>
         </div>
-        <ul style="display:flex;flex-direction:column;gap:12px;margin:24px 0;font-size:13px;color:var(--text-2)">
+        <ul style="display:flex;flex-direction:column;gap:10px;margin:20px 0;font-size:13px">
           <li>✓ بطاقة واحدة</li>
           <li>✓ محفظة كاملة</li>
           <li>✓ دعم عادي</li>
@@ -1454,14 +1524,14 @@ function vPlans() {
         <button class="btn btn-secondary btn-block">الحالية</button>
       </div>
 
-      <div class="card card-lg plan-pro">
-        <div style="font-family:var(--font-mono);font-size:10.5px;letter-spacing:0.15em;color:var(--sand);text-transform:uppercase;margin-bottom:10px">Pro</div>
-        <div class="h3 mb-3">للاستخدام اليومي</div>
-        <div style="display:flex;align-items:baseline;gap:8px;margin:24px 0">
-          <span class="editorial-number" style="font-size:40px;color:var(--sand)">20</span>
+      <div class="card card-lg" style="border-color:var(--brand)">
+        <div class="eyebrow mb-2" style="color:var(--brand)">Pro</div>
+        <div class="h4 mb-3">للاستخدام اليومي</div>
+        <div style="display:flex;align-items:baseline;gap:6px;margin:20px 0">
+          <span class="tabular" style="font-size:28px;font-weight:700">20</span>
           <span class="body-sm text-3">د.ل / شهر</span>
         </div>
-        <ul style="display:flex;flex-direction:column;gap:12px;margin:24px 0;font-size:13px;color:var(--text-2)">
+        <ul style="display:flex;flex-direction:column;gap:10px;margin:20px 0;font-size:13px">
           <li>✓ 5 بطاقات</li>
           <li>✓ رسوم أقل</li>
           <li>✓ دعم أولوية</li>
@@ -1470,13 +1540,13 @@ function vPlans() {
       </div>
 
       <div class="card card-lg">
-        <div style="font-family:var(--font-mono);font-size:10.5px;letter-spacing:0.15em;color:var(--text-3);text-transform:uppercase;margin-bottom:10px">Business</div>
-        <div class="h3 mb-3">للشركات</div>
-        <div style="display:flex;align-items:baseline;gap:8px;margin:24px 0">
-          <span class="editorial-number" style="font-size:40px">50</span>
+        <div class="eyebrow mb-2">Business</div>
+        <div class="h4 mb-3">للشركات</div>
+        <div style="display:flex;align-items:baseline;gap:6px;margin:20px 0">
+          <span class="tabular" style="font-size:28px;font-weight:700">50</span>
           <span class="body-sm text-3">د.ل / شهر</span>
         </div>
-        <ul style="display:flex;flex-direction:column;gap:12px;margin:24px 0;font-size:13px;color:var(--text-2)">
+        <ul style="display:flex;flex-direction:column;gap:10px;margin:20px 0;font-size:13px">
           <li>✓ بطاقات غير محدودة</li>
           <li>✓ رسوم تنافسية</li>
           <li>✓ مدير مخصص</li>
@@ -1540,7 +1610,7 @@ function bind() {
     modal(`
       <div class="modal-head">
         <div class="modal-title">تسجيل الخروج</div>
-        <button class="modal-close" onclick="closeModal()">${svg(I.x, 2)}</button>
+        <button class="modal-close" onclick="closeModal()" aria-label="إغلاق">${svg(I.x, 2)}</button>
       </div>
       <p class="body-sm text-2" style="margin-bottom:20px">ستحتاج للدخول مرة أخرى للوصول إلى حسابك.</p>
       <button class="btn btn-primary btn-block" id="confirmLogout">تأكيد الخروج</button>
@@ -1559,7 +1629,7 @@ function bind() {
     modal(`
       <div class="modal-head">
         <div class="modal-title">تذكرة جديدة</div>
-        <button class="modal-close" onclick="closeModal()">${svg(I.x, 2)}</button>
+        <button class="modal-close" onclick="closeModal()" aria-label="إغلاق">${svg(I.x, 2)}</button>
       </div>
       <div class="field mb-3">
         <label class="field-label">الموضوع</label>
@@ -1598,7 +1668,7 @@ async function openNewCard() {
   modal(`
     <div class="modal-head">
       <div class="modal-title">إصدار بطاقة جديدة</div>
-      <button class="modal-close" onclick="closeModal()">${svg(I.x, 2)}</button>
+      <button class="modal-close" onclick="closeModal()" aria-label="إغلاق">${svg(I.x, 2)}</button>
     </div>
 
     <div class="field mb-3">
@@ -1609,7 +1679,7 @@ async function openNewCard() {
     <div class="field mb-3">
       <label class="field-label">الاسم على البطاقة — بالإنجليزية</label>
       <input class="input" id="ncName" placeholder="MANSOUR ALI" dir="ltr"
-             style="text-transform:uppercase;font-family:var(--font-mono);letter-spacing:0.05em" maxlength="24">
+             style="text-transform:uppercase" maxlength="24" autocomplete="off">
       <span class="field-hint">حروف لاتينية فقط</span>
     </div>
 
@@ -1637,7 +1707,7 @@ async function openNewCard() {
         <div class="flex-between" style="padding:6px 0"><span class="body-sm text-2">المبلغ</span><span class="tabular" style="font-weight:600">${usd(a)}</span></div>
         <div class="flex-between" style="padding:6px 0"><span class="body-sm text-2">رسوم الإصدار</span><span class="tabular" style="font-weight:600">${usd(fee)}</span></div>
         <div class="divider" style="margin:8px 0"></div>
-        <div class="flex-between"><span style="font-weight:600">الإجمالي</span><span class="tabular" style="font-weight:700;color:var(--sand)">${usd(total)}</span></div>
+        <div class="flex-between"><span style="font-weight:600">الإجمالي</span><span class="tabular" style="font-weight:700;color:var(--brand)">${usd(total)}</span></div>
       </div>
     `;
     btn.disabled = (S.profile.wallet_balance || 0) < total;
@@ -1660,6 +1730,7 @@ async function openNewCard() {
         amount,
         name_on_card: name,
         card_name: $('#ncLabel').value.trim() || 'بطاقتي',
+        idempotency_key: newIdemKey(),
       });
       closeModal();
       toast('وصل طلبك — سيُصدر خلال دقائق', 'ok');
@@ -1675,7 +1746,7 @@ async function openDeposit() {
   modal(`
     <div class="modal-head">
       <div class="modal-title">إضافة رصيد</div>
-      <button class="modal-close" onclick="closeModal()">${svg(I.x, 2)}</button>
+      <button class="modal-close" onclick="closeModal()" aria-label="إغلاق">${svg(I.x, 2)}</button>
     </div>
     <div class="list">
       <div class="list-row" data-method="libyana">
@@ -1708,15 +1779,15 @@ async function openDepositMethod(method) {
   modal(`
     <div class="modal-head">
       <div class="modal-title">إيداع عبر ${method === 'almadar' ? 'المدار' : 'ليبيانا'}</div>
-      <button class="modal-close" onclick="closeModal()">${svg(I.x, 2)}</button>
+      <button class="modal-close" onclick="closeModal()" aria-label="إغلاق">${svg(I.x, 2)}</button>
     </div>
 
     ${phone ? `
       <div class="card card-sm mb-4">
-        <div class="field-label" style="font-family:var(--font-mono);letter-spacing:0.1em">TRANSFER TO</div>
+        <div class="field-label">حوّل إلى الرقم</div>
         <div class="copy-box">
-          <div class="copy-value" style="font-size:16px;font-weight:600;color:var(--sand)">${esc(phone)}</div>
-          <button class="copy-btn" onclick="navigator.clipboard.writeText('${esc(phone)}').then(()=>window.__toast('نُسخ','ok'))">${svg(I.copy, 2)}</button>
+          <div class="copy-value" style="font-size:16px;font-weight:600">${esc(phone)}</div>
+          <button class="copy-btn" onclick="navigator.clipboard.writeText('${esc(phone)}').then(()=>window.__toast('نُسخ','ok'))" aria-label="نسخ">${svg(I.copy, 2)}</button>
         </div>
       </div>
     ` : ''}
@@ -1746,7 +1817,7 @@ async function openDepositMethod(method) {
       <div class="card card-sm" style="background:var(--surface-2);border:none">
         <div class="flex-between" style="padding:6px 0">
           <span class="body-sm text-2">سيُضاف</span>
-          <span class="tabular" style="font-weight:700;color:var(--sand)">${usd(a / rateVal)}</span>
+          <span class="tabular" style="font-weight:700;color:var(--brand)">${usd(a / rateVal)}</span>
         </div>
       </div>
     `;
@@ -1785,20 +1856,20 @@ async function openCardDetails(cardId) {
   modal(`
     <div class="modal-head">
       <div class="modal-title">${esc(c.card_name || 'بطاقة')}</div>
-      <button class="modal-close" onclick="closeModal()">${svg(I.x, 2)}</button>
+      <button class="modal-close" onclick="closeModal()" aria-label="إغلاق">${svg(I.x, 2)}</button>
     </div>
 
-    <div style="max-width:340px;margin:0 auto 24px">
+    <div style="max-width:320px;margin:0 auto 20px">
       ${renderCard(c)}
     </div>
 
     <div class="card card-sm mb-4" style="background:var(--surface-2);border:none">
       <div class="flex-between" style="padding:6px 0">
-        <span class="caption" style="font-family:var(--font-mono);letter-spacing:0.1em">BALANCE</span>
-        <span class="tabular" style="font-weight:700;color:var(--sand)">${usd(c.balance)}</span>
+        <span class="body-sm text-2">الرصيد</span>
+        <span class="tabular" style="font-weight:700">${usd(c.balance)}</span>
       </div>
       <div class="flex-between" style="padding:6px 0">
-        <span class="caption" style="font-family:var(--font-mono);letter-spacing:0.1em">STATUS</span>
+        <span class="body-sm text-2">الحالة</span>
         <span class="badge ${c.status === 'active' ? 'badge-success' : 'badge-neutral'}">${c.status === 'active' ? 'نشطة' : 'مجمدة'}</span>
       </div>
     </div>
@@ -1826,7 +1897,7 @@ async function openCardDetails(cardId) {
       modal(`
         <div class="modal-head">
           <div class="modal-title">بيانات البطاقة</div>
-          <button class="modal-close" onclick="closeModal()">${svg(I.x, 2)}</button>
+          <button class="modal-close" onclick="closeModal()" aria-label="إغلاق">${svg(I.x, 2)}</button>
         </div>
 
         <div class="alert alert-warning mb-4">${svg(I.help, 2)}<div>ستختفي هذه البيانات خلال ${hrs} ساعة. احفظها الآن.</div></div>
@@ -1834,8 +1905,8 @@ async function openCardDetails(cardId) {
         <div class="field mb-3">
           <div class="field-label">رقم البطاقة</div>
           <div class="copy-box">
-            <div class="copy-value" style="font-size:15px;color:var(--sand)">${esc(grp(d.card_number))}</div>
-            <button class="copy-btn" data-copy="${esc(d.card_number)}">${svg(I.copy, 2)}</button>
+            <div class="copy-value" style="font-size:15px">${esc(grp(d.card_number))}</div>
+            <button class="copy-btn" data-copy="${esc(d.card_number)}" aria-label="نسخ">${svg(I.copy, 2)}</button>
           </div>
         </div>
         <div class="grid-2 mb-4">
@@ -1843,14 +1914,14 @@ async function openCardDetails(cardId) {
             <div class="field-label">الانتهاء</div>
             <div class="copy-box">
               <div class="copy-value">${esc(d.expiry)}</div>
-              <button class="copy-btn" data-copy="${esc(d.expiry)}">${svg(I.copy, 2)}</button>
+              <button class="copy-btn" data-copy="${esc(d.expiry)}" aria-label="نسخ">${svg(I.copy, 2)}</button>
             </div>
           </div>
           <div>
             <div class="field-label">CVV</div>
             <div class="copy-box">
               <div class="copy-value">${esc(d.cvv)}</div>
-              <button class="copy-btn" data-copy="${esc(d.cvv)}">${svg(I.copy, 2)}</button>
+              <button class="copy-btn" data-copy="${esc(d.cvv)}" aria-label="نسخ">${svg(I.copy, 2)}</button>
             </div>
           </div>
         </div>
@@ -1877,7 +1948,7 @@ async function openOrderDetails(orderId) {
   modal(`
     <div class="modal-head">
       <div class="modal-title">تفاصيل الطلب</div>
-      <button class="modal-close" onclick="closeModal()">${svg(I.x, 2)}</button>
+      <button class="modal-close" onclick="closeModal()" aria-label="إغلاق">${svg(I.x, 2)}</button>
     </div>
 
     <div class="card card-sm mb-4" style="background:var(--surface-2);border:none">
@@ -1906,7 +1977,7 @@ async function openOrderDetails(orderId) {
     </div>
 
     <div class="card card-sm mb-4" style="background:var(--surface-2);border:none">
-      <div class="flex-between"><span style="font-weight:600">الإجمالي</span><span class="tabular" style="font-weight:700;color:var(--sand)">${esc(lyd(o.total_lyd))}</span></div>
+      <div class="flex-between"><span style="font-weight:600">الإجمالي</span><span class="tabular" style="font-weight:700">${esc(lyd(o.total_lyd))}</span></div>
     </div>
 
     <button class="btn btn-secondary btn-block" onclick="closeModal()">إغلاق</button>
@@ -1950,4 +2021,4 @@ bindPublic();
 if (!auth.currentUser) {
   $('#public').style.display = 'block';
   $('#app').style.display = 'none';
-        }
+          }
