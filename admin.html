@@ -461,6 +461,504 @@
 
 #appCheckWarn svg { width: 18px; height: 18px; flex-shrink: 0; }
 </style>
+  
+/* ═══════════════════════════════════════════════════════════
+   COMPACT OVERRIDES — تصغير كل العناصر
+   ═══════════════════════════════════════════════════════════ */
+
+/* Sidebar — أصغر */
+.admin-sidebar {
+  width: 220px;
+  padding: 18px 12px;
+}
+
+@media (min-width: 1024px) {
+  .admin-shell { grid-template-columns: 1fr 220px; }
+}
+
+.admin-brand {
+  padding: 0 6px;
+  margin-bottom: 18px;
+}
+
+.admin-brand svg { width: 22px; height: 22px; }
+
+.admin-brand-name {
+  font-size: 14px;
+}
+
+.admin-group { margin-bottom: 14px; }
+
+.admin-group-label {
+  font-size: 9px;
+  letter-spacing: 0.12em;
+  padding: 0 8px;
+  margin-bottom: 6px;
+}
+
+.admin-nav-item {
+  padding: 7px 10px;
+  font-size: 12.5px;
+  border-radius: 6px;
+  gap: 10px;
+}
+
+.admin-nav-item svg { width: 15px; height: 15px; }
+
+.admin-badge {
+  font-size: 9px;
+  padding: 1px 5px;
+  min-width: 16px;
+}
+
+/* Bar — أصغر */
+.admin-main .bar {
+  height: 52px !important;
+  padding: 0 16px;
+}
+
+.admin-main .bar-logo svg { width: 20px; height: 20px; }
+.admin-main .bar-logo span { font-size: 13px !important; }
+
+.admin-main .icon-btn {
+  width: 34px;
+  height: 34px;
+}
+
+.admin-main .icon-btn svg { width: 17px; height: 17px; }
+
+/* Content padding — أصغر */
+.admin-content {
+  padding: 18px 14px;
+}
+
+@media (min-width: 640px) {
+  .admin-content { padding: 22px; }
+}
+
+/* KPIs — أصغر بكثير */
+.admin-kpis {
+  grid-template-columns: repeat(2, 1fr);
+  gap: 8px;
+  margin-bottom: 18px;
+}
+
+@media (min-width: 640px) {
+  .admin-kpis { grid-template-columns: repeat(3, 1fr); }
+}
+
+@media (min-width: 1024px) {
+  .admin-kpis { grid-template-columns: repeat(6, 1fr); }
+}
+
+.admin-kpi {
+  padding: 10px;
+  border-radius: 9px;
+}
+
+.admin-kpi-icon {
+  width: 24px;
+  height: 24px;
+  border-radius: 6px;
+  margin-bottom: 6px;
+}
+
+.admin-kpi-icon svg { width: 13px; height: 13px; }
+
+.admin-kpi-value {
+  font-size: 15px;
+  line-height: 1.1;
+}
+
+.admin-kpi-label {
+  font-size: 8.5px;
+  letter-spacing: 0.08em;
+  margin-top: 2px;
+}
+
+/* Bottom dock — أصغر */
+.admin-dock {
+  height: calc(56px + env(safe-area-inset-bottom));
+}
+
+.admin-dock-item {
+  font-size: 9px;
+  gap: 2px;
+}
+
+.admin-dock-item svg {
+  width: 18px;
+  height: 18px;
+}
+
+/* Gate — أصغر */
+.gate-box {
+  padding: 28px 22px;
+  max-width: 360px;
+}
+
+.gate-box .input {
+  height: 38px;
+  font-size: 13px;
+  padding: 0 12px;
+}
+
+.gate-box .btn {
+  height: 40px;
+  font-size: 13px;
+}
+
+.gate-box .field-label {
+  font-size: 11.5px;
+  margin-bottom: 5px;
+}
+
+/* Field label */
+.field-label {
+  font-size: 11.5px;
+  margin-bottom: 5px;
+}
+
+.field-hint {
+  font-size: 10.5px;
+  margin-top: 4px;
+}
+
+/* Inputs — أصغر */
+.input {
+  height: 38px;
+  padding: 0 12px;
+  font-size: 13px;
+  border-radius: 6px;
+}
+
+textarea.input {
+  min-height: 72px;
+  padding: 8px 12px;
+}
+
+.select {
+  padding-left: 32px;
+  background-position: left 10px center;
+}
+
+/* Buttons — أصغر */
+.btn {
+  height: 36px;
+  padding: 0 14px;
+  font-size: 12.5px;
+  border-radius: 6px;
+  gap: 6px;
+}
+
+.btn svg { width: 14px; height: 14px; }
+
+.btn-sm {
+  height: 28px;
+  padding: 0 10px;
+  font-size: 11px;
+}
+
+.btn-sm svg { width: 12px; height: 12px; }
+
+.btn-lg {
+  height: 42px;
+  padding: 0 18px;
+  font-size: 13.5px;
+}
+
+/* Cards — أصغر */
+.card {
+  padding: 14px;
+  border-radius: 10px;
+}
+
+.card-lg { padding: 18px; }
+.card-sm { padding: 10px; }
+
+/* Typography — أصغر */
+.admin-content .h2,
+.admin-content h2 {
+  font-size: 20px;
+  line-height: 1.25;
+}
+
+.admin-content .h3,
+.admin-content h3 {
+  font-size: 16px;
+}
+
+.admin-content .h4,
+.admin-content h4 {
+  font-size: 13.5px;
+  font-weight: 600;
+}
+
+.admin-content .body { font-size: 13px; }
+.admin-content .body-sm { font-size: 11.5px; }
+.admin-content .caption { font-size: 10.5px; }
+
+/* Pills — أصغر */
+.pill {
+  padding: 6px 12px;
+  font-size: 11px;
+  border-radius: 999px;
+}
+
+.pills { gap: 6px; }
+
+/* Badges — أصغر */
+.badge {
+  font-size: 9.5px;
+  padding: 2px 6px;
+  height: auto;
+}
+
+/* List rows — أصغر */
+.list-row {
+  padding: 10px 14px;
+  gap: 10px;
+}
+
+.list-icon {
+  width: 32px;
+  height: 32px;
+  border-radius: 7px;
+}
+
+.list-icon svg { width: 15px; height: 15px; }
+
+.list-title { font-size: 12.5px; }
+.list-meta { font-size: 10.5px; }
+.list-amount { font-size: 12.5px; }
+
+/* Tables — أصغر */
+.table { font-size: 11.5px; }
+
+.table th {
+  padding: 8px 10px;
+  font-size: 10px;
+  letter-spacing: 0.05em;
+}
+
+.table td {
+  padding: 8px 10px;
+}
+
+/* Service tabs — أصغر */
+.svc-tabs {
+  padding: 3px;
+  border-radius: 8px;
+  margin-bottom: 14px;
+}
+
+.svc-tab {
+  padding: 7px 12px;
+  font-size: 11.5px;
+  border-radius: 6px;
+}
+
+/* Service icons — أصغر */
+.svc-icon {
+  width: 32px;
+  height: 32px;
+  border-radius: 8px;
+  font-size: 16px;
+}
+
+.svc-icon-lg {
+  width: 56px;
+  height: 56px;
+  border-radius: 12px;
+  font-size: 26px;
+}
+
+/* Icon picker — أصغر */
+.icon-picker {
+  gap: 10px;
+  align-items: flex-start;
+}
+
+.icon-preview {
+  width: 56px;
+  height: 56px;
+  border-radius: 11px;
+  font-size: 26px;
+}
+
+/* Field rows — أصغر */
+.field-row {
+  padding: 8px;
+  gap: 6px;
+  border-radius: 6px;
+  margin-bottom: 6px;
+}
+
+.field-row-inputs { gap: 6px; }
+
+/* Stock — أصغر */
+.stock-row {
+  padding: 6px;
+  gap: 6px;
+}
+
+.stock-code {
+  font-size: 10.5px;
+  padding: 4px 8px;
+  border-radius: 5px;
+}
+
+/* Modal — أصغر */
+.modal {
+  max-width: 420px;
+  padding: 18px;
+  border-radius: 14px;
+  max-height: 88vh;
+}
+
+@media (max-width: 640px) {
+  .modal {
+    border-radius: 16px 16px 0 0;
+    max-width: 100%;
+    padding: 16px;
+  }
+}
+
+.modal-title {
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.modal-close {
+  width: 28px;
+  height: 28px;
+}
+
+.modal-close svg { width: 16px; height: 16px; }
+
+.modal-head {
+  margin-bottom: 14px;
+}
+
+/* Alerts — أصغر */
+.alert {
+  padding: 10px 12px;
+  font-size: 11.5px;
+  border-radius: 7px;
+  gap: 8px;
+}
+
+.alert svg { width: 15px; height: 15px; }
+
+/* Copy box — أصغر */
+.copy-box {
+  padding: 8px 12px;
+  gap: 8px;
+  border-radius: 6px;
+}
+
+.copy-value { font-size: 11.5px; }
+.copy-btn { width: 26px; height: 26px; }
+.copy-btn svg { width: 13px; height: 13px; }
+
+/* Toast — أصغر */
+.toast {
+  padding: 9px 12px;
+  font-size: 12px;
+  border-radius: 7px;
+  gap: 8px;
+}
+
+.toast svg { width: 15px; height: 15px; }
+
+/* Switch rows — أصغر */
+.sw-row {
+  padding: 10px 0;
+  gap: 10px;
+}
+
+.sw-lbl { font-size: 12.5px; }
+.sw-desc { font-size: 10.5px; }
+
+.sw {
+  width: 36px;
+  height: 20px;
+}
+
+.sw::after {
+  width: 14px;
+  height: 14px;
+}
+
+.sw.on::after {
+  transform: translateX(-16px);
+}
+
+/* Empty state — أصغر */
+.empty-icon {
+  width: 42px;
+  height: 42px;
+  border-radius: 10px;
+}
+
+.empty-icon svg { width: 20px; height: 20px; }
+
+/* Upload progress */
+.upload-progress {
+  height: 3px;
+  margin-top: 6px;
+}
+
+/* Input wrap icon */
+.input-wrap .input {
+  height: 38px;
+  padding-left: 36px;
+}
+
+.input-wrap .input-icon {
+  width: 15px;
+  height: 15px;
+  left: 11px;
+}
+
+/* Number inputs — fix arrows */
+input[type="number"] {
+  -moz-appearance: textfield;
+}
+
+input[type="number"]::-webkit-outer-spin-button,
+input[type="number"]::-webkit-inner-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+
+/* Admin avatar chip */
+.admin-sidebar .caption {
+  font-size: 10px;
+}
+
+/* Responsive tweaks */
+@media (max-width: 640px) {
+  .admin-kpi-value { font-size: 14px; }
+  .admin-kpi-icon { width: 22px; height: 22px; }
+  .admin-kpi-icon svg { width: 12px; height: 12px; }
+
+  .card { padding: 12px; }
+  .card-lg { padding: 14px; }
+
+  .admin-content { padding: 14px 10px; }
+}
+
+@media (max-width: 400px) {
+  .admin-kpis {
+    grid-template-columns: repeat(2, 1fr);
+    gap: 6px;
+  }
+
+  .admin-kpi { padding: 8px; }
+  .admin-kpi-value { font-size: 13px; }
+  .admin-kpi-label { font-size: 8px; }
+}
 </head>
 <body>
 
