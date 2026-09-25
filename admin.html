@@ -4,13 +4,14 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <meta name="robots" content="noindex,nofollow">
-<meta name="theme-color" content="#176B4D">
+<meta name="theme-color" content="#0B0F0D">
 <title>كاردو — لوحة الإدارة</title>
 
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Arabic:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Arabic:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&family=Reem+Kufi:wght@400;500;600;700&family=Instrument+Serif:ital@0;1&display=swap">
 <link rel="stylesheet" href="./styles.css">
+<link rel="stylesheet" href="./theme-desert.css">
 
 <style>
 /* ── Admin-specific ── */
@@ -27,7 +28,7 @@
 .admin-sidebar {
   display: none;
   width: 260px;
-  background: var(--surface);
+  background: var(--ink);
   border-left: 1px solid var(--border);
   padding: 24px 16px;
   position: sticky;
@@ -49,9 +50,11 @@
 }
 
 .admin-brand-name {
-  font-size: 16px;
-  font-weight: 700;
-  letter-spacing: -0.02em;
+  font-family: var(--font-display);
+  font-size: 17px;
+  font-weight: 600;
+  letter-spacing: -0.005em;
+  color: var(--text);
 }
 
 .admin-group {
@@ -61,11 +64,12 @@
 .admin-group-label {
   display: block;
   padding: 0 12px;
-  font-size: 11px;
+  font-family: var(--font-mono);
+  font-size: 10px;
   font-weight: 600;
-  color: var(--text-3);
+  color: var(--sand-3);
   text-transform: uppercase;
-  letter-spacing: 0.06em;
+  letter-spacing: 0.15em;
   margin-bottom: 8px;
 }
 
@@ -82,6 +86,7 @@
   width: 100%;
   text-align: right;
   margin-bottom: 2px;
+  position: relative;
 }
 
 .admin-nav-item svg { width: 18px; height: 18px; flex-shrink: 0; }
@@ -92,21 +97,34 @@
 }
 
 .admin-nav-item.active {
-  background: var(--brand-light);
-  color: var(--brand);
+  background: linear-gradient(90deg, rgba(10, 92, 63, 0.4) 0%, rgba(10, 92, 63, 0.1) 100%);
+  color: var(--sand);
   font-weight: 600;
+}
+
+.admin-nav-item.active::before {
+  content: '';
+  position: absolute;
+  right: 0;
+  top: 20%;
+  bottom: 20%;
+  width: 3px;
+  background: var(--sand);
+  border-radius: 3px;
+  box-shadow: 0 0 12px rgba(212, 165, 116, 0.5);
 }
 
 .admin-badge {
   margin-right: auto;
-  background: var(--brand);
-  color: #fff;
+  background: var(--sand);
+  color: var(--ink);
   font-size: 10px;
   font-weight: 700;
   padding: 2px 7px;
   border-radius: 999px;
   min-width: 20px;
   text-align: center;
+  font-family: var(--font-mono);
 }
 
 .admin-main {
@@ -144,10 +162,23 @@
 }
 
 .admin-kpi {
-  background: var(--surface);
+  background: linear-gradient(180deg, var(--surface) 0%, var(--ink-2) 100%);
   border: 1px solid var(--border);
   border-radius: 12px;
   padding: 16px;
+  position: relative;
+  overflow: hidden;
+}
+
+.admin-kpi::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, rgba(212, 165, 116, 0.3), transparent);
+  opacity: 0.5;
 }
 
 .admin-kpi-icon {
@@ -157,20 +188,28 @@
   display: grid;
   place-items: center;
   margin-bottom: 10px;
+  background: rgba(212, 165, 116, 0.1);
+  color: var(--sand);
+  border: 1px solid rgba(212, 165, 116, 0.15);
 }
 
 .admin-kpi-icon svg { width: 18px; height: 18px; }
 
 .admin-kpi-value {
-  font-size: 20px;
-  font-weight: 700;
-  letter-spacing: -0.03em;
+  font-family: var(--font-display);
+  font-size: 24px;
+  font-weight: 600;
+  letter-spacing: -0.02em;
   font-variant-numeric: tabular-nums;
   line-height: 1.15;
+  color: var(--text);
 }
 
 .admin-kpi-label {
-  font-size: 12px;
+  font-family: var(--font-mono);
+  font-size: 10px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
   color: var(--text-3);
   margin-top: 4px;
 }
@@ -181,7 +220,9 @@
   inset: auto 0 0 0;
   z-index: 50;
   display: grid;
-  background: var(--surface);
+  background: rgba(11, 15, 13, 0.95);
+  backdrop-filter: blur(20px) saturate(180%);
+  -webkit-backdrop-filter: blur(20px) saturate(180%);
   border-top: 1px solid var(--border);
   padding-bottom: env(safe-area-inset-bottom);
   height: calc(64px + env(safe-area-inset-bottom));
@@ -201,10 +242,24 @@
   font-size: 10.5px;
   font-weight: 500;
   position: relative;
+  font-family: var(--font-mono);
+  letter-spacing: 0.05em;
 }
 
 .admin-dock-item svg { width: 20px; height: 20px; }
-.admin-dock-item.active { color: var(--brand); font-weight: 600; }
+.admin-dock-item.active { color: var(--sand); font-weight: 600; }
+.admin-dock-item.active::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 24px;
+  height: 2px;
+  background: var(--sand);
+  border-radius: 0 0 2px 2px;
+  box-shadow: 0 0 12px rgba(212, 165, 116, 0.6);
+}
 .admin-dock-item .dot {
   position: absolute;
   top: 6px;
@@ -213,7 +268,8 @@
   width: 6px;
   height: 6px;
   border-radius: 50%;
-  background: var(--warning);
+  background: var(--sand);
+  box-shadow: 0 0 8px rgba(212, 165, 116, 0.8);
 }
 
 /* Gate */
@@ -222,17 +278,35 @@
   display: grid;
   place-items: center;
   padding: 24px 16px;
-  background: var(--bg);
 }
 
 .gate-box {
   width: 100%;
   max-width: 400px;
-  background: var(--surface);
+  background:
+    linear-gradient(180deg, rgba(22, 27, 25, 0.85) 0%, rgba(11, 15, 13, 0.92) 100%),
+    radial-gradient(circle at 50% 0%, rgba(212, 165, 116, 0.08) 0%, transparent 60%);
+  background-blend-mode: normal, overlay;
   border: 1px solid var(--border);
-  border-radius: 16px;
-  padding: 32px 28px;
-  box-shadow: 0 1px 3px rgba(20, 30, 25, 0.04);
+  border-radius: 20px;
+  padding: 36px 28px;
+  box-shadow:
+    0 1px 0 rgba(255, 255, 255, 0.04) inset,
+    0 8px 32px rgba(0, 0, 0, 0.4),
+    0 40px 80px -20px rgba(212, 165, 116, 0.08);
+  position: relative;
+}
+
+.gate-box::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 10%;
+  right: 10%;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, var(--sand), transparent);
+  opacity: 0.6;
+  border-radius: 20px 20px 0 0;
 }
 
 /* Service tabs */
@@ -244,6 +318,7 @@
   padding: 4px;
   margin-bottom: 20px;
   overflow-x: auto;
+  border: 1px solid var(--border);
 }
 
 .svc-tab {
@@ -256,12 +331,17 @@
   color: var(--text-2);
   transition: all .15s;
   white-space: nowrap;
+  font-family: inherit;
+  cursor: pointer;
+  border: none;
+  background: none;
 }
 
 .svc-tab.active {
-  background: var(--surface);
-  color: var(--brand);
-  box-shadow: 0 1px 2px rgba(0,0,0,.06);
+  background: linear-gradient(180deg, rgba(212, 165, 116, 0.15) 0%, rgba(212, 165, 116, 0.08) 100%);
+  color: var(--sand);
+  border: 1px solid rgba(212, 165, 116, 0.2);
+  box-shadow: 0 0 16px rgba(212, 165, 116, 0.15);
 }
 
 .svc-tab:hover:not(.active) {
@@ -276,6 +356,7 @@
   background: var(--surface-2);
   border-radius: 8px;
   margin-bottom: 8px;
+  border: 1px solid var(--border);
 }
 
 .field-row-inputs {
@@ -291,19 +372,19 @@
 
 .icon-picker {
   display: flex;
-  gap: 8px;
-  align-items: center;
+  gap: 12px;
+  align-items: flex-start;
 }
 
 .icon-preview {
-  width: 56px;
-  height: 56px;
-  border-radius: 12px;
-  background: var(--surface-2);
+  width: 72px;
+  height: 72px;
+  border-radius: 14px;
+  background: linear-gradient(135deg, rgba(212, 165, 116, 0.1) 0%, rgba(10, 92, 63, 0.1) 100%);
   display: grid;
   place-items: center;
-  font-size: 28px;
-  border: 1px solid var(--border);
+  font-size: 32px;
+  border: 1px solid rgba(212, 165, 116, 0.2);
   flex-shrink: 0;
   overflow: hidden;
 }
@@ -315,15 +396,18 @@
 }
 
 .stock-code {
-  font-family: 'IBM Plex Mono', monospace;
+  font-family: var(--font-mono);
   font-size: 12px;
   padding: 6px 10px;
-  background: var(--surface-2);
+  background: var(--ink-2);
+  border: 1px solid var(--border);
   border-radius: 6px;
   flex: 1;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+  color: var(--sand);
+  letter-spacing: 0.03em;
 }
 
 .stock-row {
@@ -335,6 +419,25 @@
 }
 
 .stock-row:last-child { border-bottom: none; }
+
+/* Image upload progress */
+.upload-progress {
+  width: 100%;
+  height: 4px;
+  background: var(--surface-3);
+  border-radius: 2px;
+  overflow: hidden;
+  margin-top: 8px;
+}
+
+.upload-progress-bar {
+  height: 100%;
+  background: linear-gradient(90deg, var(--sand) 0%, var(--sand-2) 100%);
+  border-radius: 2px;
+  width: 0%;
+  transition: width .3s ease;
+  box-shadow: 0 0 12px rgba(212, 165, 116, 0.5);
+}
 </style>
 </head>
 <body>
@@ -342,22 +445,22 @@
 <!-- ═══ GATE ═══ -->
 <div id="gate">
   <div class="gate-box">
-    <div style="display:flex;align-items:center;gap:12px;margin-bottom:24px;justify-content:center">
-      <svg width="40" height="40" viewBox="0 0 40 40">
-        <rect width="40" height="40" rx="10" fill="#176B4D"/>
-        <path d="M11 9h4.4v22H11z" fill="#FFFFFF"/>
-        <path d="M17 20.2 27.5 9H33L22.4 20.2 33 31h-5.6z" fill="#FFFFFF"/>
-        <rect x="19" y="15.6" width="12.4" height="8.8" rx="2" fill="#176B4D"/>
-        <rect x="21" y="18.4" width="3.4" height="2.6" rx=".7" fill="#E8F3EE" opacity=".9"/>
+    <div style="display:flex;align-items:center;gap:12px;margin-bottom:28px;justify-content:center">
+      <svg width="44" height="44" viewBox="0 0 40 40">
+        <rect width="40" height="40" rx="10" fill="#0B0F0D"/>
+        <path d="M11 9h4.4v22H11z" fill="#D4A574"/>
+        <path d="M17 20.2 27.5 9H33L22.4 20.2 33 31h-5.6z" fill="#D4A574"/>
+        <rect x="19" y="15.6" width="12.4" height="8.8" rx="2" fill="#0B0F0D"/>
+        <rect x="21" y="18.4" width="3.4" height="2.6" rx=".7" fill="#D4A574" opacity=".7"/>
       </svg>
       <div>
-        <div style="font-size:18px;font-weight:700;letter-spacing:-.02em">كاردو</div>
-        <div class="caption">لوحة الإدارة</div>
+        <div style="font-family:var(--font-display);font-size:20px;font-weight:600;color:var(--text);letter-spacing:-.005em">كاردو</div>
+        <div class="caption" style="font-family:var(--font-mono);letter-spacing:0.1em">ADMIN PANEL</div>
       </div>
     </div>
 
-    <h1 class="h4" style="margin-bottom:6px">تسجيل الدخول</h1>
-    <p class="body-sm text-2" style="margin-bottom:20px">هذه الصفحة للمصرّح لهم فقط.</p>
+    <h1 class="h4" style="margin-bottom:6px;font-family:var(--font-display)">تسجيل الدخول</h1>
+    <p class="body-sm text-2" style="margin-bottom:24px">هذه الصفحة للمصرّح لهم فقط.</p>
 
     <div id="gErr" class="auth-msg error" style="display:none"></div>
 
@@ -382,10 +485,10 @@
     <!-- Sidebar -->
     <aside class="admin-sidebar">
       <div class="admin-brand">
-        <svg width="26" height="26" viewBox="0 0 40 40">
-          <rect width="40" height="40" rx="9" fill="#176B4D"/>
-          <path d="M11 9h4.4v22H11z" fill="#FFFFFF"/>
-          <path d="M17 20.2 27.5 9H33L22.4 20.2 33 31h-5.6z" fill="#FFFFFF"/>
+        <svg width="28" height="28" viewBox="0 0 40 40">
+          <rect width="40" height="40" rx="9" fill="#0B0F0D"/>
+          <path d="M11 9h4.4v22H11z" fill="#D4A574"/>
+          <path d="M17 20.2 27.5 9H33L22.4 20.2 33 31h-5.6z" fill="#D4A574"/>
         </svg>
         <span class="admin-brand-name">كاردو — إدارة</span>
       </div>
@@ -394,10 +497,10 @@
 
       <div style="padding-top:16px;border-top:1px solid var(--border);margin-top:16px">
         <div style="display:flex;align-items:center;gap:10px;padding:0 12px 12px">
-          <div style="width:32px;height:32px;border-radius:8px;background:var(--brand-light);color:var(--brand);display:grid;place-items:center;font-weight:700;font-size:13px" id="admInitial">A</div>
+          <div style="width:32px;height:32px;border-radius:8px;background:rgba(212,165,116,0.15);color:var(--sand);border:1px solid rgba(212,165,116,0.2);display:grid;place-items:center;font-weight:700;font-size:13px;font-family:var(--font-display)" id="admInitial">A</div>
           <div style="min-width:0;flex:1">
             <div class="caption" style="color:var(--text-2);font-weight:600" id="admName">—</div>
-            <div class="caption">مدير النظام</div>
+            <div class="caption" style="font-family:var(--font-mono);letter-spacing:0.1em;font-size:10px">SUPER ADMIN</div>
           </div>
         </div>
         <button class="admin-nav-item" id="logoutBtn">
@@ -412,11 +515,11 @@
       <header class="bar">
         <div class="bar-logo" style="gap:8px">
           <svg width="22" height="22" viewBox="0 0 40 40" class="admin-mobile-logo">
-            <rect width="40" height="40" rx="9" fill="#176B4D"/>
-            <path d="M11 9h4.4v22H11z" fill="#FFFFFF"/>
-            <path d="M17 20.2 27.5 9H33L22.4 20.2 33 31h-5.6z" fill="#FFFFFF"/>
+            <rect width="40" height="40" rx="9" fill="#0B0F0D"/>
+            <path d="M11 9h4.4v22H11z" fill="#D4A574"/>
+            <path d="M17 20.2 27.5 9H33L22.4 20.2 33 31h-5.6z" fill="#D4A574"/>
           </svg>
-          <span style="font-size:15px;font-weight:700">لوحة الإدارة</span>
+          <span style="font-family:var(--font-display);font-size:15px;font-weight:600">لوحة الإدارة</span>
         </div>
         <div class="bar-actions">
           <span class="badge badge-warning" id="killChip" style="display:none">
@@ -775,7 +878,7 @@ function render() {
 /* ═══ Helpers ═══ */
 function kpi(icon, val, label, bg, fg) {
   return `<div class="admin-kpi">
-    <div class="admin-kpi-icon" style="background:${bg};color:${fg}">${svg(icon)}</div>
+    <div class="admin-kpi-icon">${svg(icon)}</div>
     <div class="admin-kpi-value">${esc(String(val))}</div>
     <div class="admin-kpi-label">${esc(label)}</div>
   </div>`;
@@ -808,7 +911,10 @@ function vHome() {
 
   return `
   <div class="page-enter">
-    <h1 class="h2" style="margin-bottom:6px">نظرة عامة</h1>
+    <div style="font-family:var(--font-mono);font-size:11px;letter-spacing:0.15em;color:var(--sand);text-transform:uppercase;margin-bottom:8px">
+      OVERVIEW
+    </div>
+    <h1 class="h2" style="margin-bottom:6px;font-family:var(--font-display)">نظرة عامة</h1>
     <p class="body-sm text-2" style="margin-bottom:24px">ملخص أداء المنصة</p>
 
     ${S.settings.kill_switch === true ? `
@@ -821,12 +927,12 @@ function vHome() {
     ` : ''}
 
     <div class="admin-kpis">
-      ${kpi(I.card, mcPend, 'بطاقات تنتظر', 'var(--warning-bg)', 'var(--warning)')}
-      ${kpi(I.check, mcDone, 'بطاقات مكتملة', 'var(--success-bg)', 'var(--success)')}
-      ${kpi(I.cash, lyd(subRev), 'إيرادات البطاقات', 'var(--surface-2)', 'var(--text-2)')}
-      ${kpi(I.bag, lyd(ordRev * 11.8), 'مبيعات المتجر', 'var(--success-bg)', 'var(--success)')}
-      ${kpi(I.grid, usd(svcRev), 'إيرادات الخدمات', 'var(--info-bg)', 'var(--info)')}
-      ${kpi(I.clock, pendDep() + pendOrd() + pendWd() + pendSvc(), 'قيد المعالجة', 'var(--warning-bg)', 'var(--warning)')}
+      ${kpi(I.card, mcPend, 'PENDING CARDS', '', '')}
+      ${kpi(I.check, mcDone, 'COMPLETED', '', '')}
+      ${kpi(I.cash, lyd(subRev), 'CARD REVENUE', '', '')}
+      ${kpi(I.bag, lyd(ordRev * 11.8), 'STORE SALES', '', '')}
+      ${kpi(I.grid, usd(svcRev), 'SERVICES REV', '', '')}
+      ${kpi(I.clock, pendDep() + pendOrd() + pendWd() + pendSvc(), 'IN PROGRESS', '', '')}
     </div>
 
     <div class="grid-2 mb-6">
@@ -854,9 +960,9 @@ function vHome() {
           <div style="display:flex;flex-direction:column;gap:12px">
             ${S.manualOrders.slice(0, 5).map(o => `
               <div style="display:flex;gap:10px;align-items:center;padding-bottom:10px;border-bottom:1px solid var(--border)">
-                <span class="mono caption" style="font-size:11px">${esc(o.id.slice(-10))}</span>
+                <span class="mono caption" style="font-size:11px;color:var(--sand)">${esc(o.id.slice(-10))}</span>
                 <span class="body-sm" style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(userName(o.uid))}</span>
-                <span class="tabular body-sm" style="font-weight:700">${esc(usd(o.total))}</span>
+                <span class="tabular body-sm" style="font-weight:700;color:var(--sand)">${esc(usd(o.total))}</span>
               </div>
             `).join('')}
           </div>
@@ -884,7 +990,10 @@ function vMcardOrders() {
   return `
   <div class="page-enter">
     <div class="mb-4">
-      <h1 class="h2" style="margin-bottom:6px">طلبات البطاقات</h1>
+      <div style="font-family:var(--font-mono);font-size:11px;letter-spacing:0.15em;color:var(--sand);text-transform:uppercase;margin-bottom:8px">
+        CARD REQUESTS
+      </div>
+      <h1 class="h2" style="margin-bottom:6px;font-family:var(--font-display)">طلبات البطاقات</h1>
       <p class="body-sm text-2">${pend ? pend + ' طلب ينتظر التنفيذ' : 'لا طلبات معلّقة'}</p>
     </div>
 
@@ -921,11 +1030,11 @@ function vMcardOrders() {
               const lbl = { pending: 'قيد التنفيذ', completed: 'مكتملة', rejected: 'مرفوضة' }[o.status];
               return `
                 <tr>
-                  <td class="mono" style="font-size:11.5px">${esc(o.id.slice(-12))}</td>
+                  <td class="mono" style="font-size:11.5px;color:var(--sand)">${esc(o.id.slice(-12))}</td>
                   <td>${esc(userName(o.uid))}</td>
                   <td>${o.kind === 'topup' ? 'شحن' : 'جديدة'}</td>
                   <td class="tabular">${esc(usd(o.amount))}</td>
-                  <td class="tabular" style="font-weight:700">${esc(usd(o.total))}</td>
+                  <td class="tabular" style="font-weight:700;color:var(--sand)">${esc(usd(o.total))}</td>
                   <td><span class="badge ${st}">${esc(lbl)}</span></td>
                   <td class="caption">${esc(dt(o.created_at))}</td>
                   <td>
@@ -957,7 +1066,7 @@ function openMcardFulfil(id) {
 
     <div class="card card-sm mb-4" style="background:var(--surface-2);border:none">
       <div class="flex-between" style="padding:4px 0"><span class="caption">العميل</span><span class="body-sm">${esc(userName(o.uid))}</span></div>
-      <div class="flex-between" style="padding:4px 0"><span class="caption">المبلغ</span><span class="tabular" style="font-weight:700">${esc(usd(o.amount))}</span></div>
+      <div class="flex-between" style="padding:4px 0"><span class="caption">المبلغ</span><span class="tabular" style="font-weight:700;color:var(--sand)">${esc(usd(o.amount))}</span></div>
       ${o.name_on_card ? `<div class="flex-between" style="padding:4px 0"><span class="caption">الاسم</span><span class="mono">${esc(o.name_on_card)}</span></div>` : ''}
     </div>
 
@@ -1079,7 +1188,10 @@ function vCards() {
   <div class="page-enter">
     <div class="flex-between mb-4">
       <div>
-        <h1 class="h2" style="margin-bottom:6px">البطاقات المُصدرة</h1>
+        <div style="font-family:var(--font-mono);font-size:11px;letter-spacing:0.15em;color:var(--sand);text-transform:uppercase;margin-bottom:8px">
+          CARDS
+        </div>
+        <h1 class="h2" style="margin-bottom:6px;font-family:var(--font-display)">البطاقات المُصدرة</h1>
         <p class="body-sm text-2">${rows.length} بطاقة</p>
       </div>
     </div>
@@ -1107,8 +1219,8 @@ function vCards() {
               <tr>
                 <td>${esc(userName(c.uid))}</td>
                 <td>${esc(c.card_name || '—')}</td>
-                <td class="mono">••${esc(c.last4 || '')}</td>
-                <td class="tabular" style="font-weight:700">${esc(usd(c.balance))}</td>
+                <td class="mono" style="color:var(--sand)">••${esc(c.last4 || '')}</td>
+                <td class="tabular" style="font-weight:700;color:var(--sand)">${esc(usd(c.balance))}</td>
                 <td><span class="badge ${c.status === 'active' ? 'badge-success' : 'badge-neutral'}">${c.status === 'active' ? 'نشطة' : 'مجمدة'}</span></td>
                 <td class="caption">${esc(dt(c.created_at))}</td>
               </tr>
@@ -1120,7 +1232,8 @@ function vCards() {
   </div>
   `;
 }
-  /* ═══════════════════════════════════════════════════════════
+  
+/* ═══════════════════════════════════════════════════════════
    Shop Orders
    ═══════════════════════════════════════════════════════════ */
 
@@ -1135,7 +1248,10 @@ function vShopOrders() {
   return `
   <div class="page-enter">
     <div class="mb-4">
-      <h1 class="h2" style="margin-bottom:6px">طلبات المتجر</h1>
+      <div style="font-family:var(--font-mono);font-size:11px;letter-spacing:0.15em;color:var(--sand);text-transform:uppercase;margin-bottom:8px">
+        STORE ORDERS
+      </div>
+      <h1 class="h2" style="margin-bottom:6px;font-family:var(--font-display)">طلبات المتجر</h1>
       <p class="body-sm text-2">${pendOrd() ? pendOrd() + ' طلب ينتظر' : 'لا طلبات معلّقة'}</p>
     </div>
 
@@ -1159,7 +1275,7 @@ function vShopOrders() {
             <div class="card">
               <div class="flex-between mb-3">
                 <div>
-                  <div class="tabular h4" style="font-size:16px">${esc(lyd(o.total_lyd))}</div>
+                  <div class="tabular h4" style="font-size:16px;color:var(--sand)">${esc(lyd(o.total_lyd))}</div>
                   <div class="mono caption" style="font-size:11px">${esc(o.id)}</div>
                 </div>
                 <span class="badge ${o.status === 'completed' ? 'badge-success' : o.status === 'pending' ? 'badge-warning' : 'badge-error'}">
@@ -1234,7 +1350,7 @@ function openOrderAction(id, action) {
 window.openOrderAction = openOrderAction;
 
 /* ═══════════════════════════════════════════════════════════
-   ⭐ Digital Services (NEW)
+   ⭐ Digital Services — Desert Noir
    ═══════════════════════════════════════════════════════════ */
 
 function vServices() {
@@ -1248,7 +1364,10 @@ function vServices() {
   <div class="page-enter">
     <div class="flex-between mb-4">
       <div>
-        <h1 class="h2" style="margin-bottom:6px">الخدمات الرقمية</h1>
+        <div style="font-family:var(--font-mono);font-size:11px;letter-spacing:0.15em;color:var(--sand);text-transform:uppercase;margin-bottom:8px">
+          DIGITAL SERVICES
+        </div>
+        <h1 class="h2" style="margin-bottom:6px;font-family:var(--font-display)">الخدمات الرقمية</h1>
         <p class="body-sm text-2">إدارة الخدمات والأكواد والطلبات</p>
       </div>
       ${S.svcTab === 'list' ? `<button class="btn btn-primary btn-sm" id="addSvc">${svg(I.plus, 2)} خدمة</button>` : ''}
@@ -1284,17 +1403,21 @@ function vSvcList() {
         return `
           <div class="card">
             <div class="flex-between mb-3">
-              <div style="font-size:36px;line-height:1">${esc(s.icon_emoji || '📦')}</div>
-              <div style="display:flex;gap:6px">
+              <div style="width:52px;height:52px;border-radius:12px;background:linear-gradient(135deg, rgba(212,165,116,0.1) 0%, rgba(10,92,63,0.1) 100%);border:1px solid rgba(212,165,116,0.2);display:grid;place-items:center;font-size:26px;overflow:hidden">
+                ${s.icon_url
+                  ? `<img src="${esc(s.icon_url)}" alt="" style="width:100%;height:100%;object-fit:cover">`
+                  : esc(s.icon_emoji || '📦')}
+              </div>
+              <div style="display:flex;gap:6px;flex-wrap:wrap;justify-content:flex-end">
                 <span class="badge ${s.is_active ? 'badge-success' : 'badge-neutral'}">${s.is_active ? 'نشط' : 'معطّل'}</span>
-                <span class="badge ${isAuto ? 'badge-info' : 'badge-warning'}">${isAuto ? '🤖 تلقائي' : '👤 يدوي'}</span>
+                <span class="badge ${isAuto ? 'badge-info' : 'badge-warning'}">${isAuto ? 'فوري' : 'يدوي'}</span>
               </div>
             </div>
-            <div class="h4" style="margin-bottom:4px">${esc(s.name || '')}</div>
+            <div class="h4" style="margin-bottom:4px;font-family:var(--font-display)">${esc(s.name || '')}</div>
             <div class="body-sm text-2 mb-3" style="min-height:32px">${esc((s.desc || '').slice(0, 80))}</div>
             <div class="flex-between mb-3">
-              <div class="tabular h4" style="font-size:18px;color:var(--brand)">${esc(usd(s.price_usd))}</div>
-              <div class="caption">${n(s.sold_count)} مبيع · ${isAuto ? stock + ' متوفر' : '—'}</div>
+              <div class="tabular h4" style="font-size:18px;color:var(--sand)">${esc(usd(s.price_usd))}</div>
+              <div class="caption" style="font-family:var(--font-mono)">${n(s.sold_count)} SOLD · ${isAuto ? stock + ' STOCK' : 'MANUAL'}</div>
             </div>
             <div style="display:flex;gap:6px">
               <button class="btn btn-secondary btn-sm" style="flex:1" data-edit-svc="${esc(s.id)}">${svg(I.edit, 2)} تعديل</button>
@@ -1339,12 +1462,8 @@ function vSvcStock() {
     <div class="card mb-5">
       <div class="h4" style="margin-bottom:12px">إضافة أكواد جديدة</div>
 
-      <div class="svc-tabs" style="margin-bottom:16px">
-        <button class="svc-tab active" id="modeBulk">📋 نص كبير (كل سطر = كود)</button>
-      </div>
-
       <div class="field mb-4">
-        <textarea class="input" id="bulkCodes" rows="6" placeholder="CODE1&#10;CODE2&#10;CODE3&#10;..." style="font-family:monospace;font-size:13px"></textarea>
+        <textarea class="input" id="bulkCodes" rows="6" placeholder="CODE1&#10;CODE2&#10;CODE3&#10;..." style="font-family:var(--font-mono);font-size:13px;color:var(--sand)"></textarea>
         <span class="field-hint">حتى 500 كود في المرة — سطر واحد لكل كود</span>
       </div>
 
@@ -1408,14 +1527,18 @@ function vSvcOrders() {
             <div class="card">
               <div class="flex-between mb-3">
                 <div style="display:flex;gap:12px;align-items:center">
-                  <span style="font-size:32px">${esc(o.service_icon || '📦')}</span>
+                  <div style="width:44px;height:44px;border-radius:10px;background:linear-gradient(135deg, rgba(212,165,116,0.1) 0%, rgba(10,92,63,0.1) 100%);border:1px solid rgba(212,165,116,0.2);display:grid;place-items:center;font-size:22px;overflow:hidden">
+                    ${o.service_icon_url
+                      ? `<img src="${esc(o.service_icon_url)}" alt="" style="width:100%;height:100%;object-fit:cover">`
+                      : esc(o.service_icon || '📦')}
+                  </div>
                   <div>
-                    <div class="h4" style="margin-bottom:2px">${esc(o.service_name || '')}</div>
+                    <div class="h4" style="margin-bottom:2px;font-family:var(--font-display)">${esc(o.service_name || '')}</div>
                     <div class="mono caption" style="font-size:11px">${esc(o.id)}</div>
                   </div>
                 </div>
                 <div style="text-align:left">
-                  <div class="tabular" style="font-weight:700;font-size:16px">${esc(usd(o.price_usd))}</div>
+                  <div class="tabular" style="font-weight:700;font-size:16px;color:var(--sand)">${esc(usd(o.price_usd))}</div>
                   <span class="badge ${stCls}" style="margin-top:4px">${esc(stLbl)}</span>
                 </div>
               </div>
@@ -1425,9 +1548,9 @@ function vSvcOrders() {
               </div>
 
               ${o.inputs && Object.keys(o.inputs).length ? `
-                <div style="background:var(--surface-2);border-radius:8px;padding:10px 12px;margin-bottom:12px;font-size:12.5px">
+                <div style="background:var(--ink-2);border:1px solid var(--border);border-radius:8px;padding:10px 12px;margin-bottom:12px;font-size:12.5px">
                   ${Object.entries(o.inputs).map(([k, v]) =>
-                    `<div style="padding:2px 0"><span class="caption">${esc(k)}:</span> <span class="mono" dir="ltr">${esc(v)}</span></div>`
+                    `<div style="padding:2px 0"><span class="caption">${esc(k)}:</span> <span class="mono" dir="ltr" style="color:var(--sand)">${esc(v)}</span></div>`
                   ).join('')}
                 </div>
               ` : ''}
@@ -1440,7 +1563,7 @@ function vSvcOrders() {
                   <button class="btn btn-outline-danger btn-sm" data-svc-reject="${esc(o.id)}">رفض</button>
                 </div>
               ` : st === 'delivered' ? `
-                <div style="background:var(--success-bg);color:var(--success);padding:10px 12px;border-radius:8px;font-size:12.5px;direction:ltr;text-align:center;word-break:break-all;font-family:monospace">
+                <div style="background:rgba(95,184,138,0.08);border:1px solid rgba(95,184,138,0.2);color:#7DD6A5;padding:10px 12px;border-radius:8px;font-size:12.5px;direction:ltr;text-align:center;word-break:break-all;font-family:var(--font-mono)">
                   ${esc(o.delivered_data || '')}
                 </div>
               ` : `
@@ -1452,6 +1575,67 @@ function vSvcOrders() {
       </div>
     ` : emptyState(I.check, 'لا طلبات', 'لا توجد طلبات بهذه الحالة.')}
   `;
+}
+
+/* ── Image compressor (browser-side) ── */
+function compressImage(file, maxDim = 256, maxBytes = 60000) {
+  return new Promise((resolve, reject) => {
+    if (!file) return reject(new Error('لا يوجد ملف'));
+    if (!/^image\//.test(file.type)) return reject(new Error('الملف ليس صورة'));
+
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      const img = new Image();
+      img.onload = () => {
+        let { width, height } = img;
+        if (width > maxDim || height > maxDim) {
+          const ratio = Math.min(maxDim / width, maxDim / height);
+          width = Math.round(width * ratio);
+          height = Math.round(height * ratio);
+        }
+
+        const canvas = document.createElement('canvas');
+        canvas.width = width;
+        canvas.height = height;
+        const ctx = canvas.getContext('2d');
+        ctx.drawImage(img, 0, 0, width, height);
+
+        let quality = 0.9;
+        let dataUrl = canvas.toDataURL('image/jpeg', quality);
+
+        // Loop to shrink quality until under maxBytes
+        let attempts = 0;
+        while (dataUrl.length > maxBytes * 1.35 && attempts < 12) {
+          quality -= 0.08;
+          if (quality < 0.2) quality = 0.2;
+          dataUrl = canvas.toDataURL('image/jpeg', quality);
+          attempts++;
+        }
+
+        // Further shrink dimensions if still too big
+        let dimAttempts = 0;
+        while (dataUrl.length > maxBytes * 1.35 && dimAttempts < 5) {
+          width = Math.round(width * 0.8);
+          height = Math.round(height * 0.8);
+          canvas.width = width;
+          canvas.height = height;
+          ctx.drawImage(img, 0, 0, width, height);
+          dataUrl = canvas.toDataURL('image/jpeg', quality);
+          dimAttempts++;
+        }
+
+        if (dataUrl.length > 180000) {
+          return reject(new Error('الصورة كبيرة — جرّب صورة أبسط'));
+        }
+
+        resolve(dataUrl);
+      };
+      img.onerror = () => reject(new Error('تعذّر قراءة الصورة'));
+      img.src = e.target.result;
+    };
+    reader.onerror = () => reject(new Error('تعذّر قراءة الملف'));
+    reader.readAsDataURL(file);
+  });
 }
 
 /* ── Service Edit Modal ── */
@@ -1491,10 +1675,11 @@ function openServiceEdit(id) {
         <div style="flex:1">
           <input class="input mb-2" id="sEmoji" value="${esc(s.icon_emoji || '')}" maxlength="4" placeholder="📦 (إيموجي)">
           <input type="file" id="sImageFile" accept="image/*" style="display:none">
-          <button class="btn btn-secondary btn-sm btn-block" id="uploadImgBtn">
-            ${svg(I.upload, 2)} رفع صورة بدلاً من الإيموجي
+          <button class="btn btn-secondary btn-sm btn-block" id="uploadImgBtn" type="button">
+            ${svg(I.upload, 2)} رفع صورة (حتى 60KB — تُضغط تلقائياً)
           </button>
           <input type="hidden" id="sIconUrl" value="${esc(s.icon_url || '')}">
+          <div id="imgStatus" class="caption" style="margin-top:6px;display:none"></div>
         </div>
       </div>
     </div>
@@ -1529,7 +1714,7 @@ function openServiceEdit(id) {
 
     <div class="flex-between mb-3">
       <div class="h4" style="font-size:14px">الحقول المطلوبة من العميل</div>
-      <button class="btn btn-secondary btn-sm" id="addFieldBtn">${svg(I.plus, 2)} حقل</button>
+      <button type="button" class="btn btn-secondary btn-sm" id="addFieldBtn">${svg(I.plus, 2)} حقل</button>
     </div>
 
     <p class="caption mb-3">حتى 5 حقول — تُطلب من العميل عند الشراء</p>
@@ -1560,7 +1745,7 @@ function openServiceEdit(id) {
               `<option value="${t}" ${f.type === t ? 'selected' : ''}>${t}</option>`).join('')}
           </select>
         </div>
-        <button class="btn btn-sm" style="background:none;color:var(--error);padding:8px" data-del-field="${i}">
+        <button type="button" class="btn btn-sm" style="background:none;color:var(--error);padding:8px" data-del-field="${i}">
           ${svg(I.trash, 2)}
         </button>
       </div>
@@ -1590,24 +1775,38 @@ function openServiceEdit(id) {
     renderFields();
   });
 
-  // Image upload
+  // Image upload with auto-compress
   onTap('#uploadImgBtn', () => $('#sImageFile').click());
 
-  $('#sImageFile').onchange = (e) => {
+  $('#sImageFile').onchange = async (e) => {
     const file = e.target.files[0];
     if (!file) return;
-    if (file.size > 60 * 1024) return toast('الصورة أكبر من 60KB', 'bad');
-    const reader = new FileReader();
-    reader.onload = (ev) => {
-      $('#sIconUrl').value = ev.target.result;
-      $('#iconPreview').innerHTML = `<img src="${ev.target.result}" alt="">`;
-    };
-    reader.readAsDataURL(file);
+
+    const statusEl = $('#imgStatus');
+    statusEl.style.display = 'block';
+    statusEl.textContent = '⏳ جاري ضغط الصورة...';
+    statusEl.style.color = 'var(--sand)';
+
+    try {
+      const dataUrl = await compressImage(file, 256, 60000);
+      $('#sIconUrl').value = dataUrl;
+      $('#iconPreview').innerHTML = `<img src="${dataUrl}" alt="">`;
+      $('#sEmoji').value = '';
+
+      const kb = Math.round(dataUrl.length * 0.75 / 1024);
+      statusEl.textContent = `✅ تم الضغط — ${kb}KB`;
+      statusEl.style.color = '#7DD6A5';
+    } catch (err) {
+      statusEl.textContent = '❌ ' + err.message;
+      statusEl.style.color = '#F0947E';
+      toast(err.message, 'bad');
+    }
   };
 
   $('#sEmoji').oninput = (e) => {
     $('#sIconUrl').value = '';
     $('#iconPreview').innerHTML = e.target.value || '📦';
+    $('#imgStatus').style.display = 'none';
   };
 
   // Save
@@ -1627,12 +1826,15 @@ function openServiceEdit(id) {
         required: f.required !== false,
       }));
 
+    const iconUrl = $('#sIconUrl').value.trim();
+    const emoji = $('#sEmoji').value.trim() || '📦';
+
     const payload = {
       id: id || undefined,
       name,
       desc: $('#sDesc').value.trim(),
-      icon_emoji: $('#sEmoji').value.trim() || '📦',
-      icon_url: $('#sIconUrl').value.trim(),
+      icon_emoji: iconUrl ? '' : emoji,
+      icon_url: iconUrl,
       price_usd: price,
       delivery_type: $('#sDeliv').value,
       fields: cleanFields,
@@ -1691,12 +1893,12 @@ function openSvcDeliver(orderId) {
     <div class="card card-sm mb-4" style="background:var(--surface-2);border:none">
       <div class="flex-between" style="padding:4px 0"><span class="caption">الخدمة</span><span class="body-sm">${esc(o.service_name)}</span></div>
       <div class="flex-between" style="padding:4px 0"><span class="caption">العميل</span><span class="body-sm">${esc(userName(o.uid))}</span></div>
-      <div class="flex-between" style="padding:4px 0"><span class="caption">المبلغ</span><span class="tabular" style="font-weight:700">${esc(usd(o.price_usd))}</span></div>
+      <div class="flex-between" style="padding:4px 0"><span class="caption">المبلغ</span><span class="tabular" style="font-weight:700;color:var(--sand)">${esc(usd(o.price_usd))}</span></div>
     </div>
 
     <div class="field mb-4">
       <label class="field-label">البيانات/الكود المُسلَّم *</label>
-      <textarea class="input" id="svcDeliverData" rows="5" placeholder="USER: xxx&#10;PASS: yyy&#10;أو أي بيانات يراها العميل" style="font-family:monospace;font-size:13px"></textarea>
+      <textarea class="input" id="svcDeliverData" rows="5" placeholder="USER: xxx&#10;PASS: yyy&#10;أو أي بيانات يراها العميل" style="font-family:var(--font-mono);font-size:13px;color:var(--sand)"></textarea>
       <span class="field-hint">ستظهر للعميل في "طلباتي" فوراً</span>
     </div>
 
@@ -1771,7 +1973,7 @@ function openSvcReject(orderId) {
   });
 }
 window.openSvcReject = openSvcReject;
-
+  
 /* ═══════════════════════════════════════════════════════════
    Deposits
    ═══════════════════════════════════════════════════════════ */
@@ -1785,7 +1987,10 @@ function vDeposits() {
   return `
   <div class="page-enter">
     <div class="mb-4">
-      <h1 class="h2" style="margin-bottom:6px">الإيداعات</h1>
+      <div style="font-family:var(--font-mono);font-size:11px;letter-spacing:0.15em;color:var(--sand);text-transform:uppercase;margin-bottom:8px">
+        DEPOSITS
+      </div>
+      <h1 class="h2" style="margin-bottom:6px;font-family:var(--font-display)">الإيداعات</h1>
       <p class="body-sm text-2">${pendDep() ? pendDep() + ' طلب ينتظر' : 'لا طلبات معلّقة'}</p>
     </div>
 
@@ -1814,7 +2019,7 @@ function vDeposits() {
             ${rows.map(d => `
               <tr>
                 <td>${esc(userName(d.uid))}</td>
-                <td class="tabular" style="font-weight:700">${esc(usd(d.amount_usd))}</td>
+                <td class="tabular" style="font-weight:700;color:var(--sand)">${esc(usd(d.amount_usd))}</td>
                 <td class="tabular">${esc(lyd(d.amount_lyd))}</td>
                 <td>${esc(d.method || '—')}</td>
                 <td><span class="badge ${d.status === 'approved' ? 'badge-success' : d.status === 'pending' ? 'badge-warning' : 'badge-error'}">
@@ -1844,7 +2049,7 @@ function openDepositReview(id) {
 
     <div class="card card-sm mb-4" style="background:var(--surface-2);border:none">
       <div class="flex-between" style="padding:4px 0"><span class="caption">العميل</span><span class="body-sm">${esc(userName(d.uid))}</span></div>
-      <div class="flex-between" style="padding:4px 0"><span class="caption">المبلغ</span><span class="tabular" style="font-weight:700">${esc(usd(d.amount_usd))}</span></div>
+      <div class="flex-between" style="padding:4px 0"><span class="caption">المبلغ</span><span class="tabular" style="font-weight:700;color:var(--sand)">${esc(usd(d.amount_usd))}</span></div>
       <div class="flex-between" style="padding:4px 0"><span class="caption">بالدينار</span><span class="tabular">${esc(lyd(d.amount_lyd))}</span></div>
       <div class="flex-between" style="padding:4px 0"><span class="caption">الطريقة</span><span class="body-sm">${esc(d.method || '—')}</span></div>
       <div class="flex-between" style="padding:4px 0"><span class="caption">الهاتف</span><span class="mono body-sm" dir="ltr">${esc(d.claim_phone || '—')}</span></div>
@@ -1909,7 +2114,10 @@ function vWithdraw() {
   return `
   <div class="page-enter">
     <div class="mb-4">
-      <h1 class="h2" style="margin-bottom:6px">السحوبات</h1>
+      <div style="font-family:var(--font-mono);font-size:11px;letter-spacing:0.15em;color:var(--sand);text-transform:uppercase;margin-bottom:8px">
+        WITHDRAWALS
+      </div>
+      <h1 class="h2" style="margin-bottom:6px;font-family:var(--font-display)">السحوبات</h1>
       <p class="body-sm text-2">${pendWd() ? pendWd() + ' طلب ينتظر' : 'لا طلبات معلّقة'}</p>
     </div>
 
@@ -1926,7 +2134,7 @@ function vWithdraw() {
           <div class="card">
             <div class="flex-between mb-3">
               <div>
-                <div class="tabular h4" style="font-size:16px">${esc(usd(w.amount_usd))}</div>
+                <div class="tabular h4" style="font-size:16px;color:var(--sand)">${esc(usd(w.amount_usd))}</div>
                 <div class="mono caption" style="font-size:11px">${esc(w.id)}</div>
               </div>
               <span class="badge ${w.status === 'completed' ? 'badge-success' : w.status === 'pending' ? 'badge-warning' : 'badge-error'}">
@@ -2014,7 +2222,10 @@ function vTickets() {
   return `
   <div class="page-enter">
     <div class="mb-4">
-      <h1 class="h2" style="margin-bottom:6px">التذاكر</h1>
+      <div style="font-family:var(--font-mono);font-size:11px;letter-spacing:0.15em;color:var(--sand);text-transform:uppercase;margin-bottom:8px">
+        SUPPORT TICKETS
+      </div>
+      <h1 class="h2" style="margin-bottom:6px;font-family:var(--font-display)">التذاكر</h1>
       <p class="body-sm text-2">${openTic() ? openTic() + ' تذكرة مفتوحة' : 'لا تذاكر مفتوحة'}</p>
     </div>
 
@@ -2062,8 +2273,8 @@ function openTicketDetail(id) {
 
     <div style="display:flex;flex-direction:column;gap:10px;margin-bottom:16px;max-height:44vh;overflow-y:auto">
       ${msgs.map(m => `
-        <div style="align-self:${m.by === 'admin' ? 'flex-end' : 'flex-start'};max-width:85%;padding:10px 14px;border-radius:12px;background:${m.by === 'admin' ? 'var(--brand-light)' : 'var(--surface-2)'}">
-          <div class="caption" style="font-size:10.5px;margin-bottom:3px">${m.by === 'admin' ? 'أنت' : 'العميل'} · ${esc(dt(m.at))}</div>
+        <div style="align-self:${m.by === 'admin' ? 'flex-end' : 'flex-start'};max-width:85%;padding:10px 14px;border-radius:12px;background:${m.by === 'admin' ? 'rgba(212,165,116,0.12)' : 'var(--surface-2)'};border:1px solid ${m.by === 'admin' ? 'rgba(212,165,116,0.2)' : 'var(--border)'}">
+          <div class="caption" style="font-size:10.5px;margin-bottom:3px;font-family:var(--font-mono);letter-spacing:0.08em">${m.by === 'admin' ? 'ADMIN' : 'CLIENT'} · ${esc(dt(m.at))}</div>
           <div class="body-sm" style="line-height:1.65;white-space:pre-line">${esc(m.text)}</div>
         </div>
       `).join('')}
@@ -2119,7 +2330,10 @@ function vCoupons() {
   <div class="page-enter">
     <div class="flex-between mb-4">
       <div>
-        <h1 class="h2" style="margin-bottom:6px">الكوبونات</h1>
+        <div style="font-family:var(--font-mono);font-size:11px;letter-spacing:0.15em;color:var(--sand);text-transform:uppercase;margin-bottom:8px">
+          COUPONS
+        </div>
+        <h1 class="h2" style="margin-bottom:6px;font-family:var(--font-display)">الكوبونات</h1>
         <p class="body-sm text-2">${S.coupons.length} كوبون</p>
       </div>
       <button class="btn btn-primary btn-sm" id="addCoup">${svg(I.plus, 2)} كوبون</button>
@@ -2130,7 +2344,7 @@ function vCoupons() {
         ${S.coupons.map(c => `
           <div class="card">
             <div class="flex-between mb-2">
-              <div class="mono" style="font-size:16px;font-weight:700;letter-spacing:.08em">${esc(c.id)}</div>
+              <div class="mono" style="font-size:16px;font-weight:700;letter-spacing:.08em;color:var(--sand)">${esc(c.id)}</div>
               <span class="badge ${c.active !== false ? 'badge-success' : 'badge-neutral'}">${c.active !== false ? 'نشط' : 'معطّل'}</span>
             </div>
             <div class="body-sm text-2 mb-3">
@@ -2162,7 +2376,7 @@ function openCouponEdit(id) {
 
     <div class="field mb-3">
       <label class="field-label">الكود</label>
-      <input class="input mono" id="cCode" value="${esc(c.id || '')}" ${id ? 'disabled' : ''} dir="ltr" placeholder="WELCOME10" style="text-transform:uppercase;letter-spacing:.08em">
+      <input class="input mono" id="cCode" value="${esc(c.id || '')}" ${id ? 'disabled' : ''} dir="ltr" placeholder="WELCOME10" style="text-transform:uppercase;letter-spacing:.08em;color:var(--sand)">
     </div>
 
     <div class="grid-2 mb-3">
@@ -2255,7 +2469,10 @@ function vUsers() {
   return `
   <div class="page-enter">
     <div class="mb-4">
-      <h1 class="h2" style="margin-bottom:6px">المستخدمون</h1>
+      <div style="font-family:var(--font-mono);font-size:11px;letter-spacing:0.15em;color:var(--sand);text-transform:uppercase;margin-bottom:8px">
+        USERS
+      </div>
+      <h1 class="h2" style="margin-bottom:6px;font-family:var(--font-display)">المستخدمون</h1>
       <p class="body-sm text-2">${rows.length} مستخدم</p>
     </div>
 
@@ -2282,7 +2499,7 @@ function vUsers() {
               <tr>
                 <td>${esc(u.name || '—')}</td>
                 <td class="mono caption" dir="ltr">${esc(u.email || '—')}</td>
-                <td class="tabular" style="font-weight:600">${esc(usd(u.wallet_balance))}</td>
+                <td class="tabular" style="font-weight:600;color:var(--sand)">${esc(usd(u.wallet_balance))}</td>
                 <td>${u.banned ? '<span class="badge badge-error">موقوف</span>' : '<span class="badge badge-success">نشط</span>'}</td>
                 <td class="caption">${esc(dt(u.created_at))}</td>
                 <td><button class="btn btn-secondary btn-sm" data-user="${esc(u.id)}">إدارة</button></td>
@@ -2307,7 +2524,7 @@ function openUserManage(uid) {
     </div>
 
     <div class="card card-sm mb-4" style="background:var(--surface-2);border:none">
-      <div class="flex-between" style="padding:4px 0"><span class="caption">الرصيد</span><span class="tabular" style="font-weight:700">${esc(usd(u.wallet_balance))}</span></div>
+      <div class="flex-between" style="padding:4px 0"><span class="caption">الرصيد</span><span class="tabular" style="font-weight:700;color:var(--sand)">${esc(usd(u.wallet_balance))}</span></div>
       <div class="flex-between" style="padding:4px 0"><span class="caption">الإنفاق</span><span class="tabular">${esc(usd(u.total_spent))}</span></div>
       <div class="flex-between" style="padding:4px 0"><span class="caption">البريد</span><span class="caption mono" dir="ltr">${esc(u.email || '—')}</span></div>
     </div>
@@ -2370,7 +2587,10 @@ function vSms() {
   return `
   <div class="page-enter">
     <div class="mb-4">
-      <h1 class="h2" style="margin-bottom:6px">رسائل التحويل</h1>
+      <div style="font-family:var(--font-mono);font-size:11px;letter-spacing:0.15em;color:var(--sand);text-transform:uppercase;margin-bottom:8px">
+        SMS LOG
+      </div>
+      <h1 class="h2" style="margin-bottom:6px;font-family:var(--font-display)">رسائل التحويل</h1>
       <p class="body-sm text-2">${S.sms.length} رسالة</p>
     </div>
 
@@ -2380,8 +2600,8 @@ function vSms() {
           <div class="card">
             <div class="flex-between mb-3">
               <div>
-                <div class="tabular h4" style="font-size:16px">${s.amount_lyd ? esc(lyd(s.amount_lyd)) : '—'}</div>
-                <div class="caption" dir="ltr">${esc(s.sender || s.from || '—')}</div>
+                <div class="tabular h4" style="font-size:16px;color:var(--sand)">${s.amount_lyd ? esc(lyd(s.amount_lyd)) : '—'}</div>
+                <div class="caption mono" dir="ltr">${esc(s.sender || s.from || '—')}</div>
               </div>
               <span class="badge ${s.status === 'claimed' ? 'badge-success' : s.status === 'untrusted' ? 'badge-error' : 'badge-warning'}">
                 ${s.status === 'claimed' ? 'مربوطة' : s.status === 'untrusted' ? 'مزيّفة' : 'غير مربوطة'}
@@ -2415,7 +2635,10 @@ function vSettings() {
   return `
   <div class="page-enter">
     <div class="mb-6">
-      <h1 class="h2" style="margin-bottom:6px">الإعدادات</h1>
+      <div style="font-family:var(--font-mono);font-size:11px;letter-spacing:0.15em;color:var(--sand);text-transform:uppercase;margin-bottom:8px">
+        SETTINGS
+      </div>
+      <h1 class="h2" style="margin-bottom:6px;font-family:var(--font-display)">الإعدادات</h1>
       <p class="body-sm text-2">تحكم كامل في المنصة</p>
     </div>
 
@@ -2610,7 +2833,6 @@ async function saveSettings(btn) {
    ═══════════════════════════════════════════════════════════ */
 
 function bind() {
-  // Search
   const q = $('#qBox');
   if (q) {
     q.oninput = e => {
@@ -2624,21 +2846,17 @@ function bind() {
     };
   }
 
-  // Filters
   document.querySelectorAll('[data-filter]').forEach(b =>
     b.onclick = () => { S.filter = b.dataset.filter; render(); });
 
-  // Manual cards
   document.querySelectorAll('[data-mc]').forEach(b =>
     b.onclick = () => openMcardFulfil(b.dataset.mc));
 
-  // Shop orders
   document.querySelectorAll('[data-ord-ok]').forEach(b =>
     b.onclick = () => openOrderAction(b.dataset.ordOk, 'complete'));
   document.querySelectorAll('[data-ord-no]').forEach(b =>
     b.onclick = () => openOrderAction(b.dataset.ordNo, 'reject'));
 
-  // ⭐ Services
   document.querySelectorAll('[data-svc-tab]').forEach(b =>
     b.onclick = () => {
       S.svcTab = b.dataset.svcTab;
@@ -2674,7 +2892,6 @@ function bind() {
       });
     });
 
-  // Stock select
   const svcSel = $('#svcSelect');
   if (svcSel) {
     svcSel.onchange = () => {
@@ -2693,36 +2910,29 @@ function bind() {
   document.querySelectorAll('[data-del-stock]').forEach(b =>
     b.onclick = () => delStockCode(b.dataset.delStock));
 
-  // Service orders
   document.querySelectorAll('[data-svc-deliver]').forEach(b =>
     b.onclick = () => openSvcDeliver(b.dataset.svcDeliver));
   document.querySelectorAll('[data-svc-reject]').forEach(b =>
     b.onclick = () => openSvcReject(b.dataset.svcReject));
 
-  // Deposits
   document.querySelectorAll('[data-dep]').forEach(b =>
     b.onclick = () => openDepositReview(b.dataset.dep));
 
-  // Withdrawals
   document.querySelectorAll('[data-wd-ok]').forEach(b =>
     b.onclick = () => openWithdrawAction(b.dataset.wdOk, 'complete'));
   document.querySelectorAll('[data-wd-no]').forEach(b =>
     b.onclick = () => openWithdrawAction(b.dataset.wdNo, 'reject'));
 
-  // Tickets
   document.querySelectorAll('[data-tic]').forEach(b =>
     b.onclick = () => openTicketDetail(b.dataset.tic));
 
-  // Users
   document.querySelectorAll('[data-user]').forEach(b =>
     b.onclick = () => openUserManage(b.dataset.user));
 
-  // Coupons
   document.querySelectorAll('[data-ecoup]').forEach(b =>
     b.onclick = () => openCouponEdit(b.dataset.ecoup));
   onTap('#addCoup', () => openCouponEdit(null));
 
-  // Settings
   document.querySelectorAll('[data-settab]').forEach(b =>
     b.onclick = () => { S.setTab = b.dataset.settab; render(); });
 
