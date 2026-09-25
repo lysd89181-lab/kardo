@@ -1,8 +1,7 @@
-// ═══ PART 1/5 ═══
 /**
  * ═══════════════════════════════════════════════════════════
  *  KARDO — Cloudflare Worker Backend
- *  Version: 3.0.0 (Digital Subscriptions System)
+ *  Version: 3.1.0 (Fixed Image Upload — up to 180KB)
  * ═══════════════════════════════════════════════════════════
  */
 
@@ -227,7 +226,6 @@ function cleanServiceFields(arr) {
     return out;
   }).filter(f => f.label);
 }
-// ═══ PART 2/5 — CONTINUE PASTING ═══
 
 /* ═══ Digital Services — Create Order (Customer) ═══ */
 async function handleServiceCreateOrder(user, body, env) {
@@ -312,7 +310,7 @@ async function handleServiceCreateOrder(user, body, env) {
         uid: user.uid, service_id: serviceId,
         service_name: String(svc.name || '').slice(0, 80),
         service_icon: String(svc.icon_emoji || '📦').slice(0, 8),
-        service_icon_url: String(svc.icon_url || '').slice(0, 500),
+        service_icon_url: String(svc.icon_url || '').slice(0, 180000),
         price_usd: priceUsd, delivery_type: 'auto', inputs,
         status: 'delivered', delivered_data: deliveredCode,
         delivered_at: nowIso(), stock_id: stockId,
@@ -352,7 +350,7 @@ async function handleServiceCreateOrder(user, body, env) {
       uid: user.uid, service_id: serviceId,
       service_name: String(svc.name || '').slice(0, 80),
       service_icon: String(svc.icon_emoji || '📦').slice(0, 8),
-      service_icon_url: String(svc.icon_url || '').slice(0, 500),
+      service_icon_url: String(svc.icon_url || '').slice(0, 180000),
       price_usd: priceUsd, delivery_type: 'manual', inputs,
       status: 'pending', delivered_data: '',
       created_at: nowIso(), updated_at: nowIso(),
@@ -397,8 +395,7 @@ async function handleServiceMyOrders(user, body, env) {
     }));
 
   return { success: true, orders };
-}
-
+                         }
 /* ═══ Manual Cards ═══ */
 async function handleManualCardRequest(user, body, env) {
   const s = await getSettings(env);
@@ -569,7 +566,6 @@ async function handleRevealCard(user, body, env, request) {
 
   return { success: true, card_number: rv.card_number, expiry: rv.expiry, cvv: rv.cvv, expires_at: rv.expires_at };
 }
-// ═══ PART 3/5 — CONTINUE PASTING ═══
 
 /* ═══ Admin Card Fulfil / Reject ═══ */
 async function handleAdminCardFulfil(user, body, env) {
@@ -1184,9 +1180,7 @@ async function handleAdminSmsAssign(user, body, env) {
 
   await logOp(env, user.uid, 'sms_manual_assign', { smsId, uid }, { credited: amountUsd }, true);
   return { success: true, credited: amountUsd };
-      }
-// ═══ PART 4/5 — CONTINUE PASTING ═══
-
+  }
 /* ═══ Store ═══ */
 async function handleCatalog(env) {
   const [cats, prods] = await Promise.all([
@@ -1857,8 +1851,7 @@ async function maybePayReferral(env, s, uid, spent) {
       logOp(env, uid, 'referral_paid', { inviter: me.referred_by }, { forInvitee, forInviter }, true),
     ]);
   } catch (e) { console.error('REFERRAL_FAILED', e.message); }
-              }
-// ═══ PART 5/5 — CONTINUE PASTING ═══
+}
 
 /* ═══ Admin — Digital Services ═══ */
 async function handleAdminServiceSave(user, body, env) {
@@ -1872,7 +1865,7 @@ async function handleAdminServiceSave(user, body, env) {
     name,
     desc: String(body.desc || '').slice(0, 200),
     icon_emoji: String(body.icon_emoji || '📦').slice(0, 8),
-    icon_url: String(body.icon_url || '').slice(0, 500),
+    icon_url: String(body.icon_url || '').slice(0, 180000),
     price_usd: round2(num(body.price_usd, 0)),
     delivery_type: body.delivery_type === 'manual' ? 'manual' : 'auto',
     fields: cleanServiceFields(body.fields),
