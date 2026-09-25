@@ -3,14 +3,16 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<meta name="theme-color" content="#176B4D">
+<meta name="theme-color" content="#0B0F0D">
 <meta name="description" content="كاردو — بطاقات افتراضية وخدمات رقمية في ليبيا.">
 <title>كاردو — بطاقات وخدمات رقمية</title>
 
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Arabic:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Arabic:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&family=Reem+Kufi:wght@400;500;600;700&family=Instrument+Serif:ital@0;1&display=swap">
+
 <link rel="stylesheet" href="./styles.css">
+<link rel="stylesheet" href="./theme-desert.css">
 
 <style>
 /* ═══ Digital Services — Custom Icons ═══ */
@@ -24,6 +26,7 @@
   font-size: 20px;
   flex-shrink: 0;
   overflow: hidden;
+  border: 1px solid var(--border);
 }
 
 .svc-icon img {
@@ -33,13 +36,14 @@
 }
 
 .svc-icon-lg {
-  width: 64px;
-  height: 64px;
-  border-radius: 16px;
-  background: var(--surface-2);
+  width: 72px;
+  height: 72px;
+  border-radius: 18px;
+  background: linear-gradient(135deg, rgba(212, 165, 116, 0.12) 0%, rgba(10, 92, 63, 0.12) 100%);
+  border: 1px solid rgba(212, 165, 116, 0.2);
   display: grid;
   place-items: center;
-  font-size: 32px;
+  font-size: 36px;
   margin: 0 auto;
   overflow: hidden;
 }
@@ -56,31 +60,48 @@
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  gap: 8px;
-  padding: 14px 8px;
+  gap: 10px;
+  padding: 16px 8px;
   background: var(--surface);
   border: 1px solid var(--border);
-  border-radius: 12px;
+  border-radius: 14px;
   cursor: pointer;
-  transition: all .15s ease;
+  transition: all .2s cubic-bezier(0.16, 1, 0.3, 1);
   font-family: inherit;
+  position: relative;
+  overflow: hidden;
 }
 
+.quick-tile::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(circle at 50% 0%, rgba(212, 165, 116, 0.08) 0%, transparent 70%);
+  opacity: 0;
+  transition: opacity .2s ease;
+  pointer-events: none;
+}
+
+.quick-tile:hover::before { opacity: 1; }
+
 .quick-tile:hover {
-  border-color: var(--brand);
-  background: var(--brand-light);
+  border-color: rgba(212, 165, 116, 0.4);
+  background: var(--ink-2);
+  transform: translateY(-2px);
+  box-shadow: 0 8px 24px -8px rgba(212, 165, 116, 0.2);
 }
 
 .quick-tile:active {
-  transform: scale(.98);
+  transform: scale(.97) translateY(0);
 }
 
 .quick-icon {
-  width: 36px;
-  height: 36px;
-  border-radius: 10px;
-  background: var(--brand-light);
-  color: var(--brand);
+  width: 38px;
+  height: 38px;
+  border-radius: 11px;
+  background: linear-gradient(135deg, rgba(212, 165, 116, 0.15) 0%, rgba(10, 92, 63, 0.15) 100%);
+  color: var(--sand);
+  border: 1px solid rgba(212, 165, 116, 0.2);
   display: grid;
   place-items: center;
 }
@@ -91,42 +112,241 @@
 }
 
 .quick-label {
-  font-size: 11.5px;
+  font-size: 11px;
   font-weight: 600;
   color: var(--text-2);
+  font-family: var(--font-mono);
+  letter-spacing: 0.05em;
   text-align: center;
 }
 
-/* ═══ Service Card (Services Page) ═══ */
-.service-card {
-  display: flex;
-  flex-direction: column;
-  align-items: stretch;
+/* ═══ Public Hero — Amazigh touch ═══ */
+.hero-title-ar {
+  font-family: var(--font-display);
+  font-weight: 600;
+  letter-spacing: -0.005em;
+}
+
+.hero-title-en {
+  font-family: var(--font-latin-display);
+  font-style: italic;
+  font-weight: 400;
+  letter-spacing: -0.02em;
+  color: var(--sand);
+}
+
+.hero-tag {
+  display: inline-flex;
+  align-items: center;
   gap: 8px;
+  padding: 6px 12px;
+  border-radius: 999px;
+  background: rgba(212, 165, 116, 0.1);
+  border: 1px solid rgba(212, 165, 116, 0.2);
+  color: var(--sand);
+  font-family: var(--font-mono);
+  font-size: 11px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+
+.hero-tag::before {
+  content: '';
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--sand);
+  box-shadow: 0 0 8px var(--sand);
+  animation: pulse-dot 2s ease-in-out infinite;
+}
+
+@keyframes pulse-dot {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50% { opacity: 0.5; transform: scale(0.8); }
+}
+
+/* Stats */
+.stat-block {
+  padding-right: var(--sp-5);
+  border-right: 1px solid var(--border);
+}
+
+[dir="ltr"] .stat-block {
+  padding-right: 0;
+  padding-left: var(--sp-5);
+  border-right: none;
+  border-left: 1px solid var(--border);
+}
+
+.stat-block:first-child {
+  padding-right: 0;
+  border-right: none;
+}
+
+[dir="ltr"] .stat-block:first-child {
+  padding-left: 0;
+  border-left: none;
+}
+
+.stat-value {
+  font-family: var(--font-display);
+  font-size: 28px;
+  font-weight: 600;
+  color: var(--text);
+  letter-spacing: -0.02em;
+  line-height: 1.1;
+}
+
+.stat-label {
+  font-family: var(--font-mono);
+  font-size: 10.5px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--text-3);
+  margin-top: 6px;
+}
+
+/* Hero Card Preview — enhanced */
+.hero-vcard-wrap {
+  position: relative;
+  max-width: 420px;
+  margin: 0 auto;
+}
+
+.hero-vcard-wrap::before {
+  content: '';
+  position: absolute;
+  inset: -40px;
+  background: radial-gradient(circle at 50% 50%, rgba(212, 165, 116, 0.15) 0%, transparent 60%);
+  pointer-events: none;
+  z-index: -1;
+  animation: glow-pulse 4s ease-in-out infinite;
+}
+
+@keyframes glow-pulse {
+  0%, 100% { opacity: 0.5; transform: scale(1); }
+  50% { opacity: 1; transform: scale(1.05); }
+}
+
+/* Feature card — enhanced */
+.feature-card {
+  position: relative;
+  padding: 24px;
   background: var(--surface);
   border: 1px solid var(--border);
+  border-radius: 16px;
+  transition: all .2s ease;
+  overflow: hidden;
+}
+
+.feature-card::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, rgba(212, 165, 116, 0.4), transparent);
+  opacity: 0;
+  transition: opacity .2s ease;
+}
+
+.feature-card:hover::before { opacity: 1; }
+
+.feature-card:hover {
+  border-color: rgba(212, 165, 116, 0.25);
+  transform: translateY(-2px);
+}
+
+.feature-icon {
+  width: 48px;
+  height: 48px;
   border-radius: 12px;
-  padding: 14px;
+  background: linear-gradient(135deg, rgba(212, 165, 116, 0.12) 0%, rgba(10, 92, 63, 0.12) 100%);
+  color: var(--sand);
+  border: 1px solid rgba(212, 165, 116, 0.2);
+  display: grid;
+  place-items: center;
+  margin-bottom: 16px;
+}
+
+/* Pricing accent */
+.plan-pro {
+  border-color: rgba(212, 165, 116, 0.35) !important;
+  position: relative;
+  box-shadow:
+    0 0 0 1px rgba(212, 165, 116, 0.15),
+    0 20px 40px -12px rgba(212, 165, 116, 0.15);
+}
+
+.plan-pro::before {
+  content: '';
+  position: absolute;
+  inset: -1px;
+  border-radius: inherit;
+  padding: 1px;
+  background: linear-gradient(135deg, rgba(212, 165, 116, 0.5), rgba(10, 92, 63, 0.3), rgba(212, 165, 116, 0.5));
+  -webkit-mask:
+    linear-gradient(#fff 0 0) content-box,
+    linear-gradient(#fff 0 0);
+  -webkit-mask-composite: xor;
+  mask-composite: exclude;
+  pointer-events: none;
+}
+
+/* FAQ — Editorial */
+details.card {
+  border: 1px solid var(--border);
+  transition: border-color .2s ease;
+}
+
+details.card[open] {
+  border-color: rgba(212, 165, 116, 0.25);
+}
+
+details.card summary {
+  padding: 4px 0;
   cursor: pointer;
-  transition: all .15s ease;
-  text-align: right;
-  font-family: inherit;
+  user-select: none;
 }
 
-.service-card:hover {
-  border-color: var(--brand);
-  box-shadow: 0 2px 8px rgba(23, 107, 77, .08);
+details.card summary::-webkit-details-marker { display: none; }
+
+details.card[open] summary svg {
+  transform: rotate(180deg);
+  color: var(--sand);
 }
 
-.service-card:active {
-  transform: scale(.995);
+/* CTA block */
+.cta-block {
+  background:
+    linear-gradient(135deg, var(--surface) 0%, var(--ink-2) 100%),
+    radial-gradient(circle at 30% 30%, rgba(212, 165, 116, 0.08), transparent 60%);
+  background-blend-mode: normal, overlay;
+  border: 1px solid rgba(212, 165, 116, 0.15);
+  position: relative;
+  overflow: hidden;
 }
 
-/* ═══ Responsive: grid-4 → grid-2 on mobile ═══ */
+.cta-block::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 80%;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, var(--sand), transparent);
+  opacity: 0.5;
+}
+
 @media (max-width: 640px) {
   .grid-4 {
     grid-template-columns: repeat(2, 1fr) !important;
   }
+  .display { font-size: 36px !important; }
+  h1, .h1 { font-size: 28px !important; }
+  h2, .h2 { font-size: 24px !important; }
 }
 </style>
 </head>
@@ -141,14 +361,14 @@
   <!-- Top Navigation -->
   <header class="bar">
     <a href="/" class="bar-logo" aria-label="كاردو">
-      <svg width="26" height="26" viewBox="0 0 40 40" aria-hidden="true">
-        <rect width="40" height="40" rx="9" fill="#176B4D"/>
-        <path d="M11 9h4.4v22H11z" fill="#FFFFFF"/>
-        <path d="M17 20.2 27.5 9H33L22.4 20.2 33 31h-5.6z" fill="#FFFFFF"/>
-        <rect x="19" y="15.6" width="12.4" height="8.8" rx="2" fill="#176B4D"/>
-        <rect x="21" y="18.4" width="3.4" height="2.6" rx=".7" fill="#E8F3EE" opacity=".9"/>
+      <svg width="28" height="28" viewBox="0 0 40 40" aria-hidden="true">
+        <rect width="40" height="40" rx="9" fill="#0B0F0D"/>
+        <path d="M11 9h4.4v22H11z" fill="#D4A574"/>
+        <path d="M17 20.2 27.5 9H33L22.4 20.2 33 31h-5.6z" fill="#D4A574"/>
+        <rect x="19" y="15.6" width="12.4" height="8.8" rx="2" fill="#0B0F0D"/>
+        <rect x="21" y="18.4" width="3.4" height="2.6" rx=".7" fill="#D4A574" opacity=".7"/>
       </svg>
-      <span>كاردو</span>
+      <span style="font-family:var(--font-display);font-weight:600">كاردو</span>
     </a>
 
     <nav class="hidden" style="display:flex;gap:4px;margin-right:24px" data-nav="desktop">
@@ -164,55 +384,55 @@
   </header>
 
   <!-- Hero -->
-  <section class="section" style="padding-top:48px">
+  <section class="section hero-amazigh" style="padding-top:64px;padding-bottom:64px">
     <div class="container">
-      <div style="display:grid;grid-template-columns:1fr;gap:48px;align-items:center">
+      <div style="display:grid;grid-template-columns:1fr;gap:56px;align-items:center">
 
-        <div>
-          <div class="eyebrow" style="color:var(--brand);margin-bottom:12px">
-            بطاقات وخدمات رقمية
+        <div class="page-enter">
+          <div class="hero-tag" style="margin-bottom:20px">
+            Digital Banking · Libya
           </div>
 
-          <h1 class="display" style="margin-bottom:20px">
-            بطاقتك الرقمية.<br>
-            بخطوات بسيطة.
+          <h1 class="display" style="margin-bottom:24px;color:var(--text)">
+            <span class="hero-title-ar">بطاقتك الرقمية.</span><br>
+            <span class="hero-title-en">بخطوات بسيطة.</span>
           </h1>
 
-          <p class="body-lg text-2" style="max-width:540px;margin-bottom:32px">
-            أضف رصيدك، أصدر بطاقة فيزا، واشترك في خدماتك الرقمية المفضلة —
-            كل ذلك من مكان واحد.
+          <p class="body-lg text-2" style="max-width:540px;margin-bottom:36px;color:var(--text-2)">
+            أضف رصيدك، أصدر بطاقة فيزا افتراضية، واشترك في خدماتك الرقمية المفضلة
+            — كل ذلك من مكان واحد.
           </p>
 
           <div style="display:flex;gap:12px;flex-wrap:wrap">
             <button class="btn btn-primary btn-lg" onclick="location.href='login.html?mode=signup'">
-              إنشاء حساب
+              إنشاء حساب مجاني
               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 12H5M12 19l-7-7 7-7"/></svg>
             </button>
             <a href="#features" class="btn btn-secondary btn-lg">كيف تعمل؟</a>
           </div>
 
-          <div style="display:flex;gap:24px;margin-top:40px;flex-wrap:wrap">
-            <div>
-              <div class="tabular" style="font-size:22px;font-weight:700">+2,400</div>
-              <div class="caption">مستخدم نشط</div>
+          <div style="display:flex;gap:32px;margin-top:56px;flex-wrap:wrap">
+            <div class="stat-block">
+              <div class="stat-value">+2,400</div>
+              <div class="stat-label">Active Users</div>
             </div>
-            <div>
-              <div class="tabular" style="font-size:22px;font-weight:700">+15,000</div>
-              <div class="caption">عملية ناجحة</div>
+            <div class="stat-block">
+              <div class="stat-value">+15,000</div>
+              <div class="stat-label">Transactions</div>
             </div>
-            <div>
-              <div class="tabular" style="font-size:22px;font-weight:700">24/7</div>
-              <div class="caption">دعم متواصل</div>
+            <div class="stat-block">
+              <div class="stat-value">24/7</div>
+              <div class="stat-label">Support</div>
             </div>
           </div>
         </div>
 
-        <!-- Hero Card Preview -->
-        <div style="max-width:420px;width:100%;margin:0 auto">
+        <!-- Hero Card Preview — AUTHENTIC -->
+        <div class="hero-vcard-wrap page-enter">
           <div class="vcard">
             <div class="vcard-top">
               <span class="vcard-brand">KARDO</span>
-              <span class="vcard-tier">Standard</span>
+              <span class="vcard-tier">STANDARD</span>
             </div>
 
             <div class="vcard-chip"></div>
@@ -228,7 +448,7 @@
                 <div class="vcard-label">CARDHOLDER</div>
                 <div class="vcard-value">MOHAMED AHMED</div>
               </div>
-              <svg class="vcard-brand-logo" viewBox="0 0 780 500" fill="currentColor" opacity=".9">
+              <svg class="vcard-brand-logo" viewBox="0 0 780 500" fill="currentColor" opacity=".9" style="color:var(--sand)">
                 <path d="M385.5 402.3c-46.5 0-88.9-9.5-126-26.9l20.6-95.2c38.5 18.2 80.2 27.4 118 26.5 25.1-.6 42.4-7.3 42.4-18.6 0-12-15.3-19.6-51-30-38-11-87.3-28.2-89.7-79.7C297.1 128.2 328.3 99 412 96.6c39.9-.5 75.9 5.8 108 15.6l-20.4 94.2c-33.1-14.5-69.5-23.1-106.4-23.3-22.8-.1-37.4 5.5-37.4 15.8 0 11.3 19.1 17.5 54 28 42.5 12.7 90.4 31 89.7 84.4-.8 63.1-51.9 90.9-114 91z"/>
                 <path d="M625.2 398.7c-13.9-35.3-19.2-52.7-34.6-85.5h-113c-7.5 19.9-14.6 38.7-19.5 51.3l-.5 1.3-3.4 9.7c-1.3 3.4-2.7 7.3-4.1 11.4l-.7 2-.8 2.3H344l10.9-27.6c.3-.8.7-1.7 1-2.5l1.2-3 2.7-6.7c.4-1 .7-1.9 1.1-2.8l4.5-11.3c2.4-6 4.7-11.7 7-17.3l1.5-3.6c.3-.7.6-1.4.9-2.1l1.4-3.5c.2-.6.5-1.1.7-1.6l3.8-9.4c1.3-3.2 2.6-6.4 3.9-9.5l1.2-3c.4-1 .8-2 1.2-3l3.6-8.9c1.2-2.9 2.3-5.7 3.5-8.5l1-2.5c.5-1.2 1-2.5 1.5-3.7l2.9-7c.9-2.2 1.8-4.4 2.7-6.5l.9-2.2c.3-.8.6-1.5.9-2.2l2.2-5.2c.7-1.8 1.5-3.5 2.2-5.3l.7-1.7c.2-.6.5-1.2.7-1.7l1.7-4.1c.6-1.4 1.2-2.9 1.7-4.3l.5-1.3c.2-.6.5-1.2.7-1.7l1.3-3.2c.5-1.1.9-2.2 1.3-3.3l.3-.7c.1-.3.3-.7.4-1l.9-2.2c.4-1 .8-1.9 1.1-2.8l.2-.5c.1-.3.2-.5.3-.7.3-.7.5-1.3.7-1.9.2-.6.5-1.2.7-1.8l.1-.3c.2-.4.3-.8.5-1.2.1-.3.2-.7.3-1 .2-.5.3-1 .5-1.5.1-.4.3-.7.4-1.1.1-.3.2-.6.3-.9.1-.4.3-.7.4-1.1.1-.2.1-.4.2-.6.1-.3.2-.5.2-.8l.1-.3c0-.1.1-.2.1-.3.1-.2.1-.4.2-.5.1-.1.1-.3.2-.4v-.2c0-.1 0-.1.1-.2 0 0 0-.1 0 0h105.3l.1.2c.1.1.1.3.2.4 0 .1.1.3.1.4l.1.2c0 .1.1.2.1.2l.1.2c.1.2.2.4.2.5l.1.2c0 .1.1.2.1.3.1.2.1.4.2.6.1.2.1.4.2.6.1.3.2.6.3.8.1.3.2.6.3.8.1.4.3.7.4 1.1.1.3.2.6.3.9.1.3.2.7.4 1 .2.6.4 1.1.6 1.7.2.6.4 1.1.6 1.7.2.7.5 1.3.7 1.9.1.3.2.6.4 1 .2.7.5 1.3.7 1.9.2.6.4 1.2.6 1.8.3.8.6 1.6.9 2.5.2.5.4 1.1.6 1.6.3 1 .7 1.9 1 2.9.1.5.3.9.4 1.4.4 1.1.8 2.3 1.2 3.4.1.4.3.8.4 1.2.4 1.2.8 2.5 1.3 3.7.1.3.2.7.3 1 .5 1.4.9 2.7 1.4 4.1.1.3.2.6.3.9.5 1.5 1 3 1.5 4.4.1.3.2.7.3 1 .5 1.5 1 3 1.5 4.6.1.3.2.7.3 1 .5 1.5 1 3.1 1.5 4.6.1.4.3.8.4 1.2.5 1.6 1 3.1 1.5 4.7.1.4.3.8.4 1.2.5 1.6 1 3.1 1.4 4.7.2.5.3.9.4 1.4.5 1.5.9 3 1.3 4.5.2.5.3 1 .4 1.5.5 1.8 1 3.6 1.4 5.4h-105.3c-.3-1.2-.6-2.4-.9-3.6-.3-1.2-.7-2.4-1-3.6-.3-1.2-.7-2.5-1-3.7-.3-1.1-.6-2.3-.9-3.4-.4-1.4-.8-2.9-1.2-4.3-.3-1-.5-1.9-.8-2.9-.4-1.5-.8-3-1.2-4.5-.3-.9-.5-1.8-.7-2.7h-20.3c-4.8 0-8.8 3.4-9.7 8.1-.4 2-.8 4.1-1.2 6.1-.4 2.1-.9 4.1-1.3 6.2l-7.8 36.1c-.1.6-.3 1.1-.4 1.7h-88.4c.6-2.7 1.2-5.5 1.8-8.2z"/>
               </svg>
@@ -241,51 +461,54 @@
   </section>
   
   <!-- Features -->
-  <section id="features" class="section" style="background:var(--surface);border-top:1px solid var(--border);border-bottom:1px solid var(--border)">
+  <section id="features" class="section" style="border-top:1px solid var(--border);border-bottom:1px solid var(--border)">
     <div class="container">
-      <div class="section-head text-center" style="max-width:640px;margin:0 auto 48px">
-        <h2 class="h1">كل ما تحتاجه في مكان واحد</h2>
-        <p class="body text-2" style="margin-top:12px">
+      <div class="text-center" style="max-width:640px;margin:0 auto 56px">
+        <div style="font-family:var(--font-mono);font-size:11px;letter-spacing:0.15em;color:var(--sand);text-transform:uppercase;margin-bottom:12px">
+          What You Get
+        </div>
+        <h2 class="h1" style="margin-bottom:12px">كل ما تحتاجه في مكان واحد</h2>
+        <p class="body text-2">
           بدلاً من التعامل مع عدة تطبيقات، كل شيء في كاردو.
         </p>
       </div>
 
       <div class="grid-4">
-        <div class="card card-lg">
-          <div style="width:44px;height:44px;border-radius:12px;background:var(--brand-light);color:var(--brand);display:grid;place-items:center;margin-bottom:16px">
+        <div class="feature-card">
+          <div class="feature-icon">
             <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="5" width="20" height="14" rx="2"/><path d="M2 10h20"/></svg>
           </div>
-          <div class="h4" style="margin-bottom:8px">بطاقات افتراضية</div>
+          <div class="h4" style="margin-bottom:8px;color:var(--text)">بطاقات افتراضية</div>
           <p class="body-sm text-2">
             أصدر بطاقة فيزا افتراضية خلال دقائق، واستخدمها في أي موقع يقبل الدفع الإلكتروني.
           </p>
         </div>
 
-        <div class="card card-lg">
-          <div style="width:44px;height:44px;border-radius:12px;background:var(--brand-light);color:var(--brand);display:grid;place-items:center;margin-bottom:16px">
+        <div class="feature-card">
+          <div class="feature-icon">
             <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M3 7.5A2.5 2.5 0 0 1 5.5 5H19a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H5.5A2.5 2.5 0 0 1 3 16.5z"/><path d="M16.5 12h1.5"/></svg>
           </div>
-          <div class="h4" style="margin-bottom:8px">محفظة رقمية</div>
+          <div class="h4" style="margin-bottom:8px;color:var(--text)">محفظة رقمية</div>
           <p class="body-sm text-2">
             أضف رصيدك عبر ليبيانا، المدار، أو USDT — واستخدمه في كل خدماتنا.
           </p>
         </div>
 
-        <div class="card card-lg">
-          <div style="width:44px;height:44px;border-radius:12px;background:var(--brand-light);color:var(--brand);display:grid;place-items:center;margin-bottom:16px">
+        <div class="feature-card">
+          <div class="feature-icon">
             <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M21 8 12 3 3 8v8l9 5 9-5z"/><path d="M3 8l9 5 9-5M12 13v8"/></svg>
           </div>
-          <div class="h4" style="margin-bottom:8px">خدمات رقمية</div>
+          <div class="h4" style="margin-bottom:8px;color:var(--text)">خدمات رقمية</div>
           <p class="body-sm text-2">
-            Netflix، Spotify، Shahid، وأكثر — بأسعار واضحة بالدينار الليبي.
+            Netflix، Spotify، ChatGPT، وأكثر — بأسعار واضحة بالدينار الليبي.
           </p>
         </div>
 
-        <div class="card card-lg">
-          <div style="width:44px;height:44px;border-radius:12px;background:var(--brand-light);color:var(--brand);display:grid;place-items:center;margin-bottom:16px">
+        <div class="feature-card">
+          <div class="feature-icon">
             <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2v20M17 6H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>
           </div>
-          <div class="h4" style="margin-bottom:8px">تحويلات فورية</div>
+          <div class="h4" style="margin-bottom:8px;color:var(--text)">تحويلات فورية</div>
           <p class="body-sm text-2">
             حوّل أموالك بين مستخدمي كاردو بسرعة وأمان.
           </p>
@@ -294,40 +517,41 @@
     </div>
   </section>
 
-  <!-- Pricing / Plans -->
+  <!-- Pricing -->
   <section id="pricing" class="section">
     <div class="container">
-      <div class="section-head text-center" style="max-width:640px;margin:0 auto 48px">
-        <h2 class="h1">الباقات</h2>
-        <p class="body text-2" style="margin-top:12px">
-          اختر الباقة المناسبة لاستخدامك.
-        </p>
+      <div class="text-center" style="max-width:640px;margin:0 auto 56px">
+        <div style="font-family:var(--font-mono);font-size:11px;letter-spacing:0.15em;color:var(--sand);text-transform:uppercase;margin-bottom:12px">
+          Pricing
+        </div>
+        <h2 class="h1" style="margin-bottom:12px">الباقات</h2>
+        <p class="body text-2">اختر الباقة المناسبة لاستخدامك.</p>
       </div>
 
       <div class="grid-3" style="max-width:1000px;margin:0 auto">
         <div class="card card-lg">
-          <div class="eyebrow" style="margin-bottom:8px">Basic</div>
+          <div style="font-family:var(--font-mono);font-size:10.5px;letter-spacing:0.15em;color:var(--text-3);text-transform:uppercase;margin-bottom:10px">Basic</div>
           <div class="h3" style="margin-bottom:8px">للبدء</div>
-          <div style="display:flex;align-items:baseline;gap:6px;margin:20px 0">
-            <span class="tabular" style="font-size:32px;font-weight:700">0</span>
+          <div style="display:flex;align-items:baseline;gap:8px;margin:24px 0">
+            <span class="editorial-number" style="font-size:44px;color:var(--text)">0</span>
             <span class="body-sm text-3">د.ل / شهر</span>
           </div>
 
-          <ul style="display:flex;flex-direction:column;gap:12px;margin:24px 0">
-            <li style="display:flex;gap:10px;align-items:center;font-size:13.5px">
-              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="var(--brand)" stroke-width="2.5" stroke-linecap="round"><path d="M20 6 9 17l-5-5"/></svg>
+          <ul style="display:flex;flex-direction:column;gap:14px;margin:28px 0">
+            <li style="display:flex;gap:10px;align-items:center;font-size:13.5px;color:var(--text-2)">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--sand)" stroke-width="2.5" stroke-linecap="round"><path d="M20 6 9 17l-5-5"/></svg>
               بطاقة افتراضية واحدة
             </li>
-            <li style="display:flex;gap:10px;align-items:center;font-size:13.5px">
-              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="var(--brand)" stroke-width="2.5" stroke-linecap="round"><path d="M20 6 9 17l-5-5"/></svg>
+            <li style="display:flex;gap:10px;align-items:center;font-size:13.5px;color:var(--text-2)">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--sand)" stroke-width="2.5" stroke-linecap="round"><path d="M20 6 9 17l-5-5"/></svg>
               محفظة رقمية كاملة
             </li>
-            <li style="display:flex;gap:10px;align-items:center;font-size:13.5px">
-              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="var(--brand)" stroke-width="2.5" stroke-linecap="round"><path d="M20 6 9 17l-5-5"/></svg>
+            <li style="display:flex;gap:10px;align-items:center;font-size:13.5px;color:var(--text-2)">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--sand)" stroke-width="2.5" stroke-linecap="round"><path d="M20 6 9 17l-5-5"/></svg>
               الوصول للخدمات الرقمية
             </li>
-            <li style="display:flex;gap:10px;align-items:center;font-size:13.5px">
-              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="var(--brand)" stroke-width="2.5" stroke-linecap="round"><path d="M20 6 9 17l-5-5"/></svg>
+            <li style="display:flex;gap:10px;align-items:center;font-size:13.5px;color:var(--text-2)">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--sand)" stroke-width="2.5" stroke-linecap="round"><path d="M20 6 9 17l-5-5"/></svg>
               دعم عادي
             </li>
           </ul>
@@ -337,30 +561,30 @@
           </button>
         </div>
 
-        <div class="card card-lg" style="border-color:var(--brand);border-width:1.5px;position:relative">
-          <span class="badge badge-success" style="position:absolute;top:16px;left:16px">موصى به</span>
-          <div class="eyebrow" style="color:var(--brand);margin-bottom:8px">Pro</div>
+        <div class="card card-lg plan-pro">
+          <span class="badge badge-warning" style="position:absolute;top:16px;left:16px">موصى به</span>
+          <div style="font-family:var(--font-mono);font-size:10.5px;letter-spacing:0.15em;color:var(--sand);text-transform:uppercase;margin-bottom:10px">Pro</div>
           <div class="h3" style="margin-bottom:8px">للاستخدام اليومي</div>
-          <div style="display:flex;align-items:baseline;gap:6px;margin:20px 0">
-            <span class="tabular" style="font-size:32px;font-weight:700">20</span>
+          <div style="display:flex;align-items:baseline;gap:8px;margin:24px 0">
+            <span class="editorial-number" style="font-size:44px;color:var(--sand)">20</span>
             <span class="body-sm text-3">د.ل / شهر</span>
           </div>
 
-          <ul style="display:flex;flex-direction:column;gap:12px;margin:24px 0">
-            <li style="display:flex;gap:10px;align-items:center;font-size:13.5px">
-              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="var(--brand)" stroke-width="2.5" stroke-linecap="round"><path d="M20 6 9 17l-5-5"/></svg>
+          <ul style="display:flex;flex-direction:column;gap:14px;margin:28px 0">
+            <li style="display:flex;gap:10px;align-items:center;font-size:13.5px;color:var(--text-2)">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--sand)" stroke-width="2.5" stroke-linecap="round"><path d="M20 6 9 17l-5-5"/></svg>
               حتى 5 بطاقات افتراضية
             </li>
-            <li style="display:flex;gap:10px;align-items:center;font-size:13.5px">
-              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="var(--brand)" stroke-width="2.5" stroke-linecap="round"><path d="M20 6 9 17l-5-5"/></svg>
+            <li style="display:flex;gap:10px;align-items:center;font-size:13.5px;color:var(--text-2)">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--sand)" stroke-width="2.5" stroke-linecap="round"><path d="M20 6 9 17l-5-5"/></svg>
               رسوم إصدار أقل
             </li>
-            <li style="display:flex;gap:10px;align-items:center;font-size:13.5px">
-              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="var(--brand)" stroke-width="2.5" stroke-linecap="round"><path d="M20 6 9 17l-5-5"/></svg>
+            <li style="display:flex;gap:10px;align-items:center;font-size:13.5px;color:var(--text-2)">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--sand)" stroke-width="2.5" stroke-linecap="round"><path d="M20 6 9 17l-5-5"/></svg>
               خصومات على الخدمات
             </li>
-            <li style="display:flex;gap:10px;align-items:center;font-size:13.5px">
-              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="var(--brand)" stroke-width="2.5" stroke-linecap="round"><path d="M20 6 9 17l-5-5"/></svg>
+            <li style="display:flex;gap:10px;align-items:center;font-size:13.5px;color:var(--text-2)">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--sand)" stroke-width="2.5" stroke-linecap="round"><path d="M20 6 9 17l-5-5"/></svg>
               دعم ذو أولوية
             </li>
           </ul>
@@ -371,28 +595,28 @@
         </div>
 
         <div class="card card-lg">
-          <div class="eyebrow" style="margin-bottom:8px">Business</div>
+          <div style="font-family:var(--font-mono);font-size:10.5px;letter-spacing:0.15em;color:var(--text-3);text-transform:uppercase;margin-bottom:10px">Business</div>
           <div class="h3" style="margin-bottom:8px">للشركات</div>
-          <div style="display:flex;align-items:baseline;gap:6px;margin:20px 0">
-            <span class="tabular" style="font-size:32px;font-weight:700">50</span>
+          <div style="display:flex;align-items:baseline;gap:8px;margin:24px 0">
+            <span class="editorial-number" style="font-size:44px;color:var(--text)">50</span>
             <span class="body-sm text-3">د.ل / شهر</span>
           </div>
 
-          <ul style="display:flex;flex-direction:column;gap:12px;margin:24px 0">
-            <li style="display:flex;gap:10px;align-items:center;font-size:13.5px">
-              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="var(--brand)" stroke-width="2.5" stroke-linecap="round"><path d="M20 6 9 17l-5-5"/></svg>
+          <ul style="display:flex;flex-direction:column;gap:14px;margin:28px 0">
+            <li style="display:flex;gap:10px;align-items:center;font-size:13.5px;color:var(--text-2)">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--sand)" stroke-width="2.5" stroke-linecap="round"><path d="M20 6 9 17l-5-5"/></svg>
               بطاقات غير محدودة
             </li>
-            <li style="display:flex;gap:10px;align-items:center;font-size:13.5px">
-              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="var(--brand)" stroke-width="2.5" stroke-linecap="round"><path d="M20 6 9 17l-5-5"/></svg>
+            <li style="display:flex;gap:10px;align-items:center;font-size:13.5px;color:var(--text-2)">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--sand)" stroke-width="2.5" stroke-linecap="round"><path d="M20 6 9 17l-5-5"/></svg>
               رسوم تنافسية
             </li>
-            <li style="display:flex;gap:10px;align-items:center;font-size:13.5px">
-              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="var(--brand)" stroke-width="2.5" stroke-linecap="round"><path d="M20 6 9 17l-5-5"/></svg>
+            <li style="display:flex;gap:10px;align-items:center;font-size:13.5px;color:var(--text-2)">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--sand)" stroke-width="2.5" stroke-linecap="round"><path d="M20 6 9 17l-5-5"/></svg>
               فواتير شهرية
             </li>
-            <li style="display:flex;gap:10px;align-items:center;font-size:13.5px">
-              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="var(--brand)" stroke-width="2.5" stroke-linecap="round"><path d="M20 6 9 17l-5-5"/></svg>
+            <li style="display:flex;gap:10px;align-items:center;font-size:13.5px;color:var(--text-2)">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--sand)" stroke-width="2.5" stroke-linecap="round"><path d="M20 6 9 17l-5-5"/></svg>
               مدير حساب مخصص
             </li>
           </ul>
@@ -406,41 +630,36 @@
   </section>
 
   <!-- How it works -->
-  <section class="section" style="background:var(--surface);border-top:1px solid var(--border)">
+  <section class="section" style="border-top:1px solid var(--border)">
     <div class="container">
-      <div class="section-head text-center" style="max-width:640px;margin:0 auto 48px">
-        <h2 class="h1">كيف تعمل كاردو؟</h2>
-        <p class="body text-2" style="margin-top:12px">أربع خطوات بسيطة.</p>
+      <div class="text-center" style="max-width:640px;margin:0 auto 56px">
+        <div style="font-family:var(--font-mono);font-size:11px;letter-spacing:0.15em;color:var(--sand);text-transform:uppercase;margin-bottom:12px">
+          How It Works
+        </div>
+        <h2 class="h1" style="margin-bottom:12px">كيف تعمل كاردو؟</h2>
+        <p class="body text-2">أربع خطوات بسيطة.</p>
       </div>
 
       <div class="grid-4">
         <div>
-          <div class="tabular" style="font-size:14px;font-weight:700;color:var(--brand);margin-bottom:12px">01</div>
-          <div class="h4" style="margin-bottom:8px">أنشئ حسابك</div>
-          <p class="body-sm text-2">
-            سجّل ببريدك الإلكتروني ورقم هاتفك في دقيقة واحدة.
-          </p>
+          <div class="editorial-number" style="font-size:38px;color:var(--sand);margin-bottom:16px;line-height:1">01</div>
+          <div class="h4" style="margin-bottom:10px;color:var(--text)">أنشئ حسابك</div>
+          <p class="body-sm text-2">سجّل ببريدك الإلكتروني ورقم هاتفك في دقيقة واحدة.</p>
         </div>
         <div>
-          <div class="tabular" style="font-size:14px;font-weight:700;color:var(--brand);margin-bottom:12px">02</div>
-          <div class="h4" style="margin-bottom:8px">أضف رصيدًا</div>
-          <p class="body-sm text-2">
-            اشحن محفظتك بليبيانا، المدار، أو USDT.
-          </p>
+          <div class="editorial-number" style="font-size:38px;color:var(--sand);margin-bottom:16px;line-height:1">02</div>
+          <div class="h4" style="margin-bottom:10px;color:var(--text)">أضف رصيدًا</div>
+          <p class="body-sm text-2">اشحن محفظتك بليبيانا، المدار، أو USDT.</p>
         </div>
         <div>
-          <div class="tabular" style="font-size:14px;font-weight:700;color:var(--brand);margin-bottom:12px">03</div>
-          <div class="h4" style="margin-bottom:8px">اختر خدمتك</div>
-          <p class="body-sm text-2">
-            أصدر بطاقة، أو اشترك في خدمة رقمية، أو اشترِ من المتجر.
-          </p>
+          <div class="editorial-number" style="font-size:38px;color:var(--sand);margin-bottom:16px;line-height:1">03</div>
+          <div class="h4" style="margin-bottom:10px;color:var(--text)">اختر خدمتك</div>
+          <p class="body-sm text-2">أصدر بطاقة، أو اشترك في خدمة رقمية، أو اشترِ من المتجر.</p>
         </div>
         <div>
-          <div class="tabular" style="font-size:14px;font-weight:700;color:var(--brand);margin-bottom:12px">04</div>
-          <div class="h4" style="margin-bottom:8px">ابدأ الاستخدام</div>
-          <p class="body-sm text-2">
-            بطاقتك جاهزة فورًا. استخدم بياناتها للدفع في أي موقع.
-          </p>
+          <div class="editorial-number" style="font-size:38px;color:var(--sand);margin-bottom:16px;line-height:1">04</div>
+          <div class="h4" style="margin-bottom:10px;color:var(--text)">ابدأ الاستخدام</div>
+          <p class="body-sm text-2">بطاقتك جاهزة فورًا. استخدم بياناتها للدفع في أي موقع.</p>
         </div>
       </div>
     </div>
@@ -451,31 +670,31 @@
     <div class="container">
       <div class="grid-4" style="max-width:1000px;margin:0 auto;text-align:center">
         <div>
-          <div style="width:48px;height:48px;border-radius:12px;background:var(--surface-2);color:var(--text-2);display:grid;place-items:center;margin:0 auto 16px">
+          <div style="width:48px;height:48px;border-radius:12px;background:var(--surface-2);color:var(--sand);border:1px solid var(--border);display:grid;place-items:center;margin:0 auto 16px">
             <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2.5 4 6v6c0 5 3.4 8.6 8 9.5 4.6-.9 8-4.5 8-9.5V6z"/></svg>
           </div>
-          <div class="h4" style="margin-bottom:8px">حماية الحساب</div>
+          <div class="h4" style="margin-bottom:8px;color:var(--text)">حماية الحساب</div>
           <p class="body-sm text-2">تشفير كامل ومراقبة دائمة.</p>
         </div>
         <div>
-          <div style="width:48px;height:48px;border-radius:12px;background:var(--surface-2);color:var(--text-2);display:grid;place-items:center;margin:0 auto 16px">
+          <div style="width:48px;height:48px;border-radius:12px;background:var(--surface-2);color:var(--sand);border:1px solid var(--border);display:grid;place-items:center;margin:0 auto 16px">
             <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>
           </div>
-          <div class="h4" style="margin-bottom:8px">تحقق الهوية</div>
+          <div class="h4" style="margin-bottom:8px;color:var(--text)">تحقق الهوية</div>
           <p class="body-sm text-2">خطوات تحقق واضحة وشفافة.</p>
         </div>
         <div>
-          <div style="width:48px;height:48px;border-radius:12px;background:var(--surface-2);color:var(--text-2);display:grid;place-items:center;margin:0 auto 16px">
-            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22c4.4 0 7-2.9 7-6.6 0-3.6-2.4-5.6-3.6-8.6-.5-1.2-2.1-1.3-2.7-.2-.8 1.5-.5 3.2-1.5 4.3-.7.8-1.6.2-1.6-.8 0-1.2.4-2-.3-3.1-.5-.8-1.7-.7-2.2.1C5.9 9.2 5 11.6 5 14.6 5 19 8 22 12 22z"/></svg>
+          <div style="width:48px;height:48px;border-radius:12px;background:var(--surface-2);color:var(--sand);border:1px solid var(--border);display:grid;place-items:center;margin:0 auto 16px">
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M18 8.5a6 6 0 1 0-12 0c0 6-2.5 7.5-2.5 7.5h17S18 14.5 18 8.5"/><path d="M13.7 20a2 2 0 0 1-3.4 0"/></svg>
           </div>
-          <div class="h4" style="margin-bottom:8px">إشعارات فورية</div>
+          <div class="h4" style="margin-bottom:8px;color:var(--text)">إشعارات فورية</div>
           <p class="body-sm text-2">اعرف كل حركة على حسابك أولًا بأول.</p>
         </div>
         <div>
-          <div style="width:48px;height:48px;border-radius:12px;background:var(--surface-2);color:var(--text-2);display:grid;place-items:center;margin:0 auto 16px">
+          <div style="width:48px;height:48px;border-radius:12px;background:var(--surface-2);color:var(--sand);border:1px solid var(--border);display:grid;place-items:center;margin:0 auto 16px">
             <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M9.6 9.3a2.5 2.5 0 1 1 3.4 2.3c-.6.3-1 .9-1 1.6v.3"/><path d="M12 17h.01"/></svg>
           </div>
-          <div class="h4" style="margin-bottom:8px">دعم متواصل</div>
+          <div class="h4" style="margin-bottom:8px;color:var(--text)">دعم متواصل</div>
           <p class="body-sm text-2">فريق دعم جاهز للمساعدة.</p>
         </div>
       </div>
@@ -483,17 +702,20 @@
   </section>
 
   <!-- FAQ -->
-  <section id="faq" class="section" style="background:var(--surface);border-top:1px solid var(--border)">
+  <section id="faq" class="section" style="border-top:1px solid var(--border)">
     <div class="container" style="max-width:720px">
-      <div class="section-head text-center" style="margin-bottom:40px">
+      <div class="text-center" style="margin-bottom:48px">
+        <div style="font-family:var(--font-mono);font-size:11px;letter-spacing:0.15em;color:var(--sand);text-transform:uppercase;margin-bottom:12px">
+          FAQ
+        </div>
         <h2 class="h1">الأسئلة الشائعة</h2>
       </div>
 
       <div class="stack">
         <details class="card" style="cursor:pointer">
-          <summary style="display:flex;justify-content:space-between;align-items:center;font-weight:600;list-style:none">
+          <summary style="display:flex;justify-content:space-between;align-items:center;font-weight:600;list-style:none;color:var(--text)">
             <span>كم تستغرق إضافة الرصيد؟</span>
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" style="flex-shrink:0;transition:transform .2s"><path d="M6 9l6 6 6-6"/></svg>
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" style="flex-shrink:0;transition:transform .2s;color:var(--sand)"><path d="M6 9l6 6 6-6"/></svg>
           </summary>
           <p class="body-sm text-2" style="margin-top:12px">
             عبر ليبيانا والمدار وUSDT، تُضاف فورًا بعد التحقق من الرسالة. التحويلات المصرفية تحتاج مراجعة يدوية.
@@ -501,9 +723,9 @@
         </details>
 
         <details class="card" style="cursor:pointer">
-          <summary style="display:flex;justify-content:space-between;align-items:center;font-weight:600;list-style:none">
+          <summary style="display:flex;justify-content:space-between;align-items:center;font-weight:600;list-style:none;color:var(--text)">
             <span>متى أستلم بطاقتي؟</span>
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" style="flex-shrink:0;transition:transform .2s"><path d="M6 9l6 6 6-6"/></svg>
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" style="flex-shrink:0;transition:transform .2s;color:var(--sand)"><path d="M6 9l6 6 6-6"/></svg>
           </summary>
           <p class="body-sm text-2" style="margin-top:12px">
             تُصدر خلال دقائق وتصلك إشعار عند الجاهزية. يمكنك عرض بياناتها فورًا من صفحة البطاقات.
@@ -511,9 +733,9 @@
         </details>
 
         <details class="card" style="cursor:pointer">
-          <summary style="display:flex;justify-content:space-between;align-items:center;font-weight:600;list-style:none">
+          <summary style="display:flex;justify-content:space-between;align-items:center;font-weight:600;list-style:none;color:var(--text)">
             <span>لماذا تختفي بيانات البطاقة؟</span>
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" style="flex-shrink:0;transition:transform .2s"><path d="M6 9l6 6 6-6"/></svg>
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" style="flex-shrink:0;transition:transform .2s;color:var(--sand)"><path d="M6 9l6 6 6-6"/></svg>
           </summary>
           <p class="body-sm text-2" style="margin-top:12px">
             لأمانك — تظهر البيانات لمدة 24 ساعة ثم تُمسح تلقائيًا. احفظها عند أول عرض أو تواصل مع الدعم لإعادة إرسالها.
@@ -521,9 +743,9 @@
         </details>
 
         <details class="card" style="cursor:pointer">
-          <summary style="display:flex;justify-content:space-between;align-items:center;font-weight:600;list-style:none">
+          <summary style="display:flex;justify-content:space-between;align-items:center;font-weight:600;list-style:none;color:var(--text)">
             <span>هل يمكنني استخدام البطاقة في كل المواقع؟</span>
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" style="flex-shrink:0;transition:transform .2s"><path d="M6 9l6 6 6-6"/></svg>
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" style="flex-shrink:0;transition:transform .2s;color:var(--sand)"><path d="M6 9l6 6 6-6"/></svg>
           </summary>
           <p class="body-sm text-2" style="margin-top:12px">
             نعم، في أي موقع يقبل الدفع الإلكتروني بـ VISA/Mastercard. بعض المواقع قد تقيّد البطاقات الافتراضية.
@@ -531,9 +753,9 @@
         </details>
 
         <details class="card" style="cursor:pointer">
-          <summary style="display:flex;justify-content:space-between;align-items:center;font-weight:600;list-style:none">
+          <summary style="display:flex;justify-content:space-between;align-items:center;font-weight:600;list-style:none;color:var(--text)">
             <span>ماذا لو رُفض طلبي؟</span>
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" style="flex-shrink:0;transition:transform .2s"><path d="M6 9l6 6 6-6"/></svg>
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" style="flex-shrink:0;transition:transform .2s;color:var(--sand)"><path d="M6 9l6 6 6-6"/></svg>
           </summary>
           <p class="body-sm text-2" style="margin-top:12px">
             يُعاد المبلغ كاملًا إلى محفظتك تلقائيًا. تابع حالة طلبك من صفحة "طلباتي".
@@ -546,7 +768,7 @@
   <!-- CTA -->
   <section class="section">
     <div class="container">
-      <div class="card card-lg" style="max-width:720px;margin:0 auto;text-align:center;padding:48px 32px">
+      <div class="card card-lg cta-block" style="max-width:720px;margin:0 auto;text-align:center;padding:56px 32px">
         <h2 class="h1" style="margin-bottom:16px">جاهز للبدء؟</h2>
         <p class="body-lg text-2" style="margin-bottom:32px;max-width:480px;margin-inline:auto">
           أنشئ حسابك الآن وابدأ بإصدار بطاقتك الأولى.
@@ -560,18 +782,18 @@
   </section>
 
   <!-- Footer -->
-  <footer style="border-top:1px solid var(--border);background:var(--surface);padding:32px 0">
+  <footer style="border-top:1px solid var(--border);padding:40px 0">
     <div class="container">
       <div style="display:flex;justify-content:space-between;align-items:center;gap:24px;flex-wrap:wrap">
         <div style="display:flex;align-items:center;gap:10px">
           <svg width="24" height="24" viewBox="0 0 40 40" aria-hidden="true">
-            <rect width="40" height="40" rx="9" fill="#176B4D"/>
-            <path d="M11 9h4.4v22H11z" fill="#FFFFFF"/>
-            <path d="M17 20.2 27.5 9H33L22.4 20.2 33 31h-5.6z" fill="#FFFFFF"/>
+            <rect width="40" height="40" rx="9" fill="#0B0F0D"/>
+            <path d="M11 9h4.4v22H11z" fill="#D4A574"/>
+            <path d="M17 20.2 27.5 9H33L22.4 20.2 33 31h-5.6z" fill="#D4A574"/>
           </svg>
-          <span style="font-weight:700">كاردو</span>
+          <span style="font-family:var(--font-display);font-weight:600;color:var(--text)">كاردو</span>
         </div>
-        <p class="caption">© 2026 كاردو — جميع الحقوق محفوظة</p>
+        <p class="caption" style="font-family:var(--font-mono);letter-spacing:0.08em">© 2026 KARDO — ALL RIGHTS RESERVED</p>
       </div>
     </div>
   </footer>
@@ -588,20 +810,20 @@
 
     <!-- Sidebar (Desktop) -->
     <aside class="sidebar">
-      <a href="#" onclick="go('dashboard');return false" style="display:flex;align-items:center;gap:10px;padding:0 12px;margin-bottom:24px">
-        <svg width="26" height="26" viewBox="0 0 40 40">
-          <rect width="40" height="40" rx="9" fill="#176B4D"/>
-          <path d="M11 9h4.4v22H11z" fill="#FFFFFF"/>
-          <path d="M17 20.2 27.5 9H33L22.4 20.2 33 31h-5.6z" fill="#FFFFFF"/>
-          <rect x="19" y="15.6" width="12.4" height="8.8" rx="2" fill="#176B4D"/>
-          <rect x="21" y="18.4" width="3.4" height="2.6" rx=".7" fill="#E8F3EE" opacity=".9"/>
+      <a href="#" onclick="go('dashboard');return false" style="display:flex;align-items:center;gap:10px;padding:0 12px;margin-bottom:28px">
+        <svg width="28" height="28" viewBox="0 0 40 40">
+          <rect width="40" height="40" rx="9" fill="#0B0F0D"/>
+          <path d="M11 9h4.4v22H11z" fill="#D4A574"/>
+          <path d="M17 20.2 27.5 9H33L22.4 20.2 33 31h-5.6z" fill="#D4A574"/>
+          <rect x="19" y="15.6" width="12.4" height="8.8" rx="2" fill="#0B0F0D"/>
+          <rect x="21" y="18.4" width="3.4" height="2.6" rx=".7" fill="#D4A574" opacity=".7"/>
         </svg>
-        <span style="font-size:16px;font-weight:700;letter-spacing:-.02em">كاردو</span>
+        <span style="font-family:var(--font-display);font-size:17px;font-weight:600">كاردو</span>
       </a>
 
       <nav>
         <div class="sidebar-group">
-          <span class="sidebar-label">الرئيسية</span>
+          <span class="sidebar-label">MAIN</span>
           <button class="sidebar-item" data-nav="dashboard">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M3 10.4 12 3l9 7.4V20a1 1 0 0 1-1 1h-5v-7H9v7H4a1 1 0 0 1-1-1z"/></svg>
             <span>لوحتي</span>
@@ -617,7 +839,7 @@
         </div>
 
         <div class="sidebar-group">
-          <span class="sidebar-label">المالية</span>
+          <span class="sidebar-label">FINANCE</span>
           <button class="sidebar-item" data-nav="wallet">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M3 7.5A2.5 2.5 0 0 1 5.5 5H19a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H5.5A2.5 2.5 0 0 1 3 16.5z"/><path d="M16.5 12h1.5"/></svg>
             <span>المحفظة</span>
@@ -637,7 +859,7 @@
         </div>
 
         <div class="sidebar-group">
-          <span class="sidebar-label">المزيد</span>
+          <span class="sidebar-label">MORE</span>
           <button class="sidebar-item" data-nav="referral">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="8" width="18" height="13" rx="2"/><path d="M12 8v13M3 12h18"/></svg>
             <span>ادعُ صديقًا</span>
@@ -657,20 +879,19 @@
     <!-- Main -->
     <main class="app-main">
 
-      <!-- Top Bar -->
       <header class="bar">
         <div class="bar-logo" style="gap:8px;display:flex;align-items:center">
           <svg width="24" height="24" viewBox="0 0 40 40">
-            <rect width="40" height="40" rx="9" fill="#176B4D"/>
-            <path d="M11 9h4.4v22H11z" fill="#FFFFFF"/>
-            <path d="M17 20.2 27.5 9H33L22.4 20.2 33 31h-5.6z" fill="#FFFFFF"/>
+            <rect width="40" height="40" rx="9" fill="#0B0F0D"/>
+            <path d="M11 9h4.4v22H11z" fill="#D4A574"/>
+            <path d="M17 20.2 27.5 9H33L22.4 20.2 33 31h-5.6z" fill="#D4A574"/>
           </svg>
-          <span style="font-size:15px;font-weight:700">كاردو</span>
+          <span style="font-family:var(--font-display);font-size:15px;font-weight:600">كاردو</span>
         </div>
 
         <div class="bar-actions">
           <div class="bar-balance" style="display:none" id="barBalance">
-            <span class="caption">الرصيد</span>
+            <span class="caption">BALANCE</span>
             <span class="tabular" style="font-weight:700" id="barBalanceVal">0.00 د.ل</span>
           </div>
 
@@ -679,7 +900,7 @@
           </button>
 
           <button class="icon-btn" id="avatarBtn" aria-label="الحساب">
-            <div id="avatarInitial" style="width:32px;height:32px;border-radius:8px;background:var(--brand-light);color:var(--brand);display:grid;place-items:center;font-weight:700;font-size:13px">؟</div>
+            <div id="avatarInitial" style="width:32px;height:32px;border-radius:8px;background:rgba(212,165,116,0.15);color:var(--sand);display:grid;place-items:center;font-weight:700;font-size:13px;border:1px solid rgba(212,165,116,0.2)">؟</div>
           </button>
         </div>
       </header>
@@ -722,4 +943,4 @@
 <script type="module" src="./app.js"></script>
 
 </body>
-</html>
+                                                                                                                                                                                 </html>
