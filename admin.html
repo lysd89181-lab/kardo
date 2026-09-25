@@ -5,6 +5,7 @@
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <meta name="robots" content="noindex,nofollow">
 <meta name="theme-color" content="#0B0F0D">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self' https://*.googleapis.com https://*.gstatic.com https://*.cloudflare.com; script-src 'self' 'unsafe-inline' https://*.googleapis.com https://*.gstatic.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data: https: blob:; connect-src 'self' https://*.googleapis.com https://*.cloudflare.com https://kardo.sdkhyrallh08.workers.dev;">
 <title>كاردو — لوحة الإدارة</title>
 
 <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -428,7 +429,10 @@
   border-radius: 2px;
   overflow: hidden;
   margin-top: 8px;
+  display: none;
 }
+
+.upload-progress.active { display: block; }
 
 .upload-progress-bar {
   height: 100%;
@@ -438,6 +442,24 @@
   transition: width .3s ease;
   box-shadow: 0 0 12px rgba(212, 165, 116, 0.5);
 }
+
+/* App Check banner */
+#appCheckWarn {
+  background: rgba(200, 75, 49, 0.1);
+  border: 1px solid rgba(200, 75, 49, 0.3);
+  color: #F0947E;
+  padding: 12px;
+  border-radius: 8px;
+  font-size: 12px;
+  margin-bottom: 16px;
+  display: none;
+  align-items: center;
+  gap: 8px;
+}
+
+#appCheckWarn.show { display: flex; }
+
+#appCheckWarn svg { width: 18px; height: 18px; flex-shrink: 0; }
 </style>
 </head>
 <body>
@@ -549,8 +571,10 @@ import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.12.2/fireba
 import { getAuth, onAuthStateChanged, signInWithEmailAndPassword, signOut }
   from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js';
 import { getFirestore, doc, getDoc, onSnapshot, collection, query,
-  orderBy, limit, deleteDoc, addDoc, setDoc }
+  orderBy, limit, deleteDoc, setDoc }
   from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js';
+import { initializeAppCheck, ReCaptchaV3Provider }
+  from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-app-check.js';
 
 /* ═══ Config ═══ */
 const API_BASE = 'https://kardo.sdkhyrallh08.workers.dev';
@@ -564,7 +588,26 @@ const firebaseConfig = {
   appId: "1:593934928630:web:d36ea455a284e974043ad7"
 };
 
+// ⭐ App Check site key (from Firebase Console → App Check → reCAPTCHA v3)
+// Leave empty if not yet configured — App Check will show warning but not block
+const APP_CHECK_SITE_KEY = '';
+
 const app = initializeApp(firebaseConfig);
+
+// ⭐ App Check initialization (graceful if not configured)
+let appCheckEnabled = false;
+try {
+  if (APP_CHECK_SITE_KEY) {
+    initializeAppCheck(app, {
+      provider: new ReCaptchaV3Provider(APP_CHECK_SITE_KEY),
+      isTokenAutoRefreshEnabled: true,
+    });
+    appCheckEnabled = true;
+  }
+} catch (e) {
+  console.warn('App Check init failed:', e.message);
+}
+
 const auth = getAuth(app);
 const db = getFirestore(app);
 
@@ -593,10 +636,12 @@ const S = {
   svcTab: 'list',
   svcSelected: '',
   svcStock: { items: [], stats: { unused: 0, used: 0, total: 0 } },
+  revealMode: false,  // ⭐ flag for revealing masked codes
 };
 
 /* ═══ Helpers ═══ */
 const $ = s => document.querySelector(s);
+const $$ = s => [...document.querySelectorAll(s)];
 const usd = v => '$' + Number(v || 0).toFixed(2);
 const lyd = v => Number(v || 0).toLocaleString('en-US',
   { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + ' د.ل';
@@ -643,6 +688,8 @@ const I = {
   trash: '<path d="M3 6h18M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6"/>',
   upload: '<path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M17 8l-5-5-5 5M12 3v12"/>',
   image: '<rect x="3" y="3" width="18" height="18" rx="3"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="m21 15-5-5L5 21"/>',
+  eye: '<path d="M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7-10-7-10-7"/><circle cx="12" cy="12" r="3"/>',
+  eyeOff: '<path d="M17.9 17.9A10.6 10.6 0 0 1 12 19c-6.4 0-10-7-10-7a18 18 0 0 1 4.1-5M9.9 4.2A10.6 10.6 0 0 1 12 5c6.4 0 10 7 10 7a18 18 0 0 1-2.2 3.2M3 3l18 18"/>',
 };
 const svg = (d, w = 1.75) => `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="${w}" stroke-linecap="round" stroke-linejoin="round">${d}</svg>`;
 
@@ -665,10 +712,43 @@ function toast(msg, kind = '') {
 function modal(html) {
   $('#modal').innerHTML = html;
   $('#overlay').classList.add('open');
+  // ⭐ Focus trap
+  setTimeout(() => {
+    const modalEl = $('#modal');
+    const focusable = modalEl.querySelectorAll(
+      'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])'
+    );
+    if (focusable.length) focusable[0].focus();
+  }, 50);
 }
-window.closeModal = () => $('#overlay').classList.remove('open');
+window.closeModal = () => {
+  $('#overlay').classList.remove('open');
+  // Restore focus to previous element if tracked
+  if (window._lastFocused) {
+    try { window._lastFocused.focus(); } catch {}
+  }
+};
 $('#overlay')?.addEventListener('click', e => { if (e.target.id === 'overlay') closeModal(); });
-document.addEventListener('keydown', e => { if (e.key === 'Escape') closeModal(); });
+document.addEventListener('keydown', e => {
+  if (e.key === 'Escape') closeModal();
+  // Focus trap: Tab
+  if (e.key === 'Tab' && $('#overlay').classList.contains('open')) {
+    const modalEl = $('#modal');
+    const focusable = [...modalEl.querySelectorAll(
+      'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])'
+    )].filter(el => !el.disabled && el.offsetParent !== null);
+    if (focusable.length === 0) return;
+    const first = focusable[0];
+    const last = focusable[focusable.length - 1];
+    if (e.shiftKey && document.activeElement === first) {
+      e.preventDefault();
+      last.focus();
+    } else if (!e.shiftKey && document.activeElement === last) {
+      e.preventDefault();
+      first.focus();
+    }
+  }
+});
 
 async function api(path, body) {
   const token = await auth.currentUser.getIdToken();
@@ -748,17 +828,17 @@ function sub(q, key) {
 }
 
 function subscribe() {
-  sub(query(collection(db, 'users'), orderBy('created_at', 'desc'), limit(200)), 'users');
-  sub(query(collection(db, 'manual_cards'), orderBy('created_at', 'desc'), limit(200)), 'manualCards');
-  sub(query(collection(db, 'manual_card_orders'), orderBy('created_at', 'desc'), limit(300)), 'manualOrders');
-  sub(query(collection(db, 'orders'), orderBy('created_at', 'desc'), limit(200)), 'orders');
-  sub(query(collection(db, 'wallet_deposits'), orderBy('created_at', 'desc'), limit(200)), 'deposits');
-  sub(query(collection(db, 'withdrawals'), orderBy('created_at', 'desc'), limit(100)), 'withdrawals');
-  sub(query(collection(db, 'tickets'), orderBy('updated_at', 'desc'), limit(80)), 'tickets');
-  sub(query(collection(db, 'coupons'), limit(100)), 'coupons');
-  sub(query(collection(db, 'sms_transactions'), orderBy('created_at', 'desc'), limit(100)), 'sms');
-  sub(query(collection(db, 'services'), limit(200)), 'services');
-  sub(query(collection(db, 'service_orders'), orderBy('created_at', 'desc'), limit(300)), 'serviceOrders');
+  sub(query(collection(db, 'users'), orderBy('created_at', 'desc'), limit(100)), 'users');
+  sub(query(collection(db, 'manual_cards'), orderBy('created_at', 'desc'), limit(100)), 'manualCards');
+  sub(query(collection(db, 'manual_card_orders'), orderBy('created_at', 'desc'), limit(150)), 'manualOrders');
+  sub(query(collection(db, 'orders'), orderBy('created_at', 'desc'), limit(100)), 'orders');
+  sub(query(collection(db, 'wallet_deposits'), orderBy('created_at', 'desc'), limit(100)), 'deposits');
+  sub(query(collection(db, 'withdrawals'), orderBy('created_at', 'desc'), limit(80)), 'withdrawals');
+  sub(query(collection(db, 'tickets'), orderBy('updated_at', 'desc'), limit(60)), 'tickets');
+  sub(query(collection(db, 'coupons'), limit(80)), 'coupons');
+  sub(query(collection(db, 'sms_transactions'), orderBy('created_at', 'desc'), limit(80)), 'sms');
+  sub(query(collection(db, 'services'), limit(150)), 'services');
+  sub(query(collection(db, 'service_orders'), orderBy('created_at', 'desc'), limit(150)), 'serviceOrders');
   S.unsub.push(onSnapshot(doc(db, 'settings', 'main'), s => {
     if (s.exists()) S.settings = s.data();
     render();
@@ -769,6 +849,10 @@ function subscribe() {
 function boot() {
   buildNav();
   render();
+  // ⭐ App Check warning
+  if (!appCheckEnabled) {
+    console.info('ℹ️ App Check not enabled. Add APP_CHECK_SITE_KEY to enable.');
+  }
 }
 
 window.refreshAll = () => render();
@@ -876,7 +960,7 @@ function render() {
 }
 
 /* ═══ Helpers ═══ */
-function kpi(icon, val, label, bg, fg) {
+function kpi(icon, val, label) {
   return `<div class="admin-kpi">
     <div class="admin-kpi-icon">${svg(icon)}</div>
     <div class="admin-kpi-value">${esc(String(val))}</div>
@@ -927,12 +1011,12 @@ function vHome() {
     ` : ''}
 
     <div class="admin-kpis">
-      ${kpi(I.card, mcPend, 'PENDING CARDS', '', '')}
-      ${kpi(I.check, mcDone, 'COMPLETED', '', '')}
-      ${kpi(I.cash, lyd(subRev), 'CARD REVENUE', '', '')}
-      ${kpi(I.bag, lyd(ordRev * 11.8), 'STORE SALES', '', '')}
-      ${kpi(I.grid, usd(svcRev), 'SERVICES REV', '', '')}
-      ${kpi(I.clock, pendDep() + pendOrd() + pendWd() + pendSvc(), 'IN PROGRESS', '', '')}
+      ${kpi(I.card, mcPend, 'PENDING CARDS')}
+      ${kpi(I.check, mcDone, 'COMPLETED')}
+      ${kpi(I.cash, lyd(subRev), 'CARD REVENUE')}
+      ${kpi(I.bag, lyd(ordRev * 11.8), 'STORE SALES')}
+      ${kpi(I.grid, usd(svcRev), 'SERVICES REV')}
+      ${kpi(I.clock, pendDep() + pendOrd() + pendWd() + pendSvc(), 'IN PROGRESS')}
     </div>
 
     <div class="grid-2 mb-6">
@@ -972,7 +1056,7 @@ function vHome() {
   </div>
   `;
 }
-
+  
 /* ═══════════════════════════════════════════════════════════
    Manual Card Orders
    ═══════════════════════════════════════════════════════════ */
@@ -1057,11 +1141,12 @@ function openMcardFulfil(id) {
   const o = S.manualOrders.find(x => x.id === id);
   if (!o) return;
   const isTopup = o.kind === 'topup';
+  window._lastFocused = document.activeElement;
 
   modal(`
     <div class="modal-head">
       <div class="modal-title">${isTopup ? 'شحن بطاقة' : 'إصدار بطاقة جديدة'}</div>
-      <button class="modal-close" onclick="closeModal()">${svg(I.x, 2)}</button>
+      <button class="modal-close" onclick="closeModal()" aria-label="إغلاق">${svg(I.x, 2)}</button>
     </div>
 
     <div class="card card-sm mb-4" style="background:var(--surface-2);border:none">
@@ -1073,21 +1158,25 @@ function openMcardFulfil(id) {
     ${!isTopup ? `
       <div class="field mb-3">
         <label class="field-label">رقم البطاقة</label>
-        <input class="input mono" id="fPan" dir="ltr" placeholder="5395 0212 3456 7890" maxlength="19" inputmode="numeric">
+        <input class="input mono" id="fPan" dir="ltr" placeholder="5395 0212 3456 7890" maxlength="19" inputmode="numeric" autocomplete="off">
       </div>
       <div class="grid-2 mb-3">
         <div>
           <label class="field-label">الانتهاء</label>
-          <input class="input mono" id="fExp" dir="ltr" placeholder="12/28" maxlength="5">
+          <input class="input mono" id="fExp" dir="ltr" placeholder="12/28" maxlength="5" autocomplete="off">
         </div>
         <div>
           <label class="field-label">CVV</label>
-          <input class="input mono" id="fCvv" dir="ltr" placeholder="123" maxlength="4" inputmode="numeric">
+          <input class="input mono" id="fCvv" dir="ltr" placeholder="123" maxlength="4" inputmode="numeric" autocomplete="off">
         </div>
       </div>
       <div class="field mb-4">
         <label class="field-label">رقم مرجعي (اختياري)</label>
-        <input class="input mono" id="fRef" dir="ltr" placeholder="ORDER-123456">
+        <input class="input mono" id="fRef" dir="ltr" placeholder="ORDER-123456" autocomplete="off">
+      </div>
+      <div class="alert alert-info mb-4" style="font-size:11.5px">
+        ${svg(I.help, 2)}
+        <div>🔒 سيتم تشفير بيانات البطاقة (AES-256-GCM) قبل الحفظ</div>
       </div>
     ` : `<div class="alert alert-info mb-4">${svg(I.help)}<div>أضف ${esc(usd(o.amount))} على البطاقة عند مزودك، ثم أكّد هنا.</div></div>`}
 
@@ -1134,6 +1223,10 @@ function openMcardFulfil(id) {
     btn.classList.add('loading');
     try {
       await api('/api/admin/mcard/fulfil', payload);
+      // ⭐ Clear sensitive data from form before closing
+      if (fPan) fPan.value = '';
+      if (fExp) fExp.value = '';
+      if (fCvv) fCvv.value = '';
       closeModal();
       toast('تم التنفيذ', 'ok');
     } catch (e) {
@@ -1147,7 +1240,7 @@ function openMcardFulfil(id) {
     modal(`
       <div class="modal-head">
         <div class="modal-title">رفض الطلب</div>
-        <button class="modal-close" onclick="closeModal()">${svg(I.x, 2)}</button>
+        <button class="modal-close" onclick="closeModal()" aria-label="إغلاق">${svg(I.x, 2)}</button>
       </div>
       <div class="alert alert-warning mb-4">${svg(I.warn)}<div>سيُعاد ${esc(usd(o.total))} إلى محفظة العميل.</div></div>
       <div class="field mb-4">
@@ -1232,7 +1325,7 @@ function vCards() {
   </div>
   `;
 }
-  
+
 /* ═══════════════════════════════════════════════════════════
    Shop Orders
    ═══════════════════════════════════════════════════════════ */
@@ -1305,11 +1398,12 @@ function openOrderAction(id, action) {
   const o = S.orders.find(x => x.id === id);
   if (!o) return;
   const rej = action === 'reject';
+  window._lastFocused = document.activeElement;
 
   modal(`
     <div class="modal-head">
       <div class="modal-title">${rej ? 'رفض الطلب' : 'تنفيذ الطلب'}</div>
-      <button class="modal-close" onclick="closeModal()">${svg(I.x, 2)}</button>
+      <button class="modal-close" onclick="closeModal()" aria-label="إغلاق">${svg(I.x, 2)}</button>
     </div>
 
     ${rej
@@ -1475,11 +1569,21 @@ function vSvcStock() {
     <div class="card">
       <div class="flex-between mb-4">
         <div class="h4">المخزون الحالي</div>
-        <div style="display:flex;gap:8px">
+        <div style="display:flex;gap:8px;align-items:center">
           <span class="badge badge-success">${S.svcStock.stats.unused} متاح</span>
           <span class="badge badge-neutral">${S.svcStock.stats.used} مستخدم</span>
+          <button class="btn btn-secondary btn-sm" id="toggleReveal" title="${S.revealMode ? 'إخفاء' : 'إظهار'} الأكواد">
+            ${svg(S.revealMode ? I.eyeOff : I.eye, 2)}
+          </button>
         </div>
       </div>
+
+      ${S.revealMode ? `
+        <div class="alert alert-warning mb-3" style="font-size:11.5px">
+          ${svg(I.warn, 2)}
+          <div>⚠️ وضع الكشف مُفعّل — تُسجَّل عمليات المشاهدة في السجل</div>
+        </div>
+      ` : ''}
 
       ${!S.svcStock.items.length ? `<div style="text-align:center;padding:32px 16px">
         <p class="body-sm text-3">لا أكواد بعد — أضف بعضها في الأعلى</p>
@@ -1487,12 +1591,12 @@ function vSvcStock() {
       <div style="max-height:500px;overflow-y:auto;border:1px solid var(--border);border-radius:8px">
         ${S.svcStock.items.map(it => `
           <div class="stock-row">
-            <div class="stock-code" title="${esc(it.code)}">${esc(it.code)}</div>
+            <div class="stock-code" title="${S.revealMode ? esc(it.code) : 'اضغط كشف لعرض الكود'}">${esc(it.code)}</div>
             <span class="badge ${it.is_used ? 'badge-neutral' : 'badge-success'}" style="font-size:10px;padding:2px 6px">
               ${it.is_used ? 'مستخدم' : 'متاح'}
             </span>
             ${!it.is_used
-              ? `<button class="btn btn-sm" style="background:none;padding:4px;color:var(--error)" data-del-stock="${esc(it.id)}">${svg(I.trash, 2)}</button>`
+              ? `<button class="btn btn-sm" style="background:none;padding:4px;color:var(--error)" data-del-stock="${esc(it.id)}" title="حذف">${svg(I.trash, 2)}</button>`
               : `<span class="caption" style="font-size:10px">${esc(it.used_at ? dt(it.used_at) : '')}</span>`}
           </div>
         `).join('')}
@@ -1523,6 +1627,7 @@ function vSvcOrders() {
           const st = o.status;
           const stCls = { pending: 'badge-warning', delivered: 'badge-success', rejected: 'badge-error' }[st];
           const stLbl = { pending: 'قيد التنفيذ', delivered: 'تم التسليم', rejected: 'مرفوضة' }[st];
+          const expired = o.delivered_expires_at && new Date(o.delivered_expires_at) < new Date();
           return `
             <div class="card">
               <div class="flex-between mb-3">
@@ -1564,7 +1669,7 @@ function vSvcOrders() {
                 </div>
               ` : st === 'delivered' ? `
                 <div style="background:rgba(95,184,138,0.08);border:1px solid rgba(95,184,138,0.2);color:#7DD6A5;padding:10px 12px;border-radius:8px;font-size:12.5px;direction:ltr;text-align:center;word-break:break-all;font-family:var(--font-mono)">
-                  ${esc(o.delivered_data || '')}
+                  ${expired ? '🔒 انتهت صلاحية العرض — تواصل مع العميل' : esc(o.delivered_data || '')}
                 </div>
               ` : `
                 <div class="caption" style="color:var(--error)">السبب: ${esc(o.rejected_reason || '—')}</div>
@@ -1578,7 +1683,7 @@ function vSvcOrders() {
 }
 
 /* ── Image compressor (browser-side) ── */
-function compressImage(file, maxDim = 256, maxBytes = 60000) {
+function compressImage(file, maxDim = 256, maxBytes = 50000) {
   return new Promise((resolve, reject) => {
     if (!file) return reject(new Error('لا يوجد ملف'));
     if (!/^image\//.test(file.type)) return reject(new Error('الملف ليس صورة'));
@@ -1603,7 +1708,6 @@ function compressImage(file, maxDim = 256, maxBytes = 60000) {
         let quality = 0.9;
         let dataUrl = canvas.toDataURL('image/jpeg', quality);
 
-        // Loop to shrink quality until under maxBytes
         let attempts = 0;
         while (dataUrl.length > maxBytes * 1.35 && attempts < 12) {
           quality -= 0.08;
@@ -1612,7 +1716,6 @@ function compressImage(file, maxDim = 256, maxBytes = 60000) {
           attempts++;
         }
 
-        // Further shrink dimensions if still too big
         let dimAttempts = 0;
         while (dataUrl.length > maxBytes * 1.35 && dimAttempts < 5) {
           width = Math.round(width * 0.8);
@@ -1624,8 +1727,8 @@ function compressImage(file, maxDim = 256, maxBytes = 60000) {
           dimAttempts++;
         }
 
-        if (dataUrl.length > 180000) {
-          return reject(new Error('الصورة كبيرة — جرّب صورة أبسط'));
+        if (dataUrl.length > 58000) {
+          return reject(new Error('الصورة كبيرة جداً — جرّب صورة أبسط'));
         }
 
         resolve(dataUrl);
@@ -1647,13 +1750,14 @@ function openServiceEdit(id) {
     is_active: true, sort: 100,
   };
   if (!s) return;
+  window._lastFocused = document.activeElement;
 
   const existingFields = Array.isArray(s.fields) ? s.fields : [];
 
   modal(`
     <div class="modal-head">
       <div class="modal-title">${id ? 'تعديل الخدمة' : 'خدمة جديدة'}</div>
-      <button class="modal-close" onclick="closeModal()">${svg(I.x, 2)}</button>
+      <button class="modal-close" onclick="closeModal()" aria-label="إغلاق">${svg(I.x, 2)}</button>
     </div>
 
     <div class="field mb-3">
@@ -1674,11 +1778,14 @@ function openServiceEdit(id) {
         </div>
         <div style="flex:1">
           <input class="input mb-2" id="sEmoji" value="${esc(s.icon_emoji || '')}" maxlength="4" placeholder="📦 (إيموجي)">
-          <input type="file" id="sImageFile" accept="image/*" style="display:none">
+          <input type="file" id="sImageFile" accept="image/jpeg,image/png,image/webp" style="display:none">
           <button class="btn btn-secondary btn-sm btn-block" id="uploadImgBtn" type="button">
-            ${svg(I.upload, 2)} رفع صورة (حتى 60KB — تُضغط تلقائياً)
+            ${svg(I.upload, 2)} رفع صورة (تُضغط إلى ~50KB)
           </button>
           <input type="hidden" id="sIconUrl" value="${esc(s.icon_url || '')}">
+          <div class="upload-progress" id="uploadProgress">
+            <div class="upload-progress-bar" id="uploadProgressBar"></div>
+          </div>
           <div id="imgStatus" class="caption" style="margin-top:6px;display:none"></div>
         </div>
       </div>
@@ -1727,7 +1834,6 @@ function openServiceEdit(id) {
     ${id ? `<button class="btn btn-outline-danger btn-block" style="margin-top:8px" id="sDel">${svg(I.trash, 2)} حذف الخدمة</button>` : ''}
   `);
 
-  // Fields state
   let fields = existingFields.map(f => ({ ...f }));
 
   const renderFields = () => {
@@ -1745,7 +1851,7 @@ function openServiceEdit(id) {
               `<option value="${t}" ${f.type === t ? 'selected' : ''}>${t}</option>`).join('')}
           </select>
         </div>
-        <button type="button" class="btn btn-sm" style="background:none;color:var(--error);padding:8px" data-del-field="${i}">
+        <button type="button" class="btn btn-sm" style="background:none;color:var(--error);padding:8px" data-del-field="${i}" aria-label="حذف">
           ${svg(I.trash, 2)}
         </button>
       </div>
@@ -1775,7 +1881,6 @@ function openServiceEdit(id) {
     renderFields();
   });
 
-  // Image upload with auto-compress
   onTap('#uploadImgBtn', () => $('#sImageFile').click());
 
   $('#sImageFile').onchange = async (e) => {
@@ -1783,12 +1888,20 @@ function openServiceEdit(id) {
     if (!file) return;
 
     const statusEl = $('#imgStatus');
+    const progressEl = $('#uploadProgress');
+    const barEl = $('#uploadProgressBar');
+
+    progressEl.classList.add('active');
+    barEl.style.width = '20%';
     statusEl.style.display = 'block';
     statusEl.textContent = '⏳ جاري ضغط الصورة...';
     statusEl.style.color = 'var(--sand)';
 
     try {
-      const dataUrl = await compressImage(file, 256, 60000);
+      barEl.style.width = '50%';
+      const dataUrl = await compressImage(file, 256, 50000);
+      barEl.style.width = '100%';
+
       $('#sIconUrl').value = dataUrl;
       $('#iconPreview').innerHTML = `<img src="${dataUrl}" alt="">`;
       $('#sEmoji').value = '';
@@ -1796,7 +1909,14 @@ function openServiceEdit(id) {
       const kb = Math.round(dataUrl.length * 0.75 / 1024);
       statusEl.textContent = `✅ تم الضغط — ${kb}KB`;
       statusEl.style.color = '#7DD6A5';
+
+      setTimeout(() => {
+        progressEl.classList.remove('active');
+        barEl.style.width = '0%';
+      }, 1500);
     } catch (err) {
+      barEl.style.width = '0%';
+      progressEl.classList.remove('active');
       statusEl.textContent = '❌ ' + err.message;
       statusEl.style.color = '#F0947E';
       toast(err.message, 'bad');
@@ -1809,7 +1929,6 @@ function openServiceEdit(id) {
     $('#imgStatus').style.display = 'none';
   };
 
-  // Save
   onTap('#sSave', async () => {
     const name = $('#sName').value.trim();
     if (name.length < 2) return toast('اسم الخدمة مطلوب', 'bad');
@@ -1856,13 +1975,12 @@ function openServiceEdit(id) {
     }
   });
 
-  // Delete
   if (id) {
     onTap('#sDel', () => {
       modal(`
         <div class="modal-head">
           <div class="modal-title">حذف الخدمة</div>
-          <button class="modal-close" onclick="closeModal()">${svg(I.x, 2)}</button>
+          <button class="modal-close" onclick="closeModal()" aria-label="إغلاق">${svg(I.x, 2)}</button>
         </div>
         <div class="alert alert-warning mb-4">${svg(I.warn)}<div>سيتم حذف "<strong>${esc(s.name)}</strong>" نهائياً.<br>لن يتأثر المخزون أو الطلبات السابقة.</div></div>
         <button class="btn btn-danger btn-block" id="delConfirm">تأكيد الحذف</button>
@@ -1883,11 +2001,12 @@ window.openServiceEdit = openServiceEdit;
 function openSvcDeliver(orderId) {
   const o = S.serviceOrders.find(x => x.id === orderId);
   if (!o) return;
+  window._lastFocused = document.activeElement;
 
   modal(`
     <div class="modal-head">
       <div class="modal-title">تسليم الطلب</div>
-      <button class="modal-close" onclick="closeModal()">${svg(I.x, 2)}</button>
+      <button class="modal-close" onclick="closeModal()" aria-label="إغلاق">${svg(I.x, 2)}</button>
     </div>
 
     <div class="card card-sm mb-4" style="background:var(--surface-2);border:none">
@@ -1899,7 +2018,7 @@ function openSvcDeliver(orderId) {
     <div class="field mb-4">
       <label class="field-label">البيانات/الكود المُسلَّم *</label>
       <textarea class="input" id="svcDeliverData" rows="5" placeholder="USER: xxx&#10;PASS: yyy&#10;أو أي بيانات يراها العميل" style="font-family:var(--font-mono);font-size:13px;color:var(--sand)"></textarea>
-      <span class="field-hint">ستظهر للعميل في "طلباتي" فوراً</span>
+      <span class="field-hint">ستظهر للعميل في "طلباتي" لمدة 7 أيام</span>
     </div>
 
     <button class="btn btn-primary btn-block" id="svcDeliverGo">
@@ -1933,11 +2052,12 @@ window.openSvcDeliver = openSvcDeliver;
 function openSvcReject(orderId) {
   const o = S.serviceOrders.find(x => x.id === orderId);
   if (!o) return;
+  window._lastFocused = document.activeElement;
 
   modal(`
     <div class="modal-head">
       <div class="modal-title">رفض الطلب</div>
-      <button class="modal-close" onclick="closeModal()">${svg(I.x, 2)}</button>
+      <button class="modal-close" onclick="closeModal()" aria-label="إغلاق">${svg(I.x, 2)}</button>
     </div>
 
     <div class="alert alert-warning mb-4">${svg(I.warn)}<div>سيُعاد ${esc(usd(o.price_usd))} إلى محفظة العميل تلقائياً.</div></div>
@@ -2040,11 +2160,12 @@ function vDeposits() {
 function openDepositReview(id) {
   const d = S.deposits.find(x => x.id === id);
   if (!d) return;
+  window._lastFocused = document.activeElement;
 
   modal(`
     <div class="modal-head">
       <div class="modal-title">مراجعة إيداع</div>
-      <button class="modal-close" onclick="closeModal()">${svg(I.x, 2)}</button>
+      <button class="modal-close" onclick="closeModal()" aria-label="إغلاق">${svg(I.x, 2)}</button>
     </div>
 
     <div class="card card-sm mb-4" style="background:var(--surface-2);border:none">
@@ -2058,7 +2179,7 @@ function openDepositReview(id) {
     ${d.proof_url ? `
       <div class="mb-4">
         <div class="field-label">إثبات التحويل</div>
-        <a href="${esc(d.proof_url)}" target="_blank" rel="noopener">
+        <a href="${esc(d.proof_url)}" target="_blank" rel="noopener noreferrer">
           <img src="${esc(d.proof_url)}" alt="" style="width:100%;border-radius:8px;border:1px solid var(--border)">
         </a>
       </div>
@@ -2163,11 +2284,12 @@ function openWithdrawAction(id, action) {
   const w = S.withdrawals.find(x => x.id === id);
   if (!w) return;
   const rej = action === 'reject';
+  window._lastFocused = document.activeElement;
 
   modal(`
     <div class="modal-head">
       <div class="modal-title">${rej ? 'رفض السحب' : 'تنفيذ السحب'}</div>
-      <button class="modal-close" onclick="closeModal()">${svg(I.x, 2)}</button>
+      <button class="modal-close" onclick="closeModal()" aria-label="إغلاق">${svg(I.x, 2)}</button>
     </div>
 
     ${rej
@@ -2262,11 +2384,12 @@ function openTicketDetail(id) {
   const t = S.tickets.find(x => x.id === id);
   if (!t) return;
   const msgs = t.messages || [];
+  window._lastFocused = document.activeElement;
 
   modal(`
     <div class="modal-head">
       <div class="modal-title">${esc(t.subject)}</div>
-      <button class="modal-close" onclick="closeModal()">${svg(I.x, 2)}</button>
+      <button class="modal-close" onclick="closeModal()" aria-label="إغلاق">${svg(I.x, 2)}</button>
     </div>
 
     <p class="caption mb-4">${esc(userName(t.uid))} · ${esc(dt(t.created_at))}</p>
@@ -2367,11 +2490,12 @@ function openCouponEdit(id) {
     once_per_user: true, active: true, expires_at: ''
   };
   if (!c) return;
+  window._lastFocused = document.activeElement;
 
   modal(`
     <div class="modal-head">
       <div class="modal-title">${id ? 'تعديل الكوبون' : 'كوبون جديد'}</div>
-      <button class="modal-close" onclick="closeModal()">${svg(I.x, 2)}</button>
+      <button class="modal-close" onclick="closeModal()" aria-label="إغلاق">${svg(I.x, 2)}</button>
     </div>
 
     <div class="field mb-3">
@@ -2516,11 +2640,12 @@ function vUsers() {
 function openUserManage(uid) {
   const u = S.users.find(x => x.id === uid);
   if (!u) return;
+  window._lastFocused = document.activeElement;
 
   modal(`
     <div class="modal-head">
       <div class="modal-title">${esc(u.name || 'مستخدم')}</div>
-      <button class="modal-close" onclick="closeModal()">${svg(I.x, 2)}</button>
+      <button class="modal-close" onclick="closeModal()" aria-label="إغلاق">${svg(I.x, 2)}</button>
     </div>
 
     <div class="card card-sm mb-4" style="background:var(--surface-2);border:none">
@@ -2860,6 +2985,7 @@ function bind() {
   document.querySelectorAll('[data-svc-tab]').forEach(b =>
     b.onclick = () => {
       S.svcTab = b.dataset.svcTab;
+      S.revealMode = false;
       if (S.svcTab === 'stock' && S.svcSelected) loadSvcStock(S.svcSelected);
       render();
     });
@@ -2874,10 +3000,11 @@ function bind() {
     b.onclick = () => {
       const svc = S.services.find(x => x.id === b.dataset.delSvc);
       if (!svc) return;
+      window._lastFocused = document.activeElement;
       modal(`
         <div class="modal-head">
           <div class="modal-title">حذف الخدمة</div>
-          <button class="modal-close" onclick="closeModal()">${svg(I.x, 2)}</button>
+          <button class="modal-close" onclick="closeModal()" aria-label="إغلاق">${svg(I.x, 2)}</button>
         </div>
         <div class="alert alert-warning mb-4">${svg(I.warn)}<div>سيتم حذف "<strong>${esc(svc.name)}</strong>" نهائياً.</div></div>
         <button class="btn btn-danger btn-block" id="delConfirm2">تأكيد الحذف</button>
@@ -2896,6 +3023,7 @@ function bind() {
   if (svcSel) {
     svcSel.onchange = () => {
       S.svcSelected = svcSel.value;
+      S.revealMode = false;
       if (S.svcSelected) {
         loadSvcStock(S.svcSelected);
       } else {
@@ -2906,6 +3034,11 @@ function bind() {
   }
 
   onTap('#addStockBtn', addStockCodes);
+
+  onTap('#toggleReveal', () => {
+    S.revealMode = !S.revealMode;
+    if (S.svcSelected) loadSvcStock(S.svcSelected);
+  });
 
   document.querySelectorAll('[data-del-stock]').forEach(b =>
     b.onclick = () => delStockCode(b.dataset.delStock));
@@ -2972,14 +3105,17 @@ async function addStockCodes() {
 async function loadSvcStock(svcId) {
   if (!svcId) return;
   try {
-    const r = await api('/api/admin/stock/list', { service_id: svcId });
+    const r = await api('/api/admin/stock/list', {
+      service_id: svcId,
+      reveal: S.revealMode === true,
+    });
     S.svcStock = {
       items: r.items || [],
       stats: r.stats || { unused: 0, used: 0, total: 0 },
     };
     render();
   } catch (e) {
-    console.error(e);
+    console.warn('stock load failed');
     toast(e.message, 'bad');
   }
 }
@@ -2995,10 +3131,11 @@ async function delStockCode(itemId) {
 
 /* ═══ Logout ═══ */
 onTap('#logoutBtn', () => {
+  window._lastFocused = document.activeElement;
   modal(`
     <div class="modal-head">
       <div class="modal-title">تسجيل الخروج</div>
-      <button class="modal-close" onclick="closeModal()">${svg(I.x, 2)}</button>
+      <button class="modal-close" onclick="closeModal()" aria-label="إغلاق">${svg(I.x, 2)}</button>
     </div>
     <p class="body-sm text-2 mb-5">هل أنت متأكد؟</p>
     <button class="btn btn-primary btn-block" id="doOut">تأكيد الخروج</button>
