@@ -1,7 +1,7 @@
 /**
  * ═══════════════════════════════════════════════════════════
- *  KARDO — App Logic (v3.2.0)
- *  Digital Banking + Digital Services (Clean)
+ *  KARDO — App Logic (v3.3.0)
+ *  Desert Noir Edition
  * ═══════════════════════════════════════════════════════════
  */
 
@@ -207,7 +207,6 @@ onAuthStateChanged(auth, async user => {
     render();
   }).catch(e => console.warn('status:', e.message));
 
-  // جلب الخدمات الرقمية
   loadServices();
 
   api('/api/activity/ping', {}).catch(() => {});
@@ -264,7 +263,6 @@ function subscribe(uid) {
     },
     e => { S.dataErr.cards = e.code; render(); }));
 
-  // طلبات الخدمات
   S.unsub.push(onSnapshot(query(collection(db, 'service_orders'),
     where('uid', '==', uid), limit(60)),
     s => {
@@ -335,7 +333,6 @@ window.go = (page) => {
   render();
   $$('[data-nav]').forEach(b => b.classList.toggle('active', b.dataset.nav === page));
 
-  // إعادة تحميل الخدمات عند فتح صفحة الخدمات
   if (page === 'services') loadServices();
 };
 
@@ -385,7 +382,7 @@ function paint() {
 }
 
 /* ═══════════════════════════════════════════════════════════
-   Dashboard
+   Dashboard — Desert Noir
    ═══════════════════════════════════════════════════════════ */
 
 function vDashboard() {
@@ -407,12 +404,15 @@ function vDashboard() {
   return `
   <div class="page-enter">
     <div style="margin-bottom:32px">
-      <h1 class="h2" style="margin-bottom:6px">${greeting}، ${esc(name.split(' ')[0])}</h1>
+      <div style="font-family:var(--font-mono);font-size:11px;letter-spacing:0.15em;color:var(--sand);text-transform:uppercase;margin-bottom:8px">
+        ${hour < 12 ? 'GOOD MORNING' : 'GOOD EVENING'}
+      </div>
+      <h1 class="h1" style="margin-bottom:6px">${greeting}، ${esc(name.split(' ')[0])}</h1>
       <p class="body-sm text-2">إليك ملخص حسابك اليوم</p>
     </div>
 
     <div class="balance-card" style="margin-bottom:24px">
-      <div class="balance-label">الرصيد المتاح</div>
+      <div class="balance-label">AVAILABLE BALANCE</div>
       <div class="balance-value">${lyd(S.profile.wallet_balance * rate())}</div>
       <div class="balance-secondary">${usd(S.profile.wallet_balance)}</div>
 
@@ -506,9 +506,9 @@ function vDashboard() {
 }
 
 function cardMiniHtml(c) {
-  const st = { active: 'نشطة', frozen: 'مجمدة', deleted: 'مغلقة' }[c.status] || '—';
+  const st = { active: 'ACTIVE', frozen: 'FROZEN', deleted: 'CLOSED' }[c.status] || '—';
   return `
-    <button class="service-card" data-card="${esc(c.id)}" style="padding:0;overflow:hidden">
+    <button class="service-card" data-card="${esc(c.id)}" style="padding:0;overflow:hidden;border:none;background:transparent">
       <div class="vcard" style="border-radius:0;aspect-ratio:1.586">
         <div class="vcard-top">
           <span class="vcard-brand">KARDO</span>
@@ -569,7 +569,7 @@ function txRow(t) {
 }
 
 /* ═══════════════════════════════════════════════════════════
-   Digital Services (NEW - Clean)
+   Digital Services
    ═══════════════════════════════════════════════════════════ */
 
 function vServices() {
@@ -582,7 +582,10 @@ function vServices() {
   return `
   <div class="page-enter">
     <div class="mb-6">
-      <h1 class="h2" style="margin-bottom:6px">الخدمات الرقمية</h1>
+      <div style="font-family:var(--font-mono);font-size:11px;letter-spacing:0.15em;color:var(--sand);text-transform:uppercase;margin-bottom:8px">
+        DIGITAL SERVICES
+      </div>
+      <h1 class="h1" style="margin-bottom:6px">الخدمات الرقمية</h1>
       <p class="body-sm text-2">اشترِ الأكواد والحسابات فوراً</p>
     </div>
 
@@ -646,24 +649,24 @@ function svcCard(s) {
   const outOfStock = isAuto && stock === false;
 
   return `
-    <button class="service-card" data-buy-svc="${esc(s.id)}" style="position:relative;padding:16px">
-      <div style="display:flex;gap:10px;align-items:center;width:100%">
+    <button class="service-card" data-buy-svc="${esc(s.id)}" style="position:relative">
+      <div style="display:flex;gap:12px;align-items:center;width:100%">
         <div class="svc-icon">
           ${s.icon_url
             ? `<img src="${esc(s.icon_url)}" alt="">`
             : `<span>${esc(s.icon_emoji || '📦')}</span>`}
         </div>
         <div style="flex:1;min-width:0;text-align:right">
-          <div class="service-name" style="font-size:14px">${esc(s.name)}</div>
-          <div class="service-desc" style="font-size:12px">${esc((s.desc || '').slice(0, 50))}</div>
+          <div class="service-name">${esc(s.name)}</div>
+          <div class="service-desc">${esc((s.desc || '').slice(0, 50))}</div>
         </div>
       </div>
-      <div style="display:flex;justify-content:space-between;align-items:center;width:100%;margin-top:10px">
-        <div class="service-price" style="font-size:14px">${usd(s.price_usd)}</div>
-        <span class="badge ${badgeCls}" style="font-size:10px;padding:2px 8px">${badge}</span>
+      <div style="display:flex;justify-content:space-between;align-items:center;width:100%;margin-top:8px">
+        <div class="service-price">${usd(s.price_usd)}</div>
+        <span class="badge ${badgeCls}" style="font-size:10px">${badge}</span>
       </div>
       ${outOfStock ? `
-        <span class="badge badge-error" style="position:absolute;top:8px;left:8px;font-size:10px">نفد</span>
+        <span class="badge badge-error" style="position:absolute;top:10px;left:10px;font-size:10px">نفد</span>
       ` : ''}
     </button>
   `;
@@ -689,8 +692,7 @@ function svcOrderRow(o, delivered) {
       </div>
     </div>
   `;
-}
-
+                   }
 function openServiceOrderDetail(orderId) {
   const o = (S.svcOrders || []).find(x => x.id === orderId);
   if (!o) return;
@@ -706,19 +708,19 @@ function openServiceOrderDetail(orderId) {
 
     <div class="card card-sm mb-4" style="background:var(--surface-2);border:none">
       <div class="flex-between" style="padding:4px 0">
-        <span class="caption">رقم الطلب</span>
+        <span class="caption" style="font-family:var(--font-mono);letter-spacing:0.1em">ORDER</span>
         <span class="mono" style="font-size:11px">${esc(o.id)}</span>
       </div>
       <div class="flex-between" style="padding:4px 0">
-        <span class="caption">التاريخ</span>
+        <span class="caption" style="font-family:var(--font-mono);letter-spacing:0.1em">DATE</span>
         <span class="body-sm">${esc(dt(o.created_at))}</span>
       </div>
       <div class="flex-between" style="padding:4px 0">
-        <span class="caption">السعر</span>
-        <span class="tabular" style="font-weight:700">${esc(usd(o.price_usd))}</span>
+        <span class="caption" style="font-family:var(--font-mono);letter-spacing:0.1em">PRICE</span>
+        <span class="tabular" style="font-weight:700;color:var(--sand)">${esc(usd(o.price_usd))}</span>
       </div>
       <div class="flex-between" style="padding:4px 0">
-        <span class="caption">الحالة</span>
+        <span class="caption" style="font-family:var(--font-mono);letter-spacing:0.1em">STATUS</span>
         <span class="badge ${isDelivered ? 'badge-success' : isRejected ? 'badge-error' : 'badge-warning'}">
           ${isDelivered ? 'تم التسليم' : isRejected ? 'مرفوض' : 'قيد التنفيذ'}
         </span>
@@ -739,9 +741,9 @@ function openServiceOrderDetail(orderId) {
 
     ${isDelivered ? `
       <div class="field-label mb-2">البيانات المُسلَّمة</div>
-      <div class="copy-box mb-4" style="text-align:center;padding:16px">
-        <div class="mono" style="font-size:13px;word-break:break-all;line-height:1.7;white-space:pre-wrap">${esc(o.delivered_data || '')}</div>
-        <button class="copy-btn" id="copyDelivered" style="margin-top:8px">${svg(I.copy, 2)} نسخ</button>
+      <div class="copy-box mb-4" style="text-align:center;padding:20px">
+        <div class="mono" style="font-size:13px;word-break:break-all;line-height:1.7;white-space:pre-wrap;color:var(--sand)">${esc(o.delivered_data || '')}</div>
+        <button class="copy-btn" id="copyDelivered" style="margin-top:12px">${svg(I.copy, 2)} نسخ</button>
       </div>
     ` : ''}
 
@@ -786,15 +788,15 @@ async function openServiceBuy(svcId) {
       <button class="modal-close" onclick="closeModal()">${svg(I.x, 2)}</button>
     </div>
 
-    <div class="card card-sm mb-4" style="background:var(--surface-2);border:none;text-align:center;padding:20px">
+    <div class="card card-sm mb-4" style="background:var(--surface-2);border:none;text-align:center;padding:24px">
       <div class="svc-icon-lg">
         ${svc.icon_url
           ? `<img src="${esc(svc.icon_url)}" alt="">`
           : `<span>${esc(svc.icon_emoji || '📦')}</span>`}
       </div>
-      <div class="h4" style="margin:8px 0 4px">${esc(svc.name)}</div>
+      <div class="h4" style="margin:12px 0 4px">${esc(svc.name)}</div>
       ${svc.desc ? `<div class="body-sm text-2">${esc(svc.desc)}</div>` : ''}
-      <div class="tabular" style="font-size:24px;font-weight:700;color:var(--brand);margin-top:12px">${esc(usd(svc.price_usd))}</div>
+      <div class="editorial-number" style="font-size:32px;color:var(--sand);margin-top:16px">${esc(usd(svc.price_usd))}</div>
     </div>
 
     ${fields.length ? `
@@ -802,10 +804,10 @@ async function openServiceBuy(svcId) {
       ${fields.map((f, i) => renderField(f, i)).join('')}
     ` : ''}
 
-    <div class="card card-sm mb-4" style="background:${canBuy ? 'var(--success-bg)' : 'var(--error-bg)'};border:none">
+    <div class="card card-sm mb-4" style="background:${canBuy ? 'rgba(95,184,138,0.08)' : 'rgba(200,75,49,0.08)'};border:1px solid ${canBuy ? 'rgba(95,184,138,0.2)' : 'rgba(200,75,49,0.2)'}">
       <div class="flex-between">
-        <span class="body-sm">رصيدك:</span>
-        <span class="tabular" style="font-weight:700">${esc(usd(balance))}</span>
+        <span class="body-sm" style="color:var(--text-2)">رصيدك:</span>
+        <span class="tabular" style="font-weight:700;color:${canBuy ? 'var(--sand)' : 'var(--error)'}">${esc(usd(balance))}</span>
       </div>
       ${!canBuy ? `
         <div class="caption" style="color:var(--error);margin-top:6px">
@@ -855,8 +857,8 @@ async function openServiceBuy(svcId) {
           </div>
 
           <div class="field-label mb-2">بيانات الخدمة</div>
-          <div class="copy-box mb-4" style="text-align:center;padding:16px">
-            <div class="mono" style="font-size:13px;word-break:break-all;line-height:1.7;white-space:pre-wrap">${esc(ord.delivered_data)}</div>
+          <div class="copy-box mb-4" style="text-align:center;padding:20px">
+            <div class="mono" style="font-size:13px;word-break:break-all;line-height:1.7;white-space:pre-wrap;color:var(--sand)">${esc(ord.delivered_data)}</div>
           </div>
 
           <button class="btn btn-secondary btn-block" id="copySvcCode">${svg(I.copy, 2)} نسخ</button>
@@ -928,7 +930,10 @@ function vShop() {
   return `
   <div class="page-enter">
     <div class="mb-6">
-      <h1 class="h2" style="margin-bottom:6px">المتجر</h1>
+      <div style="font-family:var(--font-mono);font-size:11px;letter-spacing:0.15em;color:var(--sand);text-transform:uppercase;margin-bottom:8px">
+        STORE
+      </div>
+      <h1 class="h1" style="margin-bottom:6px">المتجر</h1>
       <p class="body-sm text-2">تصفح خدماتنا واختر ما يناسبك.</p>
     </div>
 
@@ -955,7 +960,8 @@ function vShop() {
     `}
   </div>
   `;
-              }
+}
+
 /* ═══════════════════════════════════════════════════════════
    Cards
    ═══════════════════════════════════════════════════════════ */
@@ -967,11 +973,14 @@ function vCards() {
   <div class="page-enter">
     <div class="flex-between mb-6">
       <div>
-        <h1 class="h2" style="margin-bottom:6px">بطاقاتي</h1>
+        <div style="font-family:var(--font-mono);font-size:11px;letter-spacing:0.15em;color:var(--sand);text-transform:uppercase;margin-bottom:8px">
+          MY CARDS
+        </div>
+        <h1 class="h1" style="margin-bottom:6px">بطاقاتي</h1>
         <p class="body-sm text-2">${active.length} بطاقة نشطة</p>
       </div>
       <button class="btn btn-primary btn-sm" data-action="newCard">
-        ${svg(I.plus, 2)} إصدار بطاقة
+        ${svg(I.plus, 2)} إصدار
       </button>
     </div>
 
@@ -981,8 +990,8 @@ function vCards() {
           <button class="service-card" data-card="${esc(c.id)}" style="padding:0;overflow:hidden">
             ${renderCard(c)}
             <div style="padding:14px;text-align:right;width:100%">
-              <div class="body" style="font-weight:600;margin-bottom:4px">${esc(c.card_name || 'بطاقة')}</div>
-              <div class="caption">${esc(dt(c.created_at))}</div>
+              <div class="body" style="font-weight:600;margin-bottom:4px;color:var(--text)">${esc(c.card_name || 'بطاقة')}</div>
+              <div class="caption" style="font-family:var(--font-mono);font-size:11px">${esc(dt(c.created_at))}</div>
             </div>
           </button>
         `).join('')}
@@ -1004,7 +1013,7 @@ function vCards() {
 }
 
 function renderCard(c) {
-  const st = { active: 'نشطة', frozen: 'مجمدة', deleted: 'مغلقة' }[c.status] || '—';
+  const st = { active: 'ACTIVE', frozen: 'FROZEN', deleted: 'CLOSED' }[c.status] || '—';
   const cls = c.status === 'frozen' ? 'frozen' : c.status === 'deleted' ? 'blocked' : '';
   return `
     <div class="vcard ${cls}" style="border-radius:0;aspect-ratio:1.586">
@@ -1023,7 +1032,7 @@ function renderCard(c) {
           <div class="vcard-label">CARDHOLDER</div>
           <div class="vcard-value">${esc((c.name_on_card || '').slice(0, 18))}</div>
         </div>
-        <svg class="vcard-brand-logo" viewBox="0 0 48 32" fill="currentColor" opacity=".85">
+        <svg class="vcard-brand-logo" viewBox="0 0 48 32" fill="currentColor" opacity=".85" style="color:var(--sand)">
           <circle cx="16" cy="16" r="10" opacity=".9"/>
           <circle cx="32" cy="16" r="10" opacity=".6"/>
         </svg>
@@ -1040,11 +1049,14 @@ function vWallet() {
   return `
   <div class="page-enter">
     <div class="mb-6">
-      <h1 class="h2" style="margin-bottom:6px">المحفظة</h1>
+      <div style="font-family:var(--font-mono);font-size:11px;letter-spacing:0.15em;color:var(--sand);text-transform:uppercase;margin-bottom:8px">
+        WALLET
+      </div>
+      <h1 class="h1" style="margin-bottom:6px">المحفظة</h1>
     </div>
 
     <div class="balance-card" style="margin-bottom:24px">
-      <div class="balance-label">الرصيد المتاح</div>
+      <div class="balance-label">AVAILABLE BALANCE</div>
       <div class="balance-value">${lyd(S.profile.wallet_balance * rate())}</div>
       <div class="balance-secondary">${usd(S.profile.wallet_balance)}</div>
 
@@ -1144,7 +1156,10 @@ function vTransactions() {
   return `
   <div class="page-enter">
     <div class="mb-6">
-      <h1 class="h2" style="margin-bottom:6px">المعاملات</h1>
+      <div style="font-family:var(--font-mono);font-size:11px;letter-spacing:0.15em;color:var(--sand);text-transform:uppercase;margin-bottom:8px">
+        TRANSACTIONS
+      </div>
+      <h1 class="h1" style="margin-bottom:6px">المعاملات</h1>
       <p class="body-sm text-2">كل عملياتك في مكان واحد</p>
     </div>
 
@@ -1171,7 +1186,10 @@ function vOrders() {
   return `
   <div class="page-enter">
     <div class="mb-6">
-      <h1 class="h2" style="margin-bottom:6px">طلباتي</h1>
+      <div style="font-family:var(--font-mono);font-size:11px;letter-spacing:0.15em;color:var(--sand);text-transform:uppercase;margin-bottom:8px">
+        MY ORDERS
+      </div>
+      <h1 class="h1" style="margin-bottom:6px">طلباتي</h1>
     </div>
 
     ${S.orders.length ? `
@@ -1214,7 +1232,10 @@ function vReferral() {
     return `
     <div class="page-enter">
       <div class="mb-6">
-        <h1 class="h2">ادعُ صديقًا</h1>
+        <div style="font-family:var(--font-mono);font-size:11px;letter-spacing:0.15em;color:var(--sand);text-transform:uppercase;margin-bottom:8px">
+          REFERRAL
+        </div>
+        <h1 class="h1">ادعُ صديقًا</h1>
       </div>
       <div class="card" style="text-align:center;padding:48px 24px">
         <div class="empty-icon" style="margin:0 auto 16px">${svg(I.gift, 2)}</div>
@@ -1227,12 +1248,15 @@ function vReferral() {
   return `
   <div class="page-enter">
     <div class="mb-6">
-      <h1 class="h2" style="margin-bottom:6px">ادعُ صديقًا</h1>
+      <div style="font-family:var(--font-mono);font-size:11px;letter-spacing:0.15em;color:var(--sand);text-transform:uppercase;margin-bottom:8px">
+        REFERRAL
+      </div>
+      <h1 class="h1" style="margin-bottom:6px">ادعُ صديقًا</h1>
       <p class="body-sm text-2">شارك رمزك — تحصلان معًا على مكافأة.</p>
     </div>
 
     <div class="card" style="margin-bottom:20px">
-      <div class="field-label">رمز الدعوة</div>
+      <div class="field-label" style="font-family:var(--font-mono);letter-spacing:0.1em">INVITE CODE</div>
       <div class="copy-box" style="margin-bottom:16px">
         <div class="copy-value" id="refCode">— • — • — • —</div>
         <button class="copy-btn" id="refCopy">${svg(I.copy, 2)}</button>
@@ -1246,19 +1270,19 @@ function vReferral() {
       <div class="h4" style="margin-bottom:16px">كيف تعمل؟</div>
       <div class="stack">
         <div style="display:flex;gap:12px;align-items:flex-start">
-          <span class="badge badge-neutral" style="flex-shrink:0">01</span>
+          <span class="badge badge-neutral" style="flex-shrink:0;font-family:var(--font-mono)">01</span>
           <div class="body-sm text-2">شارك رمزك مع أصدقائك</div>
         </div>
         <div style="display:flex;gap:12px;align-items:flex-start">
-          <span class="badge badge-neutral" style="flex-shrink:0">02</span>
+          <span class="badge badge-neutral" style="flex-shrink:0;font-family:var(--font-mono)">02</span>
           <div class="body-sm text-2">يسجّل صديقك ويستخدم رمزك</div>
         </div>
         <div style="display:flex;gap:12px;align-items:flex-start">
-          <span class="badge badge-neutral" style="flex-shrink:0">03</span>
+          <span class="badge badge-neutral" style="flex-shrink:0;font-family:var(--font-mono)">03</span>
           <div class="body-sm text-2">ينفّذ أول عملية</div>
         </div>
         <div style="display:flex;gap:12px;align-items:flex-start">
-          <span class="badge badge-neutral" style="flex-shrink:0">04</span>
+          <span class="badge badge-neutral" style="flex-shrink:0;font-family:var(--font-mono)">04</span>
           <div class="body-sm text-2">تحصلان على المكافأة</div>
         </div>
       </div>
@@ -1276,7 +1300,10 @@ function vSupport() {
   <div class="page-enter">
     <div class="flex-between mb-6">
       <div>
-        <h1 class="h2" style="margin-bottom:6px">الدعم</h1>
+        <div style="font-family:var(--font-mono);font-size:11px;letter-spacing:0.15em;color:var(--sand);text-transform:uppercase;margin-bottom:8px">
+          SUPPORT
+        </div>
+        <h1 class="h1" style="margin-bottom:6px">الدعم</h1>
         <p class="body-sm text-2">كيف يمكننا مساعدتك؟</p>
       </div>
       <button class="btn btn-primary btn-sm" id="newTicket">
@@ -1348,17 +1375,20 @@ function vSettings() {
   return `
   <div class="page-enter">
     <div class="mb-6">
-      <h1 class="h2" style="margin-bottom:6px">الإعدادات</h1>
+      <div style="font-family:var(--font-mono);font-size:11px;letter-spacing:0.15em;color:var(--sand);text-transform:uppercase;margin-bottom:8px">
+        SETTINGS
+      </div>
+      <h1 class="h1" style="margin-bottom:6px">الإعدادات</h1>
     </div>
 
     <div class="card card-lg mb-5">
       <div style="display:flex;gap:16px;align-items:center">
-        <div style="width:56px;height:56px;border-radius:14px;background:var(--brand-light);color:var(--brand);display:grid;place-items:center;font-size:22px;font-weight:700">
+        <div style="width:56px;height:56px;border-radius:14px;background:rgba(212,165,116,0.15);color:var(--sand);border:1px solid rgba(212,165,116,0.2);display:grid;place-items:center;font-size:22px;font-weight:700;font-family:var(--font-display)">
           ${esc(nm.charAt(0).toUpperCase())}
         </div>
         <div style="flex:1;min-width:0">
           <div class="h4" style="margin-bottom:4px">${esc(nm)}</div>
-          <div class="caption" dir="ltr">${esc(S.profile.email || S.user?.email || '')}</div>
+          <div class="caption" dir="ltr" style="font-family:var(--font-mono);font-size:11px">${esc(S.profile.email || S.user?.email || '')}</div>
         </div>
       </div>
     </div>
@@ -1404,19 +1434,19 @@ function vPlans() {
   return `
   <div class="page-enter">
     <div class="mb-6">
-      <h1 class="h2" style="margin-bottom:6px">الباقات</h1>
+      <h1 class="h1" style="margin-bottom:6px">الباقات</h1>
       <p class="body-sm text-2">اختر الباقة المناسبة لاستخدامك.</p>
     </div>
 
     <div class="grid-3">
       <div class="card card-lg">
-        <div class="eyebrow mb-2">Basic</div>
-        <div class="h4 mb-3">للبدء</div>
-        <div style="display:flex;align-items:baseline;gap:6px;margin:20px 0">
-          <span class="tabular" style="font-size:28px;font-weight:700">0</span>
+        <div style="font-family:var(--font-mono);font-size:10.5px;letter-spacing:0.15em;color:var(--text-3);text-transform:uppercase;margin-bottom:10px">Basic</div>
+        <div class="h3 mb-3">للبدء</div>
+        <div style="display:flex;align-items:baseline;gap:8px;margin:24px 0">
+          <span class="editorial-number" style="font-size:40px">0</span>
           <span class="body-sm text-3">د.ل / شهر</span>
         </div>
-        <ul style="display:flex;flex-direction:column;gap:10px;margin:20px 0;font-size:13px">
+        <ul style="display:flex;flex-direction:column;gap:12px;margin:24px 0;font-size:13px;color:var(--text-2)">
           <li>✓ بطاقة واحدة</li>
           <li>✓ محفظة كاملة</li>
           <li>✓ دعم عادي</li>
@@ -1424,14 +1454,14 @@ function vPlans() {
         <button class="btn btn-secondary btn-block">الحالية</button>
       </div>
 
-      <div class="card card-lg" style="border-color:var(--brand)">
-        <div class="eyebrow mb-2" style="color:var(--brand)">Pro</div>
-        <div class="h4 mb-3">للاستخدام اليومي</div>
-        <div style="display:flex;align-items:baseline;gap:6px;margin:20px 0">
-          <span class="tabular" style="font-size:28px;font-weight:700">20</span>
+      <div class="card card-lg plan-pro">
+        <div style="font-family:var(--font-mono);font-size:10.5px;letter-spacing:0.15em;color:var(--sand);text-transform:uppercase;margin-bottom:10px">Pro</div>
+        <div class="h3 mb-3">للاستخدام اليومي</div>
+        <div style="display:flex;align-items:baseline;gap:8px;margin:24px 0">
+          <span class="editorial-number" style="font-size:40px;color:var(--sand)">20</span>
           <span class="body-sm text-3">د.ل / شهر</span>
         </div>
-        <ul style="display:flex;flex-direction:column;gap:10px;margin:20px 0;font-size:13px">
+        <ul style="display:flex;flex-direction:column;gap:12px;margin:24px 0;font-size:13px;color:var(--text-2)">
           <li>✓ 5 بطاقات</li>
           <li>✓ رسوم أقل</li>
           <li>✓ دعم أولوية</li>
@@ -1440,13 +1470,13 @@ function vPlans() {
       </div>
 
       <div class="card card-lg">
-        <div class="eyebrow mb-2">Business</div>
-        <div class="h4 mb-3">للشركات</div>
-        <div style="display:flex;align-items:baseline;gap:6px;margin:20px 0">
-          <span class="tabular" style="font-size:28px;font-weight:700">50</span>
+        <div style="font-family:var(--font-mono);font-size:10.5px;letter-spacing:0.15em;color:var(--text-3);text-transform:uppercase;margin-bottom:10px">Business</div>
+        <div class="h3 mb-3">للشركات</div>
+        <div style="display:flex;align-items:baseline;gap:8px;margin:24px 0">
+          <span class="editorial-number" style="font-size:40px">50</span>
           <span class="body-sm text-3">د.ل / شهر</span>
         </div>
-        <ul style="display:flex;flex-direction:column;gap:10px;margin:20px 0;font-size:13px">
+        <ul style="display:flex;flex-direction:column;gap:12px;margin:24px 0;font-size:13px;color:var(--text-2)">
           <li>✓ بطاقات غير محدودة</li>
           <li>✓ رسوم تنافسية</li>
           <li>✓ مدير مخصص</li>
@@ -1477,7 +1507,6 @@ function bind() {
 
   $$('[data-card]').forEach(b => b.onclick = () => openCardDetails(b.dataset.card));
 
-  // Digital Services
   $$('[data-buy-svc]').forEach(b => b.onclick = () => openServiceBuy(b.dataset.buySvc));
   $$('[data-svc-order]').forEach(b => b.onclick = () => openServiceOrderDetail(b.dataset.svcOrder));
 
@@ -1580,7 +1609,7 @@ async function openNewCard() {
     <div class="field mb-3">
       <label class="field-label">الاسم على البطاقة — بالإنجليزية</label>
       <input class="input" id="ncName" placeholder="MANSOUR ALI" dir="ltr"
-             style="text-transform:uppercase" maxlength="24">
+             style="text-transform:uppercase;font-family:var(--font-mono);letter-spacing:0.05em" maxlength="24">
       <span class="field-hint">حروف لاتينية فقط</span>
     </div>
 
@@ -1608,7 +1637,7 @@ async function openNewCard() {
         <div class="flex-between" style="padding:6px 0"><span class="body-sm text-2">المبلغ</span><span class="tabular" style="font-weight:600">${usd(a)}</span></div>
         <div class="flex-between" style="padding:6px 0"><span class="body-sm text-2">رسوم الإصدار</span><span class="tabular" style="font-weight:600">${usd(fee)}</span></div>
         <div class="divider" style="margin:8px 0"></div>
-        <div class="flex-between"><span style="font-weight:600">الإجمالي</span><span class="tabular" style="font-weight:700;color:var(--brand)">${usd(total)}</span></div>
+        <div class="flex-between"><span style="font-weight:600">الإجمالي</span><span class="tabular" style="font-weight:700;color:var(--sand)">${usd(total)}</span></div>
       </div>
     `;
     btn.disabled = (S.profile.wallet_balance || 0) < total;
@@ -1684,9 +1713,9 @@ async function openDepositMethod(method) {
 
     ${phone ? `
       <div class="card card-sm mb-4">
-        <div class="field-label">حوّل إلى الرقم</div>
+        <div class="field-label" style="font-family:var(--font-mono);letter-spacing:0.1em">TRANSFER TO</div>
         <div class="copy-box">
-          <div class="copy-value" style="font-size:16px;font-weight:600">${esc(phone)}</div>
+          <div class="copy-value" style="font-size:16px;font-weight:600;color:var(--sand)">${esc(phone)}</div>
           <button class="copy-btn" onclick="navigator.clipboard.writeText('${esc(phone)}').then(()=>window.__toast('نُسخ','ok'))">${svg(I.copy, 2)}</button>
         </div>
       </div>
@@ -1717,7 +1746,7 @@ async function openDepositMethod(method) {
       <div class="card card-sm" style="background:var(--surface-2);border:none">
         <div class="flex-between" style="padding:6px 0">
           <span class="body-sm text-2">سيُضاف</span>
-          <span class="tabular" style="font-weight:700;color:var(--brand)">${usd(a / rateVal)}</span>
+          <span class="tabular" style="font-weight:700;color:var(--sand)">${usd(a / rateVal)}</span>
         </div>
       </div>
     `;
@@ -1759,17 +1788,17 @@ async function openCardDetails(cardId) {
       <button class="modal-close" onclick="closeModal()">${svg(I.x, 2)}</button>
     </div>
 
-    <div style="max-width:320px;margin:0 auto 20px">
+    <div style="max-width:340px;margin:0 auto 24px">
       ${renderCard(c)}
     </div>
 
     <div class="card card-sm mb-4" style="background:var(--surface-2);border:none">
       <div class="flex-between" style="padding:6px 0">
-        <span class="body-sm text-2">الرصيد</span>
-        <span class="tabular" style="font-weight:700">${usd(c.balance)}</span>
+        <span class="caption" style="font-family:var(--font-mono);letter-spacing:0.1em">BALANCE</span>
+        <span class="tabular" style="font-weight:700;color:var(--sand)">${usd(c.balance)}</span>
       </div>
       <div class="flex-between" style="padding:6px 0">
-        <span class="body-sm text-2">الحالة</span>
+        <span class="caption" style="font-family:var(--font-mono);letter-spacing:0.1em">STATUS</span>
         <span class="badge ${c.status === 'active' ? 'badge-success' : 'badge-neutral'}">${c.status === 'active' ? 'نشطة' : 'مجمدة'}</span>
       </div>
     </div>
@@ -1805,7 +1834,7 @@ async function openCardDetails(cardId) {
         <div class="field mb-3">
           <div class="field-label">رقم البطاقة</div>
           <div class="copy-box">
-            <div class="copy-value" style="font-size:15px">${esc(grp(d.card_number))}</div>
+            <div class="copy-value" style="font-size:15px;color:var(--sand)">${esc(grp(d.card_number))}</div>
             <button class="copy-btn" data-copy="${esc(d.card_number)}">${svg(I.copy, 2)}</button>
           </div>
         </div>
@@ -1877,7 +1906,7 @@ async function openOrderDetails(orderId) {
     </div>
 
     <div class="card card-sm mb-4" style="background:var(--surface-2);border:none">
-      <div class="flex-between"><span style="font-weight:600">الإجمالي</span><span class="tabular" style="font-weight:700">${esc(lyd(o.total_lyd))}</span></div>
+      <div class="flex-between"><span style="font-weight:600">الإجمالي</span><span class="tabular" style="font-weight:700;color:var(--sand)">${esc(lyd(o.total_lyd))}</span></div>
     </div>
 
     <button class="btn btn-secondary btn-block" onclick="closeModal()">إغلاق</button>
@@ -1921,4 +1950,4 @@ bindPublic();
 if (!auth.currentUser) {
   $('#public').style.display = 'block';
   $('#app').style.display = 'none';
-      }
+        }
