@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <meta name="robots" content="noindex,nofollow">
 <meta name="theme-color" content="#0B0F0D">
-<meta http-equiv="Content-Security-Policy" content="default-src 'self' https://*.googleapis.com https://*.gstatic.com https://*.cloudflare.com; script-src 'self' 'unsafe-inline' https://*.googleapis.com https://*.gstatic.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data: https: blob:; connect-src 'self' https://*.googleapis.com https://*.cloudflare.com https://kardo.sdkhyrallh08.workers.dev;">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self' https://*.googleapis.com https://*.gstatic.com https://*.cloudflare.com; script-src 'self' 'unsafe-inline' 'unsafe-eval' https://*.googleapis.com https://*.gstatic.com https://www.google.com https://www.gstatic.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data: https: blob:; connect-src 'self' https://*.googleapis.com https://*.cloudflare.com https://kardo.sdkhyrallh08.workers.dev; frame-src https://www.google.com;">
 <title>كاردو — لوحة الإدارة</title>
 
 <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -15,7 +15,12 @@
 <link rel="stylesheet" href="./theme-desert.css">
 
 <style>
-/* ── Admin-specific ── */
+/* ═══════════════════════════════════════════════════════════
+   ADMIN — COMPACT LAYOUT (v4.0.0)
+   كل الأحجام مُصغّرة بنسبة ~25-30%
+   ═══════════════════════════════════════════════════════════ */
+
+/* ── Shell ── */
 .admin-shell {
   display: grid;
   grid-template-columns: 1fr;
@@ -23,15 +28,16 @@
 }
 
 @media (min-width: 1024px) {
-  .admin-shell { grid-template-columns: 1fr 260px; }
+  .admin-shell { grid-template-columns: 1fr 220px; }
 }
 
+/* ── Sidebar ── */
 .admin-sidebar {
   display: none;
-  width: 260px;
+  width: 220px;
   background: var(--ink);
   border-left: 1px solid var(--border);
-  padding: 24px 16px;
+  padding: 18px 12px;
   position: sticky;
   top: 0;
   height: 100vh;
@@ -45,52 +51,55 @@
 .admin-brand {
   display: flex;
   align-items: center;
-  gap: 10px;
-  padding: 0 8px;
-  margin-bottom: 24px;
+  gap: 8px;
+  padding: 0 6px;
+  margin-bottom: 18px;
 }
+
+.admin-brand svg { width: 22px; height: 22px; }
 
 .admin-brand-name {
   font-family: var(--font-display);
-  font-size: 17px;
+  font-size: 14px;
   font-weight: 600;
-  letter-spacing: -0.005em;
   color: var(--text);
+  letter-spacing: -0.005em;
 }
 
-.admin-group {
-  margin-bottom: 20px;
-}
+.admin-group { margin-bottom: 14px; }
 
 .admin-group-label {
   display: block;
-  padding: 0 12px;
+  padding: 0 8px;
   font-family: var(--font-mono);
-  font-size: 10px;
+  font-size: 9px;
   font-weight: 600;
   color: var(--sand-3);
   text-transform: uppercase;
-  letter-spacing: 0.15em;
-  margin-bottom: 8px;
+  letter-spacing: 0.12em;
+  margin-bottom: 6px;
 }
 
 .admin-nav-item {
   display: flex;
   align-items: center;
-  gap: 12px;
-  padding: 9px 12px;
-  border-radius: 8px;
+  gap: 10px;
+  padding: 7px 10px;
+  border-radius: 6px;
   color: var(--text-2);
-  font-size: 13.5px;
+  font-size: 12.5px;
   font-weight: 500;
   transition: all .15s;
   width: 100%;
   text-align: right;
-  margin-bottom: 2px;
+  margin-bottom: 1px;
   position: relative;
+  border: none;
+  background: none;
+  cursor: pointer;
 }
 
-.admin-nav-item svg { width: 18px; height: 18px; flex-shrink: 0; }
+.admin-nav-item svg { width: 15px; height: 15px; flex-shrink: 0; }
 
 .admin-nav-item:hover {
   background: var(--surface-2);
@@ -112,46 +121,66 @@
   width: 3px;
   background: var(--sand);
   border-radius: 3px;
-  box-shadow: 0 0 12px rgba(212, 165, 116, 0.5);
+  box-shadow: 0 0 8px rgba(212, 165, 116, 0.5);
 }
 
 .admin-badge {
   margin-right: auto;
   background: var(--sand);
   color: var(--ink);
-  font-size: 10px;
+  font-size: 9px;
   font-weight: 700;
-  padding: 2px 7px;
+  padding: 1px 5px;
   border-radius: 999px;
-  min-width: 20px;
+  min-width: 16px;
   text-align: center;
   font-family: var(--font-mono);
 }
 
+/* ── Main ── */
 .admin-main {
   min-width: 0;
-  padding-bottom: 80px;
+  padding-bottom: 72px;
 }
 
 @media (min-width: 1024px) {
-  .admin-main { padding-bottom: 32px; }
+  .admin-main { padding-bottom: 24px; }
 }
 
 .admin-content {
-  padding: 24px 16px;
+  padding: 16px 12px;
   max-width: 1400px;
   margin: 0 auto;
 }
 
 @media (min-width: 640px) {
-  .admin-content { padding: 28px; }
+  .admin-content { padding: 20px; }
 }
 
+/* ── Bar ── */
+.admin-main .bar {
+  height: 52px !important;
+  padding: 0 14px;
+  gap: 10px;
+}
+
+.admin-main .bar-logo svg { width: 20px; height: 20px; }
+.admin-main .bar-logo span { font-size: 13px !important; }
+
+.admin-main .icon-btn {
+  width: 34px;
+  height: 34px;
+  border-radius: 7px;
+}
+
+.admin-main .icon-btn svg { width: 17px; height: 17px; }
+
+/* ── KPIs ── */
 .admin-kpis {
   display: grid;
   grid-template-columns: repeat(2, 1fr);
-  gap: 12px;
-  margin-bottom: 24px;
+  gap: 8px;
+  margin-bottom: 16px;
 }
 
 @media (min-width: 640px) {
@@ -165,8 +194,8 @@
 .admin-kpi {
   background: linear-gradient(180deg, var(--surface) 0%, var(--ink-2) 100%);
   border: 1px solid var(--border);
-  border-radius: 12px;
-  padding: 16px;
+  border-radius: 9px;
+  padding: 10px;
   position: relative;
   overflow: hidden;
 }
@@ -183,39 +212,38 @@
 }
 
 .admin-kpi-icon {
-  width: 34px;
-  height: 34px;
-  border-radius: 10px;
+  width: 24px;
+  height: 24px;
+  border-radius: 6px;
   display: grid;
   place-items: center;
-  margin-bottom: 10px;
+  margin-bottom: 6px;
   background: rgba(212, 165, 116, 0.1);
   color: var(--sand);
   border: 1px solid rgba(212, 165, 116, 0.15);
 }
 
-.admin-kpi-icon svg { width: 18px; height: 18px; }
+.admin-kpi-icon svg { width: 13px; height: 13px; }
 
 .admin-kpi-value {
   font-family: var(--font-display);
-  font-size: 24px;
+  font-size: 15px;
   font-weight: 600;
   letter-spacing: -0.02em;
-  font-variant-numeric: tabular-nums;
-  line-height: 1.15;
+  line-height: 1.1;
   color: var(--text);
 }
 
 .admin-kpi-label {
   font-family: var(--font-mono);
-  font-size: 10px;
-  letter-spacing: 0.1em;
+  font-size: 8.5px;
+  letter-spacing: 0.08em;
   text-transform: uppercase;
   color: var(--text-3);
-  margin-top: 4px;
+  margin-top: 2px;
 }
 
-/* Bottom nav mobile */
+/* ── Mobile dock ── */
 .admin-dock {
   position: fixed;
   inset: auto 0 0 0;
@@ -226,7 +254,7 @@
   -webkit-backdrop-filter: blur(20px) saturate(180%);
   border-top: 1px solid var(--border);
   padding-bottom: env(safe-area-inset-bottom);
-  height: calc(64px + env(safe-area-inset-bottom));
+  height: calc(56px + env(safe-area-inset-bottom));
 }
 
 @media (min-width: 1024px) {
@@ -238,16 +266,19 @@
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  gap: 3px;
+  gap: 2px;
   color: var(--text-3);
-  font-size: 10.5px;
+  font-size: 9px;
   font-weight: 500;
   position: relative;
   font-family: var(--font-mono);
-  letter-spacing: 0.05em;
+  letter-spacing: 0.04em;
+  border: none;
+  background: none;
+  cursor: pointer;
 }
 
-.admin-dock-item svg { width: 20px; height: 20px; }
+.admin-dock-item svg { width: 18px; height: 18px; }
 .admin-dock-item.active { color: var(--sand); font-weight: 600; }
 .admin-dock-item.active::after {
   content: '';
@@ -255,46 +286,45 @@
   top: 0;
   left: 50%;
   transform: translateX(-50%);
-  width: 24px;
+  width: 20px;
   height: 2px;
   background: var(--sand);
   border-radius: 0 0 2px 2px;
-  box-shadow: 0 0 12px rgba(212, 165, 116, 0.6);
+  box-shadow: 0 0 10px rgba(212, 165, 116, 0.6);
 }
 .admin-dock-item .dot {
   position: absolute;
-  top: 6px;
+  top: 5px;
   left: 50%;
   transform: translateX(-50%);
-  width: 6px;
-  height: 6px;
+  width: 5px;
+  height: 5px;
   border-radius: 50%;
   background: var(--sand);
-  box-shadow: 0 0 8px rgba(212, 165, 116, 0.8);
+  box-shadow: 0 0 6px rgba(212, 165, 116, 0.8);
 }
 
-/* Gate */
+/* ── Gate ── */
 #gate {
   min-height: 100vh;
   display: grid;
   place-items: center;
-  padding: 24px 16px;
+  padding: 20px 14px;
 }
 
 .gate-box {
   width: 100%;
-  max-width: 400px;
+  max-width: 360px;
   background:
     linear-gradient(180deg, rgba(22, 27, 25, 0.85) 0%, rgba(11, 15, 13, 0.92) 100%),
     radial-gradient(circle at 50% 0%, rgba(212, 165, 116, 0.08) 0%, transparent 60%);
   background-blend-mode: normal, overlay;
   border: 1px solid var(--border);
-  border-radius: 20px;
-  padding: 36px 28px;
+  border-radius: 16px;
+  padding: 28px 22px;
   box-shadow:
     0 1px 0 rgba(255, 255, 255, 0.04) inset,
-    0 8px 32px rgba(0, 0, 0, 0.4),
-    0 40px 80px -20px rgba(212, 165, 116, 0.08);
+    0 8px 32px rgba(0, 0, 0, 0.4);
   position: relative;
 }
 
@@ -307,17 +337,17 @@
   height: 1px;
   background: linear-gradient(90deg, transparent, var(--sand), transparent);
   opacity: 0.6;
-  border-radius: 20px 20px 0 0;
+  border-radius: 16px 16px 0 0;
 }
 
-/* Service tabs */
+/* ── Service tabs ── */
 .svc-tabs {
   display: flex;
-  gap: 4px;
+  gap: 3px;
   background: var(--surface-2);
-  border-radius: 10px;
-  padding: 4px;
-  margin-bottom: 20px;
+  border-radius: 8px;
+  padding: 3px;
+  margin-bottom: 14px;
   overflow-x: auto;
   border: 1px solid var(--border);
 }
@@ -325,9 +355,9 @@
 .svc-tab {
   flex: 1;
   min-width: fit-content;
-  padding: 10px 16px;
-  border-radius: 8px;
-  font-size: 13px;
+  padding: 7px 12px;
+  border-radius: 6px;
+  font-size: 11.5px;
   font-weight: 600;
   color: var(--text-2);
   transition: all .15s;
@@ -342,28 +372,29 @@
   background: linear-gradient(180deg, rgba(212, 165, 116, 0.15) 0%, rgba(212, 165, 116, 0.08) 100%);
   color: var(--sand);
   border: 1px solid rgba(212, 165, 116, 0.2);
-  box-shadow: 0 0 16px rgba(212, 165, 116, 0.15);
+  box-shadow: 0 0 12px rgba(212, 165, 116, 0.15);
 }
 
 .svc-tab:hover:not(.active) {
   color: var(--text);
 }
 
+/* ── Field rows ── */
 .field-row {
   display: flex;
-  gap: 8px;
+  gap: 6px;
   align-items: flex-end;
-  padding: 12px;
+  padding: 8px;
   background: var(--surface-2);
-  border-radius: 8px;
-  margin-bottom: 8px;
+  border-radius: 6px;
+  margin-bottom: 6px;
   border: 1px solid var(--border);
 }
 
 .field-row-inputs {
   display: grid;
   grid-template-columns: 1fr 1fr;
-  gap: 8px;
+  gap: 6px;
   flex: 1;
 }
 
@@ -371,20 +402,21 @@
   .field-row-inputs { grid-template-columns: 1fr; }
 }
 
+/* ── Icon picker ── */
 .icon-picker {
   display: flex;
-  gap: 12px;
+  gap: 10px;
   align-items: flex-start;
 }
 
 .icon-preview {
-  width: 72px;
-  height: 72px;
-  border-radius: 14px;
+  width: 56px;
+  height: 56px;
+  border-radius: 11px;
   background: linear-gradient(135deg, rgba(212, 165, 116, 0.1) 0%, rgba(10, 92, 63, 0.1) 100%);
   display: grid;
   place-items: center;
-  font-size: 32px;
+  font-size: 26px;
   border: 1px solid rgba(212, 165, 116, 0.2);
   flex-shrink: 0;
   overflow: hidden;
@@ -396,13 +428,14 @@
   object-fit: cover;
 }
 
+/* ── Stock ── */
 .stock-code {
   font-family: var(--font-mono);
-  font-size: 12px;
-  padding: 6px 10px;
+  font-size: 10.5px;
+  padding: 4px 8px;
   background: var(--ink-2);
   border: 1px solid var(--border);
-  border-radius: 6px;
+  border-radius: 5px;
   flex: 1;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -413,22 +446,22 @@
 
 .stock-row {
   display: flex;
-  gap: 8px;
+  gap: 6px;
   align-items: center;
-  padding: 8px;
+  padding: 6px;
   border-bottom: 1px solid var(--border);
 }
 
 .stock-row:last-child { border-bottom: none; }
 
-/* Image upload progress */
+/* ── Image upload progress ── */
 .upload-progress {
   width: 100%;
-  height: 4px;
+  height: 3px;
   background: var(--surface-3);
   border-radius: 2px;
   overflow: hidden;
-  margin-top: 8px;
+  margin-top: 6px;
   display: none;
 }
 
@@ -440,180 +473,10 @@
   border-radius: 2px;
   width: 0%;
   transition: width .3s ease;
-  box-shadow: 0 0 12px rgba(212, 165, 116, 0.5);
+  box-shadow: 0 0 10px rgba(212, 165, 116, 0.5);
 }
 
-/* App Check banner */
-#appCheckWarn {
-  background: rgba(200, 75, 49, 0.1);
-  border: 1px solid rgba(200, 75, 49, 0.3);
-  color: #F0947E;
-  padding: 12px;
-  border-radius: 8px;
-  font-size: 12px;
-  margin-bottom: 16px;
-  display: none;
-  align-items: center;
-  gap: 8px;
-}
-
-#appCheckWarn.show { display: flex; }
-
-#appCheckWarn svg { width: 18px; height: 18px; flex-shrink: 0; }
-</style>
-  
-/* ═══════════════════════════════════════════════════════════
-   COMPACT OVERRIDES — تصغير كل العناصر
-   ═══════════════════════════════════════════════════════════ */
-
-/* Sidebar — أصغر */
-.admin-sidebar {
-  width: 220px;
-  padding: 18px 12px;
-}
-
-@media (min-width: 1024px) {
-  .admin-shell { grid-template-columns: 1fr 220px; }
-}
-
-.admin-brand {
-  padding: 0 6px;
-  margin-bottom: 18px;
-}
-
-.admin-brand svg { width: 22px; height: 22px; }
-
-.admin-brand-name {
-  font-size: 14px;
-}
-
-.admin-group { margin-bottom: 14px; }
-
-.admin-group-label {
-  font-size: 9px;
-  letter-spacing: 0.12em;
-  padding: 0 8px;
-  margin-bottom: 6px;
-}
-
-.admin-nav-item {
-  padding: 7px 10px;
-  font-size: 12.5px;
-  border-radius: 6px;
-  gap: 10px;
-}
-
-.admin-nav-item svg { width: 15px; height: 15px; }
-
-.admin-badge {
-  font-size: 9px;
-  padding: 1px 5px;
-  min-width: 16px;
-}
-
-/* Bar — أصغر */
-.admin-main .bar {
-  height: 52px !important;
-  padding: 0 16px;
-}
-
-.admin-main .bar-logo svg { width: 20px; height: 20px; }
-.admin-main .bar-logo span { font-size: 13px !important; }
-
-.admin-main .icon-btn {
-  width: 34px;
-  height: 34px;
-}
-
-.admin-main .icon-btn svg { width: 17px; height: 17px; }
-
-/* Content padding — أصغر */
-.admin-content {
-  padding: 18px 14px;
-}
-
-@media (min-width: 640px) {
-  .admin-content { padding: 22px; }
-}
-
-/* KPIs — أصغر بكثير */
-.admin-kpis {
-  grid-template-columns: repeat(2, 1fr);
-  gap: 8px;
-  margin-bottom: 18px;
-}
-
-@media (min-width: 640px) {
-  .admin-kpis { grid-template-columns: repeat(3, 1fr); }
-}
-
-@media (min-width: 1024px) {
-  .admin-kpis { grid-template-columns: repeat(6, 1fr); }
-}
-
-.admin-kpi {
-  padding: 10px;
-  border-radius: 9px;
-}
-
-.admin-kpi-icon {
-  width: 24px;
-  height: 24px;
-  border-radius: 6px;
-  margin-bottom: 6px;
-}
-
-.admin-kpi-icon svg { width: 13px; height: 13px; }
-
-.admin-kpi-value {
-  font-size: 15px;
-  line-height: 1.1;
-}
-
-.admin-kpi-label {
-  font-size: 8.5px;
-  letter-spacing: 0.08em;
-  margin-top: 2px;
-}
-
-/* Bottom dock — أصغر */
-.admin-dock {
-  height: calc(56px + env(safe-area-inset-bottom));
-}
-
-.admin-dock-item {
-  font-size: 9px;
-  gap: 2px;
-}
-
-.admin-dock-item svg {
-  width: 18px;
-  height: 18px;
-}
-
-/* Gate — أصغر */
-.gate-box {
-  padding: 28px 22px;
-  max-width: 360px;
-}
-
-.gate-box .input {
-  height: 38px;
-  font-size: 13px;
-  padding: 0 12px;
-}
-
-.gate-box .btn {
-  height: 40px;
-  font-size: 13px;
-}
-
-.gate-box .field-label {
-  font-size: 11.5px;
-  margin-bottom: 5px;
-}
-
-/* Field label */
+/* ── Override عام لكل العناصر ── */
 .field-label {
   font-size: 11.5px;
   margin-bottom: 5px;
@@ -624,7 +487,6 @@
   margin-top: 4px;
 }
 
-/* Inputs — أصغر */
 .input {
   height: 38px;
   padding: 0 12px;
@@ -637,12 +499,6 @@ textarea.input {
   padding: 8px 12px;
 }
 
-.select {
-  padding-left: 32px;
-  background-position: left 10px center;
-}
-
-/* Buttons — أصغر */
 .btn {
   height: 36px;
   padding: 0 14px;
@@ -661,13 +517,6 @@ textarea.input {
 
 .btn-sm svg { width: 12px; height: 12px; }
 
-.btn-lg {
-  height: 42px;
-  padding: 0 18px;
-  font-size: 13.5px;
-}
-
-/* Cards — أصغر */
 .card {
   padding: 14px;
   border-radius: 10px;
@@ -676,45 +525,6 @@ textarea.input {
 .card-lg { padding: 18px; }
 .card-sm { padding: 10px; }
 
-/* Typography — أصغر */
-.admin-content .h2,
-.admin-content h2 {
-  font-size: 20px;
-  line-height: 1.25;
-}
-
-.admin-content .h3,
-.admin-content h3 {
-  font-size: 16px;
-}
-
-.admin-content .h4,
-.admin-content h4 {
-  font-size: 13.5px;
-  font-weight: 600;
-}
-
-.admin-content .body { font-size: 13px; }
-.admin-content .body-sm { font-size: 11.5px; }
-.admin-content .caption { font-size: 10.5px; }
-
-/* Pills — أصغر */
-.pill {
-  padding: 6px 12px;
-  font-size: 11px;
-  border-radius: 999px;
-}
-
-.pills { gap: 6px; }
-
-/* Badges — أصغر */
-.badge {
-  font-size: 9.5px;
-  padding: 2px 6px;
-  height: auto;
-}
-
-/* List rows — أصغر */
 .list-row {
   padding: 10px 14px;
   gap: 10px;
@@ -732,83 +542,27 @@ textarea.input {
 .list-meta { font-size: 10.5px; }
 .list-amount { font-size: 12.5px; }
 
-/* Tables — أصغر */
 .table { font-size: 11.5px; }
 
 .table th {
   padding: 8px 10px;
   font-size: 10px;
-  letter-spacing: 0.05em;
 }
 
 .table td {
   padding: 8px 10px;
 }
 
-/* Service tabs — أصغر */
-.svc-tabs {
-  padding: 3px;
-  border-radius: 8px;
-  margin-bottom: 14px;
+.pill {
+  padding: 6px 12px;
+  font-size: 11px;
 }
 
-.svc-tab {
-  padding: 7px 12px;
-  font-size: 11.5px;
-  border-radius: 6px;
+.badge {
+  font-size: 9.5px;
+  padding: 2px 6px;
 }
 
-/* Service icons — أصغر */
-.svc-icon {
-  width: 32px;
-  height: 32px;
-  border-radius: 8px;
-  font-size: 16px;
-}
-
-.svc-icon-lg {
-  width: 56px;
-  height: 56px;
-  border-radius: 12px;
-  font-size: 26px;
-}
-
-/* Icon picker — أصغر */
-.icon-picker {
-  gap: 10px;
-  align-items: flex-start;
-}
-
-.icon-preview {
-  width: 56px;
-  height: 56px;
-  border-radius: 11px;
-  font-size: 26px;
-}
-
-/* Field rows — أصغر */
-.field-row {
-  padding: 8px;
-  gap: 6px;
-  border-radius: 6px;
-  margin-bottom: 6px;
-}
-
-.field-row-inputs { gap: 6px; }
-
-/* Stock — أصغر */
-.stock-row {
-  padding: 6px;
-  gap: 6px;
-}
-
-.stock-code {
-  font-size: 10.5px;
-  padding: 4px 8px;
-  border-radius: 5px;
-}
-
-/* Modal — أصغر */
 .modal {
   max-width: 420px;
   padding: 18px;
@@ -824,23 +578,11 @@ textarea.input {
   }
 }
 
-.modal-title {
-  font-size: 14px;
-  font-weight: 600;
-}
-
-.modal-close {
-  width: 28px;
-  height: 28px;
-}
-
+.modal-title { font-size: 14px; }
+.modal-close { width: 28px; height: 28px; }
 .modal-close svg { width: 16px; height: 16px; }
+.modal-head { margin-bottom: 14px; }
 
-.modal-head {
-  margin-bottom: 14px;
-}
-
-/* Alerts — أصغر */
 .alert {
   padding: 10px 12px;
   font-size: 11.5px;
@@ -850,51 +592,38 @@ textarea.input {
 
 .alert svg { width: 15px; height: 15px; }
 
-/* Copy box — أصغر */
-.copy-box {
-  padding: 8px 12px;
-  gap: 8px;
-  border-radius: 6px;
-}
-
+.copy-box { padding: 8px 12px; gap: 8px; }
 .copy-value { font-size: 11.5px; }
 .copy-btn { width: 26px; height: 26px; }
-.copy-btn svg { width: 13px; height: 13px; }
 
-/* Toast — أصغر */
 .toast {
   padding: 9px 12px;
   font-size: 12px;
   border-radius: 7px;
-  gap: 8px;
 }
 
-.toast svg { width: 15px; height: 15px; }
-
-/* Switch rows — أصغر */
-.sw-row {
-  padding: 10px 0;
-  gap: 10px;
+/* Headings */
+.admin-content h2,
+.admin-content .h2 {
+  font-size: 20px;
+  line-height: 1.25;
 }
 
-.sw-lbl { font-size: 12.5px; }
-.sw-desc { font-size: 10.5px; }
-
-.sw {
-  width: 36px;
-  height: 20px;
+.admin-content h3,
+.admin-content .h3 {
+  font-size: 16px;
 }
 
-.sw::after {
-  width: 14px;
-  height: 14px;
+.admin-content h4,
+.admin-content .h4 {
+  font-size: 13.5px;
 }
 
-.sw.on::after {
-  transform: translateX(-16px);
-}
+.admin-content .body { font-size: 13px; }
+.admin-content .body-sm { font-size: 11.5px; }
+.admin-content .caption { font-size: 10.5px; }
 
-/* Empty state — أصغر */
+/* Empty state */
 .empty-icon {
   width: 42px;
   height: 42px;
@@ -903,70 +632,31 @@ textarea.input {
 
 .empty-icon svg { width: 20px; height: 20px; }
 
-/* Upload progress */
-.upload-progress {
-  height: 3px;
-  margin-top: 6px;
-}
-
-/* Input wrap icon */
-.input-wrap .input {
-  height: 38px;
-  padding-left: 36px;
-}
-
-.input-wrap .input-icon {
-  width: 15px;
-  height: 15px;
-  left: 11px;
-}
-
-/* Number inputs — fix arrows */
-input[type="number"] {
-  -moz-appearance: textfield;
-}
-
-input[type="number"]::-webkit-outer-spin-button,
-input[type="number"]::-webkit-inner-spin-button {
-  -webkit-appearance: none;
-  margin: 0;
-}
-
-/* Admin avatar chip */
-.admin-sidebar .caption {
-  font-size: 10px;
-}
-
-/* Responsive tweaks */
+/* Small screens */
 @media (max-width: 640px) {
   .admin-kpi-value { font-size: 14px; }
   .admin-kpi-icon { width: 22px; height: 22px; }
   .admin-kpi-icon svg { width: 12px; height: 12px; }
-
   .card { padding: 12px; }
   .card-lg { padding: 14px; }
-
   .admin-content { padding: 14px 10px; }
 }
 
 @media (max-width: 400px) {
-  .admin-kpis {
-    grid-template-columns: repeat(2, 1fr);
-    gap: 6px;
-  }
-
+  .admin-kpis { gap: 6px; }
   .admin-kpi { padding: 8px; }
   .admin-kpi-value { font-size: 13px; }
   .admin-kpi-label { font-size: 8px; }
 }
+</style>
 </head>
 <body>
 
 <!-- ═══ GATE ═══ -->
 <div id="gate">
   <div class="gate-box">
-    <div style="display:flex;align-items:center;gap:12px;margin-bottom:28px;justify-content:center">
-      <svg width="44" height="44" viewBox="0 0 40 40">
+    <div style="display:flex;align-items:center;gap:10px;margin-bottom:22px;justify-content:center">
+      <svg width="36" height="36" viewBox="0 0 40 40">
         <rect width="40" height="40" rx="10" fill="#0B0F0D"/>
         <path d="M11 9h4.4v22H11z" fill="#D4A574"/>
         <path d="M17 20.2 27.5 9H33L22.4 20.2 33 31h-5.6z" fill="#D4A574"/>
@@ -974,27 +664,27 @@ input[type="number"]::-webkit-inner-spin-button {
         <rect x="21" y="18.4" width="3.4" height="2.6" rx=".7" fill="#D4A574" opacity=".7"/>
       </svg>
       <div>
-        <div style="font-family:var(--font-display);font-size:20px;font-weight:600;color:var(--text);letter-spacing:-.005em">كاردو</div>
-        <div class="caption" style="font-family:var(--font-mono);letter-spacing:0.1em">ADMIN PANEL</div>
+        <div style="font-family:var(--font-display);font-size:17px;font-weight:600;color:var(--text)">كاردو</div>
+        <div class="caption" style="font-family:var(--font-mono);letter-spacing:0.1em;font-size:9.5px">ADMIN PANEL</div>
       </div>
     </div>
 
-    <h1 class="h4" style="margin-bottom:6px;font-family:var(--font-display)">تسجيل الدخول</h1>
-    <p class="body-sm text-2" style="margin-bottom:24px">هذه الصفحة للمصرّح لهم فقط.</p>
+    <h1 style="font-size:15px;margin-bottom:4px;font-family:var(--font-display);color:var(--text)">تسجيل الدخول</h1>
+    <p class="body-sm text-2" style="margin-bottom:20px;font-size:11.5px">هذه الصفحة للمصرّح لهم فقط.</p>
 
-    <div id="gErr" class="auth-msg error" style="display:none"></div>
+    <div id="gErr" style="display:none;padding:9px 12px;border-radius:7px;font-size:12px;line-height:1.55;margin-bottom:14px;border:1px solid rgba(200,75,49,0.3);background:rgba(200,75,49,0.1);color:#F0947E"></div>
 
     <div class="field mb-3">
       <label class="field-label">البريد الإلكتروني</label>
       <input class="input" id="gEmail" type="email" dir="ltr" autocomplete="email" placeholder="admin@kardo.ly">
     </div>
 
-    <div class="field mb-4">
+    <div class="field mb-3">
       <label class="field-label">كلمة المرور</label>
       <input class="input" id="gPass" type="password" dir="ltr" autocomplete="current-password" placeholder="••••••••">
     </div>
 
-    <button class="btn btn-primary btn-block" id="gGo">تسجيل الدخول</button>
+    <button class="btn btn-primary btn-block" id="gGo" style="height:40px;font-size:13px">تسجيل الدخول</button>
   </div>
 </div>
 
@@ -1005,7 +695,7 @@ input[type="number"]::-webkit-inner-spin-button {
     <!-- Sidebar -->
     <aside class="admin-sidebar">
       <div class="admin-brand">
-        <svg width="28" height="28" viewBox="0 0 40 40">
+        <svg viewBox="0 0 40 40">
           <rect width="40" height="40" rx="9" fill="#0B0F0D"/>
           <path d="M11 9h4.4v22H11z" fill="#D4A574"/>
           <path d="M17 20.2 27.5 9H33L22.4 20.2 33 31h-5.6z" fill="#D4A574"/>
@@ -1015,12 +705,12 @@ input[type="number"]::-webkit-inner-spin-button {
 
       <nav id="navDesk" style="flex:1"></nav>
 
-      <div style="padding-top:16px;border-top:1px solid var(--border);margin-top:16px">
-        <div style="display:flex;align-items:center;gap:10px;padding:0 12px 12px">
-          <div style="width:32px;height:32px;border-radius:8px;background:rgba(212,165,116,0.15);color:var(--sand);border:1px solid rgba(212,165,116,0.2);display:grid;place-items:center;font-weight:700;font-size:13px;font-family:var(--font-display)" id="admInitial">A</div>
+      <div style="padding-top:12px;border-top:1px solid var(--border);margin-top:12px">
+        <div style="display:flex;align-items:center;gap:8px;padding:0 8px 10px">
+          <div id="admInitial" style="width:28px;height:28px;border-radius:7px;background:rgba(212,165,116,0.15);color:var(--sand);border:1px solid rgba(212,165,116,0.2);display:grid;place-items:center;font-weight:700;font-size:11px;font-family:var(--font-display)">A</div>
           <div style="min-width:0;flex:1">
-            <div class="caption" style="color:var(--text-2);font-weight:600" id="admName">—</div>
-            <div class="caption" style="font-family:var(--font-mono);letter-spacing:0.1em;font-size:10px">SUPER ADMIN</div>
+            <div class="caption" style="color:var(--text-2);font-weight:600;font-size:10.5px" id="admName">—</div>
+            <div class="caption" style="font-family:var(--font-mono);letter-spacing:0.08em;font-size:9px">SUPER ADMIN</div>
           </div>
         </div>
         <button class="admin-nav-item" id="logoutBtn">
@@ -1033,13 +723,13 @@ input[type="number"]::-webkit-inner-spin-button {
     <!-- Main -->
     <div class="admin-main">
       <header class="bar">
-        <div class="bar-logo" style="gap:8px">
-          <svg width="22" height="22" viewBox="0 0 40 40" class="admin-mobile-logo">
+        <div class="bar-logo" style="gap:6px">
+          <svg viewBox="0 0 40 40">
             <rect width="40" height="40" rx="9" fill="#0B0F0D"/>
             <path d="M11 9h4.4v22H11z" fill="#D4A574"/>
             <path d="M17 20.2 27.5 9H33L22.4 20.2 33 31h-5.6z" fill="#D4A574"/>
           </svg>
-          <span style="font-family:var(--font-display);font-size:15px;font-weight:600">لوحة الإدارة</span>
+          <span>لوحة الإدارة</span>
         </div>
         <div class="bar-actions">
           <span class="badge badge-warning" id="killChip" style="display:none">
@@ -1056,7 +746,6 @@ input[type="number"]::-webkit-inner-spin-button {
 
   </div>
 
-  <!-- Mobile dock -->
   <nav class="admin-dock" id="navDock"></nav>
 </div>
 
@@ -1086,13 +775,10 @@ const firebaseConfig = {
   appId: "1:593934928630:web:d36ea455a284e974043ad7"
 };
 
-// ⭐ App Check site key (from Firebase Console → App Check → reCAPTCHA v3)
-// Leave empty if not yet configured — App Check will show warning but not block
 const APP_CHECK_SITE_KEY = '';
 
 const app = initializeApp(firebaseConfig);
 
-// ⭐ App Check initialization (graceful if not configured)
 let appCheckEnabled = false;
 try {
   if (APP_CHECK_SITE_KEY) {
@@ -1134,7 +820,7 @@ const S = {
   svcTab: 'list',
   svcSelected: '',
   svcStock: { items: [], stats: { unused: 0, used: 0, total: 0 } },
-  revealMode: false,  // ⭐ flag for revealing masked codes
+  revealMode: false,
 };
 
 /* ═══ Helpers ═══ */
@@ -1208,9 +894,9 @@ function toast(msg, kind = '') {
 }
 
 function modal(html) {
+  window._lastFocused = document.activeElement;
   $('#modal').innerHTML = html;
   $('#overlay').classList.add('open');
-  // ⭐ Focus trap
   setTimeout(() => {
     const modalEl = $('#modal');
     const focusable = modalEl.querySelectorAll(
@@ -1221,7 +907,6 @@ function modal(html) {
 }
 window.closeModal = () => {
   $('#overlay').classList.remove('open');
-  // Restore focus to previous element if tracked
   if (window._lastFocused) {
     try { window._lastFocused.focus(); } catch {}
   }
@@ -1229,7 +914,6 @@ window.closeModal = () => {
 $('#overlay')?.addEventListener('click', e => { if (e.target.id === 'overlay') closeModal(); });
 document.addEventListener('keydown', e => {
   if (e.key === 'Escape') closeModal();
-  // Focus trap: Tab
   if (e.key === 'Tab' && $('#overlay').classList.contains('open')) {
     const modalEl = $('#modal');
     const focusable = [...modalEl.querySelectorAll(
@@ -1347,10 +1031,6 @@ function subscribe() {
 function boot() {
   buildNav();
   render();
-  // ⭐ App Check warning
-  if (!appCheckEnabled) {
-    console.info('ℹ️ App Check not enabled. Add APP_CHECK_SITE_KEY to enable.');
-  }
 }
 
 window.refreshAll = () => render();
@@ -1467,10 +1147,10 @@ function kpi(icon, val, label) {
 }
 
 function emptyState(icon, title, desc = '', action = '') {
-  return `<div class="card" style="text-align:center;padding:48px 24px">
-    <div class="empty-icon" style="margin:0 auto 16px">${svg(icon, 2)}</div>
-    <div class="h4" style="margin-bottom:8px">${esc(title)}</div>
-    ${desc ? `<p class="body-sm text-2" style="margin-bottom:20px">${esc(desc)}</p>` : ''}
+  return `<div class="card" style="text-align:center;padding:36px 20px">
+    <div class="empty-icon" style="margin:0 auto 12px">${svg(icon, 2)}</div>
+    <div class="h4" style="margin-bottom:6px">${esc(title)}</div>
+    ${desc ? `<p class="body-sm text-2" style="margin-bottom:16px">${esc(desc)}</p>` : ''}
     ${action}
   </div>`;
 }
@@ -1480,10 +1160,7 @@ const userName = uid => {
   return u ? (u.name || u.email || uid) : (uid || '—');
 };
 
-/* ═══════════════════════════════════════════════════════════
-   Home
-   ═══════════════════════════════════════════════════════════ */
-
+/* ═══ Home ═══ */
 function vHome() {
   const mcPend = pendMc();
   const mcDone = S.manualOrders.filter(o => o.status === 'completed').length;
@@ -1493,18 +1170,18 @@ function vHome() {
 
   return `
   <div class="page-enter">
-    <div style="font-family:var(--font-mono);font-size:11px;letter-spacing:0.15em;color:var(--sand);text-transform:uppercase;margin-bottom:8px">
+    <div style="font-family:var(--font-mono);font-size:10px;letter-spacing:0.15em;color:var(--sand);text-transform:uppercase;margin-bottom:6px">
       OVERVIEW
     </div>
-    <h1 class="h2" style="margin-bottom:6px;font-family:var(--font-display)">نظرة عامة</h1>
-    <p class="body-sm text-2" style="margin-bottom:24px">ملخص أداء المنصة</p>
+    <h1 class="h2" style="margin-bottom:4px;font-family:var(--font-display)">نظرة عامة</h1>
+    <p class="body-sm text-2" style="margin-bottom:20px">ملخص أداء المنصة</p>
 
     ${S.settings.kill_switch === true ? `
-      <div class="alert alert-error mb-5">
+      <div class="alert alert-error mb-4">
         ${svg(I.warn, 2)}
         <div><strong>المنصة متوقفة الآن</strong><br>
         العملاء لا يستطيعون الشراء.
-        <button style="color:inherit;font-weight:700;text-decoration:underline;background:none;border:none;cursor:pointer" onclick="go('settings')">إلغاء الإيقاف</button></div>
+        <button style="color:inherit;font-weight:700;text-decoration:underline;background:none;border:none;cursor:pointer;font-size:11.5px" onclick="go('settings')">إلغاء الإيقاف</button></div>
       </div>
     ` : ''}
 
@@ -1517,10 +1194,10 @@ function vHome() {
       ${kpi(I.clock, pendDep() + pendOrd() + pendWd() + pendSvc(), 'IN PROGRESS')}
     </div>
 
-    <div class="grid-2 mb-6">
-      <div class="card card-lg">
-        <div class="h4" style="margin-bottom:16px">إجراءات سريعة</div>
-        <div style="display:grid;gap:8px">
+    <div class="grid-2 mb-5">
+      <div class="card">
+        <div class="h4" style="margin-bottom:12px">إجراءات سريعة</div>
+        <div style="display:grid;gap:6px">
           <button class="btn btn-secondary" style="justify-content:flex-start" data-nav="mcards">
             ${svg(I.card)} طلبات البطاقات (${mcPend})
           </button>
@@ -1536,15 +1213,15 @@ function vHome() {
         </div>
       </div>
 
-      <div class="card card-lg">
-        <div class="h4" style="margin-bottom:16px">آخر طلبات البطاقات</div>
+      <div class="card">
+        <div class="h4" style="margin-bottom:12px">آخر طلبات البطاقات</div>
         ${S.manualOrders.length ? `
-          <div style="display:flex;flex-direction:column;gap:12px">
+          <div style="display:flex;flex-direction:column;gap:8px">
             ${S.manualOrders.slice(0, 5).map(o => `
-              <div style="display:flex;gap:10px;align-items:center;padding-bottom:10px;border-bottom:1px solid var(--border)">
-                <span class="mono caption" style="font-size:11px;color:var(--sand)">${esc(o.id.slice(-10))}</span>
-                <span class="body-sm" style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(userName(o.uid))}</span>
-                <span class="tabular body-sm" style="font-weight:700;color:var(--sand)">${esc(usd(o.total))}</span>
+              <div style="display:flex;gap:8px;align-items:center;padding-bottom:8px;border-bottom:1px solid var(--border)">
+                <span class="mono caption" style="font-size:10px;color:var(--sand)">${esc(o.id.slice(-10))}</span>
+                <span class="body-sm" style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:11.5px">${esc(userName(o.uid))}</span>
+                <span class="tabular body-sm" style="font-weight:700;color:var(--sand);font-size:11.5px">${esc(usd(o.total))}</span>
               </div>
             `).join('')}
           </div>
@@ -1572,19 +1249,19 @@ function vMcardOrders() {
   return `
   <div class="page-enter">
     <div class="mb-4">
-      <div style="font-family:var(--font-mono);font-size:11px;letter-spacing:0.15em;color:var(--sand);text-transform:uppercase;margin-bottom:8px">
+      <div style="font-family:var(--font-mono);font-size:10px;letter-spacing:0.15em;color:var(--sand);text-transform:uppercase;margin-bottom:6px">
         CARD REQUESTS
       </div>
-      <h1 class="h2" style="margin-bottom:6px;font-family:var(--font-display)">طلبات البطاقات</h1>
-      <p class="body-sm text-2">${pend ? pend + ' طلب ينتظر التنفيذ' : 'لا طلبات معلّقة'}</p>
+      <h1 class="h2" style="margin-bottom:4px;font-family:var(--font-display)">طلبات البطاقات</h1>
+      <p class="body-sm text-2" style="font-size:11.5px">${pend ? pend + ' طلب ينتظر التنفيذ' : 'لا طلبات معلّقة'}</p>
     </div>
 
-    <div class="input-wrap mb-4">
+    <div class="input-wrap mb-3">
       <span class="input-icon">${svg(I.list)}</span>
       <input class="input" id="qBox" placeholder="ابحث برقم الطلب أو اسم العميل" value="${esc(S.q)}">
     </div>
 
-    <div class="pills mb-4">
+    <div class="pills mb-3">
       ${F.map(([k, t]) => {
         const c = k === 'all' ? S.manualOrders.length : S.manualOrders.filter(o => o.status === k).length;
         return `<button class="pill ${S.filter === k ? 'active' : ''}" data-filter="${esc(k)}">${esc(t)} (${c})</button>`;
@@ -1612,7 +1289,7 @@ function vMcardOrders() {
               const lbl = { pending: 'قيد التنفيذ', completed: 'مكتملة', rejected: 'مرفوضة' }[o.status];
               return `
                 <tr>
-                  <td class="mono" style="font-size:11.5px;color:var(--sand)">${esc(o.id.slice(-12))}</td>
+                  <td class="mono" style="font-size:10.5px;color:var(--sand)">${esc(o.id.slice(-12))}</td>
                   <td>${esc(userName(o.uid))}</td>
                   <td>${o.kind === 'topup' ? 'شحن' : 'جديدة'}</td>
                   <td class="tabular">${esc(usd(o.amount))}</td>
@@ -1639,7 +1316,6 @@ function openMcardFulfil(id) {
   const o = S.manualOrders.find(x => x.id === id);
   if (!o) return;
   const isTopup = o.kind === 'topup';
-  window._lastFocused = document.activeElement;
 
   modal(`
     <div class="modal-head">
@@ -1647,10 +1323,10 @@ function openMcardFulfil(id) {
       <button class="modal-close" onclick="closeModal()" aria-label="إغلاق">${svg(I.x, 2)}</button>
     </div>
 
-    <div class="card card-sm mb-4" style="background:var(--surface-2);border:none">
-      <div class="flex-between" style="padding:4px 0"><span class="caption">العميل</span><span class="body-sm">${esc(userName(o.uid))}</span></div>
-      <div class="flex-between" style="padding:4px 0"><span class="caption">المبلغ</span><span class="tabular" style="font-weight:700;color:var(--sand)">${esc(usd(o.amount))}</span></div>
-      ${o.name_on_card ? `<div class="flex-between" style="padding:4px 0"><span class="caption">الاسم</span><span class="mono">${esc(o.name_on_card)}</span></div>` : ''}
+    <div class="card card-sm mb-3" style="background:var(--surface-2);border:none">
+      <div class="flex-between" style="padding:3px 0"><span class="caption">العميل</span><span class="body-sm">${esc(userName(o.uid))}</span></div>
+      <div class="flex-between" style="padding:3px 0"><span class="caption">المبلغ</span><span class="tabular" style="font-weight:700;color:var(--sand)">${esc(usd(o.amount))}</span></div>
+      ${o.name_on_card ? `<div class="flex-between" style="padding:3px 0"><span class="caption">الاسم</span><span class="mono" style="font-size:11px">${esc(o.name_on_card)}</span></div>` : ''}
     </div>
 
     ${!isTopup ? `
@@ -1668,20 +1344,20 @@ function openMcardFulfil(id) {
           <input class="input mono" id="fCvv" dir="ltr" placeholder="123" maxlength="4" inputmode="numeric" autocomplete="off">
         </div>
       </div>
-      <div class="field mb-4">
+      <div class="field mb-3">
         <label class="field-label">رقم مرجعي (اختياري)</label>
         <input class="input mono" id="fRef" dir="ltr" placeholder="ORDER-123456" autocomplete="off">
       </div>
-      <div class="alert alert-info mb-4" style="font-size:11.5px">
+      <div class="alert alert-info mb-3" style="font-size:11px">
         ${svg(I.help, 2)}
         <div>🔒 سيتم تشفير بيانات البطاقة (AES-256-GCM) قبل الحفظ</div>
       </div>
-    ` : `<div class="alert alert-info mb-4">${svg(I.help)}<div>أضف ${esc(usd(o.amount))} على البطاقة عند مزودك، ثم أكّد هنا.</div></div>`}
+    ` : `<div class="alert alert-info mb-3" style="font-size:11.5px">${svg(I.help)}<div>أضف ${esc(usd(o.amount))} على البطاقة عند مزودك، ثم أكّد هنا.</div></div>`}
 
     <button class="btn btn-primary btn-block" id="fGo">
       ${isTopup ? 'تأكيد الشحن' : 'تسليم البيانات للعميل'}
     </button>
-    <button class="btn btn-outline-danger btn-block" style="margin-top:8px" id="fRej">
+    <button class="btn btn-outline-danger btn-block" style="margin-top:6px" id="fRej">
       رفض الطلب وإرجاع المبلغ
     </button>
   `);
@@ -1721,7 +1397,6 @@ function openMcardFulfil(id) {
     btn.classList.add('loading');
     try {
       await api('/api/admin/mcard/fulfil', payload);
-      // ⭐ Clear sensitive data from form before closing
       if (fPan) fPan.value = '';
       if (fExp) fExp.value = '';
       if (fCvv) fCvv.value = '';
@@ -1740,13 +1415,13 @@ function openMcardFulfil(id) {
         <div class="modal-title">رفض الطلب</div>
         <button class="modal-close" onclick="closeModal()" aria-label="إغلاق">${svg(I.x, 2)}</button>
       </div>
-      <div class="alert alert-warning mb-4">${svg(I.warn)}<div>سيُعاد ${esc(usd(o.total))} إلى محفظة العميل.</div></div>
-      <div class="field mb-4">
+      <div class="alert alert-warning mb-3" style="font-size:11.5px">${svg(I.warn)}<div>سيُعاد ${esc(usd(o.total))} إلى محفظة العميل.</div></div>
+      <div class="field mb-3">
         <label class="field-label">سبب الرفض (اختياري)</label>
         <input class="input" id="rjWhy" placeholder="تعذّر التنفيذ">
       </div>
       <button class="btn btn-danger btn-block" id="rjGo">تأكيد الرفض</button>
-      <button class="btn btn-secondary btn-block" style="margin-top:8px" onclick="openMcardFulfil('${esc(id)}')">رجوع</button>
+      <button class="btn btn-secondary btn-block" style="margin-top:6px" onclick="openMcardFulfil('${esc(id)}')">رجوع</button>
     `);
     onTap('#rjGo', async () => {
       const btn = $('#rjGo');
@@ -1777,17 +1452,17 @@ function vCards() {
 
   return `
   <div class="page-enter">
-    <div class="flex-between mb-4">
+    <div class="flex-between mb-3">
       <div>
-        <div style="font-family:var(--font-mono);font-size:11px;letter-spacing:0.15em;color:var(--sand);text-transform:uppercase;margin-bottom:8px">
+        <div style="font-family:var(--font-mono);font-size:10px;letter-spacing:0.15em;color:var(--sand);text-transform:uppercase;margin-bottom:6px">
           CARDS
         </div>
-        <h1 class="h2" style="margin-bottom:6px;font-family:var(--font-display)">البطاقات المُصدرة</h1>
-        <p class="body-sm text-2">${rows.length} بطاقة</p>
+        <h1 class="h2" style="margin-bottom:4px;font-family:var(--font-display)">البطاقات المُصدرة</h1>
+        <p class="body-sm text-2" style="font-size:11.5px">${rows.length} بطاقة</p>
       </div>
     </div>
 
-    <div class="input-wrap mb-4">
+    <div class="input-wrap mb-3">
       <span class="input-icon">${svg(I.list)}</span>
       <input class="input" id="qBox" placeholder="ابحث برقم البطاقة أو اسم العميل" value="${esc(S.q)}">
     </div>
@@ -1838,20 +1513,20 @@ function vShopOrders() {
 
   return `
   <div class="page-enter">
-    <div class="mb-4">
-      <div style="font-family:var(--font-mono);font-size:11px;letter-spacing:0.15em;color:var(--sand);text-transform:uppercase;margin-bottom:8px">
+    <div class="mb-3">
+      <div style="font-family:var(--font-mono);font-size:10px;letter-spacing:0.15em;color:var(--sand);text-transform:uppercase;margin-bottom:6px">
         STORE ORDERS
       </div>
-      <h1 class="h2" style="margin-bottom:6px;font-family:var(--font-display)">طلبات المتجر</h1>
-      <p class="body-sm text-2">${pendOrd() ? pendOrd() + ' طلب ينتظر' : 'لا طلبات معلّقة'}</p>
+      <h1 class="h2" style="margin-bottom:4px;font-family:var(--font-display)">طلبات المتجر</h1>
+      <p class="body-sm text-2" style="font-size:11.5px">${pendOrd() ? pendOrd() + ' طلب ينتظر' : 'لا طلبات معلّقة'}</p>
     </div>
 
-    <div class="input-wrap mb-4">
+    <div class="input-wrap mb-3">
       <span class="input-icon">${svg(I.list)}</span>
       <input class="input" id="qBox" placeholder="ابحث برقم الطلب أو اسم العميل" value="${esc(S.q)}">
     </div>
 
-    <div class="pills mb-4">
+    <div class="pills mb-3">
       ${F.map(([k, t]) => {
         const c = k === 'all' ? S.orders.length : S.orders.filter(o => o.status === k).length;
         return `<button class="pill ${S.filter === k ? 'active' : ''}" data-filter="${esc(k)}">${esc(t)} (${c})</button>`;
@@ -1859,26 +1534,26 @@ function vShopOrders() {
     </div>
 
     ${rows.length ? `
-      <div style="display:flex;flex-direction:column;gap:12px">
+      <div style="display:flex;flex-direction:column;gap:8px">
         ${rows.map(o => {
           const items = o.items || [];
           return `
             <div class="card">
-              <div class="flex-between mb-3">
+              <div class="flex-between mb-2">
                 <div>
-                  <div class="tabular h4" style="font-size:16px;color:var(--sand)">${esc(lyd(o.total_lyd))}</div>
-                  <div class="mono caption" style="font-size:11px">${esc(o.id)}</div>
+                  <div class="tabular h4" style="font-size:14px;color:var(--sand)">${esc(lyd(o.total_lyd))}</div>
+                  <div class="mono caption" style="font-size:10px">${esc(o.id)}</div>
                 </div>
                 <span class="badge ${o.status === 'completed' ? 'badge-success' : o.status === 'pending' ? 'badge-warning' : 'badge-error'}">
                   ${o.status === 'completed' ? 'مكتمل' : o.status === 'pending' ? 'قيد التنفيذ' : 'ملغى'}
                 </span>
               </div>
-              <div class="caption mb-3">${esc(userName(o.uid))} · ${esc(dt(o.created_at))}</div>
-              <div style="padding-top:12px;border-top:1px solid var(--border);margin-bottom:12px">
-                ${items.map(i => `<div class="body-sm" style="padding:3px 0">${esc(i.name)} × ${i.qty}</div>`).join('')}
+              <div class="caption mb-2" style="font-size:10.5px">${esc(userName(o.uid))} · ${esc(dt(o.created_at))}</div>
+              <div style="padding-top:8px;border-top:1px solid var(--border);margin-bottom:8px">
+                ${items.map(i => `<div class="body-sm" style="padding:2px 0;font-size:11.5px">${esc(i.name)} × ${i.qty}</div>`).join('')}
               </div>
               ${o.status === 'pending' ? `
-                <div style="display:flex;gap:8px">
+                <div style="display:flex;gap:6px">
                   <button class="btn btn-primary btn-sm" data-ord-ok="${esc(o.id)}">تنفيذ</button>
                   <button class="btn btn-outline-danger btn-sm" data-ord-no="${esc(o.id)}">رفض</button>
                 </div>
@@ -1896,7 +1571,6 @@ function openOrderAction(id, action) {
   const o = S.orders.find(x => x.id === id);
   if (!o) return;
   const rej = action === 'reject';
-  window._lastFocused = document.activeElement;
 
   modal(`
     <div class="modal-head">
@@ -1905,14 +1579,14 @@ function openOrderAction(id, action) {
     </div>
 
     ${rej
-      ? `<div class="alert alert-warning mb-4">${svg(I.warn)}<div>سيُعاد ${esc(usd(o.total_usd))} إلى محفظة العميل.</div></div>
-        <div class="field mb-4">
+      ? `<div class="alert alert-warning mb-3" style="font-size:11.5px">${svg(I.warn)}<div>سيُعاد ${esc(usd(o.total_usd))} إلى محفظة العميل.</div></div>
+        <div class="field mb-3">
           <label class="field-label">سبب الرفض</label>
           <input class="input" id="fReason" placeholder="نفد المخزون">
         </div>`
-      : `<div class="field mb-4">
+      : `<div class="field mb-3">
           <label class="field-label">ما تسلّمه للعميل</label>
-          <textarea class="input" id="fText" rows="4" placeholder="الكود أو رسالة التأكيد"></textarea>
+          <textarea class="input" id="fText" rows="3" placeholder="الكود أو رسالة التأكيد"></textarea>
         </div>`}
 
     <button class="btn ${rej ? 'btn-danger' : 'btn-primary'} btn-block" id="fGo">
@@ -1942,7 +1616,7 @@ function openOrderAction(id, action) {
 window.openOrderAction = openOrderAction;
 
 /* ═══════════════════════════════════════════════════════════
-   ⭐ Digital Services — Desert Noir
+   Digital Services
    ═══════════════════════════════════════════════════════════ */
 
 function vServices() {
@@ -1954,13 +1628,13 @@ function vServices() {
 
   return `
   <div class="page-enter">
-    <div class="flex-between mb-4">
+    <div class="flex-between mb-3">
       <div>
-        <div style="font-family:var(--font-mono);font-size:11px;letter-spacing:0.15em;color:var(--sand);text-transform:uppercase;margin-bottom:8px">
+        <div style="font-family:var(--font-mono);font-size:10px;letter-spacing:0.15em;color:var(--sand);text-transform:uppercase;margin-bottom:6px">
           DIGITAL SERVICES
         </div>
-        <h1 class="h2" style="margin-bottom:6px;font-family:var(--font-display)">الخدمات الرقمية</h1>
-        <p class="body-sm text-2">إدارة الخدمات والأكواد والطلبات</p>
+        <h1 class="h2" style="margin-bottom:4px;font-family:var(--font-display)">الخدمات الرقمية</h1>
+        <p class="body-sm text-2" style="font-size:11.5px">إدارة الخدمات والأكواد والطلبات</p>
       </div>
       ${S.svcTab === 'list' ? `<button class="btn btn-primary btn-sm" id="addSvc">${svg(I.plus, 2)} خدمة</button>` : ''}
     </div>
@@ -1994,24 +1668,24 @@ function vSvcList() {
         const stock = n(s.stock_count, 0);
         return `
           <div class="card">
-            <div class="flex-between mb-3">
-              <div style="width:52px;height:52px;border-radius:12px;background:linear-gradient(135deg, rgba(212,165,116,0.1) 0%, rgba(10,92,63,0.1) 100%);border:1px solid rgba(212,165,116,0.2);display:grid;place-items:center;font-size:26px;overflow:hidden">
+            <div class="flex-between mb-2">
+              <div style="width:36px;height:36px;border-radius:9px;background:linear-gradient(135deg, rgba(212,165,116,0.1) 0%, rgba(10,92,63,0.1) 100%);border:1px solid rgba(212,165,116,0.2);display:grid;place-items:center;font-size:18px;overflow:hidden">
                 ${s.icon_url
                   ? `<img src="${esc(s.icon_url)}" alt="" style="width:100%;height:100%;object-fit:cover">`
                   : esc(s.icon_emoji || '📦')}
               </div>
-              <div style="display:flex;gap:6px;flex-wrap:wrap;justify-content:flex-end">
+              <div style="display:flex;gap:4px;flex-wrap:wrap;justify-content:flex-end">
                 <span class="badge ${s.is_active ? 'badge-success' : 'badge-neutral'}">${s.is_active ? 'نشط' : 'معطّل'}</span>
                 <span class="badge ${isAuto ? 'badge-info' : 'badge-warning'}">${isAuto ? 'فوري' : 'يدوي'}</span>
               </div>
             </div>
-            <div class="h4" style="margin-bottom:4px;font-family:var(--font-display)">${esc(s.name || '')}</div>
-            <div class="body-sm text-2 mb-3" style="min-height:32px">${esc((s.desc || '').slice(0, 80))}</div>
-            <div class="flex-between mb-3">
-              <div class="tabular h4" style="font-size:18px;color:var(--sand)">${esc(usd(s.price_usd))}</div>
-              <div class="caption" style="font-family:var(--font-mono)">${n(s.sold_count)} SOLD · ${isAuto ? stock + ' STOCK' : 'MANUAL'}</div>
+            <div class="h4" style="margin-bottom:3px;font-size:13px">${esc(s.name || '')}</div>
+            <div class="body-sm text-2 mb-2" style="min-height:26px;font-size:11px">${esc((s.desc || '').slice(0, 80))}</div>
+            <div class="flex-between mb-2">
+              <div class="tabular h4" style="font-size:15px;color:var(--sand)">${esc(usd(s.price_usd))}</div>
+              <div class="caption" style="font-family:var(--font-mono);font-size:9.5px">${n(s.sold_count)} SOLD · ${isAuto ? stock + ' STOCK' : 'MANUAL'}</div>
             </div>
-            <div style="display:flex;gap:6px">
+            <div style="display:flex;gap:4px">
               <button class="btn btn-secondary btn-sm" style="flex:1" data-edit-svc="${esc(s.id)}">${svg(I.edit, 2)} تعديل</button>
               <button class="btn btn-outline-danger btn-sm" data-del-svc="${esc(s.id)}">${svg(I.trash, 2)}</button>
             </div>
@@ -2034,8 +1708,8 @@ function vSvcStock() {
   const svc = services.find(s => s.id === sel);
 
   return `
-    <div class="card mb-5">
-      <div class="h4" style="margin-bottom:12px">اختر الخدمة</div>
+    <div class="card mb-4">
+      <div class="h4" style="margin-bottom:10px;font-size:13px">اختر الخدمة</div>
       <select class="input" id="svcSelect">
         <option value="">— اختر خدمة —</option>
         ${services.map(s => `
@@ -2046,16 +1720,16 @@ function vSvcStock() {
       </select>
     </div>
 
-    ${!sel ? `<div class="card" style="text-align:center;padding:40px 24px">
-      <div class="empty-icon" style="margin:0 auto 16px">${svg(I.box, 2)}</div>
-      <p class="body-sm text-2">اختر خدمة لعرض مخزونها</p>
+    ${!sel ? `<div class="card" style="text-align:center;padding:32px 20px">
+      <div class="empty-icon" style="margin:0 auto 12px">${svg(I.box, 2)}</div>
+      <p class="body-sm text-2" style="font-size:11.5px">اختر خدمة لعرض مخزونها</p>
     </div>` : `
 
-    <div class="card mb-5">
-      <div class="h4" style="margin-bottom:12px">إضافة أكواد جديدة</div>
+    <div class="card mb-4">
+      <div class="h4" style="margin-bottom:10px;font-size:13px">إضافة أكواد جديدة</div>
 
-      <div class="field mb-4">
-        <textarea class="input" id="bulkCodes" rows="6" placeholder="CODE1&#10;CODE2&#10;CODE3&#10;..." style="font-family:var(--font-mono);font-size:13px;color:var(--sand)"></textarea>
+      <div class="field mb-3">
+        <textarea class="input" id="bulkCodes" rows="5" placeholder="CODE1&#10;CODE2&#10;CODE3&#10;..." style="font-family:var(--font-mono);font-size:11.5px;color:var(--sand);min-height:88px"></textarea>
         <span class="field-hint">حتى 500 كود في المرة — سطر واحد لكل كود</span>
       </div>
 
@@ -2065,37 +1739,37 @@ function vSvcStock() {
     </div>
 
     <div class="card">
-      <div class="flex-between mb-4">
-        <div class="h4">المخزون الحالي</div>
-        <div style="display:flex;gap:8px;align-items:center">
+      <div class="flex-between mb-3">
+        <div class="h4" style="font-size:13px">المخزون الحالي</div>
+        <div style="display:flex;gap:6px;align-items:center">
           <span class="badge badge-success">${S.svcStock.stats.unused} متاح</span>
           <span class="badge badge-neutral">${S.svcStock.stats.used} مستخدم</span>
-          <button class="btn btn-secondary btn-sm" id="toggleReveal" title="${S.revealMode ? 'إخفاء' : 'إظهار'} الأكواد">
+          <button class="btn btn-secondary btn-sm" id="toggleReveal" title="${S.revealMode ? 'إخفاء' : 'إظهار'} الأكواد" style="padding:0 6px;height:26px">
             ${svg(S.revealMode ? I.eyeOff : I.eye, 2)}
           </button>
         </div>
       </div>
 
       ${S.revealMode ? `
-        <div class="alert alert-warning mb-3" style="font-size:11.5px">
+        <div class="alert alert-warning mb-2" style="font-size:10.5px">
           ${svg(I.warn, 2)}
-          <div>⚠️ وضع الكشف مُفعّل — تُسجَّل عمليات المشاهدة في السجل</div>
+          <div>⚠️ وضع الكشف مُفعّل — تُسجَّل عمليات المشاهدة</div>
         </div>
       ` : ''}
 
-      ${!S.svcStock.items.length ? `<div style="text-align:center;padding:32px 16px">
-        <p class="body-sm text-3">لا أكواد بعد — أضف بعضها في الأعلى</p>
+      ${!S.svcStock.items.length ? `<div style="text-align:center;padding:24px 12px">
+        <p class="body-sm text-3" style="font-size:11.5px">لا أكواد بعد — أضف بعضها في الأعلى</p>
       </div>` : `
-      <div style="max-height:500px;overflow-y:auto;border:1px solid var(--border);border-radius:8px">
+      <div style="max-height:420px;overflow-y:auto;border:1px solid var(--border);border-radius:6px">
         ${S.svcStock.items.map(it => `
           <div class="stock-row">
             <div class="stock-code" title="${S.revealMode ? esc(it.code) : 'اضغط كشف لعرض الكود'}">${esc(it.code)}</div>
-            <span class="badge ${it.is_used ? 'badge-neutral' : 'badge-success'}" style="font-size:10px;padding:2px 6px">
+            <span class="badge ${it.is_used ? 'badge-neutral' : 'badge-success'}" style="font-size:9px;padding:1px 5px">
               ${it.is_used ? 'مستخدم' : 'متاح'}
             </span>
             ${!it.is_used
-              ? `<button class="btn btn-sm" style="background:none;padding:4px;color:var(--error)" data-del-stock="${esc(it.id)}" title="حذف">${svg(I.trash, 2)}</button>`
-              : `<span class="caption" style="font-size:10px">${esc(it.used_at ? dt(it.used_at) : '')}</span>`}
+              ? `<button class="btn btn-sm" style="background:none;padding:2px 4px;color:var(--error);height:auto" data-del-stock="${esc(it.id)}" title="حذف">${svg(I.trash, 2)}</button>`
+              : `<span class="caption" style="font-size:9px">${esc(it.used_at ? dt(it.used_at) : '')}</span>`}
           </div>
         `).join('')}
       </div>
@@ -2112,7 +1786,7 @@ function vSvcOrders() {
   else if (S.filter === 'pending' || !S.filter) rows = rows.filter(o => o.status === 'pending');
 
   return `
-    <div class="pills mb-4">
+    <div class="pills mb-3">
       ${F.map(([k, t]) => {
         const c = k === 'all' ? S.serviceOrders.length : S.serviceOrders.filter(o => o.status === k).length;
         return `<button class="pill ${(S.filter === k || (k === 'pending' && (!S.filter || S.filter === 'all'))) ? 'active' : ''}" data-filter="${esc(k)}">${esc(t)} (${c})</button>`;
@@ -2120,7 +1794,7 @@ function vSvcOrders() {
     </div>
 
     ${rows.length ? `
-      <div style="display:flex;flex-direction:column;gap:12px">
+      <div style="display:flex;flex-direction:column;gap:8px">
         ${rows.map(o => {
           const st = o.status;
           const stCls = { pending: 'badge-warning', delivered: 'badge-success', rejected: 'badge-error' }[st];
@@ -2128,49 +1802,49 @@ function vSvcOrders() {
           const expired = o.delivered_expires_at && new Date(o.delivered_expires_at) < new Date();
           return `
             <div class="card">
-              <div class="flex-between mb-3">
-                <div style="display:flex;gap:12px;align-items:center">
-                  <div style="width:44px;height:44px;border-radius:10px;background:linear-gradient(135deg, rgba(212,165,116,0.1) 0%, rgba(10,92,63,0.1) 100%);border:1px solid rgba(212,165,116,0.2);display:grid;place-items:center;font-size:22px;overflow:hidden">
+              <div class="flex-between mb-2">
+                <div style="display:flex;gap:8px;align-items:center">
+                  <div style="width:32px;height:32px;border-radius:8px;background:linear-gradient(135deg, rgba(212,165,116,0.1) 0%, rgba(10,92,63,0.1) 100%);border:1px solid rgba(212,165,116,0.2);display:grid;place-items:center;font-size:16px;overflow:hidden">
                     ${o.service_icon_url
                       ? `<img src="${esc(o.service_icon_url)}" alt="" style="width:100%;height:100%;object-fit:cover">`
                       : esc(o.service_icon || '📦')}
                   </div>
                   <div>
-                    <div class="h4" style="margin-bottom:2px;font-family:var(--font-display)">${esc(o.service_name || '')}</div>
-                    <div class="mono caption" style="font-size:11px">${esc(o.id)}</div>
+                    <div class="h4" style="margin-bottom:1px;font-size:12.5px">${esc(o.service_name || '')}</div>
+                    <div class="mono caption" style="font-size:10px">${esc(o.id)}</div>
                   </div>
                 </div>
                 <div style="text-align:left">
-                  <div class="tabular" style="font-weight:700;font-size:16px;color:var(--sand)">${esc(usd(o.price_usd))}</div>
-                  <span class="badge ${stCls}" style="margin-top:4px">${esc(stLbl)}</span>
+                  <div class="tabular" style="font-weight:700;font-size:14px;color:var(--sand)">${esc(usd(o.price_usd))}</div>
+                  <span class="badge ${stCls}" style="margin-top:3px">${esc(stLbl)}</span>
                 </div>
               </div>
 
-              <div class="caption mb-3">
+              <div class="caption mb-2" style="font-size:10.5px">
                 ${esc(userName(o.uid))} · ${esc(dt(o.created_at))}
               </div>
 
               ${o.inputs && Object.keys(o.inputs).length ? `
-                <div style="background:var(--ink-2);border:1px solid var(--border);border-radius:8px;padding:10px 12px;margin-bottom:12px;font-size:12.5px">
+                <div style="background:var(--ink-2);border:1px solid var(--border);border-radius:6px;padding:8px 10px;margin-bottom:8px;font-size:11px">
                   ${Object.entries(o.inputs).map(([k, v]) =>
-                    `<div style="padding:2px 0"><span class="caption">${esc(k)}:</span> <span class="mono" dir="ltr" style="color:var(--sand)">${esc(v)}</span></div>`
+                    `<div style="padding:1px 0"><span class="caption">${esc(k)}:</span> <span class="mono" dir="ltr" style="color:var(--sand);font-size:11px">${esc(v)}</span></div>`
                   ).join('')}
                 </div>
               ` : ''}
 
               ${st === 'pending' ? `
-                <div style="display:flex;gap:8px">
+                <div style="display:flex;gap:6px">
                   <button class="btn btn-primary btn-sm" style="flex:1" data-svc-deliver="${esc(o.id)}">
                     ${svg(I.check, 2)} تسليم
                   </button>
                   <button class="btn btn-outline-danger btn-sm" data-svc-reject="${esc(o.id)}">رفض</button>
                 </div>
               ` : st === 'delivered' ? `
-                <div style="background:rgba(95,184,138,0.08);border:1px solid rgba(95,184,138,0.2);color:#7DD6A5;padding:10px 12px;border-radius:8px;font-size:12.5px;direction:ltr;text-align:center;word-break:break-all;font-family:var(--font-mono)">
+                <div style="background:rgba(95,184,138,0.08);border:1px solid rgba(95,184,138,0.2);color:#7DD6A5;padding:8px 10px;border-radius:6px;font-size:11px;direction:ltr;text-align:center;word-break:break-all;font-family:var(--font-mono)">
                   ${expired ? '🔒 انتهت صلاحية العرض — تواصل مع العميل' : esc(o.delivered_data || '')}
                 </div>
               ` : `
-                <div class="caption" style="color:var(--error)">السبب: ${esc(o.rejected_reason || '—')}</div>
+                <div class="caption" style="color:var(--error);font-size:11px">السبب: ${esc(o.rejected_reason || '—')}</div>
               `}
             </div>
           `;
@@ -2180,7 +1854,7 @@ function vSvcOrders() {
   `;
 }
 
-/* ── Image compressor (browser-side) ── */
+/* ── Image compressor ── */
 function compressImage(file, maxDim = 256, maxBytes = 50000) {
   return new Promise((resolve, reject) => {
     if (!file) return reject(new Error('لا يوجد ملف'));
@@ -2240,7 +1914,6 @@ function compressImage(file, maxDim = 256, maxBytes = 50000) {
 }
 
 /* ── Service Edit Modal ── */
-
 function openServiceEdit(id) {
   const s = id ? (S.services || []).find(x => x.id === id) : {
     id: '', name: '', desc: '', icon_emoji: '📦', icon_url: '',
@@ -2248,7 +1921,6 @@ function openServiceEdit(id) {
     is_active: true, sort: 100,
   };
   if (!s) return;
-  window._lastFocused = document.activeElement;
 
   const existingFields = Array.isArray(s.fields) ? s.fields : [];
 
@@ -2258,38 +1930,38 @@ function openServiceEdit(id) {
       <button class="modal-close" onclick="closeModal()" aria-label="إغلاق">${svg(I.x, 2)}</button>
     </div>
 
-    <div class="field mb-3">
+    <div class="field mb-2">
       <label class="field-label">اسم الخدمة *</label>
       <input class="input" id="sName" value="${esc(s.name || '')}" placeholder="Netflix Premium" maxlength="80">
     </div>
 
-    <div class="field mb-3">
+    <div class="field mb-2">
       <label class="field-label">الوصف</label>
-      <textarea class="input" id="sDesc" rows="2" placeholder="مشاهدة بلا حدود" maxlength="200">${esc(s.desc || '')}</textarea>
+      <textarea class="input" id="sDesc" rows="2" placeholder="مشاهدة بلا حدود" maxlength="200" style="min-height:52px">${esc(s.desc || '')}</textarea>
     </div>
 
-    <div class="field mb-3">
+    <div class="field mb-2">
       <label class="field-label">الأيقونة</label>
       <div class="icon-picker">
         <div class="icon-preview" id="iconPreview">
           ${s.icon_url ? `<img src="${esc(s.icon_url)}" alt="">` : esc(s.icon_emoji || '📦')}
         </div>
-        <div style="flex:1">
-          <input class="input mb-2" id="sEmoji" value="${esc(s.icon_emoji || '')}" maxlength="4" placeholder="📦 (إيموجي)">
+        <div style="flex:1;min-width:0">
+          <input class="input mb-1" id="sEmoji" value="${esc(s.icon_emoji || '')}" maxlength="4" placeholder="📦 (إيموجي)" style="height:34px;font-size:13px">
           <input type="file" id="sImageFile" accept="image/jpeg,image/png,image/webp" style="display:none">
-          <button class="btn btn-secondary btn-sm btn-block" id="uploadImgBtn" type="button">
+          <button class="btn btn-secondary btn-sm btn-block" id="uploadImgBtn" type="button" style="height:30px;font-size:11px">
             ${svg(I.upload, 2)} رفع صورة (تُضغط إلى ~50KB)
           </button>
           <input type="hidden" id="sIconUrl" value="${esc(s.icon_url || '')}">
           <div class="upload-progress" id="uploadProgress">
             <div class="upload-progress-bar" id="uploadProgressBar"></div>
           </div>
-          <div id="imgStatus" class="caption" style="margin-top:6px;display:none"></div>
+          <div id="imgStatus" class="caption" style="margin-top:4px;display:none;font-size:10px"></div>
         </div>
       </div>
     </div>
 
-    <div class="grid-2 mb-3">
+    <div class="grid-2 mb-2">
       <div>
         <label class="field-label">السعر (USD) *</label>
         <input class="input" id="sPrice" type="number" step="0.01" min="0.01" value="${n(s.price_usd)}">
@@ -2300,7 +1972,7 @@ function openServiceEdit(id) {
       </div>
     </div>
 
-    <div class="field mb-3">
+    <div class="field mb-2">
       <label class="field-label">نوع التسليم</label>
       <select class="input" id="sDeliv">
         <option value="auto" ${s.delivery_type === 'auto' ? 'selected' : ''}>🤖 تلقائي — من المخزون</option>
@@ -2308,28 +1980,28 @@ function openServiceEdit(id) {
       </select>
     </div>
 
-    <div class="field mb-3">
-      <label class="field-label" style="display:flex;align-items:center;gap:8px;cursor:pointer">
+    <div class="field mb-2">
+      <label class="field-label" style="display:flex;align-items:center;gap:6px;cursor:pointer">
         <input type="checkbox" id="sActive" ${s.is_active ? 'checked' : ''}>
         <span>الخدمة نشطة ومتاحة للعملاء</span>
       </label>
     </div>
 
-    <div class="divider" style="margin:20px 0"></div>
+    <div class="divider" style="margin:14px 0"></div>
 
-    <div class="flex-between mb-3">
-      <div class="h4" style="font-size:14px">الحقول المطلوبة من العميل</div>
-      <button type="button" class="btn btn-secondary btn-sm" id="addFieldBtn">${svg(I.plus, 2)} حقل</button>
+    <div class="flex-between mb-2">
+      <div class="h4" style="font-size:12.5px">الحقول المطلوبة من العميل</div>
+      <button type="button" class="btn btn-secondary btn-sm" id="addFieldBtn" style="height:26px;font-size:10.5px">${svg(I.plus, 2)} حقل</button>
     </div>
 
-    <p class="caption mb-3">حتى 5 حقول — تُطلب من العميل عند الشراء</p>
+    <p class="caption mb-2" style="font-size:10px">حتى 5 حقول — تُطلب من العميل عند الشراء</p>
 
     <div id="fieldsList"></div>
 
-    <button class="btn btn-primary btn-block" style="margin-top:20px" id="sSave">
+    <button class="btn btn-primary btn-block" style="margin-top:14px" id="sSave">
       ${id ? 'حفظ التعديلات' : 'إنشاء الخدمة'}
     </button>
-    ${id ? `<button class="btn btn-outline-danger btn-block" style="margin-top:8px" id="sDel">${svg(I.trash, 2)} حذف الخدمة</button>` : ''}
+    ${id ? `<button class="btn btn-outline-danger btn-block" style="margin-top:6px" id="sDel">${svg(I.trash, 2)} حذف الخدمة</button>` : ''}
   `);
 
   let fields = existingFields.map(f => ({ ...f }));
@@ -2337,19 +2009,19 @@ function openServiceEdit(id) {
   const renderFields = () => {
     const list = $('#fieldsList');
     if (!fields.length) {
-      list.innerHTML = `<p class="caption" style="text-align:center;padding:16px;color:var(--text-3)">لا حقول — العميل يشتري مباشرة</p>`;
+      list.innerHTML = `<p class="caption" style="text-align:center;padding:12px;color:var(--text-3);font-size:10.5px">لا حقول — العميل يشتري مباشرة</p>`;
       return;
     }
     list.innerHTML = fields.map((f, i) => `
       <div class="field-row" data-fi="${i}">
         <div class="field-row-inputs">
-          <input class="input" data-fk="label" data-fi="${i}" value="${esc(f.label || '')}" placeholder="التسمية (البريد)">
-          <select class="input" data-fk="type" data-fi="${i}">
+          <input class="input" data-fk="label" data-fi="${i}" value="${esc(f.label || '')}" placeholder="التسمية (البريد)" style="height:32px;font-size:12px">
+          <select class="input" data-fk="type" data-fi="${i}" style="height:32px;font-size:12px">
             ${['text', 'number', 'email', 'tel', 'password', 'select', 'textarea'].map(t =>
               `<option value="${t}" ${f.type === t ? 'selected' : ''}>${t}</option>`).join('')}
           </select>
         </div>
-        <button type="button" class="btn btn-sm" style="background:none;color:var(--error);padding:8px" data-del-field="${i}" aria-label="حذف">
+        <button type="button" class="btn btn-sm" style="background:none;color:var(--error);padding:4px;height:auto" data-del-field="${i}" aria-label="حذف">
           ${svg(I.trash, 2)}
         </button>
       </div>
@@ -2480,9 +2152,9 @@ function openServiceEdit(id) {
           <div class="modal-title">حذف الخدمة</div>
           <button class="modal-close" onclick="closeModal()" aria-label="إغلاق">${svg(I.x, 2)}</button>
         </div>
-        <div class="alert alert-warning mb-4">${svg(I.warn)}<div>سيتم حذف "<strong>${esc(s.name)}</strong>" نهائياً.<br>لن يتأثر المخزون أو الطلبات السابقة.</div></div>
+        <div class="alert alert-warning mb-3" style="font-size:11.5px">${svg(I.warn)}<div>سيتم حذف "<strong>${esc(s.name)}</strong>" نهائياً.</div></div>
         <button class="btn btn-danger btn-block" id="delConfirm">تأكيد الحذف</button>
-        <button class="btn btn-secondary btn-block" style="margin-top:8px" onclick="closeModal()">إلغاء</button>
+        <button class="btn btn-secondary btn-block" style="margin-top:6px" onclick="closeModal()">إلغاء</button>
       `);
       onTap('#delConfirm', async () => {
         try {
@@ -2499,7 +2171,6 @@ window.openServiceEdit = openServiceEdit;
 function openSvcDeliver(orderId) {
   const o = S.serviceOrders.find(x => x.id === orderId);
   if (!o) return;
-  window._lastFocused = document.activeElement;
 
   modal(`
     <div class="modal-head">
@@ -2507,15 +2178,15 @@ function openSvcDeliver(orderId) {
       <button class="modal-close" onclick="closeModal()" aria-label="إغلاق">${svg(I.x, 2)}</button>
     </div>
 
-    <div class="card card-sm mb-4" style="background:var(--surface-2);border:none">
-      <div class="flex-between" style="padding:4px 0"><span class="caption">الخدمة</span><span class="body-sm">${esc(o.service_name)}</span></div>
-      <div class="flex-between" style="padding:4px 0"><span class="caption">العميل</span><span class="body-sm">${esc(userName(o.uid))}</span></div>
-      <div class="flex-between" style="padding:4px 0"><span class="caption">المبلغ</span><span class="tabular" style="font-weight:700;color:var(--sand)">${esc(usd(o.price_usd))}</span></div>
+    <div class="card card-sm mb-3" style="background:var(--surface-2);border:none">
+      <div class="flex-between" style="padding:3px 0"><span class="caption">الخدمة</span><span class="body-sm">${esc(o.service_name)}</span></div>
+      <div class="flex-between" style="padding:3px 0"><span class="caption">العميل</span><span class="body-sm">${esc(userName(o.uid))}</span></div>
+      <div class="flex-between" style="padding:3px 0"><span class="caption">المبلغ</span><span class="tabular" style="font-weight:700;color:var(--sand)">${esc(usd(o.price_usd))}</span></div>
     </div>
 
-    <div class="field mb-4">
+    <div class="field mb-3">
       <label class="field-label">البيانات/الكود المُسلَّم *</label>
-      <textarea class="input" id="svcDeliverData" rows="5" placeholder="USER: xxx&#10;PASS: yyy&#10;أو أي بيانات يراها العميل" style="font-family:var(--font-mono);font-size:13px;color:var(--sand)"></textarea>
+      <textarea class="input" id="svcDeliverData" rows="5" placeholder="USER: xxx&#10;PASS: yyy&#10;أو أي بيانات يراها العميل" style="font-family:var(--font-mono);font-size:12px;color:var(--sand)"></textarea>
       <span class="field-hint">ستظهر للعميل في "طلباتي" لمدة 7 أيام</span>
     </div>
 
@@ -2550,7 +2221,6 @@ window.openSvcDeliver = openSvcDeliver;
 function openSvcReject(orderId) {
   const o = S.serviceOrders.find(x => x.id === orderId);
   if (!o) return;
-  window._lastFocused = document.activeElement;
 
   modal(`
     <div class="modal-head">
@@ -2558,9 +2228,9 @@ function openSvcReject(orderId) {
       <button class="modal-close" onclick="closeModal()" aria-label="إغلاق">${svg(I.x, 2)}</button>
     </div>
 
-    <div class="alert alert-warning mb-4">${svg(I.warn)}<div>سيُعاد ${esc(usd(o.price_usd))} إلى محفظة العميل تلقائياً.</div></div>
+    <div class="alert alert-warning mb-3" style="font-size:11.5px">${svg(I.warn)}<div>سيُعاد ${esc(usd(o.price_usd))} إلى محفظة العميل تلقائياً.</div></div>
 
-    <div class="field mb-4">
+    <div class="field mb-3">
       <label class="field-label">سبب الرفض</label>
       <input class="input" id="svcRejectReason" placeholder="نفد المخزون / بيانات غير صحيحة" maxlength="200">
     </div>
@@ -2604,15 +2274,15 @@ function vDeposits() {
 
   return `
   <div class="page-enter">
-    <div class="mb-4">
-      <div style="font-family:var(--font-mono);font-size:11px;letter-spacing:0.15em;color:var(--sand);text-transform:uppercase;margin-bottom:8px">
+    <div class="mb-3">
+      <div style="font-family:var(--font-mono);font-size:10px;letter-spacing:0.15em;color:var(--sand);text-transform:uppercase;margin-bottom:6px">
         DEPOSITS
       </div>
-      <h1 class="h2" style="margin-bottom:6px;font-family:var(--font-display)">الإيداعات</h1>
-      <p class="body-sm text-2">${pendDep() ? pendDep() + ' طلب ينتظر' : 'لا طلبات معلّقة'}</p>
+      <h1 class="h2" style="margin-bottom:4px;font-family:var(--font-display)">الإيداعات</h1>
+      <p class="body-sm text-2" style="font-size:11.5px">${pendDep() ? pendDep() + ' طلب ينتظر' : 'لا طلبات معلّقة'}</p>
     </div>
 
-    <div class="pills mb-4">
+    <div class="pills mb-3">
       ${F.map(([k, t]) => {
         const c = k === 'all' ? S.deposits.length : S.deposits.filter(d => d.status === k).length;
         return `<button class="pill ${S.filter === k ? 'active' : ''}" data-filter="${esc(k)}">${esc(t)} (${c})</button>`;
@@ -2658,7 +2328,6 @@ function vDeposits() {
 function openDepositReview(id) {
   const d = S.deposits.find(x => x.id === id);
   if (!d) return;
-  window._lastFocused = document.activeElement;
 
   modal(`
     <div class="modal-head">
@@ -2666,27 +2335,27 @@ function openDepositReview(id) {
       <button class="modal-close" onclick="closeModal()" aria-label="إغلاق">${svg(I.x, 2)}</button>
     </div>
 
-    <div class="card card-sm mb-4" style="background:var(--surface-2);border:none">
-      <div class="flex-between" style="padding:4px 0"><span class="caption">العميل</span><span class="body-sm">${esc(userName(d.uid))}</span></div>
-      <div class="flex-between" style="padding:4px 0"><span class="caption">المبلغ</span><span class="tabular" style="font-weight:700;color:var(--sand)">${esc(usd(d.amount_usd))}</span></div>
-      <div class="flex-between" style="padding:4px 0"><span class="caption">بالدينار</span><span class="tabular">${esc(lyd(d.amount_lyd))}</span></div>
-      <div class="flex-between" style="padding:4px 0"><span class="caption">الطريقة</span><span class="body-sm">${esc(d.method || '—')}</span></div>
-      <div class="flex-between" style="padding:4px 0"><span class="caption">الهاتف</span><span class="mono body-sm" dir="ltr">${esc(d.claim_phone || '—')}</span></div>
+    <div class="card card-sm mb-3" style="background:var(--surface-2);border:none">
+      <div class="flex-between" style="padding:3px 0"><span class="caption">العميل</span><span class="body-sm">${esc(userName(d.uid))}</span></div>
+      <div class="flex-between" style="padding:3px 0"><span class="caption">المبلغ</span><span class="tabular" style="font-weight:700;color:var(--sand)">${esc(usd(d.amount_usd))}</span></div>
+      <div class="flex-between" style="padding:3px 0"><span class="caption">بالدينار</span><span class="tabular">${esc(lyd(d.amount_lyd))}</span></div>
+      <div class="flex-between" style="padding:3px 0"><span class="caption">الطريقة</span><span class="body-sm">${esc(d.method || '—')}</span></div>
+      <div class="flex-between" style="padding:3px 0"><span class="caption">الهاتف</span><span class="mono body-sm" dir="ltr" style="font-size:11px">${esc(d.claim_phone || '—')}</span></div>
     </div>
 
     ${d.proof_url ? `
-      <div class="mb-4">
+      <div class="mb-3">
         <div class="field-label">إثبات التحويل</div>
         <a href="${esc(d.proof_url)}" target="_blank" rel="noopener noreferrer">
-          <img src="${esc(d.proof_url)}" alt="" style="width:100%;border-radius:8px;border:1px solid var(--border)">
+          <img src="${esc(d.proof_url)}" alt="" style="width:100%;border-radius:6px;border:1px solid var(--border)">
         </a>
       </div>
     ` : ''}
 
-    <div class="alert alert-warning mb-4">${svg(I.warn)}<div>تأكد من وصول التحويل قبل الموافقة.</div></div>
+    <div class="alert alert-warning mb-3" style="font-size:11.5px">${svg(I.warn)}<div>تأكد من وصول التحويل قبل الموافقة.</div></div>
 
     <button class="btn btn-primary btn-block" id="dOk">قبول وإضافة الرصيد</button>
-    <button class="btn btn-outline-danger btn-block" style="margin-top:8px" id="dNo">رفض</button>
+    <button class="btn btn-outline-danger btn-block" style="margin-top:6px" id="dNo">رفض</button>
   `);
 
   onTap('#dOk', async () => {
@@ -2732,15 +2401,15 @@ function vWithdraw() {
 
   return `
   <div class="page-enter">
-    <div class="mb-4">
-      <div style="font-family:var(--font-mono);font-size:11px;letter-spacing:0.15em;color:var(--sand);text-transform:uppercase;margin-bottom:8px">
+    <div class="mb-3">
+      <div style="font-family:var(--font-mono);font-size:10px;letter-spacing:0.15em;color:var(--sand);text-transform:uppercase;margin-bottom:6px">
         WITHDRAWALS
       </div>
-      <h1 class="h2" style="margin-bottom:6px;font-family:var(--font-display)">السحوبات</h1>
-      <p class="body-sm text-2">${pendWd() ? pendWd() + ' طلب ينتظر' : 'لا طلبات معلّقة'}</p>
+      <h1 class="h2" style="margin-bottom:4px;font-family:var(--font-display)">السحوبات</h1>
+      <p class="body-sm text-2" style="font-size:11.5px">${pendWd() ? pendWd() + ' طلب ينتظر' : 'لا طلبات معلّقة'}</p>
     </div>
 
-    <div class="pills mb-4">
+    <div class="pills mb-3">
       ${F.map(([k, t]) => {
         const c = k === 'all' ? S.withdrawals.length : S.withdrawals.filter(w => w.status === k).length;
         return `<button class="pill ${S.filter === k ? 'active' : ''}" data-filter="${esc(k)}">${esc(t)} (${c})</button>`;
@@ -2748,24 +2417,24 @@ function vWithdraw() {
     </div>
 
     ${rows.length ? `
-      <div style="display:flex;flex-direction:column;gap:12px">
+      <div style="display:flex;flex-direction:column;gap:8px">
         ${rows.map(w => `
           <div class="card">
-            <div class="flex-between mb-3">
+            <div class="flex-between mb-2">
               <div>
-                <div class="tabular h4" style="font-size:16px;color:var(--sand)">${esc(usd(w.amount_usd))}</div>
-                <div class="mono caption" style="font-size:11px">${esc(w.id)}</div>
+                <div class="tabular h4" style="font-size:14px;color:var(--sand)">${esc(usd(w.amount_usd))}</div>
+                <div class="mono caption" style="font-size:10px">${esc(w.id)}</div>
               </div>
               <span class="badge ${w.status === 'completed' ? 'badge-success' : w.status === 'pending' ? 'badge-warning' : 'badge-error'}">
                 ${w.status === 'completed' ? 'نُفّذ' : w.status === 'pending' ? 'قيد التنفيذ' : 'مرفوض'}
               </span>
             </div>
-            <div class="caption mb-3">${esc(userName(w.uid))} · ${esc(dt(w.created_at))}</div>
-            <div class="copy-box mb-3">
+            <div class="caption mb-2" style="font-size:10.5px">${esc(userName(w.uid))} · ${esc(dt(w.created_at))}</div>
+            <div class="copy-box mb-2">
               <div class="copy-value" dir="ltr">${esc(w.destination || '—')}</div>
             </div>
             ${w.status === 'pending' ? `
-              <div style="display:flex;gap:8px">
+              <div style="display:flex;gap:6px">
                 <button class="btn btn-primary btn-sm" data-wd-ok="${esc(w.id)}">تنفيذ</button>
                 <button class="btn btn-outline-danger btn-sm" data-wd-no="${esc(w.id)}">رفض</button>
               </div>
@@ -2782,7 +2451,6 @@ function openWithdrawAction(id, action) {
   const w = S.withdrawals.find(x => x.id === id);
   if (!w) return;
   const rej = action === 'reject';
-  window._lastFocused = document.activeElement;
 
   modal(`
     <div class="modal-head">
@@ -2791,16 +2459,16 @@ function openWithdrawAction(id, action) {
     </div>
 
     ${rej
-      ? `<div class="alert alert-warning mb-4">${svg(I.warn)}<div>سيُعاد ${esc(usd(w.amount_usd))} إلى محفظة العميل.</div></div>
-        <div class="field mb-4">
+      ? `<div class="alert alert-warning mb-3" style="font-size:11.5px">${svg(I.warn)}<div>سيُعاد ${esc(usd(w.amount_usd))} إلى محفظة العميل.</div></div>
+        <div class="field mb-3">
           <label class="field-label">سبب الرفض</label>
           <input class="input" id="wReason" placeholder="بيانات غير صحيحة">
         </div>`
-      : `<div class="alert alert-info mb-4">${svg(I.help)}<div>حوّل ${esc(usd(w.net))} إلى الوجهة أدناه، ثم أكّد.</div></div>
-        <div class="copy-box mb-4">
+      : `<div class="alert alert-info mb-3" style="font-size:11.5px">${svg(I.help)}<div>حوّل ${esc(usd(w.net))} إلى الوجهة أدناه، ثم أكّد.</div></div>
+        <div class="copy-box mb-3">
           <div class="copy-value" dir="ltr">${esc(w.destination)}</div>
         </div>
-        <div class="field mb-4">
+        <div class="field mb-3">
           <label class="field-label">ملاحظة (اختياري)</label>
           <input class="input" id="wNote" placeholder="رقم التحويل">
         </div>`}
@@ -2841,15 +2509,15 @@ function vTickets() {
 
   return `
   <div class="page-enter">
-    <div class="mb-4">
-      <div style="font-family:var(--font-mono);font-size:11px;letter-spacing:0.15em;color:var(--sand);text-transform:uppercase;margin-bottom:8px">
+    <div class="mb-3">
+      <div style="font-family:var(--font-mono);font-size:10px;letter-spacing:0.15em;color:var(--sand);text-transform:uppercase;margin-bottom:6px">
         SUPPORT TICKETS
       </div>
-      <h1 class="h2" style="margin-bottom:6px;font-family:var(--font-display)">التذاكر</h1>
-      <p class="body-sm text-2">${openTic() ? openTic() + ' تذكرة مفتوحة' : 'لا تذاكر مفتوحة'}</p>
+      <h1 class="h2" style="margin-bottom:4px;font-family:var(--font-display)">التذاكر</h1>
+      <p class="body-sm text-2" style="font-size:11.5px">${openTic() ? openTic() + ' تذكرة مفتوحة' : 'لا تذاكر مفتوحة'}</p>
     </div>
 
-    <div class="pills mb-4">
+    <div class="pills mb-3">
       ${F.map(([k, t]) => {
         const c = k === 'all' ? S.tickets.length : S.tickets.filter(x => x.status === k).length;
         return `<button class="pill ${S.filter === k ? 'active' : ''}" data-filter="${esc(k)}">${esc(t)} (${c})</button>`;
@@ -2882,7 +2550,6 @@ function openTicketDetail(id) {
   const t = S.tickets.find(x => x.id === id);
   if (!t) return;
   const msgs = t.messages || [];
-  window._lastFocused = document.activeElement;
 
   modal(`
     <div class="modal-head">
@@ -2890,24 +2557,24 @@ function openTicketDetail(id) {
       <button class="modal-close" onclick="closeModal()" aria-label="إغلاق">${svg(I.x, 2)}</button>
     </div>
 
-    <p class="caption mb-4">${esc(userName(t.uid))} · ${esc(dt(t.created_at))}</p>
+    <p class="caption mb-3" style="font-size:10.5px">${esc(userName(t.uid))} · ${esc(dt(t.created_at))}</p>
 
-    <div style="display:flex;flex-direction:column;gap:10px;margin-bottom:16px;max-height:44vh;overflow-y:auto">
+    <div style="display:flex;flex-direction:column;gap:8px;margin-bottom:12px;max-height:44vh;overflow-y:auto">
       ${msgs.map(m => `
-        <div style="align-self:${m.by === 'admin' ? 'flex-end' : 'flex-start'};max-width:85%;padding:10px 14px;border-radius:12px;background:${m.by === 'admin' ? 'rgba(212,165,116,0.12)' : 'var(--surface-2)'};border:1px solid ${m.by === 'admin' ? 'rgba(212,165,116,0.2)' : 'var(--border)'}">
-          <div class="caption" style="font-size:10.5px;margin-bottom:3px;font-family:var(--font-mono);letter-spacing:0.08em">${m.by === 'admin' ? 'ADMIN' : 'CLIENT'} · ${esc(dt(m.at))}</div>
-          <div class="body-sm" style="line-height:1.65;white-space:pre-line">${esc(m.text)}</div>
+        <div style="align-self:${m.by === 'admin' ? 'flex-end' : 'flex-start'};max-width:85%;padding:8px 12px;border-radius:10px;background:${m.by === 'admin' ? 'rgba(212,165,116,0.12)' : 'var(--surface-2)'};border:1px solid ${m.by === 'admin' ? 'rgba(212,165,116,0.2)' : 'var(--border)'}">
+          <div class="caption" style="font-size:9.5px;margin-bottom:2px;font-family:var(--font-mono);letter-spacing:0.08em">${m.by === 'admin' ? 'ADMIN' : 'CLIENT'} · ${esc(dt(m.at))}</div>
+          <div class="body-sm" style="line-height:1.6;white-space:pre-line;font-size:11.5px">${esc(m.text)}</div>
         </div>
       `).join('')}
     </div>
 
     ${t.status !== 'closed' ? `
-      <div class="field mb-3">
-        <textarea class="input" id="tRep" rows="3" placeholder="اكتب ردك..."></textarea>
+      <div class="field mb-2">
+        <textarea class="input" id="tRep" rows="3" placeholder="اكتب ردك..." style="min-height:70px;font-size:12px"></textarea>
       </div>
       <button class="btn btn-primary btn-block" id="tSend">إرسال الرد</button>
-      <button class="btn btn-outline-danger btn-block" style="margin-top:8px" id="tClose">إغلاق التذكرة</button>
-    ` : `<div class="alert alert-info">${svg(I.help)}<div>هذه التذكرة مغلقة.</div></div>`}
+      <button class="btn btn-outline-danger btn-block" style="margin-top:6px" id="tClose">إغلاق التذكرة</button>
+    ` : `<div class="alert alert-info" style="font-size:11.5px">${svg(I.help)}<div>هذه التذكرة مغلقة.</div></div>`}
   `);
 
   onTap('#tSend', async () => {
@@ -2949,13 +2616,13 @@ window.openTicketDetail = openTicketDetail;
 function vCoupons() {
   return `
   <div class="page-enter">
-    <div class="flex-between mb-4">
+    <div class="flex-between mb-3">
       <div>
-        <div style="font-family:var(--font-mono);font-size:11px;letter-spacing:0.15em;color:var(--sand);text-transform:uppercase;margin-bottom:8px">
+        <div style="font-family:var(--font-mono);font-size:10px;letter-spacing:0.15em;color:var(--sand);text-transform:uppercase;margin-bottom:6px">
           COUPONS
         </div>
-        <h1 class="h2" style="margin-bottom:6px;font-family:var(--font-display)">الكوبونات</h1>
-        <p class="body-sm text-2">${S.coupons.length} كوبون</p>
+        <h1 class="h2" style="margin-bottom:4px;font-family:var(--font-display)">الكوبونات</h1>
+        <p class="body-sm text-2" style="font-size:11.5px">${S.coupons.length} كوبون</p>
       </div>
       <button class="btn btn-primary btn-sm" id="addCoup">${svg(I.plus, 2)} كوبون</button>
     </div>
@@ -2965,13 +2632,13 @@ function vCoupons() {
         ${S.coupons.map(c => `
           <div class="card">
             <div class="flex-between mb-2">
-              <div class="mono" style="font-size:16px;font-weight:700;letter-spacing:.08em;color:var(--sand)">${esc(c.id)}</div>
+              <div class="mono" style="font-size:14px;font-weight:700;letter-spacing:.06em;color:var(--sand)">${esc(c.id)}</div>
               <span class="badge ${c.active !== false ? 'badge-success' : 'badge-neutral'}">${c.active !== false ? 'نشط' : 'معطّل'}</span>
             </div>
-            <div class="body-sm text-2 mb-3">
+            <div class="body-sm text-2 mb-2" style="font-size:11.5px">
               ${n(c.percent) > 0 ? n(c.percent) + '٪ خصم' : lyd(c.amount_lyd)}
             </div>
-            <div class="caption mb-3">استُخدم ${n(c.used_count)}${n(c.max_uses) > 0 ? ' من ' + n(c.max_uses) : ''}</div>
+            <div class="caption mb-2" style="font-size:10.5px">استُخدم ${n(c.used_count)}${n(c.max_uses) > 0 ? ' من ' + n(c.max_uses) : ''}</div>
             <button class="btn btn-secondary btn-sm btn-block" data-ecoup="${esc(c.id)}">تعديل</button>
           </div>
         `).join('')}
@@ -2988,7 +2655,6 @@ function openCouponEdit(id) {
     once_per_user: true, active: true, expires_at: ''
   };
   if (!c) return;
-  window._lastFocused = document.activeElement;
 
   modal(`
     <div class="modal-head">
@@ -2996,12 +2662,12 @@ function openCouponEdit(id) {
       <button class="modal-close" onclick="closeModal()" aria-label="إغلاق">${svg(I.x, 2)}</button>
     </div>
 
-    <div class="field mb-3">
+    <div class="field mb-2">
       <label class="field-label">الكود</label>
-      <input class="input mono" id="cCode" value="${esc(c.id || '')}" ${id ? 'disabled' : ''} dir="ltr" placeholder="WELCOME10" style="text-transform:uppercase;letter-spacing:.08em;color:var(--sand)">
+      <input class="input mono" id="cCode" value="${esc(c.id || '')}" ${id ? 'disabled' : ''} dir="ltr" placeholder="WELCOME10" style="text-transform:uppercase;letter-spacing:.06em;color:var(--sand)">
     </div>
 
-    <div class="grid-2 mb-3">
+    <div class="grid-2 mb-2">
       <div>
         <label class="field-label">النسبة ٪</label>
         <input class="input" id="cPct" type="number" min="0" max="100" value="${n(c.percent)}">
@@ -3012,7 +2678,7 @@ function openCouponEdit(id) {
       </div>
     </div>
 
-    <div class="grid-2 mb-3">
+    <div class="grid-2 mb-2">
       <div>
         <label class="field-label">حد أقصى للخصم</label>
         <input class="input" id="cCap" type="number" min="0" value="${n(c.max_off_lyd)}">
@@ -3023,18 +2689,18 @@ function openCouponEdit(id) {
       </div>
     </div>
 
-    <div class="field mb-3">
+    <div class="field mb-2">
       <label class="field-label">عدد الاستخدامات (0 = بلا حد)</label>
       <input class="input" id="cMax" type="number" min="0" value="${n(c.max_uses)}">
     </div>
 
-    <div class="field mb-4">
+    <div class="field mb-3">
       <label class="field-label">ينتهي في</label>
       <input class="input" id="cExp" type="date" value="${c.expires_at ? String(c.expires_at).slice(0, 10) : ''}">
     </div>
 
     <button class="btn btn-primary btn-block" id="cSave">حفظ</button>
-    ${id ? `<button class="btn btn-outline-danger btn-block" style="margin-top:8px" id="cDel">حذف</button>` : ''}
+    ${id ? `<button class="btn btn-outline-danger btn-block" style="margin-top:6px" id="cDel">حذف</button>` : ''}
   `);
 
   onTap('#cSave', async () => {
@@ -3090,15 +2756,15 @@ function vUsers() {
 
   return `
   <div class="page-enter">
-    <div class="mb-4">
-      <div style="font-family:var(--font-mono);font-size:11px;letter-spacing:0.15em;color:var(--sand);text-transform:uppercase;margin-bottom:8px">
+    <div class="mb-3">
+      <div style="font-family:var(--font-mono);font-size:10px;letter-spacing:0.15em;color:var(--sand);text-transform:uppercase;margin-bottom:6px">
         USERS
       </div>
-      <h1 class="h2" style="margin-bottom:6px;font-family:var(--font-display)">المستخدمون</h1>
-      <p class="body-sm text-2">${rows.length} مستخدم</p>
+      <h1 class="h2" style="margin-bottom:4px;font-family:var(--font-display)">المستخدمون</h1>
+      <p class="body-sm text-2" style="font-size:11.5px">${rows.length} مستخدم</p>
     </div>
 
-    <div class="input-wrap mb-4">
+    <div class="input-wrap mb-3">
       <span class="input-icon">${svg(I.list)}</span>
       <input class="input" id="qBox" placeholder="ابحث بالاسم أو البريد أو الهاتف" value="${esc(S.q)}">
     </div>
@@ -3120,7 +2786,7 @@ function vUsers() {
             ${rows.map(u => `
               <tr>
                 <td>${esc(u.name || '—')}</td>
-                <td class="mono caption" dir="ltr">${esc(u.email || '—')}</td>
+                <td class="mono caption" dir="ltr" style="font-size:10px">${esc(u.email || '—')}</td>
                 <td class="tabular" style="font-weight:600;color:var(--sand)">${esc(usd(u.wallet_balance))}</td>
                 <td>${u.banned ? '<span class="badge badge-error">موقوف</span>' : '<span class="badge badge-success">نشط</span>'}</td>
                 <td class="caption">${esc(dt(u.created_at))}</td>
@@ -3138,7 +2804,6 @@ function vUsers() {
 function openUserManage(uid) {
   const u = S.users.find(x => x.id === uid);
   if (!u) return;
-  window._lastFocused = document.activeElement;
 
   modal(`
     <div class="modal-head">
@@ -3146,23 +2811,23 @@ function openUserManage(uid) {
       <button class="modal-close" onclick="closeModal()" aria-label="إغلاق">${svg(I.x, 2)}</button>
     </div>
 
-    <div class="card card-sm mb-4" style="background:var(--surface-2);border:none">
-      <div class="flex-between" style="padding:4px 0"><span class="caption">الرصيد</span><span class="tabular" style="font-weight:700;color:var(--sand)">${esc(usd(u.wallet_balance))}</span></div>
-      <div class="flex-between" style="padding:4px 0"><span class="caption">الإنفاق</span><span class="tabular">${esc(usd(u.total_spent))}</span></div>
-      <div class="flex-between" style="padding:4px 0"><span class="caption">البريد</span><span class="caption mono" dir="ltr">${esc(u.email || '—')}</span></div>
+    <div class="card card-sm mb-3" style="background:var(--surface-2);border:none">
+      <div class="flex-between" style="padding:3px 0"><span class="caption">الرصيد</span><span class="tabular" style="font-weight:700;color:var(--sand)">${esc(usd(u.wallet_balance))}</span></div>
+      <div class="flex-between" style="padding:3px 0"><span class="caption">الإنفاق</span><span class="tabular">${esc(usd(u.total_spent))}</span></div>
+      <div class="flex-between" style="padding:3px 0"><span class="caption">البريد</span><span class="caption mono" dir="ltr" style="font-size:10px">${esc(u.email || '—')}</span></div>
     </div>
 
-    <div class="field mb-3">
+    <div class="field mb-2">
       <label class="field-label">تعديل الرصيد (± دولار)</label>
       <input class="input" id="uAmt" type="number" step="0.5" placeholder="10">
     </div>
-    <div class="field mb-4">
+    <div class="field mb-3">
       <label class="field-label">السبب</label>
       <input class="input" id="uWhy" placeholder="تصحيح يدوي">
     </div>
 
     <button class="btn btn-primary btn-block" id="uAdj">تنفيذ التعديل</button>
-    <button class="btn ${u.banned ? 'btn-secondary' : 'btn-outline-danger'} btn-block" style="margin-top:8px" id="uBan">
+    <button class="btn ${u.banned ? 'btn-secondary' : 'btn-outline-danger'} btn-block" style="margin-top:6px" id="uBan">
       ${u.banned ? 'إلغاء الإيقاف' : 'إيقاف الحساب'}
     </button>
   `);
@@ -3209,30 +2874,30 @@ window.openUserManage = openUserManage;
 function vSms() {
   return `
   <div class="page-enter">
-    <div class="mb-4">
-      <div style="font-family:var(--font-mono);font-size:11px;letter-spacing:0.15em;color:var(--sand);text-transform:uppercase;margin-bottom:8px">
+    <div class="mb-3">
+      <div style="font-family:var(--font-mono);font-size:10px;letter-spacing:0.15em;color:var(--sand);text-transform:uppercase;margin-bottom:6px">
         SMS LOG
       </div>
-      <h1 class="h2" style="margin-bottom:6px;font-family:var(--font-display)">رسائل التحويل</h1>
-      <p class="body-sm text-2">${S.sms.length} رسالة</p>
+      <h1 class="h2" style="margin-bottom:4px;font-family:var(--font-display)">رسائل التحويل</h1>
+      <p class="body-sm text-2" style="font-size:11.5px">${S.sms.length} رسالة</p>
     </div>
 
     ${S.sms.length ? `
-      <div style="display:flex;flex-direction:column;gap:10px">
+      <div style="display:flex;flex-direction:column;gap:8px">
         ${S.sms.map(s => `
           <div class="card">
-            <div class="flex-between mb-3">
+            <div class="flex-between mb-2">
               <div>
-                <div class="tabular h4" style="font-size:16px;color:var(--sand)">${s.amount_lyd ? esc(lyd(s.amount_lyd)) : '—'}</div>
-                <div class="caption mono" dir="ltr">${esc(s.sender || s.from || '—')}</div>
+                <div class="tabular h4" style="font-size:14px;color:var(--sand)">${s.amount_lyd ? esc(lyd(s.amount_lyd)) : '—'}</div>
+                <div class="caption mono" dir="ltr" style="font-size:10.5px">${esc(s.sender || s.from || '—')}</div>
               </div>
               <span class="badge ${s.status === 'claimed' ? 'badge-success' : s.status === 'untrusted' ? 'badge-error' : 'badge-warning'}">
                 ${s.status === 'claimed' ? 'مربوطة' : s.status === 'untrusted' ? 'مزيّفة' : 'غير مربوطة'}
               </span>
             </div>
-            <div class="caption mb-3">${esc(dt(s.created_at))}</div>
+            <div class="caption mb-2" style="font-size:10.5px">${esc(dt(s.created_at))}</div>
             <div class="copy-box">
-              <div class="copy-value" style="font-size:11.5px">${esc((s.raw_text || '').slice(0, 120))}</div>
+              <div class="copy-value" style="font-size:10.5px">${esc((s.raw_text || '').slice(0, 120))}</div>
             </div>
           </div>
         `).join('')}
@@ -3257,15 +2922,15 @@ function vSettings() {
 
   return `
   <div class="page-enter">
-    <div class="mb-6">
-      <div style="font-family:var(--font-mono);font-size:11px;letter-spacing:0.15em;color:var(--sand);text-transform:uppercase;margin-bottom:8px">
+    <div class="mb-4">
+      <div style="font-family:var(--font-mono);font-size:10px;letter-spacing:0.15em;color:var(--sand);text-transform:uppercase;margin-bottom:6px">
         SETTINGS
       </div>
-      <h1 class="h2" style="margin-bottom:6px;font-family:var(--font-display)">الإعدادات</h1>
-      <p class="body-sm text-2">تحكم كامل في المنصة</p>
+      <h1 class="h2" style="margin-bottom:4px;font-family:var(--font-display)">الإعدادات</h1>
+      <p class="body-sm text-2" style="font-size:11.5px">تحكم كامل في المنصة</p>
     </div>
 
-    <div class="pills mb-5">
+    <div class="pills mb-4">
       ${TABS.map(([k, t]) => `<button class="pill ${S.setTab === k ? 'active' : ''}" data-settab="${esc(k)}">${esc(t)}</button>`).join('')}
     </div>
 
@@ -3279,8 +2944,8 @@ function vSettings() {
 
 function settingsOps(s) {
   return `
-  <div class="card mb-5">
-    <div class="h4" style="margin-bottom:16px">حالة المنصة</div>
+  <div class="card mb-4">
+    <div class="h4" style="margin-bottom:12px;font-size:13px">حالة المنصة</div>
 
     <div class="sw-row">
       <div>
@@ -3290,9 +2955,9 @@ function settingsOps(s) {
       <div class="sw ${s.kill_switch !== true ? 'on' : ''}" data-op="kill_switch" data-inverse="1"></div>
     </div>
 
-    <div class="field" style="grid-template-columns:1fr;padding-top:12px">
+    <div class="field" style="grid-template-columns:1fr;padding-top:10px">
       <div>
-        <div class="sw-lbl" style="margin-bottom:8px">رسالة التوقف</div>
+        <div class="sw-lbl" style="margin-bottom:6px">رسالة التوقف</div>
         <input class="input" data-op="kill_message" value="${esc(s.kill_message || 'الخدمة متوقفة مؤقتًا للصيانة.')}">
       </div>
     </div>
@@ -3304,8 +2969,8 @@ function settingsOps(s) {
 
 function settingsMcard(s) {
   return `
-  <div class="card mb-5">
-    <div class="h4" style="margin-bottom:16px">البطاقات اليدوية</div>
+  <div class="card mb-4">
+    <div class="h4" style="margin-bottom:12px;font-size:13px">البطاقات اليدوية</div>
 
     <div class="sw-row">
       <div>
@@ -3315,23 +2980,23 @@ function settingsMcard(s) {
       <div class="sw ${s.manual_cards_enabled !== false ? 'on' : ''}" data-op="manual_cards_enabled"></div>
     </div>
 
-    <div class="field" style="grid-template-columns:1fr 130px">
+    <div class="field" style="grid-template-columns:1fr 100px">
       <div><div class="sw-lbl">أقل مبلغ ($)</div></div>
       <input class="input" data-op="mc_create_min" type="number" value="${n(s.mc_create_min, 10)}">
     </div>
-    <div class="field" style="grid-template-columns:1fr 130px">
+    <div class="field" style="grid-template-columns:1fr 100px">
       <div><div class="sw-lbl">أقصى مبلغ ($)</div></div>
       <input class="input" data-op="mc_create_max" type="number" value="${n(s.mc_create_max, 500)}">
     </div>
-    <div class="field" style="grid-template-columns:1fr 130px">
+    <div class="field" style="grid-template-columns:1fr 100px">
       <div><div class="sw-lbl">رسوم ثابتة ($)</div></div>
       <input class="input" data-op="mc_create_fee_fixed" type="number" step="0.5" value="${n(s.mc_create_fee_fixed, 8)}">
     </div>
-    <div class="field" style="grid-template-columns:1fr 130px">
+    <div class="field" style="grid-template-columns:1fr 100px">
       <div><div class="sw-lbl">رسوم نسبية (%)</div></div>
       <input class="input" data-op="mc_create_fee_pct" type="number" step="0.1" value="${n(s.mc_create_fee_pct, 2.5)}">
     </div>
-    <div class="field" style="grid-template-columns:1fr 130px">
+    <div class="field" style="grid-template-columns:1fr 100px">
       <div><div class="sw-lbl">مدة العرض (ساعة)</div></div>
       <input class="input" data-op="mc_reveal_hours" type="number" value="${n(s.mc_reveal_hours, 24)}">
     </div>
@@ -3351,8 +3016,8 @@ function settingsPay(s) {
   ];
 
   return `
-  <div class="card mb-5">
-    <div class="h4" style="margin-bottom:16px">طرق الدفع</div>
+  <div class="card mb-4">
+    <div class="h4" style="margin-bottom:12px;font-size:13px">طرق الدفع</div>
 
     ${methods.map(([k, label]) => {
       const on = ['bank', 'usdt', 'binance'].includes(k)
@@ -3369,23 +3034,23 @@ function settingsPay(s) {
     }).join('')}
   </div>
 
-  <div class="card mb-5">
-    <div class="h4" style="margin-bottom:16px">أرقام التحويل</div>
+  <div class="card mb-4">
+    <div class="h4" style="margin-bottom:12px;font-size:13px">أرقام التحويل</div>
     <div class="field" style="grid-template-columns:1fr">
       <div>
-        <div class="sw-lbl" style="margin-bottom:8px">رقم ليبيانا</div>
+        <div class="sw-lbl" style="margin-bottom:6px">رقم ليبيانا</div>
         <input class="input mono" data-op="m_libyana_phone" dir="ltr" value="${esc(s.m_libyana_phone || s.deposit_phone || '')}">
       </div>
     </div>
     <div class="field" style="grid-template-columns:1fr">
       <div>
-        <div class="sw-lbl" style="margin-bottom:8px">رقم المدار</div>
+        <div class="sw-lbl" style="margin-bottom:6px">رقم المدار</div>
         <input class="input mono" data-op="m_almadar_phone" dir="ltr" value="${esc(s.m_almadar_phone || s.deposit_phone || '')}">
       </div>
     </div>
     <div class="field" style="grid-template-columns:1fr">
       <div>
-        <div class="sw-lbl" style="margin-bottom:8px">عنوان USDT TRC20</div>
+        <div class="sw-lbl" style="margin-bottom:6px">عنوان USDT TRC20</div>
         <input class="input mono" data-op="usdt_address" dir="ltr" value="${esc(s.usdt_address || '')}">
       </div>
     </div>
@@ -3397,8 +3062,8 @@ function settingsPay(s) {
 
 function settingsLimits(s) {
   return `
-  <div class="card mb-5">
-    <div class="h4" style="margin-bottom:16px">الحدود اليومية</div>
+  <div class="card mb-4">
+    <div class="h4" style="margin-bottom:12px;font-size:13px">الحدود اليومية</div>
 
     <div class="sw-row">
       <div>
@@ -3407,15 +3072,15 @@ function settingsLimits(s) {
       <div class="sw ${s.limits_enabled !== false ? 'on' : ''}" data-op="limits_enabled"></div>
     </div>
 
-    <div class="field" style="grid-template-columns:1fr 130px">
+    <div class="field" style="grid-template-columns:1fr 100px">
       <div><div class="sw-lbl">بطاقات لكل عميل</div></div>
       <input class="input" data-op="daily_cards_max" type="number" value="${n(s.daily_cards_max, 3)}">
     </div>
-    <div class="field" style="grid-template-columns:1fr 130px">
+    <div class="field" style="grid-template-columns:1fr 100px">
       <div><div class="sw-lbl">قيمة يومية ($)</div></div>
       <input class="input" data-op="daily_amount_max" type="number" value="${n(s.daily_amount_max, 200)}">
     </div>
-    <div class="field" style="grid-template-columns:1fr 130px">
+    <div class="field" style="grid-template-columns:1fr 100px">
       <div><div class="sw-lbl">إيداع يومي ($)</div></div>
       <input class="input" data-op="daily_deposit_max" type="number" value="${n(s.daily_deposit_max, 500)}">
     </div>
@@ -3498,15 +3163,14 @@ function bind() {
     b.onclick = () => {
       const svc = S.services.find(x => x.id === b.dataset.delSvc);
       if (!svc) return;
-      window._lastFocused = document.activeElement;
       modal(`
         <div class="modal-head">
           <div class="modal-title">حذف الخدمة</div>
           <button class="modal-close" onclick="closeModal()" aria-label="إغلاق">${svg(I.x, 2)}</button>
         </div>
-        <div class="alert alert-warning mb-4">${svg(I.warn)}<div>سيتم حذف "<strong>${esc(svc.name)}</strong>" نهائياً.</div></div>
+        <div class="alert alert-warning mb-3" style="font-size:11.5px">${svg(I.warn)}<div>سيتم حذف "<strong>${esc(svc.name)}</strong>" نهائياً.</div></div>
         <button class="btn btn-danger btn-block" id="delConfirm2">تأكيد الحذف</button>
-        <button class="btn btn-secondary btn-block" style="margin-top:8px" onclick="closeModal()">إلغاء</button>
+        <button class="btn btn-secondary btn-block" style="margin-top:6px" onclick="closeModal()">إلغاء</button>
       `);
       onTap('#delConfirm2', async () => {
         try {
@@ -3629,15 +3293,14 @@ async function delStockCode(itemId) {
 
 /* ═══ Logout ═══ */
 onTap('#logoutBtn', () => {
-  window._lastFocused = document.activeElement;
   modal(`
     <div class="modal-head">
       <div class="modal-title">تسجيل الخروج</div>
       <button class="modal-close" onclick="closeModal()" aria-label="إغلاق">${svg(I.x, 2)}</button>
     </div>
-    <p class="body-sm text-2 mb-5">هل أنت متأكد؟</p>
+    <p class="body-sm text-2 mb-4" style="font-size:12px">هل أنت متأكد؟</p>
     <button class="btn btn-primary btn-block" id="doOut">تأكيد الخروج</button>
-    <button class="btn btn-secondary btn-block" style="margin-top:8px" onclick="closeModal()">إلغاء</button>
+    <button class="btn btn-secondary btn-block" style="margin-top:6px" onclick="closeModal()">إلغاء</button>
   `);
   onTap('#doOut', () => { closeModal(); signOut(auth); });
 });
