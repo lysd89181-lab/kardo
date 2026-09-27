@@ -1,15 +1,18 @@
 name = "kardo"
 main = "worker.js"
 compatibility_date = "2024-01-01"
+keep_vars = true
 
 [observability]
 enabled = true
 head_sampling_rate = 1
 
 [triggers]
-# كل 5 دقائق: حذف CVV المنتهي. المهام الساعية تعمل في أول 5 دقائق من كل ساعة.
 crons = ["*/5 * * * *"]
 
 [vars]
-APP_CHECK_MODE = "off"            # off → monitor → enforce
+APP_CHECK_MODE = "off"
 FIREBASE_PROJECT_NUMBER = "593934928630"
+MAIL_FROM = "Kardo <no-reply@kardo.ly>"
+SITE_URL = "https://kardo.ly"
+ALLOWED_ORIGIN = "https://kardo.ly,https://www.kardo.ly"
