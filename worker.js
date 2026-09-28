@@ -89,6 +89,11 @@ export default {
     if (request.method === 'OPTIONS') return new Response(null, { status: 204, headers: corsHeaders(origin) });
     const url = new URL(request.url);
     const path = url.pathname.replace(/\/+$/, '');
+    if (request.method === 'GET') {
+      const im = /^\/img\/([pcmb])\/([A-Za-z0-9_-]{1,60})$/.exec(path);
+      if (im) { try { return await handleImage(request, env, ctx, im[1], decodeURIComponent(im[2])); } catch { return new Response('Error', { status: 500 }); } }
+      if (path === '/sitemap.xml') { try { return await handleSitemap(env); } catch { return new Response('Error', { status: 500 }); } }
+    }
     try {
       const result = await route(path, request, url, env);
       ctx.waitUntil(Promise.allSettled(drainBackground()));
@@ -340,7 +345,7 @@ async function handleStatus(env) {
     max_deposit_lyd: num(s.max_deposit_lyd, 5000),
     deposit_note: s.deposit_note || '',
     method_order: s.method_order || 'libyana,almadar,usdt,bank,binance',
-    banners: cleanBanners(s.banners),
+    banners: cleanBanners(s.banners).map((b, i) => ({ ...b, img: imgRef(env, 'b', String(i), b.img) })),
     subscriptions_visible: s.subscriptions_visible !== false,
     manual_cards: {
       on: s.manual_cards_enabled !== false,
@@ -408,12 +413,12 @@ async function handleStatus(env) {
       support_url: s.support_url || '',
     },
     methods: {
-      libyana: { on: s.m_libyana_on !== false, logo: s.m_libyana_logo || '', label: s.m_libyana_label || 'ليبيانا', phone: s.m_libyana_phone || s.deposit_phone || '', rate: num(s.rate_libyana, 11.8), auto: true, mode: (s.m_libyana_mode || s.deposit_mode) === 'manual' ? 'manual' : 'auto' },
-      almadar: { on: s.m_almadar_on !== false, logo: s.m_almadar_logo || '', label: s.m_almadar_label || 'المدار', phone: s.m_almadar_phone || s.deposit_phone || '', rate: num(s.rate_almadar, 12.5), auto: true, mode: (s.m_almadar_mode || s.deposit_mode) === 'manual' ? 'manual' : 'auto' },
-      bank:    { on: s.m_bank_on === true, logo: s.m_bank_logo || '', label: s.m_bank_label || 'تحويل مصرفي', rate: num(s.rate_bank, 9.5), auto: false, receipt: s.m_bank_receipt !== false, fields: cleanFields(s.m_bank_fields) },
-      usdt:    { on: s.m_usdt_on === true, logo: s.m_usdt_logo || '', label: s.m_usdt_label || 'USDT', rate: num(s.rate_usdt, 1), auto: true, invoice: true, address: s.usdt_address || '', min: num(s.usdt_min, 5), max: num(s.usdt_max, 1000), window_min: num(s.usdt_window_min, 30), fields: cleanFields(s.m_usdt_fields) },
-      binance: { on: s.m_binance_on === true, logo: s.m_binance_logo || '', label: s.m_binance_label || 'Binance Pay', rate: num(s.rate_usdt, 1), auto: false, receipt: s.m_binance_receipt !== false, fields: cleanFields(s.m_binance_fields) },
-      ...cleanCustomMethods(s.custom_methods),
+      libyana: { on: s.m_libyana_on !== false, logo: imgRef(env, 'm', 'libyana', s.m_libyana_logo), label: s.m_libyana_label || 'ليبيانا', phone: s.m_libyana_phone || s.deposit_phone || '', rate: num(s.rate_libyana, 11.8), auto: true, mode: (s.m_libyana_mode || s.deposit_mode) === 'manual' ? 'manual' : 'auto' },
+      almadar: { on: s.m_almadar_on !== false, logo: imgRef(env, 'm', 'almadar', s.m_almadar_logo), label: s.m_almadar_label || 'المدار', phone: s.m_almadar_phone || s.deposit_phone || '', rate: num(s.rate_almadar, 12.5), auto: true, mode: (s.m_almadar_mode || s.deposit_mode) === 'manual' ? 'manual' : 'auto' },
+      bank:    { on: s.m_bank_on === true, logo: imgRef(env, 'm', 'bank', s.m_bank_logo), label: s.m_bank_label || 'تحويل مصرفي', rate: num(s.rate_bank, 9.5), auto: false, receipt: s.m_bank_receipt !== false, fields: cleanFields(s.m_bank_fields) },
+      usdt:    { on: s.m_usdt_on === true, logo: imgRef(env, 'm', 'usdt', s.m_usdt_logo), label: s.m_usdt_label || 'USDT', rate: num(s.rate_usdt, 1), auto: true, invoice: true, address: s.usdt_address || '', min: num(s.usdt_min, 5), max: num(s.usdt_max, 1000), window_min: num(s.usdt_window_min, 30), fields: cleanFields(s.m_usdt_fields) },
+      binance: { on: s.m_binance_on === true, logo: imgRef(env, 'm', 'binance', s.m_binance_logo), label: s.m_binance_label || 'Binance Pay', rate: num(s.rate_usdt, 1), auto: false, receipt: s.m_binance_receipt !== false, fields: cleanFields(s.m_binance_fields) },
+      ...Object.fromEntries(Object.entries(cleanCustomMethods(s.custom_methods)).map(([k, v]) => [k, { ...v, logo: imgRef(env, 'm', k, v.logo) }])),
     },
     maintenance_message: s.maintenance_message || '',
     deposit_mode: s.deposit_mode === 'manual' ? 'manual' : 'auto',
@@ -751,7 +756,7 @@ async function handleCatalog(env) {
     .sort((a, b) => num(a.sort, 99) - num(b.sort, 99))
     .map(c => ({
       id: c._id, name: c.name || '', parent: c.parent || '',
-      icon: c.icon || '', image: c.image || '',
+      icon: c.icon || '', image: imgRef(env, 'c', c._id, c.image),
       soon: c.soon === true, sort: num(c.sort, 99),
     }));
 
@@ -764,7 +769,7 @@ async function handleCatalog(env) {
       const inStock = p.kind === 'stock' ? num(p.stock_count, 0) > 0 : true;
       return {
         id: p._id, cat: p.cat || '', name: p.name || '',
-        desc: p.desc || '', image: p.image || '',
+        desc: p.desc || '', image: imgRef(env, 'p', p._id, p.image),
         price: pr ? pr.price : round2(num(p.price, 0)),
         old_price: pr ? round2(num(p.price, 0)) : round2(num(p.old_price, 0)),
         featured: p.featured === true,
@@ -3012,7 +3017,11 @@ async function handleTicketReply(user, body, env) {
     msgs.push({ by: asStaff ? 'admin' : 'user', text: msg, at: nowIso() });
     tx.update(`tickets/${id}`, { messages: msgs.slice(-40), status: asStaff ? 'answered' : 'open', updated_at: nowIso() });
   });
-  if (asStaff) await logOp(env, user.uid, 'ticket.reply', { id }, {}, true);
+  if (asStaff) {
+    await logOp(env, user.uid, 'ticket.reply', { id }, {}, true);
+    const t = await fsGet(env, `tickets/${id}`);
+    if (t && t.uid) notify(env, t.uid, 'ticket_reply', { subject: t.subject || '', link: `ticket:${id}`, preview: msg.slice(0, 140) });
+  }
   return { success: true };
 }
 
@@ -3729,6 +3738,7 @@ const MAIL = {
   order_placed: (v) => ['تم الشراء ✓', [`تم شراء <b>${escHtml(v.name)}</b> بقيمة <b>${escHtml(v.amount)}</b>.`, v.instant ? 'الكود جاهز في «طلباتي».' : 'سيُنفَّذ طلبك يدويًا ونُعلمك فور اكتماله.'], 'عرض طلباتي'],
   card_requested: (v) => ['وصل طلب البطاقة', [`طلبك لإصدار بطاقة بقيمة <b>$${escHtml(v.amount)}</b> قيد التنفيذ. سنُعلمك فور إصدارها.`], 'فتح كاردو'],
   deposit_pending: (v) => ['وصل طلب الإيداع', [`طلب إيداع <b>${escHtml(v.amount)}</b> عبر ${escHtml(v.method)} قيد المراجعة.`], 'فتح كاردو'],
+  ticket_reply: (v) => ['ردّ فريق الدعم على تذكرتك 💬', [`تذكرتك «<b>${escHtml(v.subject)}</b>» وصلها رد جديد:`, `<i>${escHtml(v.preview)}</i>`, 'افتح كاردو ← الدعم لقراءة الرد كاملًا والرد عليه.'], 'عرض الرد'],
   transfer_in: (v) => ['وصلك تحويل', [`استلمت <b>$${escHtml(v.amount)}</b> من مستخدم في كاردو.`], 'فتح المحفظة'],
 };
 
@@ -3856,7 +3866,7 @@ async function pushInApp(env, uid, kind, vars) {
   const id = `N${Date.now()}${randomSuffix(6)}`;
   await fsCommit(env, [{
     update: { name: docPath(env, `notifications/${id}`), fields: toFsFields({
-      uid, kind, title: stripHtml(title).slice(0, 120),
+      uid, kind, title: stripHtml(title).slice(0, 120), link: String(vars.link || '').slice(0, 80),
       body: lines.filter(Boolean).map(stripHtml).join(' ').slice(0, 400),
       read: false, created_at: nowIso(),
     }) },
@@ -3915,4 +3925,63 @@ async function handleAdminBackup(user, body, env) {
   }
   await logOp(env, staff.uid, 'system.backup', {}, { counts }, true);
   return { success: true, project: env.FIREBASE_PROJECT_ID, exported_at: nowIso(), note: 'البيانات الحساسة تبقى مشفّرة داخل النسخة', counts, data: out };
+}
+
+/* ═══════════════════════════════════════════════════════════
+   v10 — صور عبر رابط (بدل base64 داخل JSON) + Sitemap
+   ═══════════════════════════════════════════════════════════ */
+const API_ORIGIN_DEFAULT = 'https://kardo.sdkhyrallh08.workers.dev';
+function apiOrigin(env) { return String(env.API_ORIGIN || API_ORIGIN_DEFAULT).replace(/\/+$/, ''); }
+function strHash(s) { let h = 5381; for (let i = 0; i < s.length; i += 7) h = ((h << 5) + h + s.charCodeAt(i)) | 0; return (h >>> 0).toString(36) + s.length.toString(36); }
+
+// data:image → رابط قابل للتخزين المؤقت؛ الروابط الخارجية تبقى كما هي
+function imgRef(env, kind, id, data) {
+  const v = String(data || '');
+  if (!v) return '';
+  if (!v.startsWith('data:')) return v;
+  return `${apiOrigin(env)}/img/${kind}/${encodeURIComponent(id)}?v=${strHash(v)}`;
+}
+
+async function loadImageData(env, kind, id) {
+  if (kind === 'p') return (await fsGet(env, `products/${id}`) || {}).image;
+  if (kind === 'c') return (await fsGet(env, `categories/${id}`) || {}).image;
+  if (kind === 'm' || kind === 'b') {
+    const s = await getSettings(env);
+    if (kind === 'b') { const b = (s.banners || [])[Number(id)]; return b && (b.img || b.image); }
+    if (/^[a-z]+$/.test(id) && s[`m_${id}_logo`]) return s[`m_${id}_logo`];
+    const cm = cleanCustomMethods(s.custom_methods)[id];
+    return cm && cm.logo;
+  }
+  return '';
+}
+
+async function handleImage(request, env, ctx, kind, id) {
+  const cache = caches.default;
+  const hit = await cache.match(request);
+  if (hit) return hit;
+  const data = String(await loadImageData(env, kind, id) || '');
+  const m = /^data:(image\/(?:png|jpeg|webp|gif|svg\+xml));base64,([A-Za-z0-9+/=]+)$/.exec(data);
+  if (!m) return new Response('Not found', { status: 404, headers: { 'cache-control': 'public, max-age=60' } });
+  const bin = Uint8Array.from(atob(m[2]), c => c.charCodeAt(0));
+  const res = new Response(bin, { headers: {
+    'content-type': m[1], 'cache-control': 'public, max-age=31536000, immutable',
+    'x-content-type-options': 'nosniff', 'access-control-allow-origin': '*',
+    ...(m[1] === 'image/svg+xml' ? { 'content-security-policy': "default-src 'none'; style-src 'unsafe-inline'" } : {}),
+  } });
+  ctx.waitUntil(cache.put(request, res.clone()));
+  return res;
+}
+
+async function handleSitemap(env) {
+  const site = siteUrl(env);
+  const cat = await handleCatalog(env);
+  const today = new Date().toISOString().slice(0, 10);
+  const urls = [
+    [`${site}/`, '1.0'], [`${site}/visa-libya.html`, '0.9'], [`${site}/terms.html`, '0.3'],
+    ...cat.products.map(p => [`${site}/product.html?id=${encodeURIComponent(p.id)}`, '0.8']),
+  ];
+  const xml = `<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n` +
+    urls.map(([u, pr]) => `  <url><loc>${escHtml(u)}</loc><lastmod>${today}</lastmod><priority>${pr}</priority></url>`).join('\n') +
+    `\n</urlset>\n`;
+  return new Response(xml, { headers: { 'content-type': 'application/xml; charset=utf-8', 'cache-control': 'public, max-age=3600' } });
 }
