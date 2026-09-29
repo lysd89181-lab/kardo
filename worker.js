@@ -63,7 +63,7 @@ const DEFAULT_SETTINGS = {
   m_libyana_mode: '', m_almadar_mode: '', m_bank_receipt: true, m_binance_receipt: true,
   require_email_verify: true,
   plans_enabled: true, plan_free_cards: 1, plan_basic_cards: 3, plan_premium_cards: 6, plan_vip_cards: 0,
-  plan_premium_price: 10, plan_premium_days: 30, card_warning: '', otp_fee_usd: 0.30,
+  plan_premium_price: 10, plan_premium_days: 30, card_warning: '', otp_fee_usd: 0.03,
   plan_basic_price: 5, plan_basic_days: 30, plan_vip_price: 15, plan_vip_days: 30,
 };
 
@@ -365,7 +365,7 @@ async function handleStatus(env) {
       reveal_hours: num(s.mc_reveal_hours, 24),
       cvv_minutes: num(s.mc_cvv_minutes, 5),
       warning: String(s.card_warning || '').slice(0, 2000),
-      otp_fee: num(s.otp_fee_usd, 0.30),
+      otp_fee: num(s.otp_fee_usd, 0.03),
     },
     withdraw: {
       on: s.withdraw_enabled === true,
