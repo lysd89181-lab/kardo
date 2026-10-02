@@ -90,7 +90,7 @@ export default {
     const url = new URL(request.url);
     const path = url.pathname.replace(/\/+$/, '');
     if (request.method === 'GET') {
-      const im = /^\/img\/([pcmbslvxy])\/([A-Za-z0-9_-]{1,60})$/.exec(path);
+      const im = /^\/img\/([pcmbslvxyg])\/([A-Za-z0-9_-]{1,60})$/.exec(path);
       if (im) { try { return await handleImage(request, env, ctx, im[1], decodeURIComponent(im[2])); } catch { return new Response('Error', { status: 500 }); } }
       if (path === '/sitemap.xml') {
         try {
@@ -141,7 +141,7 @@ export default {
 
 async function route(path, request, url, env) {
   if (request.method === 'GET') {
-    const h = { '/api/status': handleStatus, '/api/catalog': handleCatalog, '/api/services/list': handleServicesList, '/api/merchants/list': handleMerchantsList }[path];
+    const h = { '/api/status': handleStatus, '/api/catalog': handleCatalog, '/api/services/list': handleServicesList, '/api/merchants/list': handleMerchantsList, '/api/platforms': handlePlatformsList }[path];
     if (!h) throw httpError(404, 'المسار غير موجود');
     const hit = _pubCache.get(path);
     if (hit && hit.exp > Date.now()) return hit.v;
@@ -196,6 +196,8 @@ async function route(path, request, url, env) {
     case '/api/admin/merchant/promo':  return handleAdminMerchantPromo(user, body, env);
     case '/api/admin/merchant/statement/pay': return handleAdminStatementPay(user, body, env);
     case '/api/m/apply':               return handleMerchantApply(user, body, env);
+    case '/api/admin/platform/save':   return handleAdminPlatformSave(user, body, env);
+    case '/api/admin/platform/delete': return handleAdminPlatformDelete(user, body, env);
     case '/api/m/section/save':        return handleMerchantSectionSave(user, body, env);
     case '/api/m/section/delete':      return handleMerchantSectionDelete(user, body, env);
     case '/api/m/chat':                return handleMerchantChat(user, body, env);
@@ -4047,7 +4049,7 @@ const BACKUP_COLLECTIONS = [
   'manual_cards', 'manual_card_orders', 'manual_card_reveal', 'card_cvv_once',
   'orders', 'service_orders', 'products', 'categories', 'stock', 'services', 'service_stock',
   'coupons', 'coupon_uses', 'tickets', 'notifications', 'plan_orders', 'sms_transactions',
-  'phone_bindings', 'usdt_invoices', 'usdt_txids', 'ref_codes', 'audit_log', 'settings', 'stickers', 'merchants', 'merchant_services', 'merchant_stock', 'merchant_orders', 'merchant_reports', 'merchant_reviews', 'merchant_applications', 'merchant_statements', 'merchant_sections', 'merchant_chats',
+  'phone_bindings', 'usdt_invoices', 'usdt_txids', 'ref_codes', 'audit_log', 'settings', 'stickers', 'merchants', 'merchant_services', 'merchant_stock', 'merchant_orders', 'merchant_reports', 'merchant_reviews', 'merchant_applications', 'merchant_statements', 'merchant_sections', 'merchant_chats', 'platforms',
 ];
 
 async function fsQueryStrict(env, structuredQuery) {
@@ -4101,6 +4103,7 @@ async function loadImageData(env, kind, id) {
   if (kind === 'v') return (await fsGet(env, `merchants/${id}`) || {}).cover;
   if (kind === 'x') return (await fsGet(env, `merchant_services/${id}`) || {}).image;
   if (kind === 'y') return (await fsGet(env, `merchant_sections/${id}`) || {}).image;
+  if (kind === 'g') return (await fsGet(env, `platforms/${id}`) || {}).image;
   if (kind === 'm' || kind === 'b') {
     const s = await getSettings(env);
     if (kind === 'b') { const b = (s.banners || [])[Number(id)]; return b && (b.img || b.image); }
@@ -5098,5 +5101,50 @@ async function handleMerchantChatRead(user, body, env) {
   if (!c) throw httpError(404, 'المحادثة غير موجودة');
   if (c.uid === user.uid) await fsPatch(env, `merchant_chats/${id}`, { unread_c: 0 });
   else if (c.merchant_owner === user.uid) await fsPatch(env, `merchant_chats/${id}`, { unread_m: 0 });
+  return { success: true };
+}
+
+
+/* ═══ v22 — منصات الاستخدام («أين تستخدم بطاقتك؟») ═══ */
+async function handlePlatformsList(env) {
+  const rows = await fsQueryStrict(env, { from: [{ collectionId: 'platforms' }], limit: 60 });
+  const list = rows.map(r => withId(r, 'platforms')).filter(p => p.active !== false && p.image)
+    .sort((a, b) => num(a.order, 0) - num(b.order, 0))
+    .map(p => ({ id: p._id, name: String(p.name || '').slice(0, 30), image: imgRef(env, 'g', p._id, p.image) }));
+  return { success: true, platforms: list };
+}
+async function handleAdminPlatformSave(user, body, env) {
+  const staff = await requirePermission(user, env, 'stickers.edit');
+  const name = String(body.name || '').replace(/[<>]/g, '').trim().slice(0, 30);
+  if (name.length < 2) throw httpError(400, 'اكتب اسم المنصة');
+  const data = { name, order: Math.max(0, Math.min(999, Math.floor(num(body.order, 0)))), active: body.active !== false, updated_at: nowIso(), updated_by: staff.uid };
+  if ('image' in body) {
+    const img = String(body.image || '');
+    if (img && !/^data:image\/(png|jpeg|webp);base64,/.test(img)) throw httpError(400, 'صورة غير صالحة (PNG أو JPG أو WebP)');
+    data.image = cleanImg(img, 150000);
+  }
+  let id = String(body.id || '');
+  if (id) {
+    const cur = await fsGet(env, `platforms/${id}`);
+    if (!cur) throw httpError(404, 'المنصة غير موجودة');
+    await fsPatch(env, `platforms/${id}`, data);
+  } else {
+    if (!data.image) throw httpError(400, 'ارفع صورة المنصة');
+    const cnt = await fsQueryStrict(env, { from: [{ collectionId: 'platforms' }], limit: 61 });
+    if (cnt.length >= 60) throw httpError(400, 'الحد 60 منصة');
+    id = `PL${Date.now()}${randomSuffix(4)}`;
+    await fsSet(env, `platforms/${id}`, { ...data, created_at: nowIso() });
+  }
+  await logOp(env, staff.uid, 'platform.save', { id }, {}, true);
+  _pubCache.clear();
+  return { success: true, id };
+}
+async function handleAdminPlatformDelete(user, body, env) {
+  const staff = await requirePermission(user, env, 'stickers.edit');
+  const id = String(body.id || '');
+  if (!(await fsGet(env, `platforms/${id}`))) throw httpError(404, 'المنصة غير موجودة');
+  await fsDelete(env, `platforms/${id}`);
+  await logOp(env, staff.uid, 'platform.delete', { id }, {}, true);
+  _pubCache.clear();
   return { success: true };
 }
