@@ -2443,8 +2443,8 @@ async function handleAdminCardFulfil(user, body, env) {
   });
 
   await logOp(env, staff.uid, 'card.fulfil', { id }, { cardId }, true);
-  if (rewardOut.inviter) notify(env, rewardOut.inviter, 'referral_reward', { amount: rewardOut.inviterAmt.toFixed(2), link: 'referral' });
-  if (rewardOut.invitee > 0) notify(env, o0.uid, 'referral_welcome', { amount: rewardOut.invitee.toFixed(2) });
+  if (rewardOut && rewardOut.inviter) notify(env, rewardOut.inviter, 'referral_reward', { amount: rewardOut.inviterAmt.toFixed(2), invited_uid: o0.uid });
+  if (rewardOut && rewardOut.invitee > 0) notify(env, o0.uid, 'referral_welcome', { amount: rewardOut.invitee.toFixed(2) });
   if (isCreate) notify(env, o0.uid, 'card_issued', { card_name: o0.card_name || 'بطاقتي', amount: num(o0.amount, 0).toFixed(2), cvv_min: Math.round(cvvMs / 60000) });
   else notify(env, o0.uid, 'card_topup', { card_name: o0.card_name || '', amount: num(o0.amount, 0).toFixed(2) });
   return { success: true, card_id: cardId, expires_at: expiresAt, cvv_window_min: Math.round(cvvMs / 60000) };
