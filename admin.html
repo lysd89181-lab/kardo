@@ -651,6 +651,29 @@ textarea.input {
   .admin-kpi-value { font-size: 13px; }
   .admin-kpi-label { font-size: 8px; }
 }
+   
+/* ✅ إصلاح مفاتيح التبديل على الجوال */
+@media (max-width: 768px) {
+  .sw-row {
+    display: flex !important;
+    flex-direction: column !important;
+    align-items: flex-start !important;
+    gap: 12px !important;
+    padding: 12px 0 !important;
+  }
+  .sw-row > div:first-child {
+    width: 100% !important;
+  }
+  .sw-row .sw {
+    margin-top: 4px !important;
+    align-self: flex-start !important;
+  }
+  .field[style*="grid-template-columns:1fr 150px"],
+  .field[style*="grid-template-columns:1fr 100px"] {
+    grid-template-columns: 1fr !important;
+    gap: 8px !important;
+  }
+}
 </style>
 </head>
 <body>
