@@ -2421,7 +2421,6 @@ async function handleAdminCardFulfil(user, body, env) {
     if (!o) throw httpError(404, 'الطلب غير موجود');
     if (o.status !== 'pending') throw httpError(409, 'الطلب مُغلق بالفعل');
     let rewardOut = null;   // ← أضف هذا السطر
-if (o.kind === 'create') rewardOut = await referralRewardTx(tx, s, { ...o, id });
     if (o.kind === 'create') rewardOut = await referralRewardTx(tx, s, { ...o, id });
     if (o.kind === 'create') {
       tx.create('manual_cards', cardId, {
