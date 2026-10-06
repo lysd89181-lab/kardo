@@ -19,3 +19,7 @@ ALLOWED_ORIGIN = "https://kardo.ly,https://www.kardo.ly"
 [[kv_namespaces]]
 binding = "KV"
 id = "d77dfcd17a0141fc8ba82e437c093e45"
+[[d1_databases]]
+binding = "DB"
+database_name = "kardo-db"
+database_id = "93e64af1-5b61-41b9-9dfc-2aaa9c0bfc50"
