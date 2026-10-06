@@ -1,5 +1,5 @@
 /* KARDO service worker — ملفات الموقع فقط، لا يلمس الـ API ولا البيانات */
-const V = 'kardo-v35';
+const V = 'kardo-v36';
 const CORE = ['./', './index.html', './app.js', './config.js', './styles.css', './theme-desert.css', './kardo-v8.css', './kardo-v9.css', './icon-192.png',
   './fennec-welcome.webp', './fennec-success.webp', './fennec-empty.webp', './fennec-card.webp', './fennec-wait.webp', './fennec-error.webp'];
 

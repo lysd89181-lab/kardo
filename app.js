@@ -116,20 +116,25 @@ async function kdbTick(force) {
   const due = [..._kdbSubs.values()].filter(s => force || s.due <= now).slice(0, 25);
   if (!due.length) return;
   _kdbBusy = true;
+  // الوثائق (مثل ملف المستخدم والرصيد) في طلب مستقل أولًا — لا تسقط أبدًا بسبب قائمة ثقيلة
+  const groups = [due.filter(s => s.ref._k === 'd'), due.filter(s => s.ref._k !== 'd')].filter(g => g.length);
   try {
-    const subs = due.map(s => ({ k: s.id, ...(s.h ? { h: s.h } : {}), ...(s.ref._k === 'd' ? { d: { c: s.ref.c, id: s.ref.id } } : { q: s.ref.q }) }));
-    const r = await api('/api/db/batch', { subs });
-    for (const s of due) {
-      s.due = Date.now() + s.every;
-      const x = r.res && r.res[s.id];
-      if (!x || !_kdbSubs.has(s.id)) continue;
-      if (x.error) { if (s.err) { try { s.err({ code: x.status === 403 ? 'permission-denied' : 'unavailable', message: x.error }); } catch {} } continue; }
-      if (x.same) continue;
-      s.h = x.h || null;
-      try { s.next(s.ref._k === 'd' ? kdbDocSnap(s.ref, x) : kdbQuerySnap(x.docs)); } catch (e) { console.warn('snapshot handler:', e); }
+    for (const grp of groups) {
+      try {
+        const subs = grp.map(s => ({ k: s.id, ...(s.h ? { h: s.h } : {}), ...(s.ref._k === 'd' ? { d: { c: s.ref.c, id: s.ref.id } } : { q: s.ref.q }) }));
+        const r = await api('/api/db/batch', { subs });
+        for (const s of grp) {
+          s.due = Date.now() + s.every;
+          const x = r.res && r.res[s.id];
+          if (!x || !_kdbSubs.has(s.id)) continue;
+          if (x.error) { if (s.err) { try { s.err({ code: x.status === 403 ? 'permission-denied' : 'unavailable', message: x.error }); } catch {} } continue; }
+          if (x.same) continue;
+          s.h = x.h || null;
+          try { s.next(s.ref._k === 'd' ? kdbDocSnap(s.ref, x) : kdbQuerySnap(x.docs)); } catch (e) { console.warn('snapshot handler:', e); }
+        }
+      } catch (e) { console.warn('kdb:', e.message); grp.forEach(s => { s.due = Date.now() + 15000; }); }
     }
-  } catch (e) { console.warn('kdb:', e.message); due.forEach(s => { s.due = Date.now() + 20000; }); }
-  finally { _kdbBusy = false; if (_kdbAgain) { _kdbAgain = false; kdbSoon(300); } }
+  } finally { _kdbBusy = false; if (_kdbAgain) { _kdbAgain = false; kdbSoon(300); } }
 }
 if (KDB) {
   setInterval(() => kdbTick(false), 15000);

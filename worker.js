@@ -3537,8 +3537,10 @@ function corsHeaders(origin) {
   };
 }
 
+// v35: رد جاهز كنص JSON (البيانات تخرج من D1 كما هي — بلا تحليل/إعادة بناء يستهلك المعالج)
+class RawJson { constructor(s) { this.s = s; } }
 function json(data, status, origin) {
-  return new Response(JSON.stringify(data), {
+  return new Response(data instanceof RawJson ? data.s : JSON.stringify(data), {
     status,
     headers: {
       'content-type': 'application/json; charset=utf-8',
@@ -4749,7 +4751,7 @@ async function merchantMeInner(user, body, env) {
     contacts: cleanContacts(m.contacts), pay_methods: m.pay_methods || [], status: m.status, active: M_ACTIVE(m),
     sub_expires_ms: num(m.sub_expires_ms, 0), sub_price: num(m.sub_price, 0), orders_done: num(m.orders_done, 0),
     rating: num(m.rating_count, 0) ? round2(num(m.rating_sum, 0) / num(m.rating_count, 1)) : 0,
-  }, services: sv.map(r => withId(r, 'merchant_services')).map(s => ({
+  }, services: sv.map(r => r.__snap ? r : withId(r, 'merchant_services')).map(s => ({   // v35: عناصر اللقطة جاهزة (كانت تنهار هنا)
     id: s._id, name: s.name, desc: s.desc || '', price: num(s.price, 0), image: s.image || '', active: s.active !== false,
     delivery: s.delivery === 'stock' ? 'stock' : 'manual', stock: num(s.stock_count, 0), fields: s.fields || [],
     eta: s.eta || '', section: s.section || '', old_price: num(s.old_price, 0), section_id: s.section_id || '', prices: s.prices || {},
@@ -6446,7 +6448,7 @@ function d1Where(f, args) {
   }
   throw d1Unsupported('filter');
 }
-function d1BuildQuery(coll, sq, countOnly) {
+function d1BuildQuery(coll, sq, countOnly, sel) {
   if (!sq || !Array.isArray(sq.from) || sq.from.length !== 1 || sq.from[0].collectionId !== coll || sq.from[0].allDescendants) throw d1Unsupported('from');
   const args = [], conds = [];
   const w = d1Where(sq.where, args); if (w) conds.push(w);
@@ -6476,7 +6478,7 @@ function d1BuildQuery(coll, sq, countOnly) {
   }
   const where = conds.length ? ' WHERE ' + conds.join(' AND ') : '';
   if (countOnly) return { sql: `SELECT count(*) AS n FROM "${coll}"${where}`, args };
-  let sql = `SELECT id, data, ts, rev FROM "${coll}"${where} ORDER BY ` + orderParts.map(p => p.sql).join(', ');
+  let sql = `SELECT ${sel || 'id, data, ts, rev'} FROM "${coll}"${where} ORDER BY ` + orderParts.map(p => p.sql).join(', ');
   orderParts.forEach(p => args.push(...p.args));
   const lim = sq.limit && typeof sq.limit === 'object' ? sq.limit.value : sq.limit;
   sql += ' LIMIT ?'; args.push(lim ? Math.max(1, Math.floor(num(lim, 1000))) : 10000);
@@ -6700,17 +6702,17 @@ async function d1Cron(env, scheduledTime) {
 /* ─── واجهات المتصفح: الإشعارات والمحادثات (تحديث خفيف) ─── */
 function d1Rows(rows) { return rows.map(r => { let d = {}; try { d = JSON.parse(r.data); } catch {} return { id: r.id, ...d }; }); }
 function fsRowsPlain(rows, coll) { return rows.map(r => { const d = withId(r, coll); d.id = d._id; delete d._id; return d; }); }
-function syncReply(list, rowsTs, since, n) {
-  const ts = rowsTs.reduce((a, x) => Math.max(a, num(x, 0)), 0);
-  if (since && ts && ts <= since && n === list.length) return { success: true, changed: false, ts };
-  return { success: true, changed: true, ts, list };
+function syncReply(rows, since, n) {                    // rows: {j (JSON جاهز), ts}
+  const ts = rows.reduce((a, r) => Math.max(a, num(r.ts, 0)), 0);
+  if (since && ts && ts <= since && n === rows.length) return { success: true, changed: false, ts };
+  return new RawJson('{"success":true,"changed":true,"ts":' + ts + ',"list":[' + rows.map(r => r.j).join(',') + ']}');
 }
 async function handleSyncNotifs(user, body, env) {
   d1Stat('poll');
   const since = num(body.since, 0), n = num(body.n, -1);
   if (await d1ReadOn(env, 'notifications') && await d1Table(env, 'notifications')) {
-    const rows = await d1All(env, 'SELECT id, data, ts FROM notifications WHERE uid = ? ORDER BY created_at DESC LIMIT 40', [user.uid]);
-    return syncReply(d1Rows(rows), rows.map(r => r.ts), since, n);
+    const rows = await d1All(env, "SELECT ts, json_set(data, '$.id', id) AS j FROM notifications WHERE uid = ? ORDER BY created_at DESC LIMIT 40", [user.uid]);
+    return syncReply(rows, since, n);
   }
   const rows = await fsQueryStrict(env, { from: [{ collectionId: 'notifications' }], where: qEq('uid', user.uid), limit: 40 });
   return { success: true, changed: true, ts: Date.now(), list: fsRowsPlain(rows, 'notifications') };
@@ -6720,8 +6722,8 @@ async function handleSyncChats(user, body, env) {
   const merchant = body.role === 'merchant', field = merchant ? 'merchant_owner' : 'uid', lim = merchant ? 30 : 25;
   const since = num(body.since, 0), n = num(body.n, -1);
   if (await d1ReadOn(env, 'merchant_chats') && await d1Table(env, 'merchant_chats')) {
-    const rows = await d1All(env, `SELECT id, data, ts FROM merchant_chats WHERE "${field}" = ? ORDER BY updated_at DESC LIMIT ?`, [user.uid, lim]);
-    return syncReply(d1Rows(rows), rows.map(r => r.ts), since, n);
+    const rows = await d1All(env, `SELECT ts, json_set(data, '$.id', id) AS j FROM merchant_chats WHERE "${field}" = ? ORDER BY updated_at DESC LIMIT ?`, [user.uid, lim]);
+    return syncReply(rows, since, n);
   }
   const rows = await fsQueryStrict(env, { from: [{ collectionId: 'merchant_chats' }], where: qEq(field, user.uid), limit: lim });
   return { success: true, changed: true, ts: Date.now(), list: fsRowsPlain(rows, 'merchant_chats') };
@@ -6786,20 +6788,25 @@ function dbBuildSq(q) {
   if (ob.length) sq.orderBy = ob;
   return { coll, sq };
 }
-async function dbRunQuery(env, user, q) {
+async function dbRunQuery(env, user, q, prevH) {
   const { coll, sq } = dbBuildSq(q);
   const owners = DB_OWNER[coll] || [];
   const ownField = owners.find(f => (q.w || []).some(([wf, op, v]) => wf === f && op === '==' && v === user.uid));
   if (!ownField && !(await dbStaffAllowed(env, user, coll))) throw httpError(403, 'غير مصرّح');
-  let docs, h = null;
-  if (await d1ReadOn(env, coll) && await d1Table(env, coll)) {                 // مسار D1 المباشر (بلا تحويلات وسيطة)
-    const b = d1BuildQuery(coll, sq);
-    const rows = await d1All(env, b.sql, b.args);
-    docs = rows.map(r => { let d = {}; try { d = JSON.parse(r.data); } catch {} return { ...d, __id: r.id }; });
-    h = rows.length + ':' + rows.reduce((a, r) => a + num(r.rev, 0), 0) + ':' + rows.reduce((a, r) => Math.max(a, num(r.ts, 0)), 0) + ':' + rows.map(r => r.id).join(',').length;
-  } else docs = (await fsQueryStrict(env, sq)).map(r => { const d = withId(r, coll); const id = d._id; delete d._id; return { ...d, __id: id }; });
+  if (await d1ReadOn(env, coll) && await d1Table(env, coll)) {                 // مسار D1: D1 يبني JSON بنفسه، والخادم يمرره كما هو
+    const hashOf = rows => rows.length + ':' + rows.reduce((a, r) => a + num(r.rev, 0), 0) + ':' + rows.reduce((a, r) => Math.max(a, num(r.ts, 0)), 0) + ':' + rows.map(r => r.id).join(',');
+    if (prevH) {                                                                 // بصمة خفيفة أولًا: إن لم يتغير شيء لا نجلب البيانات أصلًا
+      const m = d1BuildQuery(coll, sq, false, 'id, ts, rev');
+      const h0 = await sha256Hex(hashOf(await d1All(env, m.sql, m.args)));
+      if (h0 === prevH) return { same: true, h: h0 };
+    }
+    const b = d1BuildQuery(coll, sq, false, `id, ts, rev, json_set(data, '$.__id', id) AS j`);
+    const rows = await d1All(env, b.sql, b.args);                                // شرط المالك (uid == أنت) داخل WHERE نفسه
+    return { raw: '[' + rows.map(r => r.j).join(',') + ']', h: await sha256Hex(hashOf(rows)) };
+  }
+  let docs = (await fsQueryStrict(env, sq)).map(r => { const d = withId(r, coll); const id = d._id; delete d._id; return { ...d, __id: id }; });
   if (ownField) docs = docs.filter(r => r[ownField] === user.uid);
-  return { docs, h };
+  return { raw: JSON.stringify(docs), h: null };
 }
 async function dbReadDoc(env, user, c, id) {
   if (!d1CollOk(c) || !/^[A-Za-z0-9_@.+:-]{1,200}$/.test(String(id || ''))) throw httpError(400, 'مستند غير صالح');
@@ -6816,26 +6823,26 @@ async function dbReadDoc(env, user, c, id) {
   if (!d && owners.length) return { d: null, h };
   throw httpError(403, 'غير مصرّح');
 }
-async function handleDbQuery(user, body, env) { d1Stat('poll'); return { success: true, docs: (await dbRunQuery(env, user, body.q || {})).docs }; }
+async function handleDbQuery(user, body, env) { d1Stat('poll'); return new RawJson('{"success":true,"docs":' + (await dbRunQuery(env, user, body.q || {})).raw + '}'); }
 async function handleDbDoc(user, body, env) { d1Stat('poll'); const { d } = await dbReadDoc(env, user, String(body.c || ''), String(body.id || '')); return { success: true, exists: !!d, data: d || null }; }
 // دفعة واحدة لكل الاشتراكات المفتوحة في الصفحة (طلب واحد بدل عشرات) — ما لم يتغيّر يُرد عليه بـ same
 async function handleDbBatch(user, body, env) {
   d1Stat('poll');
   const subs = (Array.isArray(body.subs) ? body.subs : []).slice(0, 25);
-  const out = {};
+  const parts = [];
   await Promise.all(subs.map(async s => {
-    const key = String(s.k || '').slice(0, 40);
+    const key = JSON.stringify(String(s.k || '').slice(0, 40));
     try {
       if (s.d) {
         const { d, h } = await dbReadDoc(env, user, String(s.d.c || ''), String(s.d.id || ''));
-        out[key] = h && h === s.h ? { same: true } : { exists: !!d, data: d || null, h };
+        parts.push(key + ':' + JSON.stringify(h && h === s.h ? { same: true } : { exists: !!d, data: d || null, h }));
       } else {
-        const { docs, h } = await dbRunQuery(env, user, s.q || {});
-        out[key] = h && h === s.h ? { same: true } : { docs, h };
+        const r = await dbRunQuery(env, user, s.q || {}, typeof s.h === 'string' ? s.h : null);
+        parts.push(key + ':' + (r.same || (r.h && r.h === s.h) ? '{"same":true}' : '{"docs":' + r.raw + ',"h":' + JSON.stringify(r.h) + '}'));
       }
-    } catch (e) { out[key] = { error: e.publicMessage || 'خطأ', status: e.status || 500 }; }
+    } catch (e) { parts.push(key + ':' + JSON.stringify({ error: e.publicMessage || 'خطأ', status: e.status || 500 })); }
   }));
-  return { success: true, res: out };
+  return new RawJson('{"success":true,"res":{' + parts.join(',') + '}}');
 }
 // الكتابات التي كان المتصفح يقوم بها مباشرة: إنشاء ملف المستخدم وتعديل الاسم فقط
 async function handleDbSet(user, body, env) {
