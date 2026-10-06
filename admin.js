@@ -2963,7 +2963,9 @@ function vD1Body() {
     ${!onD1 ? `<div class="flex-between caption mb-2"><span>قراءات Firestore للنسخ اليوم: ${n(d.mig_reads)} من ${n(d.mig_cap)}</span>
       <span style="display:flex;gap:4px">${(d.caps || []).map(c => `<button class="btn btn-ghost btn-sm" data-d1cap="${c}" type="button" style="${c === d.mig_cap ? 'font-weight:800;text-decoration:underline' : ''}">${c / 1000}k</button>`).join('')}</span></div>` : ''}
     ${d.stats.yesterday && d.stats.yesterday.req ? `<div class="caption mb-2">طلبات أمس: ${n(Number(d.stats.yesterday.req) + Number(d.stats.yesterday.cron || 0))}</div>` : ''}
-    ${d.retry.n ? `<div class="alert ${d.retry.stuck ? 'alert-error' : 'alert-info'} mb-2">قائمة الإعادة: ${n(d.retry.n)} مستند${d.retry.stuck ? ` (${n(d.retry.stuck)} عالقة)` : ''} — تُصلح تلقائيًا كل 5 دقائق.</div>` : ''}
+    ${d.retry.n ? `<div class="alert ${d.retry.stuck ? 'alert-error' : 'alert-info'} mb-2">قائمة الإعادة: ${n(d.retry.n)} مستند${d.retry.stuck ? ` (${n(d.retry.stuck)} عالقة — يُعاد تلقائيًا كل ساعة)` : ''} — تُصلح تلقائيًا كل 5 دقائق.
+      ${d.retry.stuck && d.retry.err ? `<div class="caption" style="margin-top:4px;direction:ltr;text-align:left">آخر سبب: ${esc(String(d.retry.err).slice(0, 120))}</div>` : ''}
+      ${!onD1 ? `<button class="btn btn-ghost btn-sm" id="d1RetryAll" type="button" style="margin-top:6px">إعادة محاولة الكل الآن</button>` : ''}</div>` : ''}
     ${t.mfail ? `<div class="caption mb-2" style="color:var(--warning)">فشل كتابة D1 اليوم: ${n(t.mfail)} (حُفظت في قائمة الإعادة)</div>` : ''}
     ${t.bkfail ? `<div class="caption mb-2" style="color:var(--warning)">تعذّر النسخ الاحتياطي لـ Firestore ${n(t.bkfail)} مرة اليوم (يُعاد تلقائيًا)</div>` : ''}
 
@@ -3020,6 +3022,10 @@ function bindD1() {
     await act({ action: 'rollback' }, 'تمت جدولة الرجوع خلال 90 ثانية');
   });
   onTap('#d1Drain', () => act({ action: 'drain' }, 'تم نسخ دفعة احتياطية'));
+  onTap('#d1RetryAll', async () => {
+    try { const r = await api('/api/admin/d1/action', { action: 'retry_all' }); toast(`أُصلح ${r.fixed} الآن · المتبقي ${r.left} (يكمل تلقائيًا)`, 'ok'); await loadD1Status(); }
+    catch (e) { toast(e.message, 'bad'); }
+  });
   onTap('#d1Backup', async () => {
     const on = !(S.d1s && S.d1s.primary && S.d1s.primary.backup);
     if (!on && !confirm('إيقاف النسخ الاحتياطي يوفّر كتابات Firestore لكن يمنع الرجوع الآمن لاحقًا. متابعة؟')) return;

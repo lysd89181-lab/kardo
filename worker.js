@@ -6677,8 +6677,12 @@ async function d1Cron(env, scheduledTime) {
     const log = { at: Date.now(), ok: true };
     const step = async (name, fn) => { try { const r = await fn(); if (r !== undefined) log[name] = r; } catch (e) { log.ok = false; log.err = `${name}: ${String(e.message || e).slice(0, 140)}`; console.error('D1_CRON_' + name, e.message); } };
     await step('outbox', () => d1DrainOutbox(env, 100));            // بقايا ما قبل الرجوع (إن وُجدت)
+    if (minute < 5) {
+      await step('kvq', () => d1DrainKvQueue(env));
+      // العالقة (فشلت 20 مرة): فرصة جديدة كل ساعة بدل التوقف نهائيًا
+      await step('unstuck', async () => { const r = await env.DB.prepare('UPDATE _d1_retry SET tries = 10 WHERE tries >= 20').run(); return num(r && r.meta && r.meta.changes, 0) || undefined; });
+    }
     await step('retry', () => d1ProcessRetry(env, 10));
-    if (minute < 5) await step('kvq', () => d1DrainKvQueue(env));
     if (hour === 3 && minute < 5) {
       const allSt = await d1AllStates(env);
       for (const coll of await d1CollList(env, true)) {
@@ -6948,6 +6952,13 @@ async function handleAdminD1Action(user, body, env) {
     return { success: true };
   }
   if (act === 'drain') { const n = await d1DrainOutbox(env, 400); return { success: true, drained: n }; }
+  if (act === 'retry_all') {                                     // إعادة كل العالقة الآن
+    await env.DB.prepare('UPDATE _d1_retry SET tries = 0').run();
+    const fixed = await d1ProcessRetry(env, 15);
+    const left = await env.DB.prepare('SELECT count(*) AS n FROM _d1_retry').first();
+    await logOp(env, staff.uid, 'd1.retry_all', {}, { fixed }, true);
+    return { success: true, fixed, left: num(left && left.n, 0) };
+  }
   const coll = String(body.coll || '');
   if (!d1CollOk(coll)) throw httpError(400, 'مجموعة غير معروفة');
   if (d1PrimaryNow(cfg)) throw httpError(409, 'غير متاح بعد التحويل الكامل');
