@@ -16,3 +16,6 @@ FIREBASE_PROJECT_NUMBER = "593934928630"
 MAIL_FROM = "Kardo <no-reply@kardo.ly>"
 SITE_URL = "https://kardo.ly"
 ALLOWED_ORIGIN = "https://kardo.ly,https://www.kardo.ly"
+[[kv_namespaces]]
+binding = "KV"
+id = "d77dfcd17a0141fc8ba82e437c093e45"
