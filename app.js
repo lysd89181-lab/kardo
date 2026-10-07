@@ -57,6 +57,7 @@ try {
 
 const auth = getAuth(app);
 const db = getFirestore(app);
+try { if ((navigator.hardwareConcurrency || 4) >= 6 && (navigator.deviceMemory || 4) >= 4) document.documentElement.classList.add('fx-blur'); } catch {}   // v37: ضبابية النوافذ للأجهزة القوية فقط
 
 /* ═══ v35 — بعد التحويل الكامل إلى D1: نفس دوال Firestore بأسمائها، لكن عبر الخادم ═══
    • الوضع يُحدَّد عند فتح الصفحة (kardo_d1p)، وإن تغيّر في الخادم تُعاد الصفحة مرة واحدة.
@@ -694,6 +695,7 @@ function paint() {
   view.innerHTML = samePage ? html.replace('class="page-enter"', 'class=""') : html;   // لا حركة دخول عند التحديث
   _lastPage = S.page; _lastHtml = html;
   bind();
+  runCountUps();
   if (S.page === 'dashboard') bindBanners();
   if (focusId) {
     const el = document.getElementById(focusId);
@@ -821,7 +823,7 @@ function cardMiniHtml(c) {
   const st = { active: 'نشطة', frozen: 'مجمدة', deleted: 'مغلقة' }[c.status] || '—';
   return `
     <button class="service-card" data-card="${esc(c.id)}" style="padding:0;overflow:hidden;border:none;background:transparent">
-      <div class="vcard" style="border-radius:0;aspect-ratio:1.586">
+      <div class="vcard" style="border-radius:0;aspect-ratio:1.586"><span class="vcard-deco" aria-hidden="true"></span>
         <div class="vcard-top">
           <span class="vcard-brand">KARDO</span>
           <span class="vcard-tier">${esc(st)}</span>
@@ -939,8 +941,8 @@ function vServices() {
         ${services.map(s => svcCard(s)).join('')}
       </div>
     ` : `
-      <div class="card" style="text-align:center;padding:48px 24px">
-        <div class="empty-icon" style="margin:0 auto 16px">${svg(I.box, 2)}</div>
+      <div class="card k-empty">
+        ${fennec('empty', 96)}
         <div class="h4" style="margin-bottom:8px">لا خدمات متاحة حالياً</div>
         <p class="body-sm text-2" style="margin-bottom:20px">سيتم عرض الخدمات هنا فور إضافتها.</p>
         <button class="btn btn-secondary" id="reloadSvcs2">تحديث</button>
@@ -1326,7 +1328,7 @@ function renderCard(c) {
   const st = { active: 'نشطة', frozen: 'مجمدة', deleted: 'مغلقة' }[c.status] || '—';
   const cls = c.status === 'frozen' ? 'frozen' : c.status === 'deleted' ? 'blocked' : '';
   return `
-    <div class="vcard ${cls}" style="border-radius:0;aspect-ratio:1.586">
+    <div class="vcard ${cls}" style="border-radius:0;aspect-ratio:1.586"><span class="vcard-deco" aria-hidden="true"></span>
       <div class="vcard-top">
         <span class="vcard-brand">KARDO</span>
         <span class="vcard-tier">${esc(st)}</span>
@@ -1364,8 +1366,8 @@ function vWallet() {
 
     <div class="balance-card" style="margin-bottom:24px">
       <div class="balance-label">الرصيد المتاح</div>
-      <div class="balance-value">${lyd(S.profile.wallet_balance * rate())}</div>
-      <div class="balance-secondary">${usd(S.profile.wallet_balance)}</div>
+      <div class="balance-value tabular" data-cu="wal_lyd" data-to="${n(S.profile.wallet_balance) * rate()}" data-fmt="lyd">${lyd(S.profile.wallet_balance * rate())}</div>
+      <div class="balance-secondary tabular" data-cu="wal_usd" data-to="${n(S.profile.wallet_balance)}" data-fmt="usd">${usd(S.profile.wallet_balance)}</div>
 
       <div class="balance-actions">
         <button class="balance-action" data-action="deposit">
@@ -1428,10 +1430,11 @@ function vWallet() {
         `).join('')}
       </div>
     ` : `
-      <div class="card" style="text-align:center;padding:32px 20px">
-        <div class="empty-icon" style="margin:0 auto 16px">${svg(I.wallet, 2)}</div>
+      <div class="card k-empty">
+        ${fennec('empty', 96)}
         <div class="h4" style="margin-bottom:8px">لا إيداعات بعد</div>
         <p class="body-sm text-2">أضف رصيدًا لتبدأ استخدام الخدمات.</p>
+        <button class="btn btn-primary" data-action="deposit" type="button">إيداع رصيد</button>
       </div>
     `}
   </div>
@@ -1480,8 +1483,8 @@ function vTransactions() {
       <p class="body-sm text-2">كل حركة على رصيدك، بدقة</p></div>
     ${!S.ledger ? `<div class="list">${'<div class="skeleton" style="height:66px;border-radius:16px"></div>'.repeat(4)}</div>`
       : rows.length ? `<div class="list">${rows.map(ledgerRow).join('')}</div>` : `
-      <div class="card" style="text-align:center;padding:44px 20px">
-        <div class="empty-icon" style="margin:0 auto 14px">${svg(I.list, 2)}</div>
+      <div class="card k-empty">
+        ${fennec('empty', 96)}
         <div class="h4" style="margin-bottom:6px">لا حركات بعد</div>
         <p class="body-sm text-2">ستظهر هنا كل عملية إيداع وشراء.</p></div>`}
   </div>`;
@@ -1536,8 +1539,8 @@ function vReferral() {
     return `
     <div class="page-enter">
       <div class="mb-6"><h1 class="h2">ادعُ صديقًا</h1></div>
-      <div class="card" style="text-align:center;padding:48px 24px">
-        <div class="empty-icon" style="margin:0 auto 16px">${svg(I.gift, 2)}</div>
+      <div class="card k-empty">
+        ${fennec('wait', 96)}
         <div class="h4" style="margin-bottom:8px">غير متاح حاليًا</div>
         <p class="body-sm text-2">سنفعّل نظام الدعوات قريبًا.</p>
       </div>
@@ -1647,8 +1650,8 @@ function vSupport() {
         `).join('')}
       </div>
     ` : `
-      <div class="card" style="text-align:center;padding:32px 20px">
-        <div class="empty-icon" style="margin:0 auto 16px">${svg(I.help, 2)}</div>
+      <div class="card k-empty">
+        ${fennec('empty', 90)}
         <p class="body-sm text-2">لا تذاكر بعد</p>
       </div>
     `}
@@ -2624,7 +2627,7 @@ function openCart() {
           <button class="btn btn-primary btn-block" id="cPay" type="button">تأكيد الشراء — ${esc(lyd(total))}</button>`}
       ` : `
         <div style="text-align:center;padding:24px 0">
-          <div class="empty-icon" style="margin:0 auto 12px">${svg(I.cart, 2)}</div>
+          ${fennec('empty', 90)}
           <div class="h4 mb-2">السلة فارغة</div>
           <button class="btn btn-primary" data-act="close-modal">تصفح المتجر</button>
         </div>`}
@@ -3059,6 +3062,20 @@ function countUp(el, to, fmt) {
   requestAnimationFrame(step);
 }
 
+// v37: عدّاد الأرقام — من 0 أول مرة في الجلسة، وبعدها فقط عند تغيّر القيمة
+const _cuMem = {};
+function runCountUps() {
+  $$('[data-cu]').forEach(el => {
+    const k = el.dataset.cu, to = Number(el.dataset.to) || 0;
+    const fmt = el.dataset.fmt === 'usd' ? usd : lyd;
+    const from = k in _cuMem ? _cuMem[k] : 0;
+    _cuMem[k] = to;
+    if (Math.abs(from - to) < 0.005) return;
+    el.dataset.v = from; el.textContent = fmt(from);
+    countUp(el, to, x => fmt(x));
+  });
+}
+
 function paintDock() {
   const dock = $('#balDock');
   if (!dock) return;
@@ -3197,7 +3214,7 @@ function openNotifications() {
         <div class="notif-body">${esc(x.body)}</div>
         <div class="caption">${esc(dt(x.created_at))}</div>
       </div>`).join('')}</div>`
-      : `<div style="text-align:center;padding:28px 0"><div class="empty-icon" style="margin:0 auto 12px">${svg(I.bell, 2)}</div><div class="h4">لا إشعارات بعد</div></div>`}
+      : `<div class="k-empty">${fennec('mail', 90)}<div class="h4">لا إشعارات بعد</div></div>`}
   `);
   if (list.some(x => !x.read)) api('/api/notify/read', {}).then(() => { if (_notifMode === 'd1') { (S.notifs || []).forEach(x => { x.read = true; }); paintBell(); } }).catch(() => {});
   document.querySelectorAll('[data-nlink]').forEach(el => el.onclick = () => { closeModal(); followLink(el.dataset.nlink); });
@@ -3728,7 +3745,7 @@ function vMyStore() {
     <div class="list-row" data-mschat="${esc(c.id)}" role="button" tabindex="0">${avatarImg(c.uid, c.customer_name, 40)}
       <div class="list-content"><div class="list-title">${esc(c.customer_name)}</div><div class="list-meta">${esc(c.last_by === 'merchant' ? 'أنت: ' : '')}${esc(c.last_text || '')}</div></div>
       <div class="list-end">${c.unread_m ? `<span class="chat-unread">${c.unread_m}</span>` : `<span class="caption">${esc(dt(c.updated_at))}</span>`}</div></div>`).join('')}</div>`
-    : '<div class="card" style="text-align:center;padding:26px">لا محادثات بعد</div>';
+    : `<div class="card k-empty">${fennec('mail', 90)}<div class="h4">لا محادثات بعد</div><p class="caption">ستظهر هنا رسائل زبائنك</p></div>`;
   if (tab === 'services') body = `
     <div class="flex-between mb-2"><div class="h4" style="font-size:14px">الأقسام</div><button class="btn btn-secondary btn-sm" id="msSecAdd" style="padding:0 14px">+ قسم</button></div>
     <div class="sec-grid mb-4">${(S.mine.sections || []).map(x => `<button class="sec-tile" data-mssec="${esc(x.id)}"><span class="sec-img">${x.image ? `<img src="${esc(x.image)}" alt="">` : `<b>${esc(x.name.charAt(0))}</b>`}<span class="sec-badge ${x.delivery === 'auto' ? 'auto' : ''}">${x.delivery === 'auto' ? '⚡ تلقائي' : '🕐 يدوي'}</span></span><span class="sec-name">${esc(x.name)}</span><span class="caption">${(S.mine.services || []).filter(v => v.section_id === x.id).length} خدمة</span></button>`).join('') || '<p class="caption">أنشئ قسمًا أولًا (مثل: ببجي، شاهد…) ثم أضف خدماته.</p>'}</div>
@@ -4158,7 +4175,7 @@ function vStore() {
   const inSec = id => svcs.filter(s => (s.section_id || '') === id);
   const orphan = svcs.filter(s => !s.section_id || !secs.some(x => x.id === s.section_id));
   let servicesHtml;
-  if (!secs.length) servicesHtml = svcs.length ? `<div class="svc-list stagger">${svcs.map(svcBtn).join('')}</div>` : '<div class="card" style="text-align:center;padding:24px">لا خدمات بعد</div>';
+  if (!secs.length) servicesHtml = svcs.length ? `<div class="svc-list stagger">${svcs.map(svcBtn).join('')}</div>` : `<div class="card k-empty">${fennec('empty', 90)}<div class="h4">لا خدمات بعد</div></div>`;
   else if (curSec) {
     const sec = secs.find(x => x.id === curSec) || { name: 'أخرى', delivery: 'manual' };
     const list = curSec === '_other' ? orphan : inSec(curSec);

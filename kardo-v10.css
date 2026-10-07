@@ -1,0 +1,157 @@
+/* ═══════════════════════════════════════════════════════════
+   KARDO v10 — طبقة اللمسات النهائية (تُحمَّل بعد كل ملفات التصميم)
+   الهدف: عمق، إحساس لمس، وحركات هادئة — بلا تدرجات صارخة ولا توهج.
+   كل الحركات على transform و opacity فقط.
+   ═══════════════════════════════════════════════════════════ */
+:root {
+  --k-ease: cubic-bezier(.22, .8, .24, 1);
+  --k-ease-std: cubic-bezier(.4, 0, .2, 1);
+  --k-hair: rgba(255, 255, 255, .06);
+  --k-gold-line: color-mix(in srgb, var(--sand) 22%, transparent);
+  --k-shadow: 0 10px 28px -14px rgba(0, 0, 0, .75);
+}
+
+/* ─── البطاقات العامة: عمق خفيف بدل السواد المسطّح ─── */
+.card {
+  background-image: linear-gradient(150deg, rgba(255, 255, 255, .035), rgba(255, 255, 255, 0) 55%);
+  border-color: var(--k-hair) !important;
+  box-shadow: var(--k-shadow);
+}
+
+/* ─── بطاقات المتاجر والخدمات: إحساس لمس ─── */
+.m-card, .service-card, .prow, .quick-tile, .list-row[data-card], .home-card-cta, .ref-strip {
+  transition: transform .18s var(--k-ease), box-shadow .18s var(--k-ease);
+  -webkit-tap-highlight-color: transparent;
+}
+.m-card {
+  border-radius: 20px;
+  border: 1px solid var(--k-hair);
+  box-shadow: var(--k-shadow);
+  overflow: hidden;
+}
+.m-card-name {
+  padding-bottom: 7px;
+  margin-bottom: 6px;
+  border-bottom: 1px solid var(--k-gold-line);
+}
+.m-card:active, .service-card:active, .prow:active, .quick-tile:active, .home-card-cta:active, .ref-strip:active {
+  transform: scale(.975);
+  transition-duration: .1s;
+}
+@media (hover: hover) {
+  .m-card:hover, .service-card:hover, .prow:hover { transform: translateY(-3px); box-shadow: 0 16px 34px -14px rgba(0, 0, 0, .85); }
+}
+
+/* ─── الأزرار ─── */
+.btn { transition: transform .1s var(--k-ease-std), box-shadow .15s var(--k-ease-std), opacity .15s; -webkit-tap-highlight-color: transparent; }
+.btn:active:not(:disabled) { transform: scale(.96); }
+.btn.btn-primary {
+  background: var(--sand) !important;
+  border-radius: 12px;
+  font-weight: 700;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, .32), inset 0 -1px 0 rgba(0, 0, 0, .18), 0 6px 16px -10px rgba(0, 0, 0, .9);
+}
+.btn.btn-primary:active:not(:disabled) { box-shadow: inset 0 1px 0 rgba(255, 255, 255, .2), inset 0 2px 6px rgba(0, 0, 0, .25); }
+.btn:disabled { opacity: .5; }
+.btn-secondary, .btn-ghost { border-radius: 12px; }
+
+/* ─── شريط التنقل السفلي ─── */
+.bottom-nav { border-top: 1px solid var(--k-hair) !important; }
+.bottom-nav .nav-item {
+  position: relative;
+  font-size: 11.5px !important;
+  font-weight: 500;
+  gap: 4px !important;
+  transition: color .2s var(--k-ease-std);
+  -webkit-tap-highlight-color: transparent;
+}
+.bottom-nav .nav-item::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 50%;
+  width: 22px;
+  height: 2px;
+  margin-left: -11px;
+  border-radius: 0 0 2px 2px;
+  background: var(--sand);
+  transform: scaleX(0);
+  opacity: 0;
+  transition: transform .25s var(--k-ease), opacity .2s;
+}
+.bottom-nav .nav-item.active { color: var(--sand) !important; }
+.bottom-nav .nav-item.active::before { transform: scaleX(1); opacity: 1; }
+.bottom-nav .nav-item svg { transition: transform .2s var(--k-ease); }
+.bottom-nav .nav-item:active svg { transform: scale(.88); }
+.bottom-nav .nav-item.active svg .nv-fill { fill: currentColor; fill-opacity: .18; }
+
+/* ─── النوافذ المنبثقة ─── */
+.overlay.open { background-color: rgba(0, 0, 0, .7) !important; animation: k-fade .2s var(--k-ease-std) both; }
+html.fx-blur .overlay.open { -webkit-backdrop-filter: blur(4px); backdrop-filter: blur(4px); }
+.overlay.open .modal { animation: k-pop .3s var(--k-ease) both; border: 1px solid var(--k-hair); }
+@keyframes k-fade { from { opacity: 0; } to { opacity: 1; } }
+@keyframes k-pop { from { opacity: 0; transform: translateY(14px) scale(.96); } to { opacity: 1; transform: none; } }
+
+/* ─── التنبيهات (Toasts): انزلاق من الأعلى ─── */
+#toasts .toast {
+  border-radius: 12px !important;
+  border: 1px solid var(--k-hair);
+  box-shadow: 0 12px 30px -12px rgba(0, 0, 0, .8);
+  animation: k-toast .32s var(--k-ease) both;
+}
+#toasts .toast.success { border-inline-start: 3px solid var(--success); }
+#toasts .toast.error { border-inline-start: 3px solid var(--error); }
+@keyframes k-toast { from { opacity: 0; transform: translateY(-14px) scale(.98); } to { opacity: 1; transform: none; } }
+
+/* ─── هياكل التحميل: لمعان من اليمين لليسار ─── */
+.skeleton {
+  background: linear-gradient(270deg, rgba(255, 255, 255, .035) 0%, rgba(255, 255, 255, .085) 45%, rgba(255, 255, 255, .035) 90%) !important;
+  background-size: 220% 100% !important;
+  animation: k-shimmer 1.5s linear infinite !important;
+  border: 1px solid rgba(255, 255, 255, .03);
+}
+@keyframes k-shimmer { from { background-position: 0% 0; } to { background-position: 220% 0; } }
+
+/* ─── البطاقة الافتراضية: نقش خفيف + علامة K مائية ─── */
+.vcard { position: relative; isolation: isolate; overflow: hidden; }
+.vcard-deco { position: absolute; inset: 0; z-index: -1; pointer-events: none; }
+.vcard-deco::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  opacity: .05;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='28' height='28' viewBox='0 0 28 28'%3E%3Cpath d='M14 1 27 14 14 27 1 14Z M14 8 20 14 14 20 8 14Z' fill='none' stroke='white' stroke-width='.7'/%3E%3C/svg%3E");
+  background-size: 28px 28px;
+}
+.vcard-deco::after {
+  content: 'K';
+  position: absolute;
+  left: 10px;
+  bottom: -26px;
+  font-family: var(--font-display, inherit);
+  font-weight: 700;
+  font-size: 128px;
+  line-height: 1;
+  color: #fff;
+  opacity: .1;
+}
+
+/* ─── الشاشات الفارغة ─── */
+.k-empty { text-align: center; padding: 34px 20px; }
+.k-empty .fennec { display: block; margin: 0 auto 10px; animation: k-bob 3.2s ease-in-out infinite; }
+.k-empty .h4 { margin-bottom: 6px; }
+.k-empty p { margin-bottom: 16px; }
+@keyframes k-bob { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-5px); } }
+
+/* ─── الحقول ─── */
+.input:focus { box-shadow: 0 0 0 3px color-mix(in srgb, var(--sand) 18%, transparent); }
+
+/* ─── تقليل الحركة ─── */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: .01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: .01ms !important;
+    scroll-behavior: auto !important;
+  }
+}

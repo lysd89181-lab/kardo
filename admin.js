@@ -40,6 +40,7 @@ try {
 
 const auth = getAuth(app);
 const db = getFirestore(app);
+try { if ((navigator.hardwareConcurrency || 4) >= 6 && (navigator.deviceMemory || 4) >= 4) document.documentElement.classList.add('fx-blur'); } catch {}
 
 /* ═══ v35 — بعد التحويل الكامل إلى D1: نفس دوال Firestore بأسمائها، لكن عبر الخادم ═══
    • الوضع يُحدَّد عند فتح الصفحة (kardo_d1p)، وإن تغيّر في الخادم تُعاد الصفحة مرة واحدة.
