@@ -3523,8 +3523,6 @@ function vStores() {
     ${!S.profile.merchant_id ? `<button class="card m-join mb-4" id="joinMerchant" type="button"><span style="font-size:26px">🏪</span>
       <span style="flex:1;text-align:right"><b style="display:block">تبي تدير مشروعك؟ افتح متجرك في كاردو 🚀</b><span class="caption">قدّم طلب انضمام — للتجار الموثوقين فقط</span></span><span class="prow-add">←</span></button>` : ''}
     <div class="input-wrap mb-3"><span class="input-icon">${svg(I.search, 2)}</span><input class="input" id="mkQ" placeholder="ابحث عن متجر أو قسم أو منتج (مثال: شدات)…" value="${esc(S.mkQ || '')}" autocomplete="off"></div>
-    <div class="field-label mb-2">طريقة دفعك</div>
-    <div class="pm-chips mb-3">${Object.entries(PAY_TYPE_AR).filter(([k]) => k !== 'other').map(([k, t]) => `<button type="button" class="pm-chip ${S.payType === k ? 'on' : ''}" data-paytype="${k}"><span>${t}</span></button>`).join('')}</div>
     ${cats.length > 1 ? `<div class="pills mb-4"><button class="pill ${!S.mkCat ? 'active' : ''}" data-mkcat="">الكل</button>${cats.map(c => `<button class="pill ${S.mkCat === c ? 'active' : ''}" data-mkcat="${esc(c)}">${esc(c)}</button>`).join('')}</div>` : ''}
     ${svcHits.length ? `<div class="h4 mb-2">🔎 عروض «${esc(S.mkQ)}» من كل المتاجر (الأرخص أولًا)</div>
       <div style="display:flex;flex-direction:column;gap:8px" class="mb-4">${svcHits.map(s => { const m = mById(s.mid); return `
@@ -3746,6 +3744,7 @@ function vMyStore() {
       <div class="list-content"><div class="list-title">${esc(c.customer_name)}</div><div class="list-meta">${esc(c.last_by === 'merchant' ? 'أنت: ' : '')}${esc(c.last_text || '')}</div></div>
       <div class="list-end">${c.unread_m ? `<span class="chat-unread">${c.unread_m}</span>` : `<span class="caption">${esc(dt(c.updated_at))}</span>`}</div></div>`).join('')}</div>`
     : `<div class="card k-empty">${fennec('mail', 90)}<div class="h4">لا محادثات بعد</div><p class="caption">ستظهر هنا رسائل زبائنك</p></div>`;
+  const baseFmt = v => (S.mine.merchant || {}).base_currency === 'USD' ? '$' + Number(v || 0).toFixed(2) : lyd(v);
   if (tab === 'services') body = `
     <div class="flex-between mb-2"><div class="h4" style="font-size:14px">الأقسام</div><button class="btn btn-secondary btn-sm" id="msSecAdd" style="padding:0 14px">+ قسم</button></div>
     <div class="sec-grid mb-4">${(S.mine.sections || []).map(x => `<button class="sec-tile" data-mssec="${esc(x.id)}"><span class="sec-img">${x.image ? `<img src="${esc(x.image)}" alt="">` : `<b>${esc(x.name.charAt(0))}</b>`}<span class="sec-badge ${x.delivery === 'auto' ? 'auto' : ''}">${x.delivery === 'auto' ? '⚡ تلقائي' : '🕐 يدوي'}</span></span><span class="sec-name">${esc(x.name)}</span><span class="caption">${(S.mine.services || []).filter(v => v.section_id === x.id).length} خدمة</span></button>`).join('') || '<p class="caption">أنشئ قسمًا أولًا (مثل: ببجي، شاهد…) ثم أضف خدماته.</p>'}</div>
@@ -3753,7 +3752,7 @@ function vMyStore() {
     <div style="display:flex;flex-direction:column;gap:10px">${(S.mine.services || []).map(s => `
       <div class="card m-svc-row">
         <div style="flex:1;min-width:0"><b>${esc(s.name)}</b> ${s.active ? '' : '<span class="badge badge-neutral">متوقفة</span>'} ${s.section ? `<span class="caption">· ${esc(s.section)}</span>` : ''}
-          <div class="caption">${esc(lyd(s.price))}${s.old_price ? ` (قبل ${esc(lyd(s.old_price))})` : ''} · ${s.delivery === 'stock' ? `⚡ مخزون: <b style="color:${s.stock <= 3 ? 'var(--error)' : 'inherit'}">${s.stock}</b>` : 'تنفيذ يدوي'}${s.eta ? ` · ⏱️ ${esc(s.eta)}` : ''}</div></div>
+          <div class="caption">${esc(baseFmt(s.price))}${s.old_price ? ` (قبل ${esc(baseFmt(s.old_price))})` : ''} · ${s.delivery === 'stock' ? `⚡ مخزون: <b style="color:${s.stock <= 3 ? 'var(--error)' : 'inherit'}">${s.stock}</b>` : 'تنفيذ يدوي'}${s.eta ? ` · ⏱️ ${esc(s.eta)}` : ''}</div></div>
         ${s.delivery === 'stock' ? `<button class="btn btn-secondary btn-sm" data-msstock="${esc(s.id)}">+ أكواد</button>` : ''}
         <button class="btn btn-ghost btn-sm" data-msedit="${esc(s.id)}">تعديل</button>
       </div>`).join('') || '<p class="caption">أضف أول خدمة لمتجرك.</p>'}</div>`;
@@ -3846,20 +3845,29 @@ function openMsOrder(id) {
 function openMsService(id) {
   const s = id ? (S.mine.services || []).find(x => x.id === id) : { name: '', price: '', desc: '', delivery: 'manual', active: true, fields: [], image: '', eta: '', section: '', old_price: 0 };
   let image = null;
+  const mm = S.mine.merchant || {};
+  const PMCUR = { libyana: 'د.ل', almadar: 'د.ل', bank: 'د.ل', binance: 'USDT', usdt: 'USDT' };
+  const pms = (mm.pay_methods || []).map((p0, k) => ({ ...p0, id: p0.id || ('pm' + k) }));
+  const pmCur = p => p.currency || PMCUR[p.type] || 'د.ل';
+  const bUsd = mm.base_currency === 'USD', bSym = bUsd ? '$ دولار' : 'د.ل دينار';
   modal(`
     <div class="modal-head"><div class="modal-title">${id ? 'تعديل الخدمة' : 'خدمة جديدة'}</div>
       <button class="modal-close" data-act="close-modal" aria-label="إغلاق">${svg(I.x, 2)}</button></div>
     <div class="field mb-3"><label class="field-label" for="svN">اسم الخدمة</label><input class="input" id="svN" maxlength="60" value="${esc(s.name)}" placeholder="مثال: 60 شدة ببجي"></div>
     <div class="field mb-3"><label class="field-label" for="svS">القسم</label><select class="input" id="svS">${(S.mine.sections || []).map(x => `<option value="${esc(x.id)}" ${s.section_id === x.id ? 'selected' : ''}>${esc(x.name)} — ${x.delivery === 'auto' ? '⚡ تلقائي' : '🕐 يدوي'}</option>`).join('')}</select>
       <div class="caption">نوع التسليم يتبع القسم.</div></div>
-    ${((S.mine.merchant || {}).pay_methods || []).length ? `<div class="field-label mb-2">السعر لكل طريقة دفع</div>
-      ${S.mine.merchant.pay_methods.map((p0, k) => ({ ...p0, id: p0.id || ('pm' + k) })).map(p => `<div class="field mb-2" style="grid-template-columns:1fr 130px;display:grid;align-items:center;gap:8px">
-        <label class="body-sm" for="mp_${esc(p.id)}">${esc(p.label)} <span class="caption">(${esc(p.currency || (['binance', 'usdt'].includes(p.type) ? 'USDT' : 'د.ل'))})</span></label>
-        <input class="input" id="mp_${esc(p.id)}" data-mp="${esc(p.id)}" type="number" step="0.01" min="0" dir="ltr" value="${esc(String((s.prices || {})[p.id] || ''))}"></div>`).join('')}
-      <input type="hidden" id="svP" value="">`
+    ${pms.length ? `<div class="field mb-2"><label class="field-label" for="svP">السعر (${esc(bSym)})</label>
+        <input class="input" id="svP" type="number" step="0.01" min="0" dir="ltr" value="${s.price ? esc(String(s.price)) : ''}" placeholder="${bUsd ? 'مثال: 3' : 'مثال: 35'}"></div>
+      <div class="card mb-3" style="padding:10px 12px !important" id="svCalc"></div>
+      <details class="mb-3" ${Object.keys(s.prices || {}).length ? 'open' : ''}><summary class="caption" style="cursor:pointer">تعديل سعر طريقة معيّنة يدويًا (اختياري)</summary>
+        <div class="caption mb-2" style="margin-top:6px">اتركه فارغًا ليُحسب تلقائيًا من سعر الصرف.</div>
+        ${pms.map(p => `<div class="field mb-2" style="grid-template-columns:1fr 120px;display:grid;align-items:center;gap:8px">
+          <label class="body-sm" for="mp_${esc(p.id)}">${esc(p.label)} <span class="caption">(${esc(pmCur(p))})</span></label>
+          <input class="input" id="mp_${esc(p.id)}" data-mp="${esc(p.id)}" type="number" step="0.01" min="0" dir="ltr" placeholder="تلقائي" value="${esc(String((s.prices || {})[p.id] || ''))}"></div>`).join('')}
+      </details>`
       : `<div class="field mb-3"><label class="field-label" for="svP">السعر (د.ل)</label><input class="input" id="svP" type="number" step="0.5" min="0" dir="ltr" value="${esc(String(s.price))}"></div>
-         <div class="caption mb-3">أضف طرق الدفع من «الإعدادات» لتكتب سعرًا لكل طريقة.</div>`}
-    <div class="field mb-3"><label class="field-label" for="svO">السعر قبل الخصم (اختياري)</label><input class="input" id="svO" type="number" step="0.5" min="0" dir="ltr" value="${s.old_price ? esc(String(s.old_price)) : ''}"></div>
+         <div class="caption mb-3">أضف طرق الدفع وأسعار الصرف من «الإعدادات» ليُحسب السعر تلقائيًا لكل طريقة.</div>`}
+    <div class="field mb-3"><label class="field-label" for="svO">السعر قبل الخصم (اختياري${pms.length ? ' — بنفس عملة المتجر' : ''})</label><input class="input" id="svO" type="number" step="0.5" min="0" dir="ltr" value="${s.old_price ? esc(String(s.old_price)) : ''}"></div>
     <div class="field mb-3"><label class="field-label" for="svE">مدة التنفيذ</label><input class="input" id="svE" maxlength="40" value="${esc(s.eta || '')}" placeholder="مثال: 5–15 دقيقة"></div>
     <div class="field mb-3"><label class="field-label" for="svD">الوصف</label><textarea class="input" id="svD" rows="3" maxlength="400">${esc(s.desc)}</textarea></div>
     <div class="field mb-3"><label class="field-label" for="svF">بيانات يطلبها من الزبون (اختياري، حتى 3 مفصولة بفاصلة)</label>
@@ -3869,11 +3877,21 @@ function openMsService(id) {
     <label class="m-proof mb-3"><span id="svImgTxt">${s.image ? '✓ صورة الخدمة — اضغط للتغيير' : 'صورة الخدمة (اختياري)'}</span><input type="file" accept="image/*" id="svI" hidden></label>
     <button class="btn btn-primary btn-block" id="svSave" type="button">حفظ</button>
     ${id ? '<button class="btn btn-ghost btn-block" id="svDel" type="button" style="color:var(--error);margin-top:6px">حذف الخدمة</button>' : ''}`);
+  const calc = () => {                                     // معاينة فورية لسعر كل طريقة دفع
+    const box = $('#svCalc'); if (!box) return;
+    const b = Number($('#svP').value || 0);
+    box.innerHTML = `<div class="caption mb-1">السعر الذي يراه الزبون:</div>` + pms.map(p => {
+      const man = Number(($(`#mp_${p.id}`) || {}).value || 0);
+      const v = man > 0 ? man : Math.round(b * Number(p.rate || 1) * 100) / 100;
+      return `<div class="flex-between body-sm" style="padding:3px 0"><span>${esc(p.label)}${man > 0 ? ' <span class="caption">(يدوي)</span>' : ''}</span><b class="tabular" dir="ltr">${b > 0 || man > 0 ? esc(fmtPay(v, pmCur(p))) : '—'}</b></div>`;
+    }).join('');
+  };
+  if (pms.length) { calc(); $('#svP').oninput = calc; $$('[data-mp]').forEach(i => i.oninput = calc); }
   $('#svI').onchange = async () => { try { image = await compressImage($('#svI').files[0], 600, 0.75); $('#svImgTxt').textContent = '✓ أُرفقت الصورة'; } catch (e) { toast(e.message, 'bad'); } };
   onTap('#svSave', async () => {
-    const prices = {}; let bad = '';
-    $$('[data-mp]').forEach(i => { const v = Number(i.value || 0); if (!(v > 0)) bad = bad || i.closest('.field').querySelector('label').textContent.trim(); else prices[i.dataset.mp] = v; });
-    if (bad) return toast('اكتب سعر: ' + bad, 'bad');
+    const prices = {};
+    $$('[data-mp]').forEach(i => { const v = Number(i.value || 0); if (v > 0) prices[i.dataset.mp] = v; });   // الفارغ = تلقائي
+    if (!(Number($('#svP').value || 0) > 0)) return toast('اكتب سعر الخدمة', 'bad');
     const body = { id: id || '', name: $('#svN').value.trim(), section_id: $('#svS').value, price: Number($('#svP').value || 0), prices, old_price: Number($('#svO').value || 0),
       eta: $('#svE').value.trim(), desc: $('#svD').value.trim(), fields: $('#svF').value.split(/[،,]/).map(x => x.trim()).filter(Boolean), active: $('#svA').checked };
     if (image !== null) body.image = image;
@@ -3892,14 +3910,18 @@ function openMsSettings() {
   if (!pays.length) pays.push({ id: 'pm' + Date.now().toString(36), type: 'libyana', label: 'رصيد ليبيانا', value: '', currency: 'د.ل', rate: 1, logo: '', _new: null });
   let logo = null, cover = null;
   const CUR = { libyana: 'د.ل', almadar: 'د.ل', bank: 'د.ل', binance: 'USDT', usdt: 'USDT', other: '' };
+  let base = m.base_currency === 'USD' ? 'USD' : 'LYD';
+  const baseCur = () => base, baseSym = () => (base === 'USD' ? '$' : 'د.ل');
   const payRows = () => pays.map((p, i) => `<div class="pm-field" style="grid-template-columns:1fr 1fr">
       <select class="input" data-pt="${i}">${Object.entries(PAY_TYPE_AR).map(([k, t]) => `<option value="${k}" ${p.type === k ? 'selected' : ''}>${t}</option>`).join('')}</select>
       <input class="input" data-pl="${i}" placeholder="الاسم الظاهر (مثل: رصيد ليبيانا)" value="${esc(p.label)}">
       <input class="input" data-pv="${i}" dir="ltr" placeholder="الرقم / الحساب / المعرّف" value="${esc(p.value)}">
-      <input type="hidden" data-pr="${i}" value="1">
+      <div class="field" style="grid-column:1/-1;display:grid;grid-template-columns:1fr 120px;align-items:center;gap:8px">
+        <label class="body-sm" for="pr_${i}">سعر الصرف: 1 ${baseSym()} = ؟ ${esc(p.currency || CUR[p.type] || 'د.ل')}</label>
+        <input class="input" id="pr_${i}" data-pr="${i}" type="number" step="0.01" min="0.0001" dir="ltr" placeholder="${baseCur() === 'USD' ? 'مثال: 11.8' : '1'}" value="${p.rate && !(baseCur() === 'USD' && p.rate === 1 && (p.currency || CUR[p.type] || 'د.ل') === 'د.ل') ? esc(String(p.rate)) : ''}"></div>
       <label class="m-proof" style="margin:0"><span>${p._new || p.logo ? '✓ الصورة' : 'صورة الطريقة'}</span><input type="file" accept="image/*" data-pi="${i}" hidden></label>
       <button class="btn btn-ghost btn-sm" data-pd="${i}" type="button" style="color:var(--error)">حذف</button>
-      <div class="caption" style="grid-column:1/-1">العملة: <b>${esc(p.currency || CUR[p.type] || 'د.ل')}</b> — تكتب سعر كل خدمة بهذه الطريقة يدويًا عند إضافة الخدمة</div></div>`).join('');
+      <div class="caption" style="grid-column:1/-1">يدفع الزبون بـ <b>${esc(p.currency || CUR[p.type] || 'د.ل')}</b> — السعر يُحسب تلقائيًا من سعر الخدمة × سعر الصرف</div></div>`).join('');
   modal(`
     <div class="modal-head"><div class="modal-title">إعدادات المتجر</div>
       <button class="modal-close" data-act="close-modal" aria-label="إغلاق">${svg(I.x, 2)}</button></div>
@@ -3920,9 +3942,10 @@ function openMsSettings() {
     </div>
     <label class="m-proof mb-2"><span id="stLt">${m.logo ? '✓ الشعار — اضغط للتغيير' : '📷 شعار المتجر'}</span><input type="file" accept="image/*" id="stL" hidden></label>
     <label class="m-proof mb-3"><span id="stVt">${m.cover ? '✓ الغلاف — اضغط للتغيير' : 'صورة الغلاف'}</span><input type="file" accept="image/*" id="stV" hidden></label>
-    <input type="hidden" id="stBase" value="${esc(m.base_currency || 'LYD')}">
-    <div class="field-label mb-2">طرق الدفع (يرى الزبون طريقته المختارة، ويغيّرها من قائمة)</div>
-    <div class="caption mb-2">أضف طرقك هنا، ثم عند إضافة أي خدمة تكتب سعرها لكل طريقة بيدك.</div>
+    <div class="field mb-3"><label class="field-label" for="stBase">عملة أسعار متجرك</label>
+      <select class="input" id="stBase"><option value="USD" ${base === 'USD' ? 'selected' : ''}>دولار ($)</option><option value="LYD" ${base === 'LYD' ? 'selected' : ''}>دينار (د.ل)</option></select>
+      <div class="caption">تكتب سعر كل خدمة بهذه العملة مرة واحدة، والمنصة تحسب سعرها في كل طريقة دفع حسب سعر الصرف.</div></div>
+    <div class="field-label mb-2">طرق الدفع وأسعار الصرف</div>
     <div id="stPays">${payRows()}</div>
     <button class="btn btn-ghost btn-sm mb-3" id="stPAdd" type="button">+ طريقة دفع</button>
     <div class="field mb-3"><label class="field-label" for="stQ">ردود جاهزة للتسليم (كل رد في سطر، حتى 10)</label><textarea class="input" id="stQ" rows="4" maxlength="3000" placeholder="تم الشحن بنجاح ✅ شكرًا لثقتك">${esc((m.quick_replies || []).join('\n'))}</textarea></div>
@@ -3930,10 +3953,13 @@ function openMsSettings() {
     <div class="field mb-2"><label class="field-label" for="stT">تيليجرام (اسم المستخدم)</label><input class="input" id="stT" dir="ltr" value="${esc((m.contacts || {}).telegram || '')}"></div>
     <div class="field mb-3"><label class="field-label" for="stF">فيسبوك (رابط الصفحة)</label><input class="input" id="stF" dir="ltr" value="${esc((m.contacts || {}).facebook || '')}"></div>
     <button class="btn btn-primary btn-block" id="stSave" type="button">حفظ</button>`);
+  $('#stBase').onchange = () => { sync(); base = $('#stBase').value === 'USD' ? 'USD' : 'LYD'; $('#stPays').innerHTML = payRows(); bindP();
+    if (base !== (m.base_currency === 'USD' ? 'USD' : 'LYD') && (S.mine.services || []).length) toast('بعد الحفظ راجع سعر كل خدمة ليكون بالعملة الجديدة', ''); };
   $('#scOn').onchange = () => { $('#scBox').style.display = $('#scOn').checked ? '' : 'none'; $('#stHBox').style.display = $('#scOn').checked ? 'none' : ''; };
   const sync = () => $$('#stPays [data-pl]').forEach(el => { const i = +el.dataset.pl;
     const type = $(`[data-pt="${i}"]`).value;
-    pays[i] = { ...pays[i], type, label: el.value.trim(), value: $(`[data-pv="${i}"]`).value.trim(), rate: Number($(`[data-pr="${i}"]`).value || 1), currency: CUR[type] || pays[i].currency || '' }; });
+    pays[i] = { ...pays[i], type, label: el.value.trim(), value: $(`[data-pv="${i}"]`).value.trim(), rate: Number($(`[data-pr="${i}"]`).value || 0), currency: CUR[type] || pays[i].currency || '' }; });
+  const sameCur = p => (base === 'USD' ? ['USDT', '$'] : ['د.ل']).includes(p.currency || CUR[p.type] || 'د.ل');
   const bindP = () => {
     $$('[data-pd]').forEach(b => b.onclick = () => { sync(); pays.splice(+b.dataset.pd, 1); $('#stPays').innerHTML = payRows(); bindP(); });
     $$('[data-pt]').forEach(sel => sel.onchange = () => { sync(); $('#stPays').innerHTML = payRows(); bindP(); });
@@ -3947,6 +3973,9 @@ function openMsSettings() {
     sync();
     const schedule = $('#scOn').checked ? { enabled: true, days: $$('[data-scd]').filter(x => x.checked).map(x => +x.dataset.scd), from: $('#scF').value, to: $('#scT').value } : { enabled: false };
     if (!/^0?9[1-5]\d{7}$/.test(($('#stP').value || '').replace(/\D/g, ''))) return toast('أدخل رقم تواصل صحيح (09xxxxxxxx)', 'bad');
+    for (const p of pays.filter(x => x.label && x.value)) {               // سعر الصرف إلزامي إلا إذا كانت عملة الطريقة نفس عملة المتجر
+      if (!(p.rate > 0)) { if (sameCur(p)) p.rate = 1; else return toast(`اكتب سعر الصرف لطريقة «${p.label}»`, 'bad'); }
+    }
     const body = { contact_phone: $('#stP').value.trim(), name: $('#stN').value.trim(), category: $('#stC').value, bio: $('#stB').value.trim(), hours: $('#stH').value.trim(), open: m.open, schedule,
       base_currency: $('#stBase').value, pay_methods: pays.filter(p => p.label && p.value).map(p => { const o = { id: p.id, type: p.type, label: p.label, value: p.value, currency: p.currency, rate: p.rate }; if (p._new) o.logo = p._new; return o; }), quick_replies: $('#stQ').value.split('\n').map(x => x.trim()).filter(Boolean),
       contacts: { whatsapp: $('#stW').value.trim(), telegram: $('#stT').value.trim(), facebook: $('#stF').value.trim() } };
