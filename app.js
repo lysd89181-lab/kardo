@@ -3467,8 +3467,15 @@ function pickPm(m, id) {
   return (id && list.find(p => p.id === id)) || list.find(p => p.type === S.payType) || list[0] || null;
 }
 const fmtPay = (amount, cur) => `${Number(amount || 0).toFixed(2)} ${cur || 'د.ل'}`;
+const isManual = m => !!(m && m.pricing_mode === 'manual');
+// v38: في الوضع اليدوي تظهر للخدمة فقط الطرق التي كتب لها التاجر سعرًا
+function svcPms(m, s) {
+  const list = ((m && m.pay_methods) || []).map((p, k) => ({ ...p, id: p.id || ('pm' + k) }));
+  return isManual(m) ? list.filter(p => s && s.prices && Number(s.prices[p.id] || 0) > 0) : list;
+}
 function svcPrice(m, s, pm) {
   pm = pm || pickPm(m);
+  if (isManual(m) && !(pm && s && s.prices && Number(s.prices[pm.id] || 0) > 0)) pm = svcPms(m, s)[0] || pm;
   const v = pm && s && s.prices ? Number(s.prices[pm.id] || 0) : 0;
   if (v > 0) return { amount: v, currency: pm.currency || 'د.ل', pm };
   return priceIn(m, s ? s.price : 0, pm);
@@ -3552,6 +3559,10 @@ function openMService(sid) {
   const s = (S.mk.services || []).find(x => x.id === sid); if (!s) return;
   const m = mById(s.mid); if (!m) return;
   if (m.open === false) return toast('المتجر مغلق حاليًا', 'bad');
+  const avail = svcPms(m, s);
+  if (!avail.length && (m.pay_methods || []).length) return toast('هذه الخدمة بلا سعر حاليًا — تواصل مع التاجر', 'bad');
+  const pref = pickPm(m);
+  const firstPm = (pref && avail.find(p => p.id === pref.id)) || avail[0] || null;
   let proof = '';
   const idemKey = 'mo' + Date.now().toString(36) + Math.random().toString(36).slice(2, 10);
   modal(`
@@ -3562,9 +3573,9 @@ function openMService(sid) {
     ${s.eta ? `<p class="caption mb-2">⏱️ مدة التنفيذ: <b>${esc(s.eta)}</b></p>` : ''}
 
     <div class="m-step">1</div>
-    <div class="m-pay-box mb-3" id="mPayBox">${payBoxHtml(m, s, pickPm(m))}</div>
-    ${(m.pay_methods || []).length > 1 ? `<div class="field mb-3"><label class="field-label" for="mPaySel">تغيير طريقة الدفع</label>
-      <select class="input" id="mPaySel">${m.pay_methods.map(p => { const pr = svcPrice(m, s, p); return `<option value="${esc(p.id)}" ${pickPm(m) && pickPm(m).id === p.id ? 'selected' : ''}>${esc(p.label)} — ${esc(fmtPay(pr.amount, pr.currency))}</option>`; }).join('')}</select></div>` : ''}
+    <div class="m-pay-box mb-3" id="mPayBox">${payBoxHtml(m, s, firstPm)}</div>
+    ${avail.length > 1 ? `<div class="field mb-3"><label class="field-label" for="mPaySel">تغيير طريقة الدفع</label>
+      <select class="input" id="mPaySel">${avail.map(p => { const pr = svcPrice(m, s, p); return `<option value="${esc(p.id)}" ${firstPm && firstPm.id === p.id ? 'selected' : ''}>${esc(p.label)} — ${esc(fmtPay(pr.amount, pr.currency))}</option>`; }).join('')}</select></div>` : ''}
 
     ${(s.fields || []).length ? `<div class="m-step">2</div>
       ${(s.fields || []).map((f, i) => `<div class="field mb-3"><label class="field-label" for="mf${i}">${esc(f)}</label><input class="input" id="mf${i}" dir="auto"></div>`).join('')}` : ''}
@@ -3574,8 +3585,8 @@ function openMService(sid) {
 
     <button class="btn btn-primary btn-block" id="mBuy" type="button" style="margin-top:6px">تم</button>
     <p class="caption" style="text-align:center;margin-top:8px">يؤكد التاجر استلام دفعتك ثم ينفّذ طلبك${s.delivery === 'stock' ? ' — والكود يصلك فورًا عند التأكيد' : ''}.</p>`);
-  let selPm = pickPm(m);
-  const ps = $('#mPaySel'); if (ps) ps.onchange = () => { selPm = pickPm(m, ps.value); $('#mPayBox').innerHTML = payBoxHtml(m, s, selPm); };
+  let selPm = firstPm;
+  const ps = $('#mPaySel'); if (ps) ps.onchange = () => { selPm = avail.find(p => p.id === ps.value) || firstPm; $('#mPayBox').innerHTML = payBoxHtml(m, s, selPm); };
   $('#mProof').onchange = async () => {
     try { proof = await compressImage($('#mProof').files[0], 900, 0.6); $('#mProofTxt').textContent = '✓ أُرفق الإيصال'; $('#mProofBox').classList.add('ok'); }
     catch (e) { toast(e.message, 'bad'); }
@@ -3744,7 +3755,7 @@ function vMyStore() {
       <div class="list-content"><div class="list-title">${esc(c.customer_name)}</div><div class="list-meta">${esc(c.last_by === 'merchant' ? 'أنت: ' : '')}${esc(c.last_text || '')}</div></div>
       <div class="list-end">${c.unread_m ? `<span class="chat-unread">${c.unread_m}</span>` : `<span class="caption">${esc(dt(c.updated_at))}</span>`}</div></div>`).join('')}</div>`
     : `<div class="card k-empty">${fennec('mail', 90)}<div class="h4">لا محادثات بعد</div><p class="caption">ستظهر هنا رسائل زبائنك</p></div>`;
-  const baseFmt = v => (S.mine.merchant || {}).base_currency === 'USD' ? '$' + Number(v || 0).toFixed(2) : lyd(v);
+  const baseFmt = v => (S.mine.merchant || {}).base_currency === 'USD' && (S.mine.merchant || {}).pricing_mode !== 'manual' ? '$' + Number(v || 0).toFixed(2) : lyd(v);
   if (tab === 'services') body = `
     <div class="flex-between mb-2"><div class="h4" style="font-size:14px">الأقسام</div><button class="btn btn-secondary btn-sm" id="msSecAdd" style="padding:0 14px">+ قسم</button></div>
     <div class="sec-grid mb-4">${(S.mine.sections || []).map(x => `<button class="sec-tile" data-mssec="${esc(x.id)}"><span class="sec-img">${x.image ? `<img src="${esc(x.image)}" alt="">` : `<b>${esc(x.name.charAt(0))}</b>`}<span class="sec-badge ${x.delivery === 'auto' ? 'auto' : ''}">${x.delivery === 'auto' ? '⚡ تلقائي' : '🕐 يدوي'}</span></span><span class="sec-name">${esc(x.name)}</span><span class="caption">${(S.mine.services || []).filter(v => v.section_id === x.id).length} خدمة</span></button>`).join('') || '<p class="caption">أنشئ قسمًا أولًا (مثل: ببجي، شاهد…) ثم أضف خدماته.</p>'}</div>
@@ -3850,13 +3861,19 @@ function openMsService(id) {
   const pms = (mm.pay_methods || []).map((p0, k) => ({ ...p0, id: p0.id || ('pm' + k) }));
   const pmCur = p => p.currency || PMCUR[p.type] || 'د.ل';
   const bUsd = mm.base_currency === 'USD', bSym = bUsd ? '$ دولار' : 'د.ل دينار';
+  const manualMode = mm.pricing_mode === 'manual' && pms.length > 0;
   modal(`
     <div class="modal-head"><div class="modal-title">${id ? 'تعديل الخدمة' : 'خدمة جديدة'}</div>
       <button class="modal-close" data-act="close-modal" aria-label="إغلاق">${svg(I.x, 2)}</button></div>
     <div class="field mb-3"><label class="field-label" for="svN">اسم الخدمة</label><input class="input" id="svN" maxlength="60" value="${esc(s.name)}" placeholder="مثال: 60 شدة ببجي"></div>
     <div class="field mb-3"><label class="field-label" for="svS">القسم</label><select class="input" id="svS">${(S.mine.sections || []).map(x => `<option value="${esc(x.id)}" ${s.section_id === x.id ? 'selected' : ''}>${esc(x.name)} — ${x.delivery === 'auto' ? '⚡ تلقائي' : '🕐 يدوي'}</option>`).join('')}</select>
       <div class="caption">نوع التسليم يتبع القسم.</div></div>
-    ${pms.length ? `<div class="field mb-2"><label class="field-label" for="svP">السعر (${esc(bSym)})</label>
+    ${manualMode ? `<div class="field-label mb-2">السعر لكل طريقة دفع</div>
+      ${pms.map(p => `<div class="field mb-2" style="grid-template-columns:1fr 130px;display:grid;align-items:center;gap:8px">
+        <label class="body-sm" for="mp_${esc(p.id)}">${esc(p.label)} <span class="caption">(${esc(pmCur(p))})</span></label>
+        <input class="input" id="mp_${esc(p.id)}" data-mp="${esc(p.id)}" data-req="1" type="number" step="0.01" min="0" dir="ltr" value="${esc(String((s.prices || {})[p.id] || ''))}"></div>`).join('')}
+      <input type="hidden" id="svP" value="">`
+    : pms.length ? `<div class="field mb-2"><label class="field-label" for="svP">السعر (${esc(bSym)})</label>
         <input class="input" id="svP" type="number" step="0.01" min="0" dir="ltr" value="${s.price ? esc(String(s.price)) : ''}" placeholder="${bUsd ? 'مثال: 3' : 'مثال: 35'}"></div>
       <div class="card mb-3" style="padding:10px 12px !important" id="svCalc"></div>
       <details class="mb-3" ${Object.keys(s.prices || {}).length ? 'open' : ''}><summary class="caption" style="cursor:pointer">تعديل سعر طريقة معيّنة يدويًا (اختياري)</summary>
@@ -3867,7 +3884,7 @@ function openMsService(id) {
       </details>`
       : `<div class="field mb-3"><label class="field-label" for="svP">السعر (د.ل)</label><input class="input" id="svP" type="number" step="0.5" min="0" dir="ltr" value="${esc(String(s.price))}"></div>
          <div class="caption mb-3">أضف طرق الدفع وأسعار الصرف من «الإعدادات» ليُحسب السعر تلقائيًا لكل طريقة.</div>`}
-    <div class="field mb-3"><label class="field-label" for="svO">السعر قبل الخصم (اختياري${pms.length ? ' — بنفس عملة المتجر' : ''})</label><input class="input" id="svO" type="number" step="0.5" min="0" dir="ltr" value="${s.old_price ? esc(String(s.old_price)) : ''}"></div>
+    <div class="field mb-3" ${manualMode ? 'style="display:none"' : ''}><label class="field-label" for="svO">السعر قبل الخصم (اختياري${pms.length ? ' — بنفس عملة المتجر' : ''})</label><input class="input" id="svO" type="number" step="0.5" min="0" dir="ltr" value="${s.old_price ? esc(String(s.old_price)) : ''}"></div>
     <div class="field mb-3"><label class="field-label" for="svE">مدة التنفيذ</label><input class="input" id="svE" maxlength="40" value="${esc(s.eta || '')}" placeholder="مثال: 5–15 دقيقة"></div>
     <div class="field mb-3"><label class="field-label" for="svD">الوصف</label><textarea class="input" id="svD" rows="3" maxlength="400">${esc(s.desc)}</textarea></div>
     <div class="field mb-3"><label class="field-label" for="svF">بيانات يطلبها من الزبون (اختياري، حتى 3 مفصولة بفاصلة)</label>
@@ -3886,12 +3903,13 @@ function openMsService(id) {
       return `<div class="flex-between body-sm" style="padding:3px 0"><span>${esc(p.label)}${man > 0 ? ' <span class="caption">(يدوي)</span>' : ''}</span><b class="tabular" dir="ltr">${b > 0 || man > 0 ? esc(fmtPay(v, pmCur(p))) : '—'}</b></div>`;
     }).join('');
   };
-  if (pms.length) { calc(); $('#svP').oninput = calc; $$('[data-mp]').forEach(i => i.oninput = calc); }
+  if (pms.length && !manualMode) { calc(); $('#svP').oninput = calc; $$('[data-mp]').forEach(i => i.oninput = calc); }
   $('#svI').onchange = async () => { try { image = await compressImage($('#svI').files[0], 600, 0.75); $('#svImgTxt').textContent = '✓ أُرفقت الصورة'; } catch (e) { toast(e.message, 'bad'); } };
   onTap('#svSave', async () => {
-    const prices = {};
-    $$('[data-mp]').forEach(i => { const v = Number(i.value || 0); if (v > 0) prices[i.dataset.mp] = v; });   // الفارغ = تلقائي
-    if (!(Number($('#svP').value || 0) > 0)) return toast('اكتب سعر الخدمة', 'bad');
+    const prices = {}; let missing = '';
+    $$('[data-mp]').forEach(i => { const v = Number(i.value || 0); if (v > 0) prices[i.dataset.mp] = v; else if (i.dataset.req) missing = missing || i.closest('.field').querySelector('label').textContent.trim(); });   // الفارغ = تلقائي (في الوضع التلقائي)
+    if (manualMode) { if (missing) return toast('اكتب سعر: ' + missing, 'bad'); }
+    else if (!(Number($('#svP').value || 0) > 0)) return toast('اكتب سعر الخدمة', 'bad');
     const body = { id: id || '', name: $('#svN').value.trim(), section_id: $('#svS').value, price: Number($('#svP').value || 0), prices, old_price: Number($('#svO').value || 0),
       eta: $('#svE').value.trim(), desc: $('#svD').value.trim(), fields: $('#svF').value.split(/[،,]/).map(x => x.trim()).filter(Boolean), active: $('#svA').checked };
     if (image !== null) body.image = image;
@@ -3911,17 +3929,18 @@ function openMsSettings() {
   let logo = null, cover = null;
   const CUR = { libyana: 'د.ل', almadar: 'د.ل', bank: 'د.ل', binance: 'USDT', usdt: 'USDT', other: '' };
   let base = m.base_currency === 'USD' ? 'USD' : 'LYD';
+  let mode = m.pricing_mode === 'manual' ? 'manual' : 'auto';
   const baseCur = () => base, baseSym = () => (base === 'USD' ? '$' : 'د.ل');
   const payRows = () => pays.map((p, i) => `<div class="pm-field" style="grid-template-columns:1fr 1fr">
       <select class="input" data-pt="${i}">${Object.entries(PAY_TYPE_AR).map(([k, t]) => `<option value="${k}" ${p.type === k ? 'selected' : ''}>${t}</option>`).join('')}</select>
       <input class="input" data-pl="${i}" placeholder="الاسم الظاهر (مثل: رصيد ليبيانا)" value="${esc(p.label)}">
       <input class="input" data-pv="${i}" dir="ltr" placeholder="الرقم / الحساب / المعرّف" value="${esc(p.value)}">
-      <div class="field" style="grid-column:1/-1;display:grid;grid-template-columns:1fr 120px;align-items:center;gap:8px">
+      <div class="field" style="grid-column:1/-1;display:${mode === 'manual' ? 'none' : 'grid'};grid-template-columns:1fr 120px;align-items:center;gap:8px">
         <label class="body-sm" for="pr_${i}">سعر الصرف: 1 ${baseSym()} = ؟ ${esc(p.currency || CUR[p.type] || 'د.ل')}</label>
         <input class="input" id="pr_${i}" data-pr="${i}" type="number" step="0.01" min="0.0001" dir="ltr" placeholder="${baseCur() === 'USD' ? 'مثال: 11.8' : '1'}" value="${p.rate && !(baseCur() === 'USD' && p.rate === 1 && (p.currency || CUR[p.type] || 'د.ل') === 'د.ل') ? esc(String(p.rate)) : ''}"></div>
       <label class="m-proof" style="margin:0"><span>${p._new || p.logo ? '✓ الصورة' : 'صورة الطريقة'}</span><input type="file" accept="image/*" data-pi="${i}" hidden></label>
       <button class="btn btn-ghost btn-sm" data-pd="${i}" type="button" style="color:var(--error)">حذف</button>
-      <div class="caption" style="grid-column:1/-1">يدفع الزبون بـ <b>${esc(p.currency || CUR[p.type] || 'د.ل')}</b> — السعر يُحسب تلقائيًا من سعر الخدمة × سعر الصرف</div></div>`).join('');
+      <div class="caption" style="grid-column:1/-1">يدفع الزبون بـ <b>${esc(p.currency || CUR[p.type] || 'د.ل')}</b> — ${mode === 'manual' ? 'تكتب سعر كل خدمة بهذه الطريقة بنفسك' : 'السعر يُحسب تلقائيًا من سعر الخدمة × سعر الصرف'}</div></div>`).join('');
   modal(`
     <div class="modal-head"><div class="modal-title">إعدادات المتجر</div>
       <button class="modal-close" data-act="close-modal" aria-label="إغلاق">${svg(I.x, 2)}</button></div>
@@ -3942,10 +3961,12 @@ function openMsSettings() {
     </div>
     <label class="m-proof mb-2"><span id="stLt">${m.logo ? '✓ الشعار — اضغط للتغيير' : '📷 شعار المتجر'}</span><input type="file" accept="image/*" id="stL" hidden></label>
     <label class="m-proof mb-3"><span id="stVt">${m.cover ? '✓ الغلاف — اضغط للتغيير' : 'صورة الغلاف'}</span><input type="file" accept="image/*" id="stV" hidden></label>
-    <div class="field mb-3"><label class="field-label" for="stBase">عملة أسعار متجرك</label>
+    <div class="field mb-3"><label class="field-label" for="stMode">طريقة التسعير</label>
+      <select class="input" id="stMode"><option value="auto" ${mode === 'auto' ? 'selected' : ''}>تلقائي — أكتب سعرًا واحدًا وتُحسب باقي الطرق بسعر الصرف</option><option value="manual" ${mode === 'manual' ? 'selected' : ''}>يدوي — أكتب سعر كل طريقة دفع بنفسي</option></select></div>
+    <div class="field mb-3" id="stBaseBox" ${mode === 'manual' ? 'style="display:none"' : ''}><label class="field-label" for="stBase">عملة أسعار متجرك</label>
       <select class="input" id="stBase"><option value="USD" ${base === 'USD' ? 'selected' : ''}>دولار ($)</option><option value="LYD" ${base === 'LYD' ? 'selected' : ''}>دينار (د.ل)</option></select>
       <div class="caption">تكتب سعر كل خدمة بهذه العملة مرة واحدة، والمنصة تحسب سعرها في كل طريقة دفع حسب سعر الصرف.</div></div>
-    <div class="field-label mb-2">طرق الدفع وأسعار الصرف</div>
+    <div class="field-label mb-2" id="stPaysLbl">${mode === 'manual' ? 'طرق الدفع' : 'طرق الدفع وأسعار الصرف'}</div>
     <div id="stPays">${payRows()}</div>
     <button class="btn btn-ghost btn-sm mb-3" id="stPAdd" type="button">+ طريقة دفع</button>
     <div class="field mb-3"><label class="field-label" for="stQ">ردود جاهزة للتسليم (كل رد في سطر، حتى 10)</label><textarea class="input" id="stQ" rows="4" maxlength="3000" placeholder="تم الشحن بنجاح ✅ شكرًا لثقتك">${esc((m.quick_replies || []).join('\n'))}</textarea></div>
@@ -3953,6 +3974,10 @@ function openMsSettings() {
     <div class="field mb-2"><label class="field-label" for="stT">تيليجرام (اسم المستخدم)</label><input class="input" id="stT" dir="ltr" value="${esc((m.contacts || {}).telegram || '')}"></div>
     <div class="field mb-3"><label class="field-label" for="stF">فيسبوك (رابط الصفحة)</label><input class="input" id="stF" dir="ltr" value="${esc((m.contacts || {}).facebook || '')}"></div>
     <button class="btn btn-primary btn-block" id="stSave" type="button">حفظ</button>`);
+  $('#stMode').onchange = () => { sync(); mode = $('#stMode').value === 'manual' ? 'manual' : 'auto';
+    $('#stBaseBox').style.display = mode === 'manual' ? 'none' : ''; $('#stPaysLbl').textContent = mode === 'manual' ? 'طرق الدفع' : 'طرق الدفع وأسعار الصرف';
+    $('#stPays').innerHTML = payRows(); bindP();
+    if (mode === 'manual' && (S.mine.services || []).length) toast('بعد الحفظ افتح كل خدمة واكتب سعرها لكل طريقة دفع', ''); };
   $('#stBase').onchange = () => { sync(); base = $('#stBase').value === 'USD' ? 'USD' : 'LYD'; $('#stPays').innerHTML = payRows(); bindP();
     if (base !== (m.base_currency === 'USD' ? 'USD' : 'LYD') && (S.mine.services || []).length) toast('بعد الحفظ راجع سعر كل خدمة ليكون بالعملة الجديدة', ''); };
   $('#scOn').onchange = () => { $('#scBox').style.display = $('#scOn').checked ? '' : 'none'; $('#stHBox').style.display = $('#scOn').checked ? 'none' : ''; };
@@ -3974,10 +3999,10 @@ function openMsSettings() {
     const schedule = $('#scOn').checked ? { enabled: true, days: $$('[data-scd]').filter(x => x.checked).map(x => +x.dataset.scd), from: $('#scF').value, to: $('#scT').value } : { enabled: false };
     if (!/^0?9[1-5]\d{7}$/.test(($('#stP').value || '').replace(/\D/g, ''))) return toast('أدخل رقم تواصل صحيح (09xxxxxxxx)', 'bad');
     for (const p of pays.filter(x => x.label && x.value)) {               // سعر الصرف إلزامي إلا إذا كانت عملة الطريقة نفس عملة المتجر
-      if (!(p.rate > 0)) { if (sameCur(p)) p.rate = 1; else return toast(`اكتب سعر الصرف لطريقة «${p.label}»`, 'bad'); }
+      if (!(p.rate > 0)) { if (mode === 'manual' || sameCur(p)) p.rate = 1; else return toast(`اكتب سعر الصرف لطريقة «${p.label}»`, 'bad'); }
     }
     const body = { contact_phone: $('#stP').value.trim(), name: $('#stN').value.trim(), category: $('#stC').value, bio: $('#stB').value.trim(), hours: $('#stH').value.trim(), open: m.open, schedule,
-      base_currency: $('#stBase').value, pay_methods: pays.filter(p => p.label && p.value).map(p => { const o = { id: p.id, type: p.type, label: p.label, value: p.value, currency: p.currency, rate: p.rate }; if (p._new) o.logo = p._new; return o; }), quick_replies: $('#stQ').value.split('\n').map(x => x.trim()).filter(Boolean),
+      base_currency: $('#stBase').value, pricing_mode: mode, pay_methods: pays.filter(p => p.label && p.value).map(p => { const o = { id: p.id, type: p.type, label: p.label, value: p.value, currency: p.currency, rate: p.rate }; if (p._new) o.logo = p._new; return o; }), quick_replies: $('#stQ').value.split('\n').map(x => x.trim()).filter(Boolean),
       contacts: { whatsapp: $('#stW').value.trim(), telegram: $('#stT').value.trim(), facebook: $('#stF').value.trim() } };
     if (logo !== null) body.logo = logo;
     if (cover !== null) body.cover = cover;
@@ -3989,7 +4014,7 @@ function openMsSettings() {
 async function msToggleOpen() {
   const m = S.mine.merchant;
   try {
-    await api('/api/m/profile', { base_currency: m.base_currency || 'LYD', contact_phone: m.contact_phone || '', name: m.name, category: m.category, bio: m.bio, hours: m.hours, pay_methods: m.pay_methods, contacts: m.contacts, quick_replies: m.quick_replies, open: !m.open, schedule: m.schedule || { enabled: false } });
+    await api('/api/m/profile', { base_currency: m.base_currency || 'LYD', pricing_mode: m.pricing_mode || 'auto', contact_phone: m.contact_phone || '', name: m.name, category: m.category, bio: m.bio, hours: m.hours, pay_methods: m.pay_methods, contacts: m.contacts, quick_replies: m.quick_replies, open: !m.open, schedule: m.schedule || { enabled: false } });
     toast(m.open ? 'أُغلق المتجر مؤقتًا' : 'المتجر مفتوح الآن ✓', 'ok'); loadMine(); loadMerchants(true);
   } catch (e) { toast(e.message, 'bad'); }
 }

@@ -4580,7 +4580,7 @@ async function handleMerchantsList(env) {
       contacts: cleanContacts(m.contacts), pay_methods: (Array.isArray(m.pay_methods) ? m.pay_methods.slice(0, 6) : []).map((p, i) => ({
         id: p.id || ('pm' + i), type: p.type || 'other', label: p.label, value: p.value, currency: p.currency || PAY_TYPES[p.type] || 'د.ل',
         rate: num(p.rate, 1), logo: p.logo || '' })),
-      base_currency: m.base_currency === 'USD' ? 'USD' : 'LYD',
+      base_currency: m.base_currency === 'USD' ? 'USD' : 'LYD', pricing_mode: m.pricing_mode === 'manual' ? 'manual' : 'auto',
       orders_done: num(m.orders_done, 0), rating: num(m.rating_count, 0) ? round2(num(m.rating_sum, 0) / num(m.rating_count, 1)) : 0,
       rating_count: num(m.rating_count, 0), featured: m.featured === true || num(m.featured_until, 0) > Date.now(),
       verified: m.verified === true, verified_since: m.verified === true ? String(m.verified_at || '').slice(0, 7) : '',
@@ -4639,6 +4639,7 @@ async function handleMerchantOrder(user, body, env) {
   const pm = withIds.find(x => x.id === String(body.pay_method_id || '')) || withIds.find(x => x.label === String(body.pay_method || '')) || withIds[0] || null;
   const payMethod = pm ? pm.label : String(body.pay_method || '').slice(0, 40);
   const manual = pm && svc.prices && num(svc.prices[pm.id], 0) > 0 ? round2(num(svc.prices[pm.id], 0)) : 0;
+  if (m.pricing_mode === 'manual' && pm && !manual) throw httpError(400, 'هذه الخدمة غير متاحة بطريقة الدفع هذه — اختر طريقة أخرى');
   const payAmount = manual || (pm ? payPrice(svc.price, pm) : num(svc.price, 0));
   const payCurrency = pm ? (pm.currency || PAY_TYPES[pm.type] || 'د.ل') : 'د.ل';
   const inputs = {};
@@ -4744,7 +4745,7 @@ async function merchantMeInner(user, body, env) {
       where: { fieldFilter: { field: { fieldPath: 'mid' }, op: 'EQUAL', value: { stringValue: u.merchant_id } } }, limit: 300 });
   return { success: true, categories: M_CATEGORIES, merchant: {
     terms_accepted: !!m.terms_accepted_at, open: m.open !== false, contact_phone: m.contact_phone || '', commission_from_ms: num(m.commission_from_ms, 0),
-    base_currency: m.base_currency === 'USD' ? 'USD' : 'LYD', verified: m.verified === true, open_now: openNow(m), schedule: m.schedule || { enabled: false }, billing_mode: m.billing_mode || 'fixed', commission_pct: num(m.commission_pct, 0), billing_hold: m.billing_hold === true, hours: m.hours || '', quick_replies: m.quick_replies || [],
+    base_currency: m.base_currency === 'USD' ? 'USD' : 'LYD', pricing_mode: m.pricing_mode === 'manual' ? 'manual' : 'auto', verified: m.verified === true, open_now: openNow(m), schedule: m.schedule || { enabled: false }, billing_mode: m.billing_mode || 'fixed', commission_pct: num(m.commission_pct, 0), billing_hold: m.billing_hold === true, hours: m.hours || '', quick_replies: m.quick_replies || [],
     blocked: (m.blocked || []).length, tier: merchantTier(m),
     avg_confirm_min: num(m.confirm_count, 0) ? Math.round(num(m.confirm_ms_sum, 0) / num(m.confirm_count, 1) / 60000) : null,
     id: u.merchant_id, name: m.name, slug: m.slug || '', category: m.category, bio: m.bio || '', logo: m.logo || '', cover: m.cover || '',
@@ -4775,6 +4776,7 @@ async function handleMerchantProfileSave(user, body, env) {
     name, category, bio: String(body.bio || '').replace(/[<>]/g, '').slice(0, 500), pay_methods: pay,
     ...(payChanged ? { pay_changed_at: nowIso(), pay_history: [{ at: nowIso(), methods: (m.pay_methods || []).map(p => ({ type: p.type || '', label: p.label, value: p.value })) }, ...(Array.isArray(m.pay_history) ? m.pay_history : [])].slice(0, 10) } : {}),
     base_currency: body.base_currency === 'USD' ? 'USD' : body.base_currency === 'LYD' ? 'LYD' : (m.base_currency || 'LYD'),
+    pricing_mode: body.pricing_mode === 'manual' ? 'manual' : body.pricing_mode === 'auto' ? 'auto' : (m.pricing_mode === 'manual' ? 'manual' : 'auto'),   // v38: تلقائي بسعر الصرف أو يدوي لكل طريقة
     contacts: cleanContacts(body.contacts), updated_at: nowIso(),
     open: body.open !== false, hours: String(body.hours || '').replace(/[<>]/g, '').slice(0, 80), schedule: cleanSchedule(body.schedule),
     contact_phone: (() => { const p = normalizePhone(body.contact_phone || ''); if (!p) throw httpError(400, 'أدخل رقم تواصل صحيح (ليبيانا أو المدار) — إجباري لتتواصل معك الإدارة'); return '0' + p; })(),
@@ -4815,7 +4817,10 @@ async function handleMerchantServiceSave(user, body, env) {
     const v = round2(num(body.prices && body.prices[pid], NaN));
     if (body.prices && pid in body.prices) { if (!(v > 0) || v > 1000000) throw httpError(400, `سعر غير صالح لطريقة «${pm.label}»`); prices[pid] = v; }
   });
-  if (Object.keys(prices).length && !(price > 0)) { /* السعر الأساسي = أول سعر بالدينار */ }
+  if (m.pricing_mode === 'manual') {                                   // v38: الوضع اليدوي — سعر لكل طريقة دفع إلزامي
+    const miss = (Array.isArray(m.pay_methods) ? m.pay_methods : []).find((pm, i) => !(prices[pm.id || ('pm' + i)] > 0));
+    if (miss) throw httpError(400, `اكتب سعر الخدمة لطريقة «${miss.label}»`);
+  }
   const data = { section_id: secId, prices,
     mid: m._id, name, price, desc: String(body.desc || '').replace(/[<>]/g, '').slice(0, 400), fields,
     delivery: body.delivery === 'stock' ? 'stock' : 'manual', active: body.active !== false, updated_at: nowIso(),
