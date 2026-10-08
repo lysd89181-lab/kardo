@@ -4621,7 +4621,7 @@ async function handleMerchantOrder(user, body, env) {
   if (m.owner_uid === user.uid) throw httpError(400, 'لا يمكنك الشراء من متجرك');
   if (!openNow(m)) throw httpError(403, `المتجر مغلق حاليًا${m.schedule && m.schedule.enabled ? ' — أوقات العمل: ' + scheduleText(m.schedule) : ''}`);
   if (Array.isArray(m.blocked) && m.blocked.includes(user.uid)) throw httpError(403, 'لا يمكنك الطلب من هذا المتجر');
-  if (svc.delivery === 'stock' && num(svc.stock_count, 0) < 1) throw httpError(409, 'نفذت الكمية');
+  svc.delivery = 'manual';                                            // v40: كل طلبات المتاجر يدوية
   const u = await fsGet(env, `users/${user.uid}`);
   if (!u || u.banned === true) throw httpError(403, 'الحساب موقوف');
   const idk = String(body.idempotency_key || '').replace(/[^A-Za-z0-9_-]/g, '').slice(0, 60);
@@ -4809,7 +4809,7 @@ async function handleMerchantServiceSave(user, body, env) {
   const secId = String(body.section_id || '');
   const sec = secId && await fsGet(env, `merchant_sections/${secId}`);
   if (!sec || sec.mid !== m._id) throw httpError(400, 'اختر القسم الذي تنتمي له الخدمة (أنشئ قسمًا أولًا)');
-  body.delivery = sec.delivery === 'auto' ? 'stock' : 'manual';
+  body.delivery = 'manual';                                           // v40: التسليم التلقائي متوقف
   // أسعار يدوية لكل طريقة دفع أضافها التاجر: { pmId: amount }
   const prices = {};
   (Array.isArray(m.pay_methods) ? m.pay_methods : []).forEach((pm, i) => {
@@ -4857,6 +4857,7 @@ async function handleMerchantServiceDelete(user, body, env) {
 }
 
 async function handleMerchantStockAdd(user, body, env) {
+  throw httpError(400, 'التسليم التلقائي متوقف حاليًا — نفّذ الطلبات يدويًا');
   await assertNotSaving(env);
   const m = await getMyMerchant(env, user.uid);
   const sid = String(body.sid || '');
@@ -5305,7 +5306,7 @@ async function handleMerchantSectionSave(user, body, env) {
   const m = await getMyMerchant(env, user.uid);
   const name = String(body.name || '').replace(/[<>]/g, '').trim().slice(0, 30);
   if (name.length < 2) throw httpError(400, 'اسم القسم قصير');
-  const data = { mid: m._id, name, order: Math.max(0, Math.min(999, Math.floor(num(body.order, 0)))), delivery: body.delivery === 'auto' ? 'auto' : 'manual', updated_at: nowIso() };
+  const data = { mid: m._id, name, order: Math.max(0, Math.min(999, Math.floor(num(body.order, 0)))), delivery: 'manual', updated_at: nowIso() };   // v40
   if ('image' in body) data.image = cleanImg(body.image, 150000);
   let id = String(body.id || '');
   if (id) {

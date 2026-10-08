@@ -3360,18 +3360,23 @@ function openOtp() {
    v12 — المتاجر الموثوقة
    ═══════════════════════════════════════════════════════════ */
 S.mk = { loaded: false, merchants: [], services: [], categories: [] };
+// v40: التسليم التلقائي من المخزون متوقف في المتاجر (يحتاج نظام محفظة) — كل الخدمات والأقسام يدوية
+function noAutoDelivery(d) {
+  (d && d.services || []).forEach(x => { x.delivery = 'manual'; });
+  (d && d.sections || []).forEach(x => { x.delivery = 'manual'; });
+}
 S.mkCat = ''; S.mkQ = ''; S.curStore = null; S.mine = null; S.mstoreTab = 'home';
 let _mkLoading = false;
 async function loadMerchants(force) {
   if (_mkLoading || (S.mk.loaded && !force)) return;
   if (force && S.mk._at && Date.now() - S.mk._at < 20000) return;   // لا إعادة جلب متكررة
   _mkLoading = true;
-  try { const d = await apiGet('/api/merchants/list'); S.mk = { ...d, loaded: true, _at: Date.now() }; setTimeout(openPendingStore, 50); }
+  try { const d = await apiGet('/api/merchants/list'); noAutoDelivery(d); S.mk = { ...d, loaded: true, _at: Date.now() }; setTimeout(openPendingStore, 50); }
   catch { S.mk = { ...S.mk, loaded: true, error: true }; }
   _mkLoading = false; render();
 }
 async function loadMine(fresh = true) {
-  try { const d = await api('/api/m/me', { fresh: !!fresh }); S.mine = d.merchant ? d : { merchant: null }; }
+  try { const d = await api('/api/m/me', { fresh: !!fresh }); noAutoDelivery(d); S.mine = d.merchant ? d : { merchant: null }; }
   catch (e) { S.mine = { merchant: null, error: (e && e.message) || 'تعذّر التحميل' }; }
   render();
 }
@@ -3758,7 +3763,7 @@ function vMyStore() {
   const baseFmt = v => (S.mine.merchant || {}).base_currency === 'USD' && (S.mine.merchant || {}).pricing_mode !== 'manual' ? '$' + Number(v || 0).toFixed(2) : lyd(v);
   if (tab === 'services') body = `
     <div class="flex-between mb-2"><div class="h4" style="font-size:14px">الأقسام</div><button class="btn btn-secondary btn-sm" id="msSecAdd" style="padding:0 14px">+ قسم</button></div>
-    <div class="sec-grid mb-4">${(S.mine.sections || []).map(x => `<button class="sec-tile" data-mssec="${esc(x.id)}"><span class="sec-img">${x.image ? `<img src="${esc(x.image)}" alt="">` : `<b>${esc(x.name.charAt(0))}</b>`}<span class="sec-badge ${x.delivery === 'auto' ? 'auto' : ''}">${x.delivery === 'auto' ? '⚡ تلقائي' : '🕐 يدوي'}</span></span><span class="sec-name">${esc(x.name)}</span><span class="caption">${(S.mine.services || []).filter(v => v.section_id === x.id).length} خدمة</span></button>`).join('') || '<p class="caption">أنشئ قسمًا أولًا (مثل: ببجي، شاهد…) ثم أضف خدماته.</p>'}</div>
+    <div class="sec-grid mb-4">${(S.mine.sections || []).map(x => `<button class="sec-tile" data-mssec="${esc(x.id)}"><span class="sec-img">${x.image ? `<img src="${esc(x.image)}" alt="">` : `<b>${esc(x.name.charAt(0))}</b>`}</span><span class="sec-name">${esc(x.name)}</span><span class="caption">${(S.mine.services || []).filter(v => v.section_id === x.id).length} خدمة</span></button>`).join('') || '<p class="caption">أنشئ قسمًا أولًا (مثل: ببجي، شاهد…) ثم أضف خدماته.</p>'}</div>
     <button class="btn btn-primary btn-sm mb-3" id="msAdd" style="padding:0 18px" ${(S.mine.sections || []).length ? '' : 'disabled'}>+ خدمة جديدة</button>
     <div style="display:flex;flex-direction:column;gap:10px">${(S.mine.services || []).map(s => `
       <div class="card m-svc-row">
@@ -3798,7 +3803,16 @@ function vMyStore() {
       <div class="list-end"><div class="list-amount">${esc(lyd(x.commission))}</div><span class="badge ${x.status === 'paid' ? 'badge-success' : 'badge-warning'}" style="font-size:10px">${x.status === 'paid' ? 'مدفوع' : 'مستحق'}</span></div></div>`).join('') || '<p class="caption">لا كشوف سابقة — يصدر الكشف أول كل شهر.</p>'}</div>
     <p class="caption" style="margin-top:10px">يُسدَّد الكشف خلال 5 أيام من صدوره، وإلا يتوقف المتجر تلقائيًا حتى السداد.</p>`;
   }
-  if (tab === 'settings') body = `<button class="btn btn-primary btn-block" id="mSetOpen">تعديل بيانات المتجر</button>
+  if (tab === 'settings') body = `
+    <div class="card mb-3">
+      <div class="flex-between"><div class="h4" style="font-size:14px;margin:0">💲 طريقة التسعير</div>
+        <span class="badge">${m.pricing_mode === 'manual' ? 'يدوي' : 'تلقائي'}</span></div>
+      <p class="caption" style="margin:6px 0 10px">${m.pricing_mode === 'manual'
+        ? 'تكتب سعر كل منتج لكل طريقة دفع بنفسك.'
+        : `تكتب سعر المنتج مرة واحدة بـ${m.base_currency === 'USD' ? 'الدولار' : 'الدينار'}، ويُحسب سعر كل طريقة دفع بسعر الصرف.`}</p>
+      <button class="btn btn-secondary btn-block" id="mPriceOpen" type="button">تغيير طريقة التسعير وأسعار الصرف</button>
+    </div>
+    <button class="btn btn-primary btn-block" id="mSetOpen">تعديل بيانات المتجر</button>
     <div class="card" style="margin-top:12px">${mLogo(m, 'm-logo m-logo-lg')}<b style="display:block;margin-top:8px">${esc(m.name)}</b>
       <div class="caption">${esc(m.category)}${m.hours ? ` · 🕒 ${esc(m.hours)}` : ''}</div><p class="body-sm text-2" style="white-space:pre-line">${esc(m.bio || '—')}</p>
       <div class="caption">أرقام الدفع: ${(m.pay_methods || []).map(p => esc(p.label + ': ' + p.value)).join(' · ') || '—'}</div>
@@ -3866,8 +3880,9 @@ function openMsService(id) {
     <div class="modal-head"><div class="modal-title">${id ? 'تعديل الخدمة' : 'خدمة جديدة'}</div>
       <button class="modal-close" data-act="close-modal" aria-label="إغلاق">${svg(I.x, 2)}</button></div>
     <div class="field mb-3"><label class="field-label" for="svN">اسم الخدمة</label><input class="input" id="svN" maxlength="60" value="${esc(s.name)}" placeholder="مثال: 60 شدة ببجي"></div>
-    <div class="field mb-3"><label class="field-label" for="svS">القسم</label><select class="input" id="svS">${(S.mine.sections || []).map(x => `<option value="${esc(x.id)}" ${s.section_id === x.id ? 'selected' : ''}>${esc(x.name)} — ${x.delivery === 'auto' ? '⚡ تلقائي' : '🕐 يدوي'}</option>`).join('')}</select>
-      <div class="caption">نوع التسليم يتبع القسم.</div></div>
+    <div class="field mb-3"><label class="field-label" for="svS">القسم</label><select class="input" id="svS">${(S.mine.sections || []).map(x => `<option value="${esc(x.id)}" ${s.section_id === x.id ? 'selected' : ''}>${esc(x.name)}</option>`).join('')}</select>
+</div>
+    ${pms.length ? `<div class="caption mb-2">طريقة التسعير: <b>${manualMode ? 'يدوي' : 'تلقائي'}</b> — تغييرها من «الإعدادات ← طريقة التسعير».</div>` : ''}
     ${manualMode ? `<div class="field-label mb-2">السعر لكل طريقة دفع</div>
       ${pms.map(p => `<div class="field mb-2" style="grid-template-columns:1fr 130px;display:grid;align-items:center;gap:8px">
         <label class="body-sm" for="mp_${esc(p.id)}">${esc(p.label)} <span class="caption">(${esc(pmCur(p))})</span></label>
@@ -4011,6 +4026,48 @@ function openMsSettings() {
   });
 }
 
+// v40: نافذة مستقلة وواضحة لطريقة التسعير (تلقائي بسعر الصرف / يدوي لكل طريقة)
+function openMsPricing() {
+  const m = S.mine.merchant;
+  const CUR = { libyana: 'د.ل', almadar: 'د.ل', bank: 'د.ل', binance: 'USDT', usdt: 'USDT', other: '' };
+  const pms = (m.pay_methods || []).map((p, k) => ({ ...p, id: p.id || ('pm' + k) }));
+  if (!pms.length) return toast('أضف طرق الدفع أولًا من «تعديل بيانات المتجر»', 'bad');
+  let mode = m.pricing_mode === 'manual' ? 'manual' : 'auto', base = m.base_currency === 'USD' ? 'USD' : 'LYD';
+  const curOf = p => p.currency || CUR[p.type] || 'د.ل';
+  const sameCur = p => (base === 'USD' ? ['USDT', '$'] : ['د.ل']).includes(curOf(p));
+  const body = () => `
+    <div class="pills mb-3"><button class="pill ${mode === 'auto' ? 'active' : ''}" data-pmode="auto" type="button">⚙️ تلقائي</button><button class="pill ${mode === 'manual' ? 'active' : ''}" data-pmode="manual" type="button">✍️ يدوي</button></div>
+    ${mode === 'manual' ? `<div class="alert alert-info mb-3"><div>عند إضافة أو تعديل أي منتج تظهر لك خانة سعر لكل طريقة دفع، وكلها إلزامية.</div></div>` : `
+      <p class="caption mb-3">تكتب سعر المنتج مرة واحدة، ويُحسب سعر كل طريقة: <b>السعر × سعر الصرف</b>.</p>
+      <div class="field mb-3"><label class="field-label" for="prBase">عملة أسعار منتجاتك</label>
+        <select class="input" id="prBase"><option value="USD" ${base === 'USD' ? 'selected' : ''}>دولار ($)</option><option value="LYD" ${base === 'LYD' ? 'selected' : ''}>دينار (د.ل)</option></select></div>
+      <div class="field-label mb-2">سعر الصرف لكل طريقة دفع</div>
+      ${pms.map(p => `<div class="field mb-2" style="display:grid;grid-template-columns:1fr 110px;align-items:center;gap:8px">
+        <label class="body-sm" for="prR_${esc(p.id)}">${esc(p.label)}<span class="caption" style="display:block">1 ${base === 'USD' ? '$' : 'د.ل'} = ؟ ${esc(curOf(p))}</span></label>
+        <input class="input" id="prR_${esc(p.id)}" data-prr="${esc(p.id)}" type="number" step="0.01" min="0" dir="ltr" placeholder="${sameCur(p) ? '1' : 'مثال: 11.8'}" value="${p.rate && !(p.rate === 1 && !sameCur(p)) ? esc(String(p.rate)) : ''}"></div>`).join('')}`}
+    <button class="btn btn-primary btn-block" id="prSave" type="button" style="margin-top:8px">حفظ</button>`;
+  modal(`<div class="modal-head"><div class="modal-title">طريقة التسعير</div>
+      <button class="modal-close" data-act="close-modal" aria-label="إغلاق">${svg(I.x, 2)}</button></div><div id="prBody">${body()}</div>`);
+  const readRates = () => $$('[data-prr]').forEach(i => { const p = pms.find(x => x.id === i.dataset.prr); if (p) p.rate = Number(i.value || 0); });
+  const bindPr = () => {
+    $$('[data-pmode]').forEach(b => b.onclick = () => { readRates(); mode = b.dataset.pmode; $('#prBody').innerHTML = body(); bindPr(); });
+    const bs = $('#prBase'); if (bs) bs.onchange = () => { readRates(); base = bs.value === 'USD' ? 'USD' : 'LYD'; $('#prBody').innerHTML = body(); bindPr(); };
+    onTap('#prSave', async () => {
+      readRates();
+      if (mode === 'auto') for (const p of pms) { if (!(p.rate > 0)) { if (sameCur(p)) p.rate = 1; else return toast(`اكتب سعر الصرف لـ «${p.label}»`, 'bad'); } }
+      const b = $('#prSave'); b.disabled = true; b.classList.add('loading');
+      try {
+        await api('/api/m/profile', { pricing_mode: mode, base_currency: base, contact_phone: m.contact_phone || '', name: m.name, category: m.category, bio: m.bio, hours: m.hours,
+          pay_methods: pms.map(p => ({ id: p.id, type: p.type, label: p.label, value: p.value, currency: p.currency, rate: mode === 'auto' ? p.rate : (p.rate || 1) })),
+          contacts: m.contacts, quick_replies: m.quick_replies, open: m.open, schedule: m.schedule || { enabled: false } });
+        closeModal(); toast('حُفظت طريقة التسعير ✓', 'ok'); loadMine(true); loadMerchants(true);
+        if (mode === 'manual' && m.pricing_mode !== 'manual' && (S.mine.services || []).length) setTimeout(() => toast('افتح كل منتج واكتب سعره لكل طريقة دفع', ''), 1200);
+      } catch (e) { toast(e.message, 'bad'); b.disabled = false; b.classList.remove('loading'); }
+    });
+  };
+  bindPr();
+}
+
 async function msToggleOpen() {
   const m = S.mine.merchant;
   try {
@@ -4109,6 +4166,7 @@ function bindMarket() {
   $$('[data-msedit]').forEach(b => b.onclick = () => openMsService(b.dataset.msedit));
   $$('[data-msstock]').forEach(b => b.onclick = () => openMsStock(b.dataset.msstock));
   onTap('#mSetOpen', () => openMsSettings());
+  onTap('#mPriceOpen', () => openMsPricing());
 }
 
 
@@ -4234,12 +4292,12 @@ function vStore() {
     const sec = secs.find(x => x.id === curSec) || { name: 'أخرى', delivery: 'manual' };
     const list = curSec === '_other' ? orphan : inSec(curSec);
     servicesHtml = `<button class="btn btn-ghost btn-sm mb-2" id="secBack" style="padding:0">→ كل الأقسام</button>
-      <div class="flex-between mb-3"><div class="h4">${esc(sec.name)}</div><span class="sec-badge ${sec.delivery === 'auto' ? 'auto' : ''}">${sec.delivery === 'auto' ? '⚡ تسليم تلقائي' : '🕐 تنفيذ يدوي'}</span></div>
+      <div class="flex-between mb-3"><div class="h4">${esc(sec.name)}</div></div>
       <div class="svc-list stagger">${list.map(svcBtn).join('') || '<p class="caption">لا خدمات في هذا القسم</p>'}</div>`;
   } else servicesHtml = `<div class="sec-grid stagger">${secs.map(x => `
       <button class="sec-tile" data-sec="${esc(x.id)}">
         <span class="sec-img">${x.image ? `<img src="${esc(x.image)}" alt="" loading="lazy">` : `<b>${esc(x.name.charAt(0))}</b>`}
-          <span class="sec-badge ${x.delivery === 'auto' ? 'auto' : ''}">${x.delivery === 'auto' ? '⚡ تلقائي' : '🕐 يدوي'}</span></span>
+          </span>
         <span class="sec-name">${esc(x.name)}</span><span class="caption">${inSec(x.id).length} خدمة</span>
       </button>`).join('')}${orphan.length ? `<button class="sec-tile" data-sec="_other"><span class="sec-img"><b>…</b></span><span class="sec-name">أخرى</span><span class="caption">${orphan.length} خدمة</span></button>` : ''}</div>`;
   const rv = S.reviews && S.reviews.list;
@@ -4287,9 +4345,7 @@ function openMsSection(id) {
     <div class="modal-head"><div class="modal-title">${id ? 'تعديل القسم' : 'قسم جديد'}</div>
       <button class="modal-close" data-act="close-modal" aria-label="إغلاق">${svg(I.x, 2)}</button></div>
     <div class="field mb-3"><label class="field-label" for="scN">اسم القسم</label><input class="input" id="scN" maxlength="30" value="${esc(x.name)}" placeholder="مثال: ببجي"></div>
-    <div class="field mb-3"><label class="field-label" for="scD">نوع التسليم لكل خدمات القسم</label>
-      <select class="input" id="scD"><option value="manual" ${x.delivery !== 'auto' ? 'selected' : ''}>🕐 تنفيذ يدوي</option><option value="auto" ${x.delivery === 'auto' ? 'selected' : ''}>⚡ تلقائي من مخزون الأكواد</option></select>
-      <div class="caption">يظهر للزبون على بطاقة القسم قبل أن يدخله.</div></div>
+    <input type="hidden" id="scD" value="manual">
     <div class="field mb-3"><label class="field-label" for="scO">الترتيب (الأصغر يظهر أولًا)</label><input class="input" id="scO" type="number" min="0" dir="ltr" value="${esc(String(x.order || 0))}"></div>
     <label class="m-proof mb-3"><span id="scIt">${x.image ? '✓ صورة القسم — اضغط للتغيير' : 'صورة القسم'}</span><input type="file" accept="image/*" id="scI" hidden></label>
     <button class="btn btn-primary btn-block" id="scSave" type="button">حفظ</button>
