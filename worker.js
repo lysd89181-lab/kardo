@@ -2523,6 +2523,7 @@ async function handleAdminCardFulfil(user, body, env) {
   const now = Date.now();
   const expiresAt = new Date(now + revealMs).toISOString();
   const cardId = isCreate ? `MCX${now}${randomSuffix(4)}` : String(o0.card_id || '');
+  let rewardOut = { inviter: null, invitee: 0, inviterAmt: 0 };
 
   await fsRunTransaction(env, async (tx) => {
     const o = await tx.get(`manual_card_orders/${id}`);
