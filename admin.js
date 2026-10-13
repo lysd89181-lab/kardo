@@ -929,6 +929,10 @@ function openMcardFulfil(id) {
         </div>
       </div>
       <div class="field mb-3">
+        <label class="field-label">📍 عنوان البطاقة — Billing Address (اختياري)</label>
+        <textarea class="input" id="fAddr" dir="ltr" rows="3" maxlength="300" placeholder="Street, City, State ZIP, Country" style="height:auto;padding-top:10px"></textarea>
+      </div>
+      <div class="field mb-3">
         <label class="field-label">رقم مرجعي (اختياري)</label>
         <input class="input mono" id="fRef" dir="ltr" placeholder="ORDER-123456" autocomplete="off">
       </div>
@@ -976,6 +980,7 @@ function openMcardFulfil(id) {
       payload.expiry = exp;
       payload.cvv = cvv;
       payload.provider_ref = $('#fRef').value;
+      payload.billing_address = $('#fAddr').value;
     }
     btn.disabled = true;
     btn.classList.add('loading');
@@ -1075,7 +1080,7 @@ function vCards() {
                   <div class="caption" style="font-weight:400">${c.balance_updated_at ? 'حُدّث ' + esc(dt(c.balance_updated_at)) : 'لم يُحدَّث'}</div></td>
                 <td><span class="badge ${c.status === 'active' ? 'badge-success' : 'badge-neutral'}">${c.status === 'active' ? 'نشطة' : 'مجمدة'}</span></td>
                 <td class="caption">${esc(dt(c.created_at))}</td>
-                <td><button class="btn btn-secondary btn-sm" data-cbal="${esc(c.id)}">تحديث الرصيد</button></td>
+                <td><button class="btn btn-secondary btn-sm" data-cbal="${esc(c.id)}">الرصيد والعنوان</button></td>
               </tr>
             `).join('')}
           </tbody>
@@ -3658,16 +3663,19 @@ function openMethodEditor(kind, ref) {
 function openCardBalance(cardId) {
   const c = (S.manualCards || []).find(x => x.id === cardId); if (!c) return;
   modal(`
-    <div class="modal-head"><div class="modal-title">تحديث رصيد البطاقة ••${esc(c.last4 || '')}</div>
+    <div class="modal-head"><div class="modal-title">رصيد وعنوان البطاقة ••${esc(c.last4 || '')}</div>
       <button class="modal-close" data-act="close-modal" aria-label="إغلاق">${svg(I.x)}</button></div>
     <p class="caption mb-3">${esc(userName(c.uid))} — انسخ الرصيد الحالي من لوحة المزوّد (Zid Cash). العميل يرى الرصيد وتاريخ التحديث.</p>
     <div class="field mb-4"><label class="field-label" for="cbVal">الرصيد المتبقي ($)</label>
       <input class="input" id="cbVal" type="number" step="0.01" min="0" dir="ltr" value="${esc(String(c.balance ?? ''))}"></div>
+    <div class="field mb-4"><label class="field-label" for="cbAddr">📍 عنوان البطاقة — Billing Address</label>
+      <textarea class="input" id="cbAddr" dir="ltr" rows="3" maxlength="300" placeholder="Street, City, State ZIP, Country" style="height:auto;padding-top:10px">${esc(c.billing_address || '')}</textarea>
+      <div class="caption" style="margin-top:4px">يظهر للعميل في تفاصيل بطاقته مع زر نسخ.</div></div>
     <button class="btn btn-primary btn-block" id="cbGo">حفظ</button>`);
   onTap('#cbGo', async () => {
     const v = Number($('#cbVal').value);
     if (!(v >= 0)) return toast('أدخل رصيدًا صحيحًا', 'bad');
-    try { await api('/api/admin/card/balance', { card_id: cardId, balance: v }); closeModal(); toast('حُدّث الرصيد', 'ok'); }
+    try { await api('/api/admin/card/balance', { card_id: cardId, balance: v, billing_address: $('#cbAddr').value }); closeModal(); toast('حُدّث الرصيد', 'ok'); }
     catch (e) { toast(e.message, 'bad'); }
   });
 }

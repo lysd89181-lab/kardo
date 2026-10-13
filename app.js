@@ -2175,6 +2175,19 @@ async function openCardDetails(cardId) {
       </div>
     </div>
 
+    ${c.billing_address ? `
+      <div class="field mb-4">
+        <div class="field-label">📍 عنوان البطاقة (Billing Address)</div>
+        <div class="copy-box" style="align-items:flex-start">
+          <div class="copy-value" dir="ltr" style="font-size:13px;white-space:pre-line;text-align:left;line-height:1.7">${esc(c.billing_address)}</div>
+          <button class="copy-btn" id="addrCopy" aria-label="نسخ العنوان">${svg(I.copy, 2)}</button>
+        </div>
+        <div class="caption" style="margin-top:4px">استخدم هذا العنوان عند الدفع إذا طُلب منك عنوان الفوترة.</div>
+      </div>` : ''}
+
+    ${c.status === 'active' && (S.config.manual_cards || {}).on !== false ? `
+      <button class="btn btn-primary btn-block mb-2" id="topupBtn" type="button">↻ إعادة تعبئة البطاقة</button>` : ''}
+
     ${lastOrder ? `
       <button class="btn btn-primary btn-block mb-2" id="revealBtn">
         ${svg(I.eye, 2)} عرض بيانات البطاقة
@@ -2190,6 +2203,10 @@ async function openCardDetails(cardId) {
   `);
 
   onTap('#otpBtn', () => openOtp());
+  onTap('#topupBtn', () => openCardTopup(c));
+  onTap('#addrCopy', async () => {
+    try { await navigator.clipboard.writeText(c.billing_address); toast('نُسخ العنوان', 'ok'); } catch { toast('تعذّر النسخ', 'bad'); }
+  });
   onTap('#revealBtn', async () => {
     const btn = $('#revealBtn');
     btn.disabled = true;
@@ -2242,6 +2259,58 @@ async function openCardDetails(cardId) {
       toast(e.message, 'bad');
       btn.disabled = false;
       btn.classList.remove('loading');
+    }
+  });
+}
+
+/* ═══ v41 — إعادة تعبئة البطاقة ═══ */
+function openCardTopup(c) {
+  const mc = S.config.manual_cards || {};
+  const ct = (S.config.card_types || []).find(t => t.id === c.type_id);
+  const ff = n(ct ? ct.topup_fixed : mc.topup_fee_fixed), fp = n(ct ? ct.topup_pct : mc.topup_fee_pct);
+  const mn = n(mc.topup_min) || 10, mx = n(mc.topup_max) || 500;
+  modal(`
+    <div class="modal-head">
+      <div class="modal-title">إعادة تعبئة ${esc(c.card_name || 'البطاقة')} ••${esc(c.last4 || '')}</div>
+      <button class="modal-close" data-act="close-modal" aria-label="إغلاق">${svg(I.x, 2)}</button>
+    </div>
+    <p class="caption mb-3">رصيد البطاقة الحالي ${esc(usd(c.balance))} · رصيد محفظتك ${esc(usd(S.profile.wallet_balance))}</p>
+    <div class="field mb-3">
+      <label class="field-label" for="tuAmount">المبلغ (من ${mn} إلى ${mx} دولار)</label>
+      <input class="input tabular" id="tuAmount" type="number" inputmode="decimal" min="${mn}" max="${mx}" step="1" dir="ltr" placeholder="${mn}">
+    </div>
+    <div class="caption mb-3">رسوم التعبئة: ${esc(usd(ff))} + ${esc(String(fp))}%</div>
+    <div id="tuQuote" class="mb-3"></div>
+    <button class="btn btn-primary btn-block" id="tuGo" disabled>تأكيد التعبئة</button>
+    <p class="caption" style="margin-top:8px;text-align:center">يُخصم الإجمالي من محفظتك الآن، ويُضاف المبلغ للبطاقة بعد التنفيذ. عند الرفض يرجع كاملًا.</p>
+  `);
+  let total = 0;
+  const calc = () => {
+    const a = n($('#tuAmount').value), box = $('#tuQuote'), btn = $('#tuGo');
+    if (!(a >= mn && a <= mx)) { box.innerHTML = a ? `<div class="caption" style="color:var(--warning)">المبلغ من ${mn} إلى ${mx} دولار</div>` : ''; btn.disabled = true; return; }
+    const fee = Math.round((ff + a * fp / 100) * 100) / 100;
+    total = Math.round((a + fee) * 100) / 100;
+    box.innerHTML = `
+      <div class="card card-sm" style="background:var(--surface-2);border:none">
+        <div class="flex-between" style="padding:6px 0"><span class="body-sm text-2">يُضاف للبطاقة</span><span class="tabular" style="font-weight:600">${usd(a)}</span></div>
+        <div class="flex-between" style="padding:6px 0"><span class="body-sm text-2">رسوم التعبئة</span><span class="tabular" style="font-weight:600">${usd(fee)}</span></div>
+        <div class="divider" style="margin:8px 0"></div>
+        <div class="flex-between"><span style="font-weight:600">يُخصم من محفظتك</span><span class="tabular" style="font-weight:700;color:var(--brand)">${usd(total)}</span></div>
+      </div>`;
+    const short = n(S.profile.wallet_balance) < total;
+    btn.disabled = short;
+    if (short) box.innerHTML += `<div class="alert alert-warning" style="margin-top:12px">${svg(I.help, 2)}<div>رصيدك غير كافٍ — اشحن محفظتك أولًا</div></div>`;
+  };
+  $('#tuAmount').oninput = calc;
+  const key = newIdemKey();
+  onTap('#tuGo', async () => {
+    const btn = $('#tuGo');
+    btn.disabled = true; btn.classList.add('loading');
+    try {
+      await api('/api/mcard/topup-request', { card_id: c.id, amount: n($('#tuAmount').value), idempotency_key: key });
+      stickerModal('card', 'card', 'وصل طلب التعبئة 💳', 'سنضيف المبلغ لبطاقتك قريبًا، ويصلك إشعار فور التنفيذ.');
+    } catch (e) {
+      stickerModal('failed', 'error', 'لم تكتمل التعبئة', e.message, false);
     }
   });
 }

@@ -2504,6 +2504,7 @@ async function handleAdminCardFulfil(user, body, env) {
     : expRaw.length === 6 ? expRaw.slice(0, 2) + '/' + expRaw.slice(4) : '';
   let cvv = toLatinDigits(body.cvv || '').replace(/\D/g, '');
   const providerRef = String(body.provider_ref || '').slice(0, 120);
+  const billingAddr = cleanAddr(body.billing_address);
   const revealMs = Math.min(72, Math.max(1, num(s.mc_reveal_hours, CARD_TTL_DEFAULT_HOURS))) * 3600000;
   const cvvMs = Math.min(60, Math.max(1, num(s.mc_cvv_minutes, CVV_WINDOW_MIN_DEFAULT))) * 60000;
 
@@ -2523,7 +2524,6 @@ async function handleAdminCardFulfil(user, body, env) {
   const now = Date.now();
   const expiresAt = new Date(now + revealMs).toISOString();
   const cardId = isCreate ? `MCX${now}${randomSuffix(4)}` : String(o0.card_id || '');
-  let rewardOut = { inviter: null, invitee: 0, inviterAmt: 0 };
 
   await fsRunTransaction(env, async (tx) => {
     const o = await tx.get(`manual_card_orders/${id}`);
@@ -2535,7 +2535,7 @@ async function handleAdminCardFulfil(user, body, env) {
         uid: o.uid, card_name: o.card_name || 'بطاقتي', name_on_card: o.name_on_card || '',
         last4: pan.slice(-4), status: 'active', balance: round2(num(o.amount, 0)),
         type_id: o.type_id || '', type_name: o.type_name || '', provider: o.provider || '',
-        created_at: nowIso(), created_by: staff.uid, provider_ref: providerRef,
+        created_at: nowIso(), created_by: staff.uid, provider_ref: providerRef, billing_address: billingAddr,
       });
       tx.create('manual_card_reveal', id, { uid: o.uid, card_id: cardId, encrypted_data: encData, created_at: nowIso(), expires_at: expiresAt });
       tx.create('card_cvv_once', id, { uid: o.uid, enc: encCvv, expires_ms: now + cvvMs, created_at: nowIso() });
@@ -4419,10 +4419,12 @@ async function purgeExpiredOtp(env) {
 
 
 /* ═══ v11 — رصيد البطاقة اليدوي + الملصقات ═══ */
+function cleanAddr(v) { return String(v || '').replace(/\r/g, '').replace(/[<>]/g, '').split('\n').map(x => x.trim()).filter(Boolean).slice(0, 6).join('\n').slice(0, 300); }
 async function handleAdminCardBalance(user, body, env) {
   const staff = await requirePermission(user, env, 'cards.edit');
   const cardId = String(body.card_id || '').trim();
   const bal = round2(num(body.balance, NaN));
+  const hasAddr = typeof body.billing_address === 'string';
   if (!cardId) throw httpError(400, 'البطاقة مفقودة');
   if (!(bal >= 0) || bal > 1000000) throw httpError(400, 'الرصيد غير صالح');
   let before = 0, owner = '';
@@ -4430,7 +4432,9 @@ async function handleAdminCardBalance(user, body, env) {
     const c = await tx.get(`manual_cards/${cardId}`);
     if (!c) throw httpError(404, 'البطاقة غير موجودة');
     before = num(c.balance, 0); owner = c.uid;
-    tx.update(`manual_cards/${cardId}`, { balance: bal, balance_updated_at: nowIso(), balance_updated_by: staff.uid });
+    const upd = { balance: bal, balance_updated_at: nowIso(), balance_updated_by: staff.uid };
+    if (hasAddr) upd.billing_address = cleanAddr(body.billing_address);
+    tx.update(`manual_cards/${cardId}`, upd);
   });
   await logOp(env, staff.uid, 'card.balance', { cardId, before, after: bal }, {}, true);
   return { success: true, balance: bal };
