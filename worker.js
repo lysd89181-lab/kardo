@@ -35,7 +35,7 @@ const DEFAULT_SETTINGS = {
   sms_allowed_senders: 'Libyana,ليبيانا,المدار,Almadar',
   banners: [], banner_rotate_sec: 6, custom_methods: [],
   method_order: 'libyana,almadar,usdt,bank,binance', deposit_note: '',
-  store_enabled: true, subscriptions_visible: true, manual_cards_enabled: true,
+  store_enabled: true, subscriptions_visible: true, manual_cards_enabled: true, mc_topup_on: false,
   mc_create_min: 10, mc_create_max: 500, mc_create_fee_fixed: 8, mc_create_fee_pct: 2.5,
   mc_topup_min: 10, mc_topup_max: 500, mc_topup_fee_fixed: 8, mc_topup_fee_pct: 2.5,
   mc_tx_fee: 0, mc_reveal_hours: 24, mc_cvv_minutes: 5,
@@ -242,6 +242,7 @@ async function route(path, request, url, env) {
     case '/api/admin/merchant/sub':    return handleAdminMerchantSub(user, body, env);
     case '/api/admin/report/resolve':  return handleAdminReportResolve(user, body, env);
     case '/api/admin/card/balance':    return handleAdminCardBalance(user, body, env);
+    case '/api/admin/card/replace':    return handleAdminCardReplace(user, body, env);
     case '/api/admin/sticker/save':    return handleAdminStickerSave(user, body, env);
 
     case '/api/store/order':           return handleStoreOrder(user, body, env);
@@ -434,6 +435,7 @@ async function handleStatus(env) {
     subscriptions_visible: s.subscriptions_visible !== false,
     manual_cards: {
       on: s.manual_cards_enabled !== false,
+      topup_on: s.mc_topup_on === true,
       create_min: num(s.mc_create_min, 10),
       create_max: num(s.mc_create_max, 500),
       create_fee_fixed: num(s.mc_create_fee_fixed, 8),
@@ -2381,6 +2383,7 @@ async function handleManualCardTopup(user, body, env) {
   const s = await getSettings(env);
   assertLive(s);
   if (s.manual_cards_enabled === false) throw httpError(503, 'خدمة البطاقات متوقفة مؤقتًا');
+  if (s.mc_topup_on !== true) throw httpError(503, 'إعادة التعبئة غير متاحة حاليًا');
   const key = idemKeyOf(body, false);
 
   const cardId = String(body.card_id || '').trim();
@@ -2433,6 +2436,10 @@ async function handleRevealCard(user, body, env, request) {
     const rv = await tx.get(`manual_card_reveal/${orderId}`);
     if (!rv || rv.uid !== user.uid) throw httpError(404, 'لا بيانات متاحة لهذا الطلب');
     if (new Date(rv.expires_at).getTime() < now) throw httpError(410, 'انتهت صلاحية عرض البيانات');
+    if (rv.card_id) {                                    // بطاقة استُبدلت → البيانات القديمة لم تعد صالحة
+      const cd = await tx.get(`manual_cards/${rv.card_id}`);
+      if (cd && cd.reveal_order && cd.reveal_order !== orderId) throw httpError(410, 'استُبدلت هذه البطاقة — افتح بياناتها الجديدة');
+    }
     const cv = await tx.get(`card_cvv_once/${orderId}`);
     let cvvBlob = null;
     if (cv && cv.uid === user.uid) {
@@ -4009,6 +4016,10 @@ const MAIL = {
     `بطاقتك <b>${escHtml(v.card_name)}</b> صدرت بنجاح بقيمة <b>$${escHtml(v.amount)}</b>.`,
     `<b style="color:#e8b64c">مهم:</b> رمز CVV يُعرض <b>مرة واحدة فقط</b> ومتاح لمدة <b>${escHtml(v.cvv_min)} دقيقة</b> من الآن. ادخل الآن واحفظه.`,
     'رقم البطاقة وتاريخ الانتهاء متاحان للعرض لمدة محدودة أيضًا.'], 'عرض البطاقة الآن'],
+  card_replaced: (v) => ['تم تحديث بطاقتك', [
+    `حدّثنا بيانات بطاقتك <b>${escHtml(v.card_name)}</b> ببطاقة جديدة.`,
+    `ادخل الآن واعرض البيانات الجديدة — رمز CVV يُعرض <b>مرة واحدة فقط</b> خلال <b>${escHtml(v.cvv_min)} دقيقة</b>.`,
+    'البيانات القديمة لم تعد صالحة.'], 'عرض البطاقة الآن'],
   card_topup: (v) => ['تم شحن بطاقتك', [`أُضيف <b>$${escHtml(v.amount)}</b> إلى بطاقتك <b>${escHtml(v.card_name)}</b>.`], 'فتح كاردو'],
   card_rejected: (v) => ['تعذّر تنفيذ طلب البطاقة', [`أُعيد المبلغ <b>$${escHtml(v.amount)}</b> إلى محفظتك.`, v.reason ? `السبب: ${escHtml(v.reason)}` : ''], 'فتح كاردو'],
   deposit_ok: (v) => ['أُضيف رصيد لمحفظتك', [`أُضيف <b>$${escHtml(v.amount)}</b> إلى محفظتك${v.method ? ` عبر ${escHtml(v.method)}` : ''}.`], 'فتح المحفظة'],
@@ -4438,6 +4449,51 @@ async function handleAdminCardBalance(user, body, env) {
   });
   await logOp(env, staff.uid, 'card.balance', { cardId, before, after: bal }, {}, true);
   return { success: true, balance: bal };
+}
+
+/* ═══ v42 — تغيير بطاقة الزبون (استبدال بيانات بطاقة محذوفة) ═══ */
+async function handleAdminCardReplace(user, body, env) {
+  const staff = await requirePermission(user, env, 'card.fulfil');
+  const s = await getSettings(env);
+  const cardId = String(body.card_id || '').trim();
+  if (!cardId) throw httpError(400, 'البطاقة مفقودة');
+  const pan = toLatinDigits(body.card_number || '').replace(/\D/g, '');
+  const expRaw = toLatinDigits(body.expiry || '').replace(/\D/g, '');
+  const expiry = expRaw.length === 4 ? expRaw.slice(0, 2) + '/' + expRaw.slice(2)
+    : expRaw.length === 6 ? expRaw.slice(0, 2) + '/' + expRaw.slice(4) : '';
+  let cvv = toLatinDigits(body.cvv || '').replace(/\D/g, '');
+  if (!/^\d{13,19}$/.test(pan) || !luhnOk(pan)) throw httpError(400, 'رقم البطاقة غير صالح');
+  if (!validExpiry(expiry)) throw httpError(400, 'تاريخ الانتهاء غير صالح (MM/YY في المستقبل)');
+  if (!/^\d{3,4}$/.test(cvv)) throw httpError(400, 'CVV غير صالح');
+  const hasBal = body.balance !== '' && body.balance != null;
+  const bal = hasBal ? round2(num(body.balance, NaN)) : null;
+  if (hasBal && (!(bal >= 0) || bal > 1000000)) throw httpError(400, 'الرصيد غير صالح');
+
+  const now = Date.now();
+  const rid = `MC${now}${randomSuffix(4)}`;                 // مفتاح عرض جديد بنفس صيغة الطلبات
+  const encData = await encryptV2(env, `card:${rid}`, { card_number: pan, expiry });
+  const encCvv = await encryptV2(env, `cvv:${rid}`, { cvv });
+  cvv = '';
+  const revealMs = Math.min(72, Math.max(1, num(s.mc_reveal_hours, CARD_TTL_DEFAULT_HOURS))) * 3600000;
+  const cvvMs = Math.min(60, Math.max(1, num(s.mc_cvv_minutes, CVV_WINDOW_MIN_DEFAULT))) * 60000;
+  const expiresAt = new Date(now + revealMs).toISOString();
+  let owner = '', cname = '', oldLast4 = '';
+
+  await fsRunTransaction(env, async (tx) => {
+    const c = await tx.get(`manual_cards/${cardId}`);
+    if (!c) throw httpError(404, 'البطاقة غير موجودة');
+    owner = c.uid; cname = c.card_name || 'بطاقتي'; oldLast4 = c.last4 || '';
+    const upd = { last4: pan.slice(-4), status: 'active', reveal_order: rid, reveal_expires_at: expiresAt,
+      replaced_at: nowIso(), replaced_by: staff.uid, prev_last4: oldLast4, updated_at: nowIso() };
+    if (typeof body.billing_address === 'string') upd.billing_address = cleanAddr(body.billing_address);
+    if (hasBal) { upd.balance = bal; upd.balance_updated_at = nowIso(); upd.balance_updated_by = staff.uid; }
+    tx.update(`manual_cards/${cardId}`, upd);
+    tx.create('manual_card_reveal', rid, { uid: c.uid, card_id: cardId, encrypted_data: encData, created_at: nowIso(), expires_at: expiresAt });
+    tx.create('card_cvv_once', rid, { uid: c.uid, enc: encCvv, expires_ms: now + cvvMs, created_at: nowIso() });
+  });
+  await logOp(env, staff.uid, 'card.replace', { cardId, old: oldLast4, new: pan.slice(-4) }, {}, true);
+  notify(env, owner, 'card_replaced', { card_name: cname, cvv_min: Math.round(cvvMs / 60000) });
+  return { success: true, reveal_order: rid, expires_at: expiresAt };
 }
 
 const STICKER_SLOTS = ['welcome', 'purchase', 'card', 'deposit', 'failed', 'wait', 'empty', 'no_cards', 'mail', 'offline', 'error', 'plan', 'ticket'];

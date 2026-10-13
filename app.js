@@ -2148,7 +2148,8 @@ async function openCardDetails(cardId) {
   if (!orders.some(o => o.card_id === cardId && o.kind === 'create')) {
     try { const r = await api('/api/mcard/list', {}); orders = r.orders || []; } catch {}
   }
-  const lastOrder = orders.find(o => o.card_id === cardId && o.kind === 'create' && o.status === 'completed');
+  const lastOrder0 = orders.find(o => o.card_id === cardId && o.kind === 'create' && o.status === 'completed');
+  const lastOrder = c.reveal_order ? { id: c.reveal_order } : lastOrder0;   // بطاقة مُستبدلة → مفتاح العرض الجديد
 
   modal(`
     <div class="modal-head">
@@ -2185,8 +2186,9 @@ async function openCardDetails(cardId) {
         <div class="caption" style="margin-top:4px">استخدم هذا العنوان عند الدفع إذا طُلب منك عنوان الفوترة.</div>
       </div>` : ''}
 
-    ${c.status === 'active' && (S.config.manual_cards || {}).on !== false ? `
-      <button class="btn btn-primary btn-block mb-2" id="topupBtn" type="button">↻ إعادة تعبئة البطاقة</button>` : ''}
+    ${c.status === 'active' ? ((S.config.manual_cards || {}).on !== false && (S.config.manual_cards || {}).topup_on === true ? `
+      <button class="btn btn-primary btn-block mb-2" id="topupBtn" type="button">↻ إعادة تعبئة البطاقة</button>` : `
+      <button class="btn btn-secondary btn-block mb-2" type="button" disabled style="opacity:.55;cursor:not-allowed">↻ إعادة التعبئة غير متاحة حاليًا</button>`) : ''}
 
     ${lastOrder ? `
       <button class="btn btn-primary btn-block mb-2" id="revealBtn">

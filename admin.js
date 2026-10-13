@@ -1080,7 +1080,8 @@ function vCards() {
                   <div class="caption" style="font-weight:400">${c.balance_updated_at ? 'حُدّث ' + esc(dt(c.balance_updated_at)) : 'لم يُحدَّث'}</div></td>
                 <td><span class="badge ${c.status === 'active' ? 'badge-success' : 'badge-neutral'}">${c.status === 'active' ? 'نشطة' : 'مجمدة'}</span></td>
                 <td class="caption">${esc(dt(c.created_at))}</td>
-                <td><button class="btn btn-secondary btn-sm" data-cbal="${esc(c.id)}">الرصيد والعنوان</button></td>
+                <td style="white-space:nowrap"><button class="btn btn-secondary btn-sm" data-cbal="${esc(c.id)}">الرصيد والعنوان</button>
+                  <button class="btn btn-secondary btn-sm" data-crep="${esc(c.id)}">تغيير البطاقة</button></td>
               </tr>
             `).join('')}
           </tbody>
@@ -3680,6 +3681,44 @@ function openCardBalance(cardId) {
   });
 }
 
+/* ═══ v42 — تغيير بطاقة الزبون ═══ */
+function openCardReplace(cardId) {
+  const c = (S.manualCards || []).find(x => x.id === cardId); if (!c) return;
+  modal(`
+    <div class="modal-head"><div class="modal-title">تغيير البطاقة ••${esc(c.last4 || '')}</div>
+      <button class="modal-close" data-act="close-modal" aria-label="إغلاق">${svg(I.x)}</button></div>
+    <p class="caption mb-3">${esc(userName(c.uid))} — ${esc(c.card_name || 'بطاقة')}. البيانات القديمة تتوقف عند الزبون، ويصله إشعار ليعرض الجديدة.</p>
+    <div class="field mb-3"><label class="field-label">رقم البطاقة الجديدة</label>
+      <input class="input mono" id="rpPan" dir="ltr" placeholder="5395 0212 3456 7890" maxlength="23" inputmode="numeric" autocomplete="off"></div>
+    <div class="grid-2 mb-3">
+      <div><label class="field-label">الانتهاء</label><input class="input mono" id="rpExp" dir="ltr" placeholder="12/28" maxlength="5" autocomplete="off"></div>
+      <div><label class="field-label">CVV</label><input class="input mono" id="rpCvv" dir="ltr" placeholder="123" maxlength="4" inputmode="numeric" autocomplete="off"></div>
+    </div>
+    <div class="field mb-3"><label class="field-label">📍 عنوان البطاقة — Billing Address</label>
+      <textarea class="input" id="rpAddr" dir="ltr" rows="3" maxlength="300" placeholder="Street, City, State ZIP, Country" style="height:auto;padding-top:10px">${esc(c.billing_address || '')}</textarea></div>
+    <div class="field mb-4"><label class="field-label">الرصيد ($) — اتركه فارغًا لإبقاء ${esc(usd(c.balance))}</label>
+      <input class="input" id="rpBal" type="number" step="0.01" min="0" dir="ltr" placeholder="${esc(String(c.balance ?? ''))}"></div>
+    <div class="alert alert-info mb-3" style="font-size:11px">${svg(I.help)}<div>🔒 تُشفَّر البيانات قبل الحفظ. CVV يظهر للزبون مرة واحدة فقط.</div></div>
+    <button class="btn btn-primary btn-block" id="rpGo">حفظ البطاقة الجديدة</button>`);
+  const pan = $('#rpPan'), exp = $('#rpExp'), cvv = $('#rpCvv');
+  pan.oninput = e => { const v = e.target.value.replace(/\D/g, '').slice(0, 19); e.target.value = v.replace(/(.{4})/g, '$1 ').trim(); };
+  exp.oninput = e => { let v = e.target.value.replace(/\D/g, '').slice(0, 4); if (v.length > 2) v = v.slice(0, 2) + '/' + v.slice(2); e.target.value = v; };
+  cvv.oninput = e => { e.target.value = e.target.value.replace(/\D/g, '').slice(0, 4); };
+  onTap('#rpGo', async () => {
+    const p = pan.value.replace(/\s+/g, '');
+    if (!/^\d{13,19}$/.test(p)) return toast('رقم البطاقة غير صالح', 'bad');
+    if (!/^\d{2}\/\d{2}$/.test(exp.value)) return toast('صيغة التاريخ MM/YY', 'bad');
+    if (!/^\d{3,4}$/.test(cvv.value)) return toast('CVV غير صالح', 'bad');
+    if (!confirm(`تأكيد تغيير بطاقة ${userName(c.uid)} إلى ••${p.slice(-4)}؟`)) return;
+    const btn = $('#rpGo'); btn.disabled = true; btn.classList.add('loading');
+    try {
+      await api('/api/admin/card/replace', { card_id: cardId, card_number: p, expiry: exp.value, cvv: cvv.value,
+        billing_address: $('#rpAddr').value, balance: $('#rpBal').value });
+      pan.value = ''; cvv.value = ''; closeModal(); toast('تم تغيير البطاقة وإشعار الزبون', 'ok');
+    } catch (e) { toast(e.message, 'bad'); btn.disabled = false; btn.classList.remove('loading'); }
+  });
+}
+
 const STICKER_SLOTS = [
   ['welcome', 'الترحيب بالعميل الجديد', 'fennec-welcome'], ['purchase', 'نجاح شراء منتج', 'fennec-success'],
   ['card', 'إرسال طلب بطاقة', 'fennec-card'], ['deposit', 'إرسال/نجاح إيداع', 'fennec-success'],
@@ -3828,6 +3867,14 @@ function settingsMcard(s) {
         <div class="sw-desc">السماح للعملاء بطلب بطاقات</div>
       </div>
       <div class="sw ${s.manual_cards_enabled !== false ? 'on' : ''}" data-op="manual_cards_enabled"></div>
+    </div>
+
+    <div class="sw-row">
+      <div>
+        <div class="sw-lbl">إعادة التعبئة متاحة</div>
+        <div class="sw-desc">عند الإيقاف يظهر للعميل «إعادة التعبئة غير متاحة حاليًا»</div>
+      </div>
+      <div class="sw ${s.mc_topup_on === true ? 'on' : ''}" data-op="mc_topup_on"></div>
     </div>
 
     <div class="set-sub">🆕 إصدار بطاقة جديدة</div>
@@ -4246,6 +4293,7 @@ function bind() {
   onTap('#pushOnA', async () => { if (await registerPushToken(false)) render(true); });
   if (pushOn() && !S._pushRef) { S._pushRef = 1; setTimeout(() => registerPushToken(true), 4000); }
   document.querySelectorAll('[data-cbal]').forEach(b => b.onclick = () => openCardBalance(b.dataset.cbal));
+  document.querySelectorAll('[data-crep]').forEach(b => b.onclick = () => openCardReplace(b.dataset.crep));
   if (S.page === 'system') bindSystem();
   onTap('#loadMore', () => { const k = $('#loadMore').dataset.key; S.lim[k] += 100; subKey(k); toast('جاري التحميل…', 'ok'); });
   document.querySelectorAll('[data-sasg]').forEach(b => b.onclick = () => openSmsAssign(b.dataset.sasg));
