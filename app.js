@@ -1281,6 +1281,7 @@ function vCards() {
       </button>
     </div>
 
+    ${cardsMaintHtml()}
     ${cardWarningHtml()}
     ${hidden ? `
       <button class="hidden-cards mb-4" data-nav="plans">
@@ -1755,7 +1756,7 @@ function bind() {
       const a = b.dataset.action;
       if (a === 'deposit') return openDeposit();
       if (a === 'new-card') return openNewCard();
-      if (a === 'newCard') return openNewCard();
+      if (a === 'newCard') return cardsMaint() ? toast('قسم البطاقات قيد الصيانة حاليًا', 'bad') : openNewCard();
       if (a === 'transfer') return openTransfer();
       if (a === 'withdraw') return openWithdraw();
     };
@@ -2186,9 +2187,9 @@ async function openCardDetails(cardId) {
         <div class="caption" style="margin-top:4px">استخدم هذا العنوان عند الدفع إذا طُلب منك عنوان الفوترة.</div>
       </div>` : ''}
 
-    ${c.status === 'active' ? ((S.config.manual_cards || {}).on !== false && (S.config.manual_cards || {}).topup_on === true ? `
+    ${c.status === 'active' ? (!cardsMaint() && (S.config.manual_cards || {}).on !== false && (S.config.manual_cards || {}).topup_on === true ? `
       <button class="btn btn-primary btn-block mb-2" id="topupBtn" type="button">↻ إعادة تعبئة البطاقة</button>` : `
-      <button class="btn btn-secondary btn-block mb-2" type="button" disabled style="opacity:.55;cursor:not-allowed">↻ إعادة التعبئة غير متاحة حاليًا</button>`) : ''}
+      <button class="btn btn-secondary btn-block mb-2" type="button" disabled style="opacity:.55;cursor:not-allowed">${cardsMaint() ? '🛠️ إعادة التعبئة متوقفة — قيد الصيانة' : '↻ إعادة التعبئة غير متاحة حاليًا'}</button>`) : ''}
 
     ${lastOrder ? `
       <button class="btn btn-primary btn-block mb-2" id="revealBtn">
@@ -2512,6 +2513,11 @@ function stickerModal(slot, fallback, title, text, ok = true) {
 }
 const SVC_CAT = '__svc';
 const TERMS_VERSION = '1.0';
+const cardsMaint = () => (S.config.manual_cards || {}).maint === true;
+function cardsMaintHtml() {
+  if (!cardsMaint()) return '';
+  return `<div class="alert alert-warning mb-4" role="alert" style="align-items:flex-start">${svg(I.help, 2)}<div><b>🛠️ قسم البطاقات قيد الصيانة</b><div class="caption" style="margin-top:4px">إصدار البطاقات وإعادة التعبئة متوقفان مؤقتًا. بطاقاتك الحالية وبياناتها متاحة كالمعتاد.</div></div></div>`;
+}
 function cardWarningHtml() {
   const w = String(((S.config.manual_cards || {}).warning) || '').trim();
   if (!w) return '';

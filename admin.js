@@ -840,6 +840,18 @@ function vMcardOrders() {
       <p class="body-sm text-2" style="font-size:11.5px">${pend ? pend + ' طلب ينتظر التنفيذ' : 'لا طلبات معلّقة'}</p>
     </div>
 
+    <div class="card card-sm mb-3">
+      <div class="body-sm" style="font-weight:700;margin-bottom:8px">⚙️ تحكم سريع (يُطبَّق فورًا)</div>
+      ${[['mc_maint_on', '🛠️ قسم البطاقات قيد الصيانة', 'يوقف الإصدار والتعبئة ويظهر للعملاء تنبيه الصيانة'],
+         ['mc_topup_on', '↻ إعادة التعبئة متاحة', 'عند الإيقاف يظهر للعميل «غير متاحة حاليًا»']].map(([k, t, d]) => {
+        const on = (S.settings || {})[k] === true;
+        return `<div class="flex-between" style="padding:8px 0;gap:10px">
+          <div><div class="body-sm" style="font-weight:600">${t}</div><div class="caption">${d}</div></div>
+          <button class="btn btn-sm ${on ? 'btn-primary' : 'btn-secondary'}" data-mcq="${k}" style="min-width:74px">${on ? 'مفعّل' : 'متوقف'}</button>
+        </div>`;
+      }).join('')}
+    </div>
+
     <div class="input-wrap mb-3">
       <span class="input-icon">${svg(I.list)}</span>
       <input class="input" id="qBox" placeholder="ابحث برقم الطلب أو اسم العميل" value="${esc(S.q)}">
@@ -3876,6 +3888,13 @@ function settingsMcard(s) {
       </div>
       <div class="sw ${s.mc_topup_on === true ? 'on' : ''}" data-op="mc_topup_on"></div>
     </div>
+    <div class="sw-row">
+      <div>
+        <div class="sw-lbl">قسم البطاقات قيد الصيانة</div>
+        <div class="sw-desc">يوقف الإصدار والتعبئة ويُظهر للعملاء تنبيه الصيانة</div>
+      </div>
+      <div class="sw ${s.mc_maint_on === true ? 'on' : ''}" data-op="mc_maint_on"></div>
+    </div>
 
     <div class="set-sub">🆕 إصدار بطاقة جديدة</div>
     <div class="field" style="grid-template-columns:1fr 100px">
@@ -4293,6 +4312,12 @@ function bind() {
   onTap('#pushOnA', async () => { if (await registerPushToken(false)) render(true); });
   if (pushOn() && !S._pushRef) { S._pushRef = 1; setTimeout(() => registerPushToken(true), 4000); }
   document.querySelectorAll('[data-cbal]').forEach(b => b.onclick = () => openCardBalance(b.dataset.cbal));
+  document.querySelectorAll('[data-mcq]').forEach(b => b.onclick = async () => {
+    const k = b.dataset.mcq, v = !((S.settings || {})[k] === true);
+    b.disabled = true;
+    try { await api('/api/admin/settings', { [k]: v }); S.settings = { ...(S.settings || {}), [k]: v }; toast(v ? 'تم التفعيل' : 'تم الإيقاف', 'ok'); render(true); }
+    catch (e) { toast(e.message, 'bad'); b.disabled = false; }
+  });
   document.querySelectorAll('[data-crep]').forEach(b => b.onclick = () => openCardReplace(b.dataset.crep));
   if (S.page === 'system') bindSystem();
   onTap('#loadMore', () => { const k = $('#loadMore').dataset.key; S.lim[k] += 100; subKey(k); toast('جاري التحميل…', 'ok'); });

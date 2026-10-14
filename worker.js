@@ -35,7 +35,7 @@ const DEFAULT_SETTINGS = {
   sms_allowed_senders: 'Libyana,ليبيانا,المدار,Almadar',
   banners: [], banner_rotate_sec: 6, custom_methods: [],
   method_order: 'libyana,almadar,usdt,bank,binance', deposit_note: '',
-  store_enabled: true, subscriptions_visible: true, manual_cards_enabled: true, mc_topup_on: false,
+  store_enabled: true, subscriptions_visible: true, manual_cards_enabled: true, mc_topup_on: false, mc_maint_on: false,
   mc_create_min: 10, mc_create_max: 500, mc_create_fee_fixed: 8, mc_create_fee_pct: 2.5,
   mc_topup_min: 10, mc_topup_max: 500, mc_topup_fee_fixed: 8, mc_topup_fee_pct: 2.5,
   mc_tx_fee: 0, mc_reveal_hours: 24, mc_cvv_minutes: 5,
@@ -436,6 +436,7 @@ async function handleStatus(env) {
     manual_cards: {
       on: s.manual_cards_enabled !== false,
       topup_on: s.mc_topup_on === true,
+      maint: s.mc_maint_on === true,
       create_min: num(s.mc_create_min, 10),
       create_max: num(s.mc_create_max, 500),
       create_fee_fixed: num(s.mc_create_fee_fixed, 8),
@@ -2311,6 +2312,7 @@ async function handleManualCardRequest(user, body, env) {
   const s = await getSettings(env);
   assertLive(s);
   if (s.manual_cards_enabled === false) throw httpError(503, 'إصدار البطاقات متوقف مؤقتًا');
+  if (s.mc_maint_on === true) throw httpError(503, 'قسم البطاقات قيد الصيانة حاليًا');
   const key = idemKeyOf(body);
 
   const amount = money(body.amount);
@@ -2383,6 +2385,7 @@ async function handleManualCardTopup(user, body, env) {
   const s = await getSettings(env);
   assertLive(s);
   if (s.manual_cards_enabled === false) throw httpError(503, 'خدمة البطاقات متوقفة مؤقتًا');
+  if (s.mc_maint_on === true) throw httpError(503, 'قسم البطاقات قيد الصيانة حاليًا');
   if (s.mc_topup_on !== true) throw httpError(503, 'إعادة التعبئة غير متاحة حاليًا');
   const key = idemKeyOf(body, false);
 
