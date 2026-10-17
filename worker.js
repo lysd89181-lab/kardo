@@ -36,7 +36,7 @@ const DEFAULT_SETTINGS = {
   banners: [], banner_rotate_sec: 6, custom_methods: [],
   method_order: 'libyana,almadar,usdt,bank,binance', deposit_note: '',
   store_enabled: true, subscriptions_visible: true, manual_cards_enabled: true, mc_topup_on: false, mc_maint_on: false,
-  site_maint_on: true, site_maint_msg: '', rsc_on: true, rsc_margin_pct: 10, rsc_low_usd: 20,
+  site_maint_on: true, site_maint_msg: '', paused_methods: '', new_acct_days: 7, new_acct_crypto_max: 50, binance_pay_qr_v: 0, invoice_check_hours: 24, rsc_on: true, rsc_margin_pct: 10, rsc_low_usd: 20,
   mc_create_min: 10, mc_create_max: 500, mc_create_fee_fixed: 8, mc_create_fee_pct: 2.5,
   mc_topup_min: 10, mc_topup_max: 500, mc_topup_fee_fixed: 8, mc_topup_fee_pct: 2.5,
   mc_tx_fee: 0, mc_reveal_hours: 24, mc_cvv_minutes: 5,
@@ -95,6 +95,7 @@ export default {
     if (request.method === 'GET') {
       const im = /^\/img\/([pcmbslvxygq])\/([A-Za-z0-9_-]{1,60})$/.exec(path);
       if (im) { try { return await handleImage(request, env, ctx, im[1], decodeURIComponent(im[2])); } catch { return new Response('Error', { status: 500 }); } }
+      if (path === '/bpq') { try { return await serveBinanceQr(env); } catch { return new Response('Error', { status: 500 }); } }
       if (path.startsWith('/rsc/img/') || path === '/rsc/pimg') { try { return await handleRscImage(request, env, ctx, url); } catch { return new Response('Error', { status: 500 }); } }
       if (path === '/sitemap.xml') {
         try {
@@ -130,6 +131,7 @@ export default {
       d1Cron(env, event.scheduledTime).catch(e => console.error('D1_CRON_FAILED', e.message)),
     ];
     { const _m = new Date(event.scheduledTime || Date.now()).getUTCMinutes(); jobs.push(rscCron(env, _m < 5).catch(e => console.error('RSC_CRON_FAILED', e.message))); }
+    jobs.push(invoiceCron(env).catch(e => console.error('INVOICE_CRON_FAILED', e.message)));
     const _t = new Date(event.scheduledTime || Date.now());
     const minute = _t.getUTCMinutes(), hour = _t.getUTCHours();
     if (minute < 5) {
@@ -191,6 +193,12 @@ async function route(path, request, url, env) {
     case '/api/admin/rsc':             return handleAdminRsc(user, body, env);
     case '/api/admin/usdt/find':       return handleAdminUsdtFind(user, body, env);
     case '/api/admin/usdt/credit':     return handleAdminUsdtCredit(user, body, env);
+    case '/api/admin/crypto/unmatched': return handleAdminUnmatched(user, body, env);
+    case '/api/admin/invoices':        return handleAdminInvoices(user, body, env);
+    case '/api/admin/binance-qr':      return handleAdminBinanceQr(user, body, env);
+    case '/api/wallet/invoice':        return handleInvoiceGet(user, body, env);
+    case '/api/wallet/invoice/cancel': return handleInvoiceCancel(user, body, env);
+    case '/api/wallet/invoices':       return handleInvoiceList(user, body, env);
     case '/api/wallet/claim':          return handleWalletClaim(user, body, env);
     case '/api/wallet/withdraw':       return handleWithdrawRequest(user, body, env);
     case '/api/wallet/transfer':       return handleTransfer(user, body, env);
@@ -468,6 +476,9 @@ async function handleStatus(env) {
     site_maint: s.site_maint_on === true,
     site_maint_msg: String(s.site_maint_msg || '').slice(0, 300),
     rsc_on: s.rsc_on !== false,
+    paused_methods: String(s.paused_methods || '').split(',').map(x => x.trim()).filter(Boolean),
+    binance_pay_qr: num(s.binance_pay_qr_v, 0) ? `/bpq?v=${num(s.binance_pay_qr_v, 0)}` : '',
+    new_acct: { days: num(s.new_acct_days, 7), max: num(s.new_acct_crypto_max, 50) },
     d1: await d1PublicFlags(env),
     d1p: await d1IsPrimary(env).catch(() => false),
     crypto_nets: s.m_usdt_on === true ? Object.entries(CRYPTO_NETS).filter(([k, n]) => k === 'trc20' ? /^T/.test(String(s.usdt_address || '')) : s[n.onKey] === true && n.addrRe.test(String(s[n.addrKey] || ''))).map(([k, n]) => ({ id: k, label: n.label })) : [],
@@ -1932,6 +1943,7 @@ async function handleWalletClaim(user, body, env) {
   assertLive(st);
   const enabled = method === 'almadar' ? st.m_almadar_on !== false : st.m_libyana_on !== false;
   if (!enabled) throw httpError(503, 'طريقة الدفع هذه غير متاحة حاليًا');
+  if (methodPaused(st, method)) throw httpError(503, 'هذه الطريقة متوقفة مؤقتًا — اختر طريقة أخرى');
   if (!Number.isFinite(amountLyd) || amountLyd <= 0) throw httpError(400, 'أدخل المبلغ');
 
   const manualMode = (st[`m_${method}_mode`] || st.deposit_mode) === 'manual';
@@ -2050,10 +2062,26 @@ async function handleUsdtInvoice(user, body, env) {
   if (amount < minU) throw httpError(400, `الحد الأدنى ${minU} USDT`);
   if (amount > maxU) throw httpError(400, `الحد الأقصى ${maxU} USDT`);
   await assertDailyLimit(env, s, user.uid, 'deposit', amount);
-  if (!(await checkRateLimit(env, `usdt_inv_${user.uid}`, 10, 3600))) throw httpError(429, 'محاولات كثيرة — حاول بعد ساعة');
+  if (methodPaused(s, network)) throw httpError(503, `${net.label} متوقفة مؤقتًا — اختر طريقة أخرى`);
+  if (!(await checkRateLimit(env, `usdt_inv_${user.uid}`, 15, 3600))) throw httpError(429, 'محاولات كثيرة — حاول بعد ساعة');
+  // حماية: فواتير كثيرة غير مدفوعة في آخر ساعة
+  if (env.DB) {
+    const open = await d1All(env, `SELECT COUNT(*) AS n FROM usdt_invoices WHERE uid = ? AND status IN ('awaiting','cancelled') AND json_extract(data, '$.created_ms') > ?`, [user.uid, Date.now() - 3600000]).catch(() => [{ n: 0 }]);
+    if (num(open[0] && open[0].n, 0) >= 5) throw httpError(429, 'عندك فواتير كثيرة غير مدفوعة — ادفع واحدة منها أو انتظر ساعة');
+  }
+  // حماية: سقف للحسابات الجديدة
+  { const me = await fsGet(env, `users/${user.uid}`).catch(() => null);
+    const ageDays = me && me.created_at ? (Date.now() - new Date(me.created_at).getTime()) / 86400000 : 999;
+    const cap = num(s.new_acct_crypto_max, 50);
+    if (cap > 0 && ageDays < num(s.new_acct_days, 7)) {
+      const today = await readCounter(env, user.uid).catch(() => ({ deposit: 0 }));
+      if (amount + num(today.deposit, 0) > cap) throw httpError(400, `الحسابات الجديدة حدّها ${cap}$ يوميًا بالعملات الرقمية خلال أول ${num(s.new_acct_days, 7)} أيام`);
+    } }
 
   const minutes = num(s.usdt_window_min, 30);
   const now = Date.now();
+  const checkUntil = now + Math.min(72, Math.max(1, num(s.invoice_check_hours, 24))) * 3600000;
+  const invNo = 'KRD-' + String(now).slice(-7);
   const id = `INV${now}${randomSuffix(4)}`;
   const expires = now + minutes * 60000;
 
@@ -2066,14 +2094,15 @@ async function handleUsdtInvoice(user, body, env) {
     const ok = await fsRunTransaction(env, async (tx) => {
       const r = await tx.get(`usdt_amounts/${slot}`);
       if (r && num(r.expires_ms, 0) > now) return false;
-      tx.update(`usdt_amounts/${slot}`, { invoice_id: id, expires_ms: expires + 10 * 60000 }, false);
+      tx.update(`usdt_amounts/${slot}`, { invoice_id: id, expires_ms: checkUntil + 10 * 60000 }, false);   // محجوز طوال فترة الفحص (24 ساعة)
       tx.create('usdt_invoices', id, {
-        uid: user.uid, amount_usd: amount, pay_amount: payAmount, address, network, status: 'awaiting',
-        created_at: new Date(now).toISOString(), created_ms: now, expires_ms: expires,
+        uid: user.uid, no: invNo, amount_usd: amount, pay_amount: payAmount, address, network, status: 'awaiting',
+        created_at: new Date(now).toISOString(), created_ms: now, expires_ms: expires, check_until_ms: checkUntil,
       });
       return true;
     });
-    if (ok) return { success: true, invoice: { id, amount_usd: amount, pay_amount: payAmount, address, network, network_label: net.label, expires_ms: expires } };
+    if (ok) { await logOp(env, user.uid, 'invoice.create', { id, network, amount }, { payAmount }, true);
+      return { success: true, invoice: invView({ _id: id, uid: user.uid, no: invNo, amount_usd: amount, pay_amount: payAmount, address, network, status: 'awaiting', created_ms: now, created_at: new Date(now).toISOString(), expires_ms: expires, check_until_ms: checkUntil }) }; }
   }
   throw httpError(503, 'ازدحام مؤقت، حاول بعد قليل');
 }
@@ -2081,54 +2110,107 @@ async function handleUsdtInvoice(user, body, env) {
 async function handleUsdtVerify(user, body, env) {
   const id = String(body.invoice_id || '').trim();
   if (!/^INV\d+[A-Z0-9]{4}$/.test(id)) throw httpError(400, 'رقم الفاتورة غير صالح');
-  if (!memAllowWin(`usdt_v_${user.uid}`, 30, 3600)) throw httpError(429, 'محاولات كثيرة');
-
+  if (!memAllowWin(`usdt_v_${user.uid}`, 240, 3600)) throw httpError(429, 'محاولات كثيرة');
   const inv = await fsGet(env, `usdt_invoices/${id}`);
   if (!inv || inv.uid !== user.uid) throw httpError(404, 'الفاتورة غير موجودة');
-  if (inv.status === 'paid') return { success: true, paid: true, already: true, credited: num(inv.received, 0) };
-  if (inv.status !== 'awaiting') throw httpError(400, 'الفاتورة مغلقة');
-
-  const want = num(inv.pay_amount, 0);
+  if (inv.status === 'paid') return { success: true, paid: true, already: true, credited: num(inv.received, 0), invoice: invView({ ...inv, _id: id }) };
+  if (!INV_OPEN.includes(inv.status)) return { success: true, paid: false, invoice: invView({ ...inv, _id: id }) };
+  // فحص البلوكشين مرة كل 20 ثانية كحد أقصى لكل فاتورة (الصفحة تسأل أكثر، والجواب من القاعدة)
+  if (!memAllowWin(`inv_chk_${id}`, 1, 20)) return { success: true, paid: false, invoice: invView({ ...inv, _id: id }) };
   const network = inv.network && CRYPTO_NETS[inv.network] ? inv.network : 'trc20';
-  const since = num(inv.created_ms, 0) - 60000;
-  const until = num(inv.expires_ms, 0) + 10 * 60000;
+  const until = Math.min(Date.now(), invCheckUntil(inv));
   let hit = null;
-  try { hit = await findCryptoPayment(env, network, inv.address, want, since, until); }
-  catch (e) { console.error('CRYPTO_FETCH_FAILED', network, e.message); throw httpError(502, 'تعذّر الاتصال بالشبكة — حاول بعد دقيقة'); }
-
+  try { hit = await findCryptoPayment(env, network, inv.address, num(inv.pay_amount, 0), num(inv.created_ms, 0) - 60000, until); }
+  catch (e) { console.error('CRYPTO_FETCH_FAILED', network, e.message); return { success: true, paid: false, retry: true, invoice: invView({ ...inv, _id: id }) }; }
   if (!hit) {
-    if (num(inv.expires_ms, 0) + 10 * 60000 < Date.now()) {
-      await fsPatch(env, `usdt_invoices/${id}`, { status: 'expired' });
-      throw httpError(400, 'انتهت مهلة الفاتورة');
-    }
-    return { success: true, paid: false };
+    if (invCheckUntil(inv) < Date.now()) { inv.status = inv.status === 'cancelled' ? 'cancelled_closed' : 'expired'; await fsPatch(env, `usdt_invoices/${id}`, { status: inv.status }); }
+    return { success: true, paid: false, invoice: invView({ ...inv, _id: id }) };
   }
+  const r = await settleInvoice(env, id, hit, 'user');
+  const fresh = await fsGet(env, `usdt_invoices/${id}`);
+  return { success: true, paid: !!r.paid, credited: r.credited || 0, duplicate: !!r.dup, invoice: invView({ ...(fresh || inv), _id: id }) };
+}
 
-  const txid = String(hit.txid || '');
-  if (!/^[0-9A-Za-z_-]{6,80}$/.test(txid)) return { success: true, paid: false };
-  const received = round2(hit.amount);
+/* ─── فواتير الإيداع الرقمية: الحالة، التسوية، الإلغاء ─── */
+const INV_OPEN = ['awaiting', 'cancelled'];
+const invCheckUntil = inv => num(inv.check_until_ms, 0) || (num(inv.created_ms, 0) + 24 * 3600000);
+function invView(inv) {
+  return { id: inv._id, no: inv.no || ('KRD-' + String(inv.created_ms || '').slice(-7)), amount_usd: num(inv.amount_usd, 0), pay_amount: num(inv.pay_amount, 0),
+    address: inv.address || '', network: inv.network || 'trc20', network_label: (CRYPTO_NETS[inv.network || 'trc20'] || {}).label || 'USDT', status: inv.status,
+    created_ms: num(inv.created_ms, 0), expires_ms: num(inv.expires_ms, 0), check_until_ms: invCheckUntil(inv),
+    paid_at: inv.paid_at || '', received: num(inv.received, 0), txid: inv.txid || '', late: inv.late === true };
+}
+// تُضيف الرصيد لصاحب الفاتورة — آمنة من التكرار (المعاملة الواحدة لا تُحسب مرتين)
+async function settleInvoice(env, id, hit, by) {
+  const txid = String((hit && hit.txid) || '');
+  if (!/^[0-9A-Za-z_-]{6,90}$/.test(txid)) return { paid: false };
+  const received = round2(num(hit.amount, 0));
+  if (!(received > 0)) return { paid: false };
   const s = await getSettings(env);
-
+  let owner = '', network = 'trc20';
   const r = await fsRunTransaction(env, async (tx) => {
-    const txKey = network === 'trc20' ? txid : `${network}_${txid}`;
-    if (await tx.get(`usdt_txids/${txKey}`)) return { dup: true };
     const cur = await tx.get(`usdt_invoices/${id}`);
-    if (!cur || cur.status !== 'awaiting') return { dup: true };
-    const L = await ledgerOpen(tx, user.uid);
+    if (!cur || !INV_OPEN.includes(cur.status)) return { dup: true };
+    network = cur.network && CRYPTO_NETS[cur.network] ? cur.network : 'trc20';
+    const norm = /^0x[0-9a-fA-F]{64}$/.test(txid) ? txid.toLowerCase() : txid;
+    const txKey = network === 'trc20' ? norm : `${network}_${norm}`;
+    if (await tx.get(`usdt_txids/${txKey}`)) return { dup: true };
+    if (norm !== txid && await tx.get(`usdt_txids/${network === 'trc20' ? txid : `${network}_${txid}`}`)) return { dup: true };
+    owner = cur.uid;
+    const L = await ledgerOpen(tx, cur.uid);
     await ledgerPost(L, { type: 'credit', amount: received, reason: 'usdt_deposit', reference: txid, entryId: `txn_usdt_${id}` });
     ledgerClose(tx, L);
-    await dailyCheckTx(tx, s, user.uid, 'deposit', received);
-    tx.create('usdt_txids', txKey, { invoice_id: id, uid: user.uid, amount: received, network, from: String(hit.from || '').slice(0, 60), created_at: nowIso() });
-    tx.update(`usdt_invoices/${id}`, { status: 'paid', txid, paid_at: nowIso(), received });
+    await dailyCheckTx(tx, s, cur.uid, 'deposit', received);
+    tx.create('usdt_txids', txKey, { invoice_id: id, uid: cur.uid, amount: received, network, from: String(hit.from || '').slice(0, 60), by: String(by || 'system').slice(0, 64), created_at: nowIso() });
+    const late = Date.now() > num(cur.expires_ms, 0) + 10 * 60000;
+    tx.update(`usdt_invoices/${id}`, { status: 'paid', txid, paid_at: nowIso(), received, late, paid_by: String(by || 'system').slice(0, 64) });
     tx.create('wallet_deposits', id, {
-      uid: user.uid, amount_usd: received, amount_lyd: 0, method: `${CRYPTO_NETS[network].label} — تلقائي`, proof_url: '',
-      note: CRYPTO_NETS[network].label + ' · ' + txid.slice(0, 12) + '…', status: 'approved', auto: true, created_at: nowIso(),
+      uid: cur.uid, amount_usd: received, amount_lyd: 0, method: `${CRYPTO_NETS[network].label} — تلقائي`, proof_url: '',
+      note: (cur.no || '') + ' · ' + CRYPTO_NETS[network].label + ' · ' + txid.slice(0, 12) + '…', status: 'approved', auto: true, created_at: nowIso(),
     });
     return { dup: false };
   });
-  if (r.dup) return { success: true, paid: false, duplicate: true };
-  await logOp(env, user.uid, 'deposit.usdt', { id }, { txid, received }, true);
-  return { success: true, paid: true, credited: received, txid };
+  if (r.dup) return { paid: false, dup: true };
+  await logOp(env, owner, 'deposit.usdt', { id, by }, { txid, received }, true);
+  notify(env, owner, 'deposit_ok', { amount: received.toFixed(2), method: CRYPTO_NETS[network].label });
+  return { paid: true, credited: received, txid };
+}
+
+async function handleInvoiceGet(user, body, env) {
+  if (!memAllowWin(`inv_get_${user.uid}`, 240, 3600)) throw httpError(429, 'محاولات كثيرة');
+  const id = String(body.id || '').trim();
+  if (!/^INV\d+[A-Z0-9]{4}$/.test(id)) throw httpError(400, 'رقم الفاتورة غير صالح');
+  const inv = await fsGet(env, `usdt_invoices/${id}`);
+  if (!inv || inv.uid !== user.uid) throw httpError(404, 'الفاتورة غير موجودة');
+  return { success: true, invoice: invView({ ...inv, _id: id }) };
+}
+async function handleInvoiceCancel(user, body, env) {
+  if (!memAllowWin(`inv_cx_${user.uid}`, 30, 3600)) throw httpError(429, 'محاولات كثيرة');
+  const id = String(body.id || '').trim();
+  if (!/^INV\d+[A-Z0-9]{4}$/.test(id)) throw httpError(400, 'رقم الفاتورة غير صالح');
+  let out = null;
+  await fsRunTransaction(env, async (tx) => {
+    const inv = await tx.get(`usdt_invoices/${id}`);
+    if (!inv || inv.uid !== user.uid) throw httpError(404, 'الفاتورة غير موجودة');
+    if (inv.status !== 'awaiting') { out = inv; return; }
+    tx.update(`usdt_invoices/${id}`, { status: 'cancelled', cancelled_at: nowIso() });   // تبقى تحت الفحص 24 ساعة: لو حوّل بالخطأ يُضاف رصيده
+    out = { ...inv, status: 'cancelled' };
+  });
+  return { success: true, invoice: invView({ ...out, _id: id }) };
+}
+async function handleInvoiceList(user, body, env) {
+  if (!memAllowWin(`inv_ls_${user.uid}`, 120, 3600)) throw httpError(429, 'محاولات كثيرة');
+  let docs;
+  if (env.DB) {
+    const rows = await d1All(env, `SELECT id, data FROM usdt_invoices WHERE uid = ? ORDER BY json_extract(data, '$.created_ms') DESC LIMIT 40`, [user.uid]);
+    docs = rows.map(r => { let d = {}; try { d = JSON.parse(r.data); } catch {} return { ...d, _id: r.id }; });
+  } else {
+    const rows = await fsQueryRaw(env, { from: [{ collectionId: 'usdt_invoices' }],
+      where: { fieldFilter: { field: { fieldPath: 'uid' }, op: 'EQUAL', value: { stringValue: user.uid } } }, limit: 60 });
+    docs = rows.map(r => withId(r, 'usdt_invoices'));
+  }
+  const list = docs.sort((a, b) => num(b.created_ms, 0) - num(a.created_ms, 0)).slice(0, 40).map(invView);
+  return { success: true, invoices: list };
 }
 
 async function handleWithdrawRequest(user, body, env) {
@@ -3735,6 +3817,7 @@ async function handleManualDeposit(user, body, env) {
   const m = status.methods[method];
   if (!m || m.on === false) throw httpError(400, 'طريقة الدفع غير متاحة');
   if (['libyana', 'almadar', 'usdt'].includes(method)) throw httpError(400, 'استخدم مسار الإيداع الخاص بهذه الطريقة');
+  if (methodPaused(s, method)) throw httpError(503, 'هذه الطريقة متوقفة مؤقتًا — اختر طريقة أخرى');
   const amount = money(body.amount, { min: 1, max: 100000 });
   if (!Number.isFinite(amount)) throw httpError(400, 'أدخل مبلغًا صحيحًا');
   const rate = num(m.rate, 1);
@@ -4061,6 +4144,7 @@ const MAIL = {
   plan_ok: (v) => [`تم تفعيل باقة ${escHtml(v.plan)}`, [`باقتك سارية حتى ${escHtml(v.until)}.`], 'فتح كاردو'],
   test: () => ['بريد تجريبي', ['إعداد البريد يعمل بشكل صحيح ✓'], ''],
   verify_code: (v) => ['رمز تأكيد بريدك', [`رمزك هو:`, `<div style="font-size:30px;letter-spacing:8px;font-weight:bold;color:#e8b64c;font-family:monospace;direction:ltr;text-align:center;padding:10px 0">${escHtml(v.code)}</div>`, 'صالح لمدة 10 دقائق. إذا لم تطلبه، تجاهل هذه الرسالة.'], ''],
+  crypto_unmatched: (v) => ['تحويل يحتاج مراجعة', [`وصل <b>${escHtml(v.amount)} USDT</b> عبر ${escHtml(v.network)} ولم يرتبط بأي فاتورة بالضبط.`, 'افتح الإيداعات ← تحويلات تحتاج مراجعة.'], 'لوحة الإدارة'],
   rsc_done: (v) => ['تم تنفيذ طلبك ✓', [`اكتمل طلبك <b>${escHtml(v.name)}</b>.`, v.codes ? 'الكود جاهز في «طلباتي».' : 'وصل الشحن إلى حسابك.'], 'عرض طلباتي'],
   rsc_failed: (v) => ['تعذّر تنفيذ طلبك', [`طلبك <b>${escHtml(v.name)}</b> لم يكتمل: ${escHtml(v.reason || '')}.`, `أُعيد <b>$${escHtml(v.amount)}</b> إلى محفظتك.`], 'فتح كاردو'],
   rsc_admin: (v) => ['طلب متجر يحتاج مراجعة', [`الطلب <b>${escHtml(v.oid)}</b>: ${escHtml(v.why)}.`, 'افتح «متجر كاردو» في لوحة الإدارة.'], 'لوحة الإدارة'],
@@ -5911,17 +5995,17 @@ async function binanceSigned(env, path, params = {}) {
   }
   throw last || cryptoErr('binance_unreachable');
 }
-let _bnPay = { at: 0, v: null }, _bnDep = { at: 0, v: null };
-async function binancePayRecent(env) {
-  if (_bnPay.v && Date.now() - _bnPay.at < 15000) return _bnPay.v;
-  const j = await binanceSigned(env, '/sapi/v1/pay/transactions', { startTime: Date.now() - 3 * 3600000, endTime: Date.now(), limit: 100 });
-  _bnPay = { at: Date.now(), v: Array.isArray(j.data) ? j.data : [] };
+let _bnPay = { at: 0, v: null, h: 0 }, _bnDep = { at: 0, v: null, h: 0 };
+async function binancePayRecent(env, hours = 26) {
+  if (_bnPay.v && _bnPay.h >= hours && Date.now() - _bnPay.at < 15000) return _bnPay.v;
+  const j = await binanceSigned(env, '/sapi/v1/pay/transactions', { startTime: Date.now() - hours * 3600000, endTime: Date.now(), limit: 100 });
+  _bnPay = { at: Date.now(), v: Array.isArray(j.data) ? j.data : [], h: hours };
   return _bnPay.v;
 }
-async function binanceDepositsRecent(env) {
-  if (_bnDep.v && Date.now() - _bnDep.at < 15000) return _bnDep.v;
-  const j = await binanceSigned(env, '/sapi/v1/capital/deposit/hisrec', { coin: 'USDT', startTime: Date.now() - 3 * 3600000, endTime: Date.now(), limit: 1000 });
-  _bnDep = { at: Date.now(), v: Array.isArray(j) ? j : [] };
+async function binanceDepositsRecent(env, hours = 26) {
+  if (_bnDep.v && _bnDep.h >= hours && Date.now() - _bnDep.at < 15000) return _bnDep.v;
+  const j = await binanceSigned(env, '/sapi/v1/capital/deposit/hisrec', { coin: 'USDT', startTime: Date.now() - hours * 3600000, endTime: Date.now(), limit: 1000 });
+  _bnDep = { at: Date.now(), v: Array.isArray(j) ? j : [], h: hours };
   return _bnDep.v;
 }
 async function binancePayFind(env, want, since, until) {
@@ -6065,8 +6149,8 @@ const D1_IDX = {
   merchant_reports: [['uid'], ['merchant_owner'], ['created_at']], merchant_statements: [['merchant_owner'], ['mid'], ['status']],
   merchant_applications: [['status']], merchant_stock: [['sid', 'used']], stock: [['pid', 'used']], service_stock: [['service_id', 'is_used']],
   tickets: [['uid'], ['updated_at']], sms_transactions: [['created_at'], ['sender']], audit_log: [['created_at']], products: [['cat']],
-  categories: [['parent']], coupon_uses: [['uid']], plan_orders: [['uid']], transfers: [['uid']], usdt_invoices: [['uid']], ref_codes: [['uid']],
-  rsc_orders: [['uid'], ['status'], ['created_at']],
+  categories: [['parent']], coupon_uses: [['uid']], plan_orders: [['uid']], transfers: [['uid']], usdt_invoices: [['uid'], ['status']], ref_codes: [['uid']],
+  rsc_orders: [['uid'], ['status'], ['created_at']], crypto_unmatched: [['status']],
   rate_limits: [], idempotency: [], otp_codes: [], otp_waits: [], email_codes: [], card_cvv_once: [], manual_card_reveal: [], public: [], settings: [],
   admins: [], stickers: [], platforms: [], daily_counters: [], usdt_amounts: [], usdt_txids: [], phone_bindings: [], phone_owners: [], phone_verifications: [['status']],
 };
@@ -7555,7 +7639,7 @@ async function handleAdminUsdtFind(user, body, env) {
 }
 function round4(x) { return Math.round(x * 10000) / 10000; }
 
-// يعيد فحص الفاتورة على البلوكشين (حتى لو انتهت مهلتها) ويضيف الرصيد لصاحبها إن وُجد التحويل — آمن من التكرار
+// يعيد فحص الفاتورة على البلوكشين (حتى 48 ساعة بعد إنشائها) ويضيف الرصيد لصاحبها إن وُجد التحويل — آمن من التكرار
 async function handleAdminUsdtCredit(user, body, env) {
   const staff = await requirePermission(user, env, 'deposits.approve');
   const id = String(body.invoice_id || '').trim();
@@ -7563,14 +7647,219 @@ async function handleAdminUsdtCredit(user, body, env) {
   const inv = await fsGet(env, `usdt_invoices/${id}`);
   if (!inv) throw httpError(404, 'الفاتورة غير موجودة');
   if (inv.status === 'paid') return { success: true, paid: true, already: true, credited: num(inv.received, 0) };
-  const prev = { status: inv.status, expires_ms: inv.expires_ms };
-  // نوسّع نافذة البحث حتى 48 ساعة بعد الفاتورة
-  await fsPatch(env, `usdt_invoices/${id}`, { status: 'awaiting', expires_ms: Math.min(Date.now(), num(inv.created_ms, 0) + 48 * 3600000) });
-  let r;
-  try { r = await handleUsdtVerify({ uid: inv.uid }, { invoice_id: id }, env); }
-  catch (e) { await fsPatch(env, `usdt_invoices/${id}`, prev).catch(() => {}); throw e; }
-  if (!r.paid) await fsPatch(env, `usdt_invoices/${id}`, prev).catch(() => {});
-  else notify(env, inv.uid, 'deposit_ok', { amount: num(r.credited, 0).toFixed(2), method: 'USDT' });
+  if (inv.status === 'expired') await fsPatch(env, `usdt_invoices/${id}`, { status: 'awaiting', reopened_by: staff.uid });
+  const network = inv.network && CRYPTO_NETS[inv.network] ? inv.network : 'trc20';
+  let hit = null;
+  try { hit = await findCryptoPayment(env, network, inv.address, num(inv.pay_amount, 0), num(inv.created_ms, 0) - 60000, Math.min(Date.now(), num(inv.created_ms, 0) + 48 * 3600000)); }
+  catch (e) { if (inv.status === 'expired') await fsPatch(env, `usdt_invoices/${id}`, { status: 'expired' }).catch(() => {}); throw httpError(502, 'تعذّر الوصول للشبكة: ' + cryptoErrAr(e)); }
+  const r = hit ? await settleInvoice(env, id, hit, staff.uid) : { paid: false };
+  if (!r.paid && inv.status === 'expired') await fsPatch(env, `usdt_invoices/${id}`, { status: 'expired' }).catch(() => {});
   await logOp(env, staff.uid, 'deposit.usdt.admin_credit', { id }, { paid: !!r.paid, credited: r.credited || 0 }, true);
-  return { success: true, paid: !!r.paid, credited: r.credited || 0, duplicate: !!r.duplicate };
+  return { success: true, paid: !!r.paid, credited: r.credited || 0, duplicate: !!r.dup };
 }
+
+/* ═══════════════════════════════════════════════════════════
+   v49 — فواتير الإيداع: فحص تلقائي كل 5 دقائق (24 ساعة)،
+   كشف التحويلات غير المطابقة / بدون صاحب، طرق متوقفة مؤقتًا، QR بايننس
+   ═══════════════════════════════════════════════════════════ */
+function methodPaused(s, key) {
+  return String(s.paused_methods || '').split(',').map(x => x.trim()).filter(Boolean).includes(String(key));
+}
+
+async function invoiceCron(env) {
+  if (!env.DB) return;
+  const s = await getSettings(env);
+  const now = Date.now();
+  const since = now - 26 * 3600000;
+  const rows = await d1All(env, `SELECT id, data FROM usdt_invoices WHERE status IN ('awaiting','cancelled') AND json_extract(data, '$.created_ms') > ? ORDER BY ts DESC LIMIT 200`, [since - 48 * 3600000]).catch(() => []);
+  const open = rows.map(r => { let d = {}; try { d = JSON.parse(r.data); } catch {} return { ...d, _id: r.id }; });
+  let dep = [], pay = [];
+  if (binanceReady(env)) {
+    try { dep = await binanceDepositsRecent(env, 26); } catch (e) { console.error('INV_CRON_DEP', e.code || e.message); }
+    try { if (s.binance_pay_on === true) pay = await binancePayRecent(env, 26); } catch (e) { console.error('INV_CRON_PAY', e.code || e.message); }
+  }
+  const close = (a, b) => Math.abs(a - b) < 0.00005;
+  const matched = new Set();
+  let chainChecks = 0;
+  for (const inv of open) {
+    const network = inv.network && CRYPTO_NETS[inv.network] ? inv.network : 'trc20';
+    const want = num(inv.pay_amount, 0), from = num(inv.created_ms, 0) - 60000, until = Math.min(now, invCheckUntil(inv));
+    if (invCheckUntil(inv) < now - 15 * 60000) { await fsPatch(env, `usdt_invoices/${inv._id}`, { status: inv.status === 'cancelled' ? 'cancelled_closed' : 'expired' }).catch(() => {}); continue; }
+    let hit = null;
+    if (network === 'binance_pay') {
+      const t = pay.find(t => String(t.currency || '').toUpperCase() === 'USDT' && Number(t.amount) > 0 && !/REFUND|_RF$/i.test(String(t.orderType || ''))
+        && Number(t.transactionTime || 0) >= from && Number(t.transactionTime || 0) <= until && close(Number(t.amount), want));
+      if (t) hit = { txid: String(t.transactionId || t.orderId || '').replace(/[^0-9A-Za-z_-]/g, '').slice(0, 80), amount: Number(t.amount), from: String((t.payerInfo && (t.payerInfo.name || t.payerInfo.binanceId)) || '') };
+    } else if (dep.length || binanceReady(env)) {
+      const net = CRYPTO_NETS[network];
+      const same = a => network === 'trc20' ? String(a || '') === inv.address : String(a || '').toLowerCase() === String(inv.address || '').toLowerCase();
+      const d = dep.find(d => String(d.coin || '').toUpperCase() === 'USDT' && net.bnNets.includes(String(d.network || '').toUpperCase())
+        && (Number(d.status) === 1 || Number(d.status) === 6) && same(d.address) && !d.addressTag
+        && Number(d.insertTime || 0) >= from && Number(d.insertTime || 0) <= until && close(Number(d.amount), want));
+      if (d) { const tx = String(d.txId || ''); const onChain = /^(0x)?[0-9a-fA-F]{64}$/.test(tx);
+        hit = { txid: onChain ? tx : 'bn' + String(d.id || '').replace(/[^0-9A-Za-z]/g, '').slice(0, 60), amount: Number(d.amount), from: onChain ? '' : 'Binance (تحويل داخلي)' }; }
+    }
+    if (!hit && !binanceReady(env) && chainChecks < 6) {   // بدون مفتاح بايننس: فحص الشبكة مباشرة (بحد أقصى 6 فواتير كل دورة)
+      chainChecks++;
+      try { hit = await findCryptoPayment(env, network, inv.address, want, from, until); } catch {}
+    }
+    if (hit) { matched.add(hit.txid); await settleInvoice(env, inv._id, hit, 'cron').catch(e => console.error('INV_SETTLE', e.message)); }
+  }
+  if (binanceReady(env)) await scanUnmatched(env, s, dep, pay).catch(e => console.error('UNMATCHED_SCAN', e.message));
+}
+
+// أي تحويل وصل ولم يرتبط بفاتورة → يُسجَّل للأدمن مع أقرب فاتورة، وتنبيه فوري
+async function scanUnmatched(env, s, dep, pay) {
+  const items = [];
+  const addrs = Object.fromEntries(Object.entries(CRYPTO_NETS).filter(([k]) => k !== 'binance_pay').map(([k, n]) => [k, String(s[n.addrKey] || '').toLowerCase()]));
+  for (const d of dep) {
+    if (String(d.coin || '').toUpperCase() !== 'USDT' || !(Number(d.status) === 1 || Number(d.status) === 6) || d.addressTag) continue;
+    const network = Object.keys(addrs).find(k => CRYPTO_NETS[k].bnNets.includes(String(d.network || '').toUpperCase()) && addrs[k] && addrs[k] === String(d.address || '').toLowerCase());
+    if (!network) continue;
+    const tx = String(d.txId || ''), onChain = /^(0x)?[0-9a-fA-F]{64}$/.test(tx);
+    const txid = onChain ? tx : 'bn' + String(d.id || '').replace(/[^0-9A-Za-z]/g, '').slice(0, 60);
+    items.push({ network, txid, amount: Number(d.amount), at: Number(d.insertTime || 0) });
+  }
+  for (const t of pay) {
+    if (String(t.currency || '').toUpperCase() !== 'USDT' || !(Number(t.amount) > 0) || /REFUND|_RF$/i.test(String(t.orderType || ''))) continue;
+    items.push({ network: 'binance_pay', txid: String(t.transactionId || t.orderId || '').replace(/[^0-9A-Za-z_-]/g, '').slice(0, 80), amount: Number(t.amount), at: Number(t.transactionTime || 0),
+      from: String((t.payerInfo && (t.payerInfo.name || t.payerInfo.binanceId)) || '').slice(0, 60) });
+  }
+  const fresh = items.filter(i => i.txid && Date.now() - i.at > 10 * 60000);   // نعطي الفاتورة 10 دقائق لتلتقطه أولًا
+  for (const i of fresh) {
+    const norm = /^0x[0-9a-fA-F]{64}$/.test(i.txid) ? i.txid.toLowerCase() : i.txid;
+    const key = i.network === 'trc20' ? norm : `${i.network}_${norm}`;
+    if (await fsGet(env, `usdt_txids/${key}`).catch(() => null)) continue;
+    if (norm !== i.txid && await fsGet(env, `usdt_txids/${i.network === 'trc20' ? i.txid : `${i.network}_${i.txid}`}`).catch(() => null)) continue;
+    const uid = 'U' + (await sha256Hex(key)).slice(0, 30);
+    if (await fsGet(env, `crypto_unmatched/${uid}`).catch(() => null)) continue;
+    // أقرب فاتورة (نفس الشبكة، أُنشئت قبل التحويل بـ 24 ساعة كحد أقصى، فرق ≤ 0.5)
+    const near = await d1All(env, `SELECT id, data FROM usdt_invoices WHERE json_extract(data, '$.network') = ? AND json_extract(data, '$.created_ms') BETWEEN ? AND ?
+      AND abs(json_extract(data, '$.pay_amount') - ?) <= 0.5 ORDER BY abs(json_extract(data, '$.pay_amount') - ?) LIMIT 1`,
+      [i.network, i.at - 24 * 3600000, i.at + 60000, i.amount, i.amount]).catch(() => []);
+    let cand = null;
+    if (near[0]) { let d = {}; try { d = JSON.parse(near[0].data); } catch {} cand = { invoice_id: near[0].id, uid: d.uid || '', pay_amount: num(d.pay_amount, 0), status: d.status || '', diff: round4(i.amount - num(d.pay_amount, 0)) }; }
+    await fsSet(env, `crypto_unmatched/${uid}`, { key, txid: i.txid, network: i.network, amount: i.amount, at_ms: i.at, from: i.from || '',
+      status: 'open', kind: cand && cand.status !== 'paid' ? 'mismatch' : 'orphan', candidate: cand, created_at: nowIso() });
+    background((async () => {
+      const admins = await fsQueryRaw(env, { from: [{ collectionId: 'admins' }], limit: 30 }).catch(() => []);
+      for (const a of admins.map(r => withId(r, 'admins')).filter(a => a.role === 'super_admin' || staffCan(a, 'deposits.approve')))
+        await notifyUser(env, a._id, 'crypto_unmatched', { amount: i.amount.toFixed(4), network: (CRYPTO_NETS[i.network] || {}).label || i.network }).catch(() => {});
+    })());
+  }
+}
+
+async function handleAdminUnmatched(user, body, env) {
+  const action = String(body.action || 'list');
+  const staff = await requirePermission(user, env, action === 'list' ? 'deposits.view' : 'deposits.approve');
+  if (action === 'list') {
+    const rows = await d1All(env, `SELECT id, data FROM crypto_unmatched WHERE status = 'open' ORDER BY ts DESC LIMIT 50`).catch(() => []);
+    const list = [];
+    for (const r of rows) {
+      let d = {}; try { d = JSON.parse(r.data); } catch {}
+      let cu = null;
+      if (d.candidate && d.candidate.uid) { const u = await fsGet(env, `users/${d.candidate.uid}`).catch(() => null); cu = u ? { name: u.name || '', email: u.email || '' } : null; }
+      list.push({ id: r.id, ...d, candidate_user: cu });
+    }
+    return { success: true, items: list };
+  }
+  const id = String(body.id || '');
+  if (!/^U[0-9a-f]{30}$/.test(id)) throw httpError(400, 'معرّف غير صالح');
+  const it = await fsGet(env, `crypto_unmatched/${id}`);
+  if (!it || it.status !== 'open') throw httpError(409, 'تمت معالجته مسبقًا');
+  if (action === 'ignore') {
+    await fsPatch(env, `crypto_unmatched/${id}`, { status: 'ignored', resolved_by: staff.uid, resolved_at: nowIso() });
+    await logOp(env, staff.uid, 'crypto.unmatched.ignore', { id }, {}, true);
+    return { success: true };
+  }
+  if (action !== 'assign') throw httpError(400, 'إجراء غير معروف');
+  // إسناد للمستخدم: إما عبر فاتورة (المرشّحة) أو عبر البريد
+  let uid = '', invoiceId = '';
+  if (body.invoice_id) {
+    invoiceId = String(body.invoice_id);
+    if (!/^INV\d+[A-Z0-9]{4}$/.test(invoiceId)) throw httpError(400, 'رقم الفاتورة غير صالح');
+    const inv = await fsGet(env, `usdt_invoices/${invoiceId}`);
+    if (!inv) throw httpError(404, 'الفاتورة غير موجودة');
+    uid = inv.uid;
+  } else {
+    const email = String(body.email || '').trim().toLowerCase();
+    if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) throw httpError(400, 'أدخل بريد المستخدم');
+    const r = await fsQueryRaw(env, { from: [{ collectionId: 'users' }], where: { fieldFilter: { field: { fieldPath: 'email' }, op: 'EQUAL', value: { stringValue: email } } }, limit: 2 });
+    if (r.length !== 1) throw httpError(404, 'ما لقينا مستخدم بهذا البريد');
+    uid = withId(r[0], 'users')._id;
+  }
+  const amt = round2(num(it.amount, 0));
+  if (!(amt > 0)) throw httpError(400, 'مبلغ غير صالح');
+  const s = await getSettings(env);
+  const depId = 'UNM' + id.slice(1, 25);
+  await fsRunTransaction(env, async (tx) => {
+    const cur = await tx.get(`crypto_unmatched/${id}`);
+    if (!cur || cur.status !== 'open') throw httpError(409, 'تمت معالجته مسبقًا');
+    if (await tx.get(`usdt_txids/${cur.key}`)) throw httpError(409, 'هذه المعاملة محسوبة مسبقًا');
+    const L = await ledgerOpen(tx, uid);
+    await ledgerPost(L, { type: 'credit', amount: amt, reason: 'usdt_deposit', reference: String(cur.txid).slice(0, 100), entryId: `txn_unm_${id}`, created_by: staff.uid });
+    ledgerClose(tx, L);
+    await dailyCheckTx(tx, s, uid, 'deposit', amt);
+    tx.create('usdt_txids', cur.key, { invoice_id: invoiceId, uid, amount: amt, network: cur.network, from: String(cur.from || '').slice(0, 60), by: staff.uid, created_at: nowIso() });
+    if (invoiceId) {
+      const inv = await tx.get(`usdt_invoices/${invoiceId}`);
+      if (inv && inv.status !== 'paid') tx.update(`usdt_invoices/${invoiceId}`, { status: 'paid', txid: cur.txid, paid_at: nowIso(), received: amt, late: true, paid_by: staff.uid });
+    }
+    tx.create('wallet_deposits', depId, { uid, amount_usd: amt, amount_lyd: 0, method: `${(CRYPTO_NETS[cur.network] || {}).label || 'USDT'} — اعتماد إداري`, proof_url: '',
+      note: String(cur.txid).slice(0, 14) + '…', status: 'approved', auto: false, created_at: nowIso(), reviewed_by: staff.uid });
+    tx.update(`crypto_unmatched/${id}`, { status: 'assigned', uid, invoice_id: invoiceId, resolved_by: staff.uid, resolved_at: nowIso() });
+  });
+  await logOp(env, staff.uid, 'crypto.unmatched.assign', { id, uid, invoiceId }, { amount: amt }, true);
+  notify(env, uid, 'deposit_ok', { amount: amt.toFixed(2), method: 'USDT' });
+  return { success: true, credited: amt };
+}
+
+// لوحة الفواتير للأدمن: إحصاء اليوم + آخر الفواتير بسجلها
+async function handleAdminInvoices(user, body, env) {
+  await requirePermission(user, env, 'deposits.view');
+  const days = Math.min(30, Math.max(1, Math.floor(num(body.days, 1))));
+  const since = Date.now() - days * 86400000;
+  const q = String(body.q || '').trim().toLowerCase().slice(0, 60);
+  const rows = await d1All(env, `SELECT id, data FROM usdt_invoices WHERE json_extract(data, '$.created_ms') > ? ORDER BY ts DESC LIMIT 400`, [since]).catch(() => []);
+  const all = rows.map(r => { let d = {}; try { d = JSON.parse(r.data); } catch {} return { ...d, _id: r.id }; });
+  const stats = { opened: all.length, paid: 0, expired: 0, open: 0, sum_paid: 0, by_net: {} };
+  for (const v of all) {
+    if (v.status === 'paid') { stats.paid++; stats.sum_paid = round2(stats.sum_paid + num(v.received, 0)); const k = v.network || 'trc20'; stats.by_net[k] = round2((stats.by_net[k] || 0) + num(v.received, 0)); }
+    else if (INV_OPEN.includes(v.status) && invCheckUntil(v) > Date.now()) stats.open++;
+    else stats.expired++;
+  }
+  const names = new Map();
+  const out = [];
+  for (const v of all.slice(0, 120)) {
+    if (!names.has(v.uid)) { const u = await fsGet(env, `users/${v.uid}`).catch(() => null); names.set(v.uid, u ? { name: u.name || '', email: u.email || '' } : { name: '', email: '' }); }
+    const u = names.get(v.uid);
+    const row = { ...invView(v), uid: v.uid, name: u.name, email: u.email, paid_by: v.paid_by || '', cancelled_at: v.cancelled_at || '', created_at: v.created_at || '' };
+    if (q && !(`${row.no} ${row.name} ${row.email} ${row.pay_amount}`.toLowerCase().includes(q))) continue;
+    out.push(row);
+  }
+  return { success: true, stats, invoices: out.slice(0, 80) };
+}
+
+// QR حساب Binance Pay (يرفعه الأدمن مرة واحدة)
+async function handleAdminBinanceQr(user, body, env) {
+  const staff = await requirePermission(user, env, 'settings.manage');
+  requireFreshAuth(user);
+  if (!memAllowWin(`bpq_${user.uid}`, 20, 3600)) throw httpError(429, 'محاولات كثيرة');
+  const img = String(body.image || '');
+  if (!env.KV) throw httpError(503, 'التخزين غير متاح');
+  if (!img) { await env.KV.delete('img:bpq'); await saveSettingsPatch(env, { binance_pay_qr_v: 0 }); return { success: true }; }
+  const m = /^data:(image\/(?:png|jpeg|webp));base64,([A-Za-z0-9+/=]+)$/.exec(img);
+  if (!m || m[2].length > 400000) throw httpError(400, 'صورة غير صالحة أو كبيرة');
+  const bin = Uint8Array.from(atob(m[2]), c => c.charCodeAt(0));
+  await env.KV.put('img:bpq', bin, { metadata: { type: m[1] } });
+  await saveSettingsPatch(env, { binance_pay_qr_v: Date.now() });
+  await logOp(env, staff.uid, 'settings.binance_qr', {}, {}, true);
+  return { success: true };
+}
+async function serveBinanceQr(env) {
+  const kv = env.KV ? await env.KV.getWithMetadata('img:bpq', 'arrayBuffer').catch(() => null) : null;
+  if (!kv || !kv.value) return new Response('Not found', { status: 404 });
+  return new Response(kv.value, { headers: { 'content-type': (kv.metadata && kv.metadata.type) || 'image/png', 'cache-control': 'public, max-age=3600', 'access-control-allow-origin': '*', 'x-content-type-options': 'nosniff' } });
+}
+
+async function saveSettingsPatch(env, ops) { await fsPatch(env, 'settings/main', ops); clearSettingsCache(); }

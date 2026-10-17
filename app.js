@@ -596,7 +596,7 @@ function ensurePageData() {
 }
 
 /* ═══ Navigation ═══ */
-const ROUTABLE = new Set(['dashboard', 'cards', 'orders', 'settings', 'wallet', 'transactions', 'plans', 'referral', 'support', 'kstore', 'trust']);
+const ROUTABLE = new Set(['dashboard', 'cards', 'orders', 'settings', 'wallet', 'transactions', 'plans', 'referral', 'support', 'kstore', 'trust', 'invoices']);
 window.go = (page, keepCat, fromPop) => {
   if (!fromPop && ROUTABLE.has(page) && (S.page !== page || page === 'store')) {
     try { history.pushState({ page, store: S.curStore || null, sec: S.curSection || null }, '', '#/' + page + (page === 'store' && S.curStore ? '/' + encodeURIComponent(S.curStore) : '')); } catch {}
@@ -612,6 +612,7 @@ window.go = (page, keepCat, fromPop) => {
   if (page === 'services' || page === 'orders') loadServices();
   if (page === 'shop' || page === 'plans' || page === 'dashboard') loadCatalog();
   if (page === 'kstore' || page === 'dashboard') loadRsc();
+  if (page === 'invoices') S.invoices = null; else if (page === 'dashboard' && !S.invoices && S.user) loadInvoices();
   if (page === 'orders') loadRscOrders();
   if (!keepCat) S.rscCat = null;
   if (page === 'transactions' || page === 'wallet') subscribeLedger();
@@ -689,6 +690,7 @@ function paint() {
     chats: vChats,
     trust: vTrust,
     kstore: vKStore,
+    invoices: vInvoices,
   };
   if (S.page === 'shop' && !S.config.store_on) S.page = 'dashboard';
 
@@ -723,6 +725,7 @@ function vDashboard() {
   <div class="page-enter">
     ${S.config.site_maint ? `<div class="alert alert-warning mb-4">${svg(I.help)}<div><b>معاينة الإدارة</b> — الموقع في وضع الصيانة والزوار يرون شاشة الصيانة.</div></div>` : ''}
     ${verifyBannerHtml()}
+    ${(() => { const v = pendingInvoice(); return v ? `<button class="kpend" data-pendinv type="button"><span class="kpulse"></span><div><b>فاتورة شحن بانتظار الدفع</b><span class="tabular">${esc(v.no)} · ${esc(Number(v.pay_amount).toFixed(2))} USDT</span></div><span class="kpend-go">ادفع الآن</span></button>` : ''; })()}
     <section class="kw" aria-label="المحفظة">
       <img class="kw-fox" src="./kardo-mark.png" alt="" aria-hidden="true">
       <div class="kw-row"><span class="kw-label">رصيد محفظتك</span>${name ? `<span class="kw-chip">مرحبًا، ${esc(name)}</span>` : ''}</div>
@@ -1646,6 +1649,7 @@ function vSettings() {
       ${row('data-nav="orders"', I.receipt, 'طلباتي')}
       ${row('data-nav="wallet"', I.wallet2, 'المحفظة', `<span class="kset-v tabular">${esc(lyd(n(S.profile.wallet_balance) * rate()))}</span>`)}
       ${row('data-nav="transactions"', I.list, 'المعاملات')}
+      ${row('data-nav="invoices"', I.receipt, 'فواتيري')}
       ${row('data-nav="plans"', I.star, 'الباقات', `<span class="kset-v">${esc(PLAN_AR[myPlan()])}</span>`)}
       ${row('data-nav="referral"', I.giftbox, 'ادعُ صديقًا واربح')}
     </div>
@@ -1702,6 +1706,7 @@ function vSettings() {
 function bind() {
   bindMarket();
   bindRsc();
+  bindInvoices();
   $$('[data-theme-set]').forEach(b => b.onclick = () => { try { localStorage.setItem('kardo_theme', b.dataset.themeSet); } catch {} if (window.kardoTheme) window.kardoTheme(); render(); });
   $$('[data-nav]').forEach(b => b.onclick = () => go(b.dataset.nav));
 
@@ -2026,80 +2031,57 @@ function openPhoneVerify(network = 'libyana') {
   });
 }
 
-async function openDepositMethod(method) {
+function savedPhones() { try { return JSON.parse(localStorage.getItem('kardo_phones') || '[]').filter(x => /^0\d{9}$/.test(x)).slice(0, 4); } catch { return []; } }
+function rememberPhone(p) { try { const l = [p, ...savedPhones().filter(x => x !== p)].slice(0, 4); localStorage.setItem('kardo_phones', JSON.stringify(l)); } catch {} }
+async function openDepositMethod(method, presetLyd) {
   const manualMode = (((S.config.methods || {})[method] || {}).mode || S.config.deposit_mode) === 'manual';
   const m = S.config.methods?.[method] || {};
   const phone = m.phone || S.config.deposit_phone || '';
-  const rateVal = m.rate || rate();
-
+  const rateVal = n(m.rate) || rate();
+  const label = method === 'almadar' ? 'المدار' : 'ليبيانا';
+  let amount = n(presetLyd) || 0;
+  const saved = savedPhones();
+  const verified = (v => /^0\d{9}$/.test(v) ? v : '')('0' + String(S.profile.phone_verified || '').replace(/\D/g, '').slice(-9));
+  const def = saved[0] || verified;
+  const all = [...new Set([...saved, verified].filter(Boolean))];
   modal(`
-    <div class="modal-head">
-      <div class="modal-title">إيداع عبر ${method === 'almadar' ? 'المدار' : 'ليبيانا'}</div>
-      <button class="modal-close" data-act="close-modal" aria-label="إغلاق">${svg(I.x, 2)}</button>
+    <div class="modal-head"><div class="modal-title">شحن عبر ${label}</div>
+      <button class="modal-close" data-act="close-modal" aria-label="إغلاق">${svg(I.x, 2)}</button></div>
+    <div class="kprog"><i class="d"></i><i class="a"></i><i></i></div>
+    <div class="kprog-l"><span>المبلغ</span><span>حوّل الرصيد</span><span>أُضيف الرصيد</span></div>
+    ${amount > 0 ? `<div style="text-align:center;margin:6px 0 14px"><div class="caption">حوّل رصيد ${label} بقيمة</div>
+      <div class="kinv-big tabular">${esc(String(amount))} <small>د.ل</small></div><div class="caption">يُضاف لمحفظتك ${esc(usd(amount / rateVal))}</div></div>` : `
+    <div class="field mb-3"><label class="field-label" for="dpAmount">المبلغ (بالدينار)</label>
+      <input class="input" id="dpAmount" type="number" inputmode="decimal" step="1" placeholder="100"><span class="field-hint" id="dpQuote"></span></div>`}
+    ${phone ? `<div class="field-label">حوّل إلى الرقم</div>
+      <div class="copy-box mb-2"><div class="copy-value tabular" dir="ltr" style="font-size:17px;font-weight:600">${esc(phone)}</div>
+        <button class="copy-btn" data-act="copy" data-copy-text="${esc(phone)}" aria-label="نسخ الرقم">${svg(I.copy, 2)}</button></div>` : ''}
+    ${amount > 0 ? `<div class="copy-box mb-3"><div class="copy-value tabular" dir="ltr">${esc(String(amount))}</div>
+        <button class="copy-btn" data-act="copy" data-copy-text="${esc(String(amount))}" aria-label="نسخ المبلغ">${svg(I.copy, 2)}</button></div>` : ''}
+    <div class="field mb-3" style="margin-top:12px">
+      <label class="field-label" for="dpPhone">رقمك اللي حوّلت منه</label>
+      ${all.length ? `<div class="kchips" style="margin-bottom:8px">${all.map(x => `<button type="button" data-ph="${esc(x)}" class="${x === def ? 'on' : ''}" dir="ltr">${esc(x)}</button>`).join('')}</div>` : ''}
+      <input class="input" id="dpPhone" dir="ltr" inputmode="numeric" maxlength="14" placeholder="0912345678" value="${esc(def)}">
+      <span class="field-hint">${manualMode ? 'يُراجع الإيداع ويُضاف خلال وقت قصير' : 'حوّل أولًا، بعدين اضغط الزر — يُضاف تلقائيًا فور وصول الحوالة'}</span>
     </div>
-
-    ${phone ? `
-      <div class="card card-sm mb-4">
-        <div class="field-label">حوّل إلى الرقم</div>
-        <div class="copy-box">
-          <div class="copy-value" style="font-size:16px;font-weight:600">${esc(phone)}</div>
-          <button class="copy-btn" data-act="copy" data-copy-text="${esc(phone)}" aria-label="نسخ">${svg(I.copy, 2)}</button>
-        </div>
-      </div>
-    ` : ''}
-
-    <div class="field mb-3">
-      <label class="field-label" for="dpPhone">رقمك الذي حوّلت منه</label>
-      <input class="input" id="dpPhone" dir="ltr" inputmode="numeric" maxlength="14" placeholder="0912345678" value="${S.profile.phone_verified ? '0' + esc(S.profile.phone_verified) : ''}">
-      <span class="field-hint">${manualMode ? 'يُراجع الإيداع يدويًا ويُضاف خلال وقت قصير' : 'اكتب الرقم الذي حوّلت منه والمبلغ بالضبط — يُضاف الرصيد تلقائيًا فور وصول الحوالة'}</span>
-    </div>
-
-    <div class="field mb-4">
-      <label class="field-label">المبلغ (بالدينار)</label>
-      <input class="input" id="dpAmount" type="number" inputmode="decimal" step="0.5" placeholder="100">
-    </div>
-
-    <div id="dpQuote"></div>
-
-    <button class="btn btn-primary btn-block" id="dpSubmit" style="margin-top:16px">
-      تأكيد التحويل
-    </button>
-  `);
-
-  $('#dpAmount').oninput = () => {
-    const a = n($('#dpAmount').value);
-    if (!(a > 0)) return $('#dpQuote').innerHTML = '';
-    $('#dpQuote').innerHTML = `
-      <div class="card card-sm" style="background:var(--surface-2);border:none">
-        <div class="flex-between" style="padding:6px 0">
-          <span class="body-sm text-2">سيُضاف</span>
-          <span class="tabular" style="font-weight:700;color:var(--brand)">${usd(a / rateVal)}</span>
-        </div>
-      </div>
-    `;
-  };
-
-  $('#dpSubmit').onclick = async () => {
+    <button class="btn btn-primary btn-block" id="dpSubmit" type="button">حوّلت الرصيد</button>`);
+  $$('[data-ph]').forEach(b => b.onclick = () => { $('#dpPhone').value = b.dataset.ph; $$('[data-ph]').forEach(x => x.classList.toggle('on', x === b)); });
+  if ($('#dpAmount')) $('#dpAmount').oninput = () => { const a = n($('#dpAmount').value); $('#dpQuote').textContent = a > 0 ? 'يُضاف ' + usd(a / rateVal) : ''; };
+  onTap('#dpSubmit', async () => {
     const btn = $('#dpSubmit');
-    const amount = n($('#dpAmount').value);
-
-    if (!(amount > 0)) return toast('أدخل المبلغ', 'bad');
-    const phoneIn = $('#dpPhone') ? $('#dpPhone').value.trim() : '';
-    if ($('#dpPhone') && phoneIn.replace(/\D/g, '').length < 10) return toast('اكتب رقمك كاملًا (10 أرقام)', 'bad');
-
-    btn.disabled = true;
-    btn.classList.add('loading');
+    const amt = amount > 0 ? amount : n($('#dpAmount').value);
+    if (!(amt > 0)) return toast('أدخل المبلغ', 'bad');
+    const phoneIn = $('#dpPhone').value.replace(/\D/g, '');
+    if (phoneIn.length < 10) return toast('اكتب رقمك كاملًا (10 أرقام)', 'bad');
+    btn.disabled = true; btn.classList.add('loading');
     try {
-      const r = await api('/api/wallet/claim', { amount_lyd: amount, method, phone: phoneIn });
+      const r = await api('/api/wallet/claim', { amount_lyd: amt, method, phone: phoneIn });
+      if (/^0\d{9}$/.test(phoneIn)) rememberPhone(phoneIn);
       if (r.matched) stickerModal('deposit', 'success', 'تم الإيداع ✓', 'أُضيف ' + usd(r.credited_usd) + ' إلى محفظتك.');
       else if (r.manual) stickerModal('wait', 'wait', 'وصل طلب الإيداع', 'يُضاف الرصيد بعد المراجعة خلال وقت قصير.');
       else stickerModal('wait', 'wait', 'في انتظار الحوالة', 'سيُضاف الرصيد تلقائيًا فور وصول الحوالة.');
-    } catch (e) {
-      toast(e.message, 'bad');
-      btn.disabled = false;
-      btn.classList.remove('loading');
-    }
-  };
+    } catch (e) { toast(e.message, 'bad'); btn.disabled = false; btn.classList.remove('loading'); }
+  });
 }
 
 async function openCardDetails(cardId) {
@@ -2838,34 +2820,54 @@ function moneyGateHtml() {
     </div>
     <button class="btn btn-primary btn-block" id="gateGo" type="button">الذهاب للتوثيق</button>`;
 }
-async function openDeposit() {
+async function openDeposit(preset) {
   { const g = moneyGateHtml(); if (g) { modal(g); onTap('#gateGo', () => { closeModal(); go('settings'); }); return; } }
-  const list = depositMethods();
-  modal(`
-    <div class="modal-head">
-      <div class="modal-title">إضافة رصيد</div>
-      <button class="modal-close" data-act="close-modal" aria-label="إغلاق">${svg(I.x, 2)}</button>
-    </div>
-    ${list.length ? `<div class="list">
-      ${list.map(m => `
-        <div class="list-row" data-method="${esc(m.key)}" role="button" tabindex="0">
-          <div class="list-icon brand">${m.logo ? `<img src="${esc(m.logo)}" alt="" style="width:100%;height:100%;object-fit:contain">` : svg(I.up, 2)}</div>
-          <div class="list-content">
-            <div class="list-title">${esc(m.label || m.key)}</div>
-            <div class="list-meta">${m.key === 'usdt' ? '⚡ تلقائي عبر شبكة TRC20' : (m.key === 'libyana' || m.key === 'almadar') ? ((m.mode || S.config.deposit_mode) === 'manual' ? 'يُراجع يدويًا خلال وقت قصير' : '⚡ تلقائي فور وصول الحوالة') : m.receipt === false ? 'برقم العملية — يُراجع يدويًا' : 'بإرفاق إيصال — يُراجع يدويًا'}</div>
-          </div>
-          <div class="list-end">${(m.key === 'usdt' || ((m.key === 'libyana' || m.key === 'almadar') && (m.mode || S.config.deposit_mode) !== 'manual'))
-            ? '<span class="chip-auto">⚡ تلقائي</span>' : '<span class="chip-auto chip-manual">يدوي</span>'}</div>
-        </div>`).join('')}
-    </div>` : '<p class="body-sm text-2">لا توجد طرق إيداع مفعّلة حاليًا.</p>'}
-    <button class="btn btn-secondary btn-block" style="margin-top:16px" data-act="close-modal">إلغاء</button>
-  `);
-  $$('[data-method]').forEach(b => b.onclick = () => {
-    const k = b.dataset.method;
-    if (k === 'libyana' || k === 'almadar') return openDepositMethod(k);
-    if (k === 'usdt') return openUsdt();
-    return openManualDeposit(k);
-  });
+  const opts = depositOptions();
+  if (!opts.length) { modal(`<div class="h4 mb-3">شحن المحفظة</div><p class="body-sm text-2">لا توجد طرق شحن مفعّلة حاليًا.</p>`); return; }
+  let cur = 'usd';
+  let amt = n(preset) || 0;
+  let sel = (() => { try { return localStorage.getItem('kardo_last_pm') || ''; } catch { return ''; } })();
+  if (!opts.find(o => o.key === sel && !o.paused)) sel = (opts.find(o => !o.paused) || opts[0]).key;
+  const draw = () => {
+    const usdOf = o => cur === 'usd' ? amt : (o.unit === 'USDT' ? amt / (n(S.config.usd_to_lyd) || 11.8) : amt / (o.rate || 1));
+    modal(`
+      <div class="modal-head"><div class="modal-title">شحن المحفظة</div>
+        <button class="modal-close" data-act="close-modal" aria-label="إغلاق">${svg(I.x)}</button></div>
+      <div class="kdep-amt">
+        <div class="kdep-row"><label for="kdA">${cur === 'usd' ? 'المبلغ بالدولار' : 'المبلغ بالدينار'}</label>
+          <div class="kseg"><button type="button" data-cur="usd" class="${cur === 'usd' ? 'on' : ''}">$</button><button type="button" data-cur="lyd" class="${cur === 'lyd' ? 'on' : ''}">د.ل</button></div></div>
+        <div class="kdep-in"><input id="kdA" type="number" inputmode="decimal" step="0.01" min="0" placeholder="0" value="${amt || ''}" class="tabular"><span>${cur === 'usd' ? '$' : 'د.ل'}</span></div>
+      </div>
+      <div class="kchips">${(cur === 'usd' ? [5, 10, 20, 50] : [50, 100, 200, 500]).map(v => `<button type="button" data-q="${v}" class="${amt === v ? 'on' : ''}">${cur === 'usd' ? '$' + v : v}</button>`).join('')}</div>
+      ${['crypto', 'phone', 'bank'].map(g => { const list = opts.filter(o => o.group === g); if (!list.length) return '';
+        return `<div class="kset-label" style="margin-top:4px">${{ crypto: 'عملات رقمية', phone: 'رصيد هاتف', bank: 'تحويل وإيصال' }[g]}</div>
+        <div class="list mb-4">${list.map(o => { const u = usdOf(o), pay = cur === 'usd' ? (o.unit === 'USDT' ? amt : amt * o.rate) : amt, bad = !o.paused && amt > 0 && ((o.min && u < o.min) || (o.max && u > o.max));
+          return `<button type="button" class="list-row kpm ${sel === o.key ? 'sel' : ''}" data-pm="${esc(o.key)}" ${o.paused ? 'disabled' : ''}>
+            <span class="list-icon kpm-logo">${o.logo ? `<img src="${esc(o.logo)}" alt="">` : esc(o.short)}</span>
+            <div class="list-content"><div class="list-title">${esc(o.label)} <span class="kpm-tag ${o.paused ? 'off' : o.speed}">${o.paused ? 'متوقفة مؤقتًا' : { auto: 'تلقائي', fast: 'فوري', review: 'مراجعة' }[o.speed]}</span></div>
+              <div class="list-meta">${o.paused ? 'غير متاحة الآن' : bad ? `<span style="color:var(--u-err)">${o.min && u < o.min ? `الحد الأدنى $${o.min}` : `الحد الأقصى $${o.max}`}</span>` : esc(o.note)}</div></div>
+            ${!o.paused && amt > 0 ? `<div class="list-end kpm-pay"><b class="tabular">${o.unit === 'USDT' ? pay.toFixed(2) + ' USDT' : (o.unit === 'LYD' ? Math.ceil(pay) + ' د.ل' : pay.toFixed(2))}</b><small>${cur === 'usd' ? 'تدفع' : 'يُضاف ' + usd(u)}</small></div>` : ''}
+          </button>`; }).join('')}</div>`; }).join('')}
+      <button class="btn btn-primary btn-block btn-lg" id="kdGo" type="button">متابعة</button>`);
+    const inp = $('#kdA');
+    inp.oninput = () => { amt = n(inp.value); const pos = inp.selectionStart; draw(); const i2 = $('#kdA'); i2.focus(); try { i2.setSelectionRange(pos, pos); } catch {} };
+    $$('[data-q]').forEach(b => b.onclick = () => { amt = n(b.dataset.q); draw(); });
+    $$('[data-cur]').forEach(b => b.onclick = () => { if (cur !== b.dataset.cur) { cur = b.dataset.cur; amt = 0; draw(); } });
+    $$('[data-pm]').forEach(b => b.onclick = () => { sel = b.dataset.pm; draw(); });
+    onTap('#kdGo', () => {
+      const o = opts.find(x => x.key === sel);
+      if (!o || o.paused) return toast('اختر طريقة دفع', 'bad');
+      if (!(amt > 0)) { toast('اكتب المبلغ', 'bad'); $('#kdA').focus(); return; }
+      const u = Math.round(usdOf(o) * 100) / 100;
+      if (o.min && u < o.min) return toast(`الحد الأدنى لهذه الطريقة $${o.min}`, 'bad');
+      if (o.max && u > o.max) return toast(`الحد الأقصى لهذه الطريقة $${o.max}`, 'bad');
+      try { localStorage.setItem('kardo_last_pm', o.key); } catch {}
+      if (o.kind === 'crypto') return createInvoice(o.net, u);
+      if (o.kind === 'phone') return openDepositMethod(o.key, Math.ceil(cur === 'usd' ? amt * o.rate : amt));
+      return openManualDeposit(o.key, o.unit === 'USDT' ? u : Math.ceil(cur === 'usd' ? amt * o.rate : amt));
+    });
+  };
+  draw();
 }
 
 function compressImage(file, maxW = 1200, q = 0.7) {
@@ -2889,7 +2891,7 @@ function compressImage(file, maxW = 1200, q = 0.7) {
   });
 }
 
-function openManualDeposit(key) {
+function openManualDeposit(key, preset) {
   const m = (S.config.methods || {})[key] || {};
   const cur = key === 'binance' ? 'USDT' : 'د.ل';
   let proof = '';
@@ -2908,7 +2910,7 @@ function openManualDeposit(key) {
       </div>`).join('')}
     <div class="field mb-3" style="margin-top:12px">
       <label class="field-label" for="mdAmount">المبلغ المحوَّل (${cur})</label>
-      <input class="input" id="mdAmount" type="number" inputmode="decimal" step="0.01" min="1">
+      <input class="input" id="mdAmount" type="number" inputmode="decimal" step="0.01" min="1" value="${n(preset) > 0 ? esc(String(n(preset))) : ''}">
       <span class="field-hint" id="mdQuote"></span>
     </div>
     ${m.receipt === false ? `
@@ -2930,6 +2932,7 @@ function openManualDeposit(key) {
     const a = n($('#mdAmount').value);
     $('#mdQuote').textContent = a > 0 ? `سيُضاف ${usd(a / (n(m.rate) || 1))} بعد المراجعة` : '';
   };
+  $('#mdAmount').oninput();
   if ($('#mdProof')) $('#mdProof').onchange = async e => {
     try { proof = await compressImage(e.target.files[0]); toast('أُرفقت الصورة', 'ok'); }
     catch (err) { proof = ''; toast(err.message, 'bad'); }
@@ -2948,56 +2951,7 @@ function openManualDeposit(key) {
   });
 }
 
-function openUsdt() {
-  const m = (S.config.methods || {}).usdt || {};
-  modal(`
-    <div class="modal-head">
-      <div class="modal-title">إيداع بالعملات الرقمية (USDT)</div>
-      <button class="modal-close" data-act="close-modal" aria-label="إغلاق">${svg(I.x, 2)}</button>
-    </div>
-    <div id="usdtBody">
-      ${(() => { const nets = (S.config.crypto_nets && S.config.crypto_nets.length) ? S.config.crypto_nets : [{ id: 'trc20', label: 'USDT TRC20' }];
-        return `<div class="field-label mb-2">طريقة التحويل</div><div class="pm-chips mb-4">${nets.map((n, i) => `<button type="button" class="pm-chip ${i === 0 ? 'on' : ''}" data-cnet="${esc(n.id)}"><span>${esc(n.label)}</span></button>`).join('')}</div>`; })()}
-      <div class="field mb-4">
-        <label class="field-label" for="uAmt">المبلغ (من ${esc(String(m.min || 5))} إلى ${esc(String(m.max || 1000))} USDT)</label>
-        <input class="input" id="uAmt" type="number" inputmode="decimal" step="0.01">
-      </div>
-      <button class="btn btn-primary btn-block" id="uInv" type="button">إنشاء فاتورة</button>
-    </div>
-  `);
-  $$('[data-cnet]').forEach(b => b.onclick = () => { $$('[data-cnet]').forEach(x => x.classList.toggle('on', x === b)); });
-  onTap('#uInv', async () => {
-    const netSel = (document.querySelector('[data-cnet].on') || { dataset: { cnet: 'trc20' } }).dataset.cnet;
-    const amount = n($('#uAmt').value);
-    if (!(amount > 0)) return toast('أدخل المبلغ', 'bad');
-    const btn = $('#uInv'); btn.disabled = true; btn.classList.add('loading');
-    try {
-      const { invoice: inv } = await api('/api/wallet/usdt/invoice', { amount_usd: amount, network: netSel });
-      const isPay = inv.network === 'binance_pay';
-      const netHint = isPay ? 'من تطبيق بايننس: <b>Pay ← إرسال ← Pay ID</b>، والعملة <b>USDT</b>'
-        : `عبر شبكة <b>${esc(inv.network_label || 'TRC20')}</b> فقط. وعند السحب من بايننس تأكد أن <b>«المبلغ المستلَم»</b> يساوي المبلغ بالضبط (رسوم الشبكة تُضاف عليك)`;
-      $('#usdtBody').innerHTML = `
-        <div class="alert alert-warning mb-3">${svg(I.help, 2)}<div>حوّل المبلغ <b>بالضبط</b> بما فيه الكسور، ${netHint}.</div></div>
-        <div class="field mb-2"><div class="field-label">المبلغ المطلوب</div>
-          <div class="copy-box"><div class="copy-value mono" dir="ltr" style="font-size:16px;font-weight:700">${esc(inv.pay_amount.toFixed(4))}</div>
-          <button class="copy-btn" data-act="copy" data-copy-text="${esc(inv.pay_amount.toFixed(4))}" aria-label="نسخ">${svg(I.copy, 2)}</button></div></div>
-        <div class="field mb-3"><div class="field-label">${isPay ? 'Binance Pay ID' : 'العنوان'}</div>
-          <div class="copy-box"><div class="copy-value mono" dir="ltr" style="font-size:11px;word-break:break-all">${esc(inv.address)}</div>
-          <button class="copy-btn" data-act="copy" data-copy-text="${esc(inv.address)}" aria-label="نسخ">${svg(I.copy, 2)}</button></div></div>
-        <p class="caption mb-3">صالحة حتى ${esc(new Date(inv.expires_ms).toLocaleTimeString('ar-LY', { hour: '2-digit', minute: '2-digit' }))}</p>
-        <button class="btn btn-primary btn-block" id="uChk" type="button">حوّلت — تحقّق الآن</button>`;
-      onTap('#uChk', async () => {
-        const b = $('#uChk'); b.disabled = true; b.classList.add('loading');
-        try {
-          const r = await api('/api/wallet/usdt/verify', { invoice_id: inv.id });
-          if (r.paid) { closeModal(); toast('أُضيف ' + usd(r.credited) + ' إلى محفظتك', 'ok'); }
-          else toast('لم يصل التحويل بعد — انتظر دقيقة وأعد المحاولة', 'bad');
-        } catch (e) { toast(e.message, 'bad'); }
-        b.disabled = false; b.classList.remove('loading');
-      });
-    } catch (e) { toast(e.message, 'bad'); btn.disabled = false; btn.classList.remove('loading'); }
-  });
-}
+
 
 /* ─── Withdraw & transfer ─── */
 function openWithdraw() {
@@ -4649,4 +4603,185 @@ function cardPoints() {
   const raw = String(((S.config.manual_cards || {}).points) || '').split('\n').map(l => l.trim()).filter(Boolean).slice(0, 5)
     .map(l => { const [t, ...d] = l.split('|'); return [t.trim(), d.join('|').trim()]; }).filter(x => x[0]);
   return raw.length ? raw : CARD_POINTS_DEF;
+}
+
+/* ═══ v49 — شحن المحفظة بالفواتير ═══ */
+function depositOptions() {
+  const m = S.config.methods || {};
+  const paused = new Set(S.config.paused_methods || []);
+  const out = [];
+  const usdt = m.usdt || {};
+  const nets = (S.config.crypto_nets && S.config.crypto_nets.length) ? S.config.crypto_nets : (usdt.on ? [{ id: 'trc20', label: 'USDT TRC20' }] : []);
+  for (const nt of nets) {
+    const isPay = nt.id === 'binance_pay';
+    out.push({ key: nt.id, kind: 'crypto', net: nt.id, group: 'crypto', label: isPay ? 'Binance Pay' : nt.label, short: isPay ? 'B' : '₮', unit: 'USDT', rate: 1,
+      logo: isPay ? ((m.binance || {}).logo || '') : (usdt.logo || ''), speed: 'auto', min: n(usdt.min) || 5, max: n(usdt.max) || 1000, paused: paused.has(nt.id),
+      note: isPay ? 'من تطبيق Binance · بدون رسوم' : nt.id === 'bep20' ? 'شبكة BSC · رسوم أقل' : nt.id === 'trc20' ? 'شبكة TRON' : 'شبكة ' + nt.label.replace('USDT ', '') });
+  }
+  for (const k of ['libyana', 'almadar']) {
+    const x = m[k]; if (!x || x.on === false) continue;
+    const manual = (x.mode || S.config.deposit_mode) === 'manual';
+    out.push({ key: k, kind: 'phone', group: 'phone', label: x.label || (k === 'libyana' ? 'ليبيانا' : 'المدار'), short: k === 'libyana' ? 'LY' : 'MD', unit: 'LYD', rate: n(x.rate) || 11.8,
+      logo: x.logo || '', speed: manual ? 'review' : 'fast', min: 0, max: 0, paused: paused.has(k),
+      note: `1$ = ${n(x.rate) || 11.8} د.ل` });
+  }
+  const hasPay = nets.some(nt => nt.id === 'binance_pay');
+  for (const [k, x] of Object.entries(m)) {
+    if (['libyana', 'almadar', 'usdt'].includes(k) || !x || x.on === false) continue;
+    if (k === 'binance' && hasPay) continue;
+    const isUsdt = k === 'binance';
+    out.push({ key: k, kind: 'manual', group: 'bank', label: x.label || k, short: '🏦', unit: isUsdt ? 'USDT' : 'LYD', rate: n(x.rate) || 1, logo: x.logo || '', speed: 'review',
+      min: 0, max: 0, paused: paused.has(k), note: isUsdt ? 'بإيصال · يُراجع يدويًا' : `1$ = ${n(x.rate) || 1} د.ل · بإيصال` });
+  }
+  return out;
+}
+
+let _qrLib = null;
+function loadQrLib() {
+  if (window.kardoQR) return Promise.resolve(window.kardoQR);
+  if (_qrLib) return _qrLib;
+  _qrLib = new Promise((res, rej) => {
+    const sc = document.createElement('script');
+    sc.src = './kardo-qr.js?v=49';
+    sc.onload = () => window.kardoQR ? res(window.kardoQR) : rej(new Error('qr'));
+    sc.onerror = () => { _qrLib = null; rej(new Error('qr')); };
+    document.head.appendChild(sc);
+  });
+  return _qrLib;
+}
+async function qrInto(el, text) {
+  try { const f = await loadQrLib(); if (el) el.innerHTML = f(text); }
+  catch { if (el) el.remove(); }
+}
+
+async function createInvoice(net, usdAmount) {
+  try {
+    const { invoice } = await api('/api/wallet/usdt/invoice', { amount_usd: usdAmount, network: net });
+    S.invoices = null;
+    openInvoice(invoice);
+  } catch (e) { toast(e.message, 'bad'); }
+}
+
+let _invTimer = null, _invPoll = null;
+function stopInvoiceTimers() { clearInterval(_invTimer); clearTimeout(_invPoll); _invTimer = null; _invPoll = null; }
+const INV_ST = { awaiting: ['st-w', 'بانتظار الدفع'], cancelled: ['st-x', 'ملغاة'], paid: ['st-p', 'مدفوعة'], expired: ['st-x', 'منتهية'], cancelled_closed: ['st-x', 'ملغاة'] };
+const fmtLeft = ms => { const t = Math.max(0, Math.floor(ms / 1000)); return `${Math.floor(t / 60)}:${String(t % 60).padStart(2, '0')}`; };
+
+function openInvoice(inv) {
+  stopInvoiceTimers();
+  if (!inv) return;
+  const isPay = inv.network === 'binance_pay';
+  const amtTxt = Number(inv.pay_amount).toFixed(4);
+  const st = inv.status;
+  const timeUp = Date.now() > inv.expires_ms;
+  const steps = st === 'paid' ? 3 : 2;
+  const head = `
+    <div class="kinv-top"><span class="kinv-no">#${esc(inv.no)}</span>
+      <span class="kinv-st ${(INV_ST[st] || ['st-x'])[0]}" id="kinvSt">${st === 'awaiting' && !timeUp ? `بانتظار الدفع · <span id="kinvLeft">${fmtLeft(inv.expires_ms - Date.now())}</span>` : esc((INV_ST[st] || ['', st])[1])}</span><button class="modal-close" data-act="close-modal" aria-label="إغلاق">${svg(I.x)}</button></div>
+    <div class="kprog"><i class="d"></i><i class="${steps >= 3 ? 'd' : 'a'}"></i><i class="${steps >= 3 ? 'd' : ''}"></i></div>
+    <div class="kprog-l"><span>أُنشئت</span><span>الدفع</span><span>أُضيف الرصيد</span></div>`;
+  if (st === 'paid') {
+    modal(`${head}
+      <div style="text-align:center;margin:8px 0 18px">${fennec('success')}<div class="h3" style="margin:0">أُضيف لمحفظتك</div>
+        <div class="kinv-big" style="color:var(--u-ok)">+ ${esc(usd(inv.received || inv.amount_usd))}</div>${inv.late ? '<div class="caption">وصل بعد انتهاء المهلة وأُضيف تلقائيًا</div>' : ''}</div>
+      <div class="kreceipt">
+        <div><span>رقم الفاتورة</span><b>${esc(inv.no)}</b></div>
+        <div><span>المدفوع</span><b class="tabular" dir="ltr">${esc(amtTxt)} USDT</b></div>
+        <div><span>الطريقة</span><b>${esc(isPay ? 'Binance Pay' : inv.network_label)}</b></div>
+        <div><span>الوقت</span><b>${esc(dt(inv.paid_at))}</b></div>
+        ${inv.txid ? `<div><span>المعاملة</span><b dir="ltr">${esc(inv.txid.slice(0, 8))}…${esc(inv.txid.slice(-6))}</b></div>` : ''}
+      </div>
+      <button class="btn btn-primary btn-block" data-act="close-modal" type="button" style="margin-top:20px">تم</button>`);
+    S.profile && haptic.ok();
+    return;
+  }
+  const closed = st !== 'awaiting' && st !== 'cancelled';
+  if (closed) {
+    modal(`${head}
+      <div style="text-align:center;margin:8px 0 16px">${fennec('wait')}<div class="h4" style="margin:0 0 4px">${st === 'expired' ? 'انتهت مدة الفاتورة' : 'الفاتورة ملغاة'}</div>
+        <div class="caption">${esc(usd(inv.amount_usd))} · ${esc(isPay ? 'Binance Pay' : inv.network_label)} · <span dir="ltr">${esc(amtTxt)} USDT</span></div></div>
+      <div class="alert alert-info mb-3">${svg(I.help)}<div>لا تحوّل على هذه الفاتورة. لو حوّلت وما انضاف الرصيد، تواصل مع الدعم برقم الفاتورة.</div></div>
+      <div class="kinv-acts"><button class="btn btn-primary" id="kRenew" type="button">فاتورة جديدة بنفس المبلغ</button></div>`);
+    onTap('#kRenew', () => { closeModal(); createInvoice(inv.network, inv.amount_usd); });
+    return;
+  }
+  modal(`${head}
+    <div style="text-align:center;margin:6px 0 14px">
+      <div class="caption">${isPay ? 'أرسل هذا المبلغ بالضبط عبر Binance Pay' : 'حوّل هذا المبلغ بالضبط'}</div>
+      <div class="kinv-big tabular">${esc(amtTxt)} <small>USDT</small></div>
+      <div class="caption">${isPay ? 'العملة USDT' : 'شبكة ' + esc(inv.network_label.replace('USDT ', '')) + ' فقط'} · يُضاف لمحفظتك ${esc(usd(inv.amount_usd))}</div>
+    </div>
+    ${isPay ? (S.config.binance_pay_qr ? `<div class="kqr"><img src="${esc(API_BASE + S.config.binance_pay_qr)}" alt="QR Binance Pay"></div>` : '') : `<div class="kqr" id="kQr"></div>`}
+    <div class="copy-box mb-2"><div class="copy-value" dir="ltr" style="font-size:13px;word-break:break-all;white-space:normal;overflow:visible;text-overflow:clip">${isPay ? 'Pay ID: ' : ''}${esc(inv.address)}</div>
+      <button class="copy-btn" data-act="copy" data-copy-text="${esc(inv.address)}" aria-label="نسخ">${svg(I.copy)}</button></div>
+    <div class="copy-box mb-3"><div class="copy-value tabular" dir="ltr">${esc(amtTxt)}</div>
+      <button class="copy-btn" data-act="copy" data-copy-text="${esc(amtTxt)}" aria-label="نسخ المبلغ">${svg(I.copy)}</button></div>
+    ${isPay ? `<a class="btn btn-block kbnb mb-3" href="https://app.binance.com/" target="_blank" rel="noopener">افتح تطبيق Binance</a>
+      <p class="caption mb-3">في Binance: الدفع ← إرسال ← الصق الـ Pay ID والمبلغ ← تأكيد.</p>` : `
+      <div class="alert alert-warning mb-3">${svg(I.help)}<div>لا تقرّب المبلغ. لو تحوّل من منصة (MEXC وغيرها) تأكد إن المبلغ اللي يوصل هو نفسه بعد الرسوم.</div></div>`}
+    ${closed ? `<div class="alert alert-info mb-3">${svg(I.help)}<div>انتهت هذه الفاتورة. أنشئ فاتورة جديدة للشحن.</div></div>` : `
+    <div class="klive" id="kLive"><span class="kpulse"></span><div><b>${st === 'cancelled' ? 'الفاتورة ملغاة' : 'ننتظر وصول التحويل…'}</b><span>${timeUp || st === 'cancelled' ? 'لو حوّلت، يُضاف تلقائيًا خلال 24 ساعة من إنشاء الفاتورة' : 'يُضاف تلقائيًا — تقدر تقفل الصفحة'}</span></div></div>`}
+    <div class="kinv-acts">
+      ${timeUp || closed || st === 'cancelled' ? `<button class="btn btn-secondary" id="kRenew" type="button">فاتورة جديدة بنفس المبلغ</button>` : ''}
+      ${st === 'awaiting' ? `<button class="btn btn-ghost" id="kCancel" type="button">إلغاء الفاتورة</button>` : ''}
+    </div>`);
+  if (!isPay) qrInto($('#kQr'), inv.address);
+  onTap('#kRenew', () => { closeModal(); createInvoice(inv.network, inv.amount_usd); });
+  onTap('#kCancel', async () => {
+    if (!confirm('إلغاء الفاتورة؟ لو حوّلت بالخطأ سيُضاف المبلغ تلقائيًا رغم الإلغاء.')) return;
+    try { const r = await api('/api/wallet/invoice/cancel', { id: inv.id }); S.invoices = null; openInvoice(r.invoice); } catch (e) { toast(e.message, 'bad'); }
+  });
+  if (closed) return;
+  _invTimer = setInterval(() => {
+    const el = $('#kinvLeft'); if (!el) { if (!$('#kLive')) stopInvoiceTimers(); return; }
+    const left = inv.expires_ms - Date.now();
+    if (left <= 0) { stopInvoiceTimers(); openInvoice({ ...inv }); return; }
+    el.textContent = fmtLeft(left);
+  }, 1000);
+  const started = Date.now();
+  const poll = async () => {
+    if (!$('#kLive')) return;
+    try {
+      const r = await api('/api/wallet/usdt/verify', { invoice_id: inv.id });
+      if (r.invoice && r.invoice.status === 'paid') { stopInvoiceTimers(); S.invoices = null; openInvoice(r.invoice); toast('أُضيف ' + usd(r.invoice.received) + ' لمحفظتك ✓', 'ok'); return; }
+      if (r.invoice && r.invoice.status !== inv.status) { openInvoice(r.invoice); return; }
+    } catch {}
+    _invPoll = setTimeout(poll, Date.now() - started < 15 * 60000 ? 15000 : 45000);
+  };
+  _invPoll = setTimeout(poll, 8000);
+}
+
+let _invLoad = null;
+function loadInvoices() {
+  if (_invLoad) return _invLoad;
+  _invLoad = api('/api/wallet/invoices', {}).then(r => { S.invoices = r.invoices || []; }).catch(() => { if (!S.invoices) S.invoices = []; })
+    .finally(() => { _invLoad = null; if (S.page === 'invoices' || S.page === 'dashboard') render(); });
+  return _invLoad;
+}
+function pendingInvoice() {
+  return (S.invoices || []).find(v => v.status === 'awaiting' && v.expires_ms > Date.now());
+}
+function vInvoices() {
+  if (!S.invoices) { loadInvoices(); return `<div class="page-enter"><h1 class="kpage-title">فواتيري</h1><div class="skeleton" style="height:200px;border-radius:20px"></div></div>`; }
+  const tab = S.invTab || 'all';
+  const list = S.invoices.filter(v => tab === 'all' || (tab === 'open' ? v.status === 'awaiting' : v.status === 'paid'));
+  return `<div class="page-enter">
+    <h1 class="kpage-title">فواتيري</h1><p class="kpage-sub">كل فواتير الشحن وحالاتها</p>
+    <div class="pills mb-4">${[['all', 'الكل'], ['open', 'بانتظار الدفع'], ['paid', 'مدفوعة']].map(([k, t]) => `<button class="pill ${tab === k ? 'active' : ''}" data-invtab="${k}" type="button">${t}</button>`).join('')}</div>
+    ${list.length ? `<div class="list">${list.map(v => `
+      <button class="list-row" data-inv="${esc(v.id)}" type="button" style="width:100%;text-align:right">
+        <span class="list-icon">${svg(I.receipt)}</span>
+        <div class="list-content"><div class="list-title tabular">${esc(v.no)}</div><div class="list-meta">شحن المحفظة · ${esc(v.network === 'binance_pay' ? 'Binance Pay' : v.network_label)} · ${esc(dt(new Date(v.created_ms).toISOString()))}</div></div>
+        <div class="list-end"><div class="list-amount tabular">${esc(usd(v.amount_usd))}</div><span class="kinv-st ${(INV_ST[v.status] || ['st-x'])[0]}" style="margin-top:4px">${esc(v.status === 'awaiting' && v.expires_ms < Date.now() ? 'بانتظار الدفع' : (INV_ST[v.status] || ['', v.status])[1])}</span></div>
+      </button>`).join('')}</div>` : `<div class="card" style="text-align:center;padding:32px 20px">${fennec('empty')}<div class="h4" style="margin-bottom:6px">لا فواتير بعد</div><p class="body-sm text-2 mb-4">أنشئ فاتورة شحن وتظهر هنا</p><button class="btn btn-primary btn-sm" data-act="dock-deposit" type="button">شحن المحفظة</button></div>`}
+  </div>`;
+}
+function bindInvoices() {
+  $$('[data-invtab]').forEach(b => b.onclick = () => { S.invTab = b.dataset.invtab; render(); });
+  $$('[data-inv]').forEach(b => b.onclick = async () => {
+    const v = (S.invoices || []).find(x => x.id === b.dataset.inv); if (!v) return;
+    openInvoice(v);
+    try { const r = await api('/api/wallet/invoice', { id: v.id }); if (r.invoice && r.invoice.status !== v.status) openInvoice(r.invoice); } catch {}
+  });
+  $$('[data-pendinv]').forEach(b => b.onclick = () => { const v = pendingInvoice(); if (v) openInvoice(v); });
 }

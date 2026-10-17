@@ -1904,6 +1904,8 @@ function vDeposits() {
       ${S.uf && S.uf.res ? ufResults(S.uf.res) : ''}
     </div>
 
+    ${invAdminHtml()}
+
     <div class="pills mb-3">
       ${F.map(([k, t]) => {
         const c = k === 'all' ? S.deposits.length : S.deposits.filter(d => d.status === k).length;
@@ -4627,4 +4629,122 @@ document.addEventListener('click', async e => {
       else { toast(r.duplicate ? 'هذا التحويل محسوب لفاتورة ثانية' : 'ما لقينا التحويل على البلوكشين لهذه الفاتورة', 'bad'); cr.disabled = false; cr.textContent = 'تحقق من البلوكشين وأضف الرصيد'; }
     } catch (err) { toast(err.message, 'bad'); cr.disabled = false; cr.textContent = 'تحقق من البلوكشين وأضف الرصيد'; }
   }
+});
+
+/* ═══ v49 — الفواتير والتحويلات غير المطابقة وتحكم طرق الدفع ═══ */
+const INVA_ST = { awaiting: ['badge-warning', 'بانتظار'], cancelled: ['badge-neutral', 'ملغاة'], paid: ['badge-success', 'مدفوعة'], expired: ['badge-neutral', 'منتهية'], cancelled_closed: ['badge-neutral', 'ملغاة'] };
+function pmKeys() {
+  const st = S.settings || {};
+  const list = [['trc20', 'USDT TRC20'], ['bep20', 'USDT BEP20'], ['polygon', 'USDT Polygon'], ['binance_pay', 'Binance Pay'], ['libyana', 'ليبيانا'], ['almadar', 'المدار'], ['bank', st.m_bank_label || 'تحويل مصرفي'], ['binance', st.m_binance_label || 'Binance (يدوي)']];
+  (Array.isArray(st.custom_methods) ? st.custom_methods : []).forEach((m, i) => {
+    if (!m || !m.label) return;
+    list.push([String(m.key || `custom${i}`).replace(/[^a-z0-9_]/gi, '').slice(0, 20) || `custom${i}`, m.label]);
+  });
+  return list;
+}
+function pausedSet() { return new Set(String((S.settings || {}).paused_methods || '').split(',').map(x => x.trim()).filter(Boolean)); }
+async function loadInvA() {
+  if (S.invA && S.invA.loading) return;
+  S.invA = { ...(S.invA || {}), loading: true };
+  try {
+    const [a, b] = await Promise.all([api('/api/admin/invoices', { days: S.invA.days || 1, q: S.invA.q || '' }), api('/api/admin/crypto/unmatched', { action: 'list' }).catch(() => ({ items: [] }))]);
+    S.invA = { ...S.invA, loading: false, stats: a.stats, list: a.invoices || [], unm: b.items || [] };
+  } catch (e) { S.invA = { ...S.invA, loading: false, err: e.message }; }
+  render(true);
+}
+function invAdminHtml() {
+  if (!S.invA) { setTimeout(loadInvA, 0); S.invA = { loading: true, days: 1 }; }
+  const A = S.invA, st = A.stats || {}, ps = pausedSet(), set = S.settings || {};
+  return `
+  <div class="card mb-3">
+    <div class="flex-between" style="margin-bottom:10px"><div class="h4" style="margin:0">🧾 فواتير الشحن</div>
+      <div class="pills" style="margin:0">${[[1, 'اليوم'], [7, '7 أيام'], [30, '30 يوم']].map(([d, t]) => `<button class="pill ${(A.days || 1) === d ? 'active' : ''}" data-invdays="${d}" type="button">${t}</button>`).join('')}</div></div>
+    ${A.err ? `<div class="caption" style="color:var(--error)">${esc(A.err)}</div>` : ''}
+    <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-bottom:12px">
+      ${[['فُتحت', st.opened], ['دُفعت', st.paid], ['مفتوحة', st.open], ['المحصّل', st.sum_paid != null ? usd(st.sum_paid) : '—']].map(([t, v]) => `<div style="background:var(--surface-2);border-radius:12px;padding:10px;text-align:center"><div class="caption">${t}</div><div class="tabular" style="font-weight:700;font-size:16px">${A.loading && v == null ? '…' : esc(String(v ?? 0))}</div></div>`).join('')}
+    </div>
+    ${st.by_net && Object.keys(st.by_net).length ? `<div class="caption mb-2">${Object.entries(st.by_net).map(([k, v]) => `${esc(k.toUpperCase())}: ${esc(usd(v))}`).join(' · ')}</div>` : ''}
+    <div style="display:flex;gap:8px;margin-bottom:10px"><input class="input" id="invQ" placeholder="رقم الفاتورة / الاسم / البريد / المبلغ" value="${esc(A.q || '')}" style="flex:1"><button class="btn btn-secondary btn-sm" id="invQGo" type="button">بحث</button></div>
+    ${(A.list || []).length ? `<div class="table-wrap"><table class="table"><thead><tr><th>الفاتورة</th><th>العميل</th><th>المبلغ</th><th>الطريقة</th><th>الحالة</th><th>الوقت</th></tr></thead><tbody>
+      ${A.list.map(v => `<tr><td class="tabular" dir="ltr">${esc(v.no)}</td><td>${esc(v.name || '—')}<div class="caption" dir="ltr">${esc(v.email)}</div></td>
+        <td class="tabular" dir="ltr">${esc(Number(v.pay_amount).toFixed(4))}${v.status === 'paid' ? `<div class="caption">+${esc(usd(v.received))}</div>` : ''}</td><td>${esc(v.network_label)}</td>
+        <td><span class="badge ${(INVA_ST[v.status] || ['badge'])[0]}">${esc((INVA_ST[v.status] || ['', v.status])[1])}</span>${v.late ? ' <span class="badge badge-warning">متأخرة</span>' : ''}${v.paid_by && v.paid_by !== 'user' && v.paid_by !== 'cron' ? ' <span class="badge">يدوي</span>' : ''}</td>
+        <td class="caption">${esc(dt(new Date(v.created_ms).toISOString()))}</td></tr>`).join('')}</tbody></table></div>` : `<div class="caption">${A.loading ? 'جارٍ التحميل…' : 'لا فواتير في هذه الفترة'}</div>`}
+  </div>
+
+  <div class="card mb-3">
+    <div class="h4" style="margin-bottom:4px">⚠️ تحويلات تحتاج مراجعة ${(A.unm || []).length ? `<span class="badge badge-warning">${A.unm.length}</span>` : ''}</div>
+    <p class="caption" style="margin-bottom:10px">تحويلات وصلت لحساب Binance بمبلغ ما يطابق أي فاتورة (حوّل مبلغ غلط، أو بدون فاتورة).</p>
+    ${(A.unm || []).length ? `<div class="list">${A.unm.map(u => `
+      <div class="list-row" style="cursor:default;align-items:flex-start"><div class="list-content">
+        <div class="list-title tabular" dir="ltr" style="text-align:right">${esc(String(u.amount))} USDT · ${esc(String(u.network || '').toUpperCase())}</div>
+        <div class="list-meta">${u.kind === 'mismatch' ? 'مبلغ قريب من فاتورة' : 'بدون فاتورة'} · ${esc(dt(u.at_ms ? new Date(u.at_ms).toISOString() : u.created_at))}${u.txid ? ` · <span dir="ltr">${esc(String(u.txid).slice(0, 10))}…</span>` : ''}</div>
+        ${u.candidate && u.candidate_user ? `<div class="caption" style="margin-top:4px">مرشّح: <b>${esc(u.candidate_user.name || '—')}</b> <span dir="ltr">${esc(u.candidate_user.email)}</span> — فاتورة ${esc(String(u.candidate.pay_amount))}${u.candidate.status === 'paid' ? ' (مدفوعة سابقًا)' : ''}</div>` : ''}
+        <div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:8px">
+          ${u.candidate && u.candidate.invoice_id && u.candidate.status !== 'paid' ? `<button class="btn btn-primary btn-sm" data-unm-inv="${esc(u.id)}" data-inv="${esc(u.candidate.invoice_id)}" type="button">أضِف للمرشّح</button>` : ''}
+          <button class="btn btn-secondary btn-sm" data-unm-email="${esc(u.id)}" type="button">أضِف ببريد مستخدم</button>
+          <button class="btn btn-ghost btn-sm" data-unm-ign="${esc(u.id)}" type="button">تجاهل</button>
+        </div></div></div>`).join('')}</div>` : `<div class="caption">${A.loading ? 'جارٍ التحميل…' : 'لا شيء يحتاج مراجعة ✓'}</div>`}
+  </div>
+
+  <div class="card mb-3">
+    <div class="h4" style="margin-bottom:4px">💳 حالة طرق الدفع</div>
+    <p class="caption" style="margin-bottom:8px">أوقف طريقة مؤقتًا (تظهر للعميل «متوقفة مؤقتًا») بدون ما تلغي إعداداتها.</p>
+    ${pmKeys().map(([k, t]) => `<div class="sw-row"><div><div class="sw-lbl">${esc(t)}</div><div class="sw-desc" dir="ltr" style="text-align:right">${esc(k)}</div></div>
+      <button class="btn btn-sm ${ps.has(k) ? 'btn-primary' : 'btn-secondary'}" data-pmpause="${esc(k)}" type="button">${ps.has(k) ? 'متوقفة — شغّل' : 'تعمل — أوقف'}</button></div>`).join('')}
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:12px">
+      <label class="field"><span class="field-label">سقف الحساب الجديد يوميًا ($)</span><input class="input" id="naMax" type="number" min="0" value="${esc(String(set.new_acct_crypto_max ?? 50))}"></label>
+      <label class="field"><span class="field-label">لأول كم يوم</span><input class="input" id="naDays" type="number" min="0" value="${esc(String(set.new_acct_days ?? 7))}"></label>
+    </div>
+    <button class="btn btn-secondary btn-sm" id="naSave" type="button" style="margin-top:8px">حفظ السقف</button>
+    <div class="sw-row" style="margin-top:14px"><div><div class="sw-lbl">QR حساب Binance Pay</div><div class="sw-desc">${set.binance_pay_qr_v ? 'مرفوع ✓' : 'غير مرفوع — يظهر Pay ID فقط'}</div></div>
+      <div style="display:flex;gap:6px">${set.binance_pay_qr_v ? `<img src="${esc(API_BASE)}/bpq?v=${esc(String(set.binance_pay_qr_v))}" alt="" style="width:44px;height:44px;border-radius:8px;background:#fff;object-fit:contain">` : ''}
+        <label class="btn btn-secondary btn-sm" style="cursor:pointer">رفع<input type="file" id="bpqFile" accept="image/png,image/jpeg,image/webp" hidden></label>
+        ${set.binance_pay_qr_v ? '<button class="btn btn-ghost btn-sm" id="bpqDel" type="button">حذف</button>' : ''}</div></div>
+  </div>`;
+}
+document.addEventListener('click', async e => {
+  const t = e.target.closest ? e.target : null; if (!t) return;
+  const dd = t.closest('[data-invdays]');
+  if (dd) { S.invA = { ...(S.invA || {}), days: Number(dd.dataset.invdays) }; loadInvA(); return; }
+  if (t.closest('#invQGo')) { S.invA = { ...(S.invA || {}), q: ($('#invQ').value || '').trim() }; loadInvA(); return; }
+  const pz = t.closest('[data-pmpause]');
+  if (pz) {
+    const ps = pausedSet(), k = pz.dataset.pmpause;
+    if (ps.has(k)) ps.delete(k); else { if (!confirm('إيقاف هذه الطريقة مؤقتًا؟')) return; ps.add(k); }
+    const v = [...ps].join(',');
+    pz.disabled = true;
+    try { await api('/api/admin/settings', { paused_methods: v }); S.settings = { ...(S.settings || {}), paused_methods: v }; toast('حُفظ ✓', 'ok'); render(true); }
+    catch (err) { toast(err.message, 'bad'); pz.disabled = false; }
+    return;
+  }
+  if (t.closest('#naSave')) {
+    const patch = { new_acct_crypto_max: Math.max(0, Number($('#naMax').value) || 0), new_acct_days: Math.max(0, Math.floor(Number($('#naDays').value) || 0)) };
+    try { await api('/api/admin/settings', patch); S.settings = { ...(S.settings || {}), ...patch }; toast('حُفظ ✓', 'ok'); } catch (err) { toast(err.message, 'bad'); }
+    return;
+  }
+  if (t.closest('#bpqDel')) {
+    if (!confirm('حذف صورة QR؟')) return;
+    try { await api('/api/admin/binance-qr', { image: '' }); S.settings = { ...(S.settings || {}), binance_pay_qr_v: 0 }; toast('حُذفت', 'ok'); render(true); } catch (err) { toast(err.message, 'bad'); }
+    return;
+  }
+  const ui = t.closest('[data-unm-inv]'), ue = t.closest('[data-unm-email]'), ug = t.closest('[data-unm-ign]');
+  if (ui || ue || ug) {
+    const id = (ui || ue || ug).dataset.unmInv || (ui || ue || ug).dataset.unmEmail || (ui || ue || ug).dataset.unmIgn;
+    let body;
+    if (ug) { if (!confirm('تجاهل هذا التحويل؟')) return; body = { action: 'ignore', id }; }
+    else if (ui) { if (!confirm('نضيف المبلغ لصاحب الفاتورة المرشّحة؟')) return; body = { action: 'assign', id, invoice_id: ui.dataset.inv }; }
+    else { const email = (prompt('بريد المستخدم اللي نضيفله المبلغ:') || '').trim(); if (!email) return; if (!confirm(`نضيف المبلغ لـ ${email}؟`)) return; body = { action: 'assign', id, email }; }
+    (ui || ue || ug).disabled = true;
+    try { const r = await api('/api/admin/crypto/unmatched', body); toast(r.credited ? `أُضيف ${r.credited}$ ✓` : 'تم ✓', 'ok'); loadInvA(); }
+    catch (err) { toast(err.message, 'bad'); (ui || ue || ug).disabled = false; }
+  }
+});
+document.addEventListener('change', async e => {
+  if (!e.target || e.target.id !== 'bpqFile') return;
+  try {
+    const img = await compressImg(e.target.files[0], 700, 0.9, 280000);
+    await api('/api/admin/binance-qr', { image: img });
+    S.settings = { ...(S.settings || {}), binance_pay_qr_v: Date.now() }; toast('رُفعت صورة QR ✓', 'ok'); render(true);
+  } catch (err) { toast(err.message, 'bad'); }
 });
