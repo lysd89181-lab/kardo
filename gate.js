@@ -1,6 +1,18 @@
 /* gate.js — وضع الصيانة: يُحمَّل قبل كل شيء.
    الزوار يرون شاشة الصيانة، والإدارة (بعد دخولها لوحة admin.html) ترى الموقع كاملًا للمعاينة.
    الحماية الحقيقية في الخادم: كل عمليات غير الإدارة مرفوضة أثناء الصيانة. */
+/* المظهر: نهاري/ليلي (تلقائي حسب الهاتف أو اختيار المستخدم) */
+(function () {
+  function apply() {
+    var t = 'auto'; try { t = localStorage.getItem('kardo_theme') || 'auto'; } catch (e) {}
+    var dark = t === 'dark' || (t === 'auto' && window.matchMedia && matchMedia('(prefers-color-scheme: dark)').matches);
+    document.documentElement.setAttribute('data-theme', dark ? 'dark' : 'light');
+    var m = document.querySelector('meta[name="theme-color"]'); if (m) m.setAttribute('content', dark ? '#101314' : '#EDEFEE');
+  }
+  window.kardoTheme = apply; apply();
+  try { matchMedia('(prefers-color-scheme: dark)').addEventListener('change', apply); } catch (e) {}
+  document.addEventListener('DOMContentLoaded', apply);
+})();
 (function () {
   var API = 'https://kardo.sdkhyrallh08.workers.dev';
   var staff = false;

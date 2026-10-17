@@ -229,6 +229,14 @@ function safeIconUrl(url) {
 
 /* ═══ Icons (Lucide) ═══ */
 const I = {
+  game: '<path d="M7 9h10a4 4 0 0 1 4 4.4l-.4 3.1a2.3 2.3 0 0 1-4 1.1L15 16H9l-1.6 1.6a2.3 2.3 0 0 1-4-1.1L3 13.4A4 4 0 0 1 7 9z"/><path d="M8 12v2.5M6.8 13.2h2.5M15.5 12.5h.01M17.5 14h.01"/>',
+  withdraw: '<path d="M12 4v11M7.5 10.5 12 15l4.5-4.5"/><path d="M5 20h14"/>',
+  receipt: '<path d="M6 3h12v18l-3-2-3 2-3-2-3 2z"/><path d="M9 8h6M9 12h6"/>',
+  lock: '<rect x="5" y="10.5" width="14" height="10" rx="2"/><path d="M8 10.5V8a4 4 0 0 1 8 0v2.5"/>',
+  wallet2: '<path d="M19 7V5.5A1.5 1.5 0 0 0 17.5 4H5a2 2 0 0 0 0 4h14a1 1 0 0 1 1 1v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V6"/><path d="M16.5 14h.01"/>',
+  store: '<path d="M5 8h14l-1 12.2a1.5 1.5 0 0 1-1.5 1.3h-9a1.5 1.5 0 0 1-1.5-1.3z"/><path d="M9 8V6.5a3 3 0 0 1 6 0V8"/>',
+  giftbox: '<rect x="3.5" y="8" width="17" height="4" rx="1"/><path d="M5 12v8h14v-8M12 8v12"/><path d="M12 8C10 4 7 4.5 7 6.5S10 8 12 8zM12 8c2-4 5-3.5 5-1.5S14 8 12 8z"/>',
+  sun: '<circle cx="12" cy="12" r="4"/><path d="M12 2.5v2M12 19.5v2M4.6 4.6l1.4 1.4M18 18l1.4 1.4M2.5 12h2M19.5 12h2M4.6 19.4 6 18M18 6l1.4-1.4"/>',
   alert: '<path d="M12 3 2.5 20h19L12 3z"/><path d="M12 10v4M12 17h.01"/>',
   chat: '<path d="M4 5h16v11H9l-5 4z"/><path d="M8 9.5h8M8 12.5h5"/>',
   home: '<path d="M3 10.4 12 3l9 7.4V20a1 1 0 0 1-1 1h-5v-7H9v7H4a1 1 0 0 1-1-1z"/>',
@@ -262,7 +270,7 @@ const I = {
   box: '<path d="M21 8 12 3 3 8v8l9 5 9-5z"/><path d="M3 8l9 5 9-5M12 13v8"/>',
   bolt: '<path d="M13 2 4.5 12.5H11l-1 9.5 8.5-11H12z"/>',
 };
-const svg = (d, w = 1.75) => `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="${w}" stroke-linecap="round" stroke-linejoin="round">${d}</svg>`;
+const svg = (d, w = 1.75) => `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round">${d}</svg>`;
 
 /* ═══ UI Helpers ═══ */
 const setHTML = (sel, html) => { const el = $(sel); if (el) el.innerHTML = html; };
@@ -709,36 +717,31 @@ let _lastPage = null, _lastHtml = '';
    ═══════════════════════════════════════════════════════════ */
 
 function vDashboard() {
-  const name = S.profile.name || S.user?.displayName || 'صديقي';
-  const cards = visibleCards((S.manualCards || []).filter(c => c.status !== 'deleted'));
-  const card = cards[0];
+  const name = (S.profile.name || S.user?.displayName || '').split(' ')[0];
+  const bal = n(S.profile.wallet_balance);
   return `
   <div class="page-enter">
-    <div class="home-head">
-      <div>
-        <div class="eyebrow" style="margin-bottom:4px">${esc(greeting())}</div>
-        <h1 class="h2 greet" style="margin:0">${esc(name.split(' ')[0])}</h1>
-      </div>
-      ${S.config.store_on ? `<button class="icon-pill" id="openCart" aria-label="السلة">${svg(I.cart, 2)}${cartCount() ? `<span class="pill-count">${cartCount()}</span>` : ''}</button>` : ''}
-    </div>
-
-    ${S.config.site_maint ? `<div class="alert alert-warning mb-4">${svg(I.help, 2)}<div><b>معاينة الإدارة</b> — الموقع في وضع الصيانة والزوار يرون شاشة الصيانة. افتحه للجميع من لوحة الإدارة.</div></div>` : ''}
+    ${S.config.site_maint ? `<div class="alert alert-warning mb-4">${svg(I.help)}<div><b>معاينة الإدارة</b> — الموقع في وضع الصيانة والزوار يرون شاشة الصيانة.</div></div>` : ''}
     ${verifyBannerHtml()}
-    ${bannersHtml() || `
-      <div class="hero-bn mb-5">
-        <span class="hero-orb"></span>
-        <h3>${rscOn() ? 'شحن ألعاب وبطاقات هدايا فورًا' : S.config.store_on ? 'اكتشف عالم الخدمات الرقمية' : 'بطاقتك للدفع أونلاين'}</h3>
-        <p>${rscOn() ? 'PUBG وRoblox وSteam وغيرها — ادفع من محفظتك بالدينار ويصلك الكود خلال ثوانٍ' : S.config.store_on ? 'اشتراكات وألعاب وبطاقات — بتسليم فوري وبالدينار الليبي' : merchantsOn() ? 'بطاقات فيزا افتراضية بالدينار الليبي — ومتاجر موثوقة في مكان واحد' : 'بطاقة دولية افتراضية تُصدر خلال دقائق وتُشحن بالدينار الليبي'}</p>
-        ${rscOn() ? '<button class="btn btn-primary btn-sm" data-nav="kstore" style="padding:0 20px">تسوّق الآن</button>' : S.config.store_on ? '<button class="btn btn-primary btn-sm" data-scroll="storeSec" style="padding:0 20px">تسوّق الآن</button>' : merchantsOn() ? '<button class="btn btn-primary btn-sm" data-nav="stores" style="padding:0 20px">تصفّح المتاجر</button>' : (cards.length ? '<button class="btn btn-primary btn-sm" data-nav="plans" style="padding:0 20px">الأسعار والباقات</button>' : '<button class="btn btn-primary btn-sm" data-action="new-card" style="padding:0 20px">أصدر بطاقتك مجانًا</button>')}
-      </div>`}
-
-    ${!merchantsOn() ? (card ? `<button class="card home-card-cta mb-5" data-nav="cards" type="button">${fennec('card', 54)}
-        <span style="flex:1;text-align:right"><b style="display:block;margin-bottom:4px">بطاقاتي (${cards.length})</b><span class="caption">الرصيد، التعبئة، ورمز التحقق</span></span><span class="prow-add">←</span></button>`
-      : `<button class="card home-card-cta mb-5" data-action="new-card" type="button">${fennec('card', 64)}
-        <span style="flex:1;text-align:right"><b style="display:block;margin-bottom:4px">أصدر بطاقتك الأولى</b><span class="caption">بطاقة دولار افتراضية للاشتراكات والشراء أونلاين</span></span><span class="prow-add">+</span></button>`) : ''}
-
+    <section class="kw" aria-label="المحفظة">
+      <img class="kw-fox" src="./kardo-mark.png" alt="" aria-hidden="true">
+      <div class="kw-row"><span class="kw-label">رصيد محفظتك</span>${name ? `<span class="kw-chip">مرحبًا، ${esc(name)}</span>` : ''}</div>
+      <div class="kw-amount tabular"><span data-cu="wal_lyd" data-to="${bal * rate()}" data-fmt="num">${esc(Number(bal * rate()).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }))}</span><small>د.ل</small></div>
+      <div class="kw-sub">تقريبًا <bdi>${esc(usd(bal))}</bdi></div>
+      <div class="kw-actions">
+        <button class="kw-btn p" data-act="dock-deposit" type="button">${svg(I.plus)}شحن المحفظة</button>
+        <button class="kw-btn s" data-nav="wallet" type="button">${S.config.withdraw && S.config.withdraw.on ? svg(I.withdraw) + 'سحب' : svg(I.wallet2) + 'المحفظة'}</button>
+      </div>
+    </section>
+    <div class="kq">
+      <button data-nav="kstore" type="button"><span class="kq-ic">${svg(I.store)}</span>المتجر</button>
+      <button data-rscgo="topup" type="button"><span class="kq-ic">${svg(I.game)}</span>شحن ألعاب</button>
+      <button data-nav="orders" type="button"><span class="kq-ic">${svg(I.receipt)}</span>طلباتي</button>
+      <button data-nav="transactions" type="button"><span class="kq-ic">${svg(I.wallet2)}</span>المعاملات</button>
+    </div>
+    ${bannersHtml()}
     ${rscHome()}
-    ${S.config.store_on ? `<div id="storeSec">${storeSection(true)}</div>` : rscOn() ? '' : cardsInfoSections(!!card)}
+    ${S.config.store_on ? `<div id="storeSec">${storeSection(true)}</div>` : ''}
   </div>`;
 }
 
@@ -1265,94 +1268,47 @@ function renderField(f, i) {
 function vCards() {
   const allC = (S.manualCards || []).filter(c => c.status !== 'deleted');
   const openIds = new Set(visibleCards(allC).map(c => c.id));
-  const shown = allC;
   const hidden = hiddenCardsCount();
-  const active = shown.filter(c => c.status === 'active');
-
+  const cur = allC.find(c => c.id === S.cardSel) || allC.find(c => openIds.has(c.id)) || allC[0];
+  const locked = cur && !openIds.has(cur.id);
+  const mc = S.config.manual_cards || {};
+  const canTop = cur && !locked && cur.status === 'active' && !cardsMaint() && mc.on !== false && mc.topup_on === true;
   return `
   <div class="page-enter">
-    <div class="flex-between mb-6">
-      <div>
-        <h1 class="h2" style="margin-bottom:6px">بطاقاتي</h1>
-        <p class="body-sm text-2">${active.length} بطاقة نشطة · باقة ${esc(PLAN_AR[myPlan()])}: ${isUnlimited() ? 'بلا حدود' : `${cardsUsed()} من ${cardLimit()}${myPlan() === 'free' ? '' : ' هذا الشهر'}`}
-          <button class="btn btn-ghost btn-sm" data-nav="plans" style="padding:0 6px">${myPlan() === 'free' ? 'اشترك' : 'الباقات'}</button></p>
-      </div>
-      <button class="btn btn-primary btn-sm" data-action="newCard">
-        ${svg(I.plus, 2)} إصدار بطاقة
-      </button>
-    </div>
-
+    <h1 class="kpage-title">بطاقاتي</h1>
+    <p class="kpage-sub">بطاقتك الافتراضية للدفع أونلاين · باقة ${esc(PLAN_AR[myPlan()])}</p>
     ${cardsMaintHtml()}
     ${cardWarningHtml()}
-    ${hidden ? `
-      <button class="hidden-cards mb-4" data-nav="plans">
-        <span>🔒</span><span style="flex:1;text-align:right"><b>${hidden} ${hidden === 1 ? 'بطاقة مقفلة' : 'بطاقات مقفلة'}</b>
-        <span class="caption" style="display:block">انتهت باقتك — جدّدها لفتح بطاقاتك الإضافية. بطاقتك الأولى تبقى شغّالة دائمًا.</span></span><span class="prow-add">↻</span>
-      </button>` : ''}
-    ${shown.length ? `
-      <div class="grid-2">
-        ${shown.map(c => `
-          ${openIds.has(c.id) ? `
-          <button class="service-card" data-card="${esc(c.id)}" style="padding:0;overflow:hidden">
-            ${renderCard(c)}
-            <div style="padding:14px;text-align:right;width:100%">
-              <div class="body" style="font-weight:600;margin-bottom:4px">${esc(c.card_name || 'بطاقة')}</div>
-              <div class="caption">الرصيد ${esc(usd(c.balance))}${c.balance_updated_at ? ' · حُدّث ' + esc(dt(c.balance_updated_at)) : ''}</div>
-            </div>
-          </button>` : `
-          <button class="service-card" data-nav="plans" style="padding:0;overflow:hidden;position:relative">
-            <div class="card-locked">${renderCard(c)}</div>
-            <div class="card-lock-badge">🔒 مقفلة — جدّد باقتك</div>
-            <div style="padding:14px;text-align:right;width:100%">
-              <div class="body" style="font-weight:600;margin-bottom:4px">${esc(c.card_name || 'بطاقة')}</div>
-              <div class="caption">اضغط لتجديد الباقة</div>
-            </div>
-          </button>`}
-        `).join('')}
+    ${allC.length > 1 ? `<div class="kcards-switch">${allC.map(c => `<button class="${cur && c.id === cur.id ? 'on' : ''}" data-cardsel="${esc(c.id)}" type="button">${openIds.has(c.id) ? '' : '🔒 '}${esc(c.card_name || 'بطاقة')} ••${esc(c.last4 || '')}</button>`).join('')}</div>` : ''}
+    ${cur ? `
+      ${locked ? `<button class="card mb-4" data-nav="plans" type="button" style="width:100%;text-align:right;padding:14px 16px"><b>البطاقة مقفلة</b><div class="caption">انتهت باقتك — جدّدها لفتح بطاقاتك الإضافية</div></button>` : ''}
+      ${renderCard(cur)}
+      <div class="kstat">
+        <div><small>رصيد البطاقة</small><b class="tabular">${esc(usd(cur.balance))}</b><span class="caption">${cur.balance_updated_at ? 'حُدّث ' + esc(dt(cur.balance_updated_at)) : 'عند الإصدار'}</span></div>
+        <div><small>الحالة</small><b style="color:${cur.status === 'active' ? 'var(--u-ok)' : 'var(--u-ink-3)'}">${cur.status === 'active' ? 'نشطة' : 'مجمدة'}</b></div>
       </div>
-    ` : `
-      <div class="card" style="text-align:center;padding:48px 24px">
-        ${fennec('card', 130)}
-        <div class="h4" style="margin-bottom:8px">لا بطاقات بعد</div>
-        <p class="body-sm text-2" style="margin-bottom:24px;max-width:320px;margin-inline:auto">
-          أصدر بطاقتك الافتراضية الأولى واستخدمها للدفع في أي موقع.
-        </p>
-        <button class="btn btn-primary" data-action="newCard">
-          ${svg(I.plus, 2)} إصدار بطاقة
-        </button>
-      </div>
-    `}
-  </div>
-  `;
+      <div class="kacts">
+        <button data-card="${esc(cur.id)}" type="button" ${locked ? 'disabled' : ''}>${svg(I.lock)}عرض البيانات</button>
+        <button data-cardtop="${esc(cur.id)}" type="button" ${canTop ? '' : 'disabled'}>${svg(I.plus)}${canTop ? 'تعبئة' : 'التعبئة متوقفة'}</button>
+        <button data-cardotp type="button" ${locked || cur.status !== 'active' ? 'disabled' : ''}>${svg(I.shield)}رمز التحقق</button>
+      </div>` : `
+      <div class="card mb-5" style="text-align:center;padding:36px 20px">${fennec('card')}
+        <div class="h4" style="margin-bottom:6px">لا بطاقات بعد</div>
+        <p class="body-sm text-2">أصدر بطاقتك الافتراضية واستخدمها للدفع أونلاين</p></div>`}
+    ${hidden ? `<button class="card mb-3" data-nav="plans" type="button" style="width:100%;text-align:right;padding:14px 16px"><b>${hidden} ${hidden === 1 ? 'بطاقة مقفلة' : 'بطاقات مقفلة'}</b><div class="caption">جدّد باقتك لفتحها</div></button>` : ''}
+    <button class="knew" data-action="newCard" type="button"><span>${svg(I.plus)}</span>إصدار بطاقة جديدة</button>
+  </div>`;
 }
 
 function renderCard(c) {
-  const st = { active: 'نشطة', frozen: 'مجمدة', deleted: 'مغلقة' }[c.status] || '—';
-  const cls = c.status === 'frozen' ? 'frozen' : c.status === 'deleted' ? 'blocked' : '';
-  return `
-    <div class="vcard ${cls}" style="border-radius:0;aspect-ratio:1.586"><span class="vcard-deco" aria-hidden="true"></span>
-      <div class="vcard-top">
-        <span class="vcard-brand">KARDO</span>
-        <span class="vcard-tier">${esc(st)}</span>
-      </div>
-      <div class="vcard-chip"></div>
-      <div class="vcard-number">•••• •••• •••• ${esc(c.last4 || '0000')}</div>
-      <div class="vcard-foot">
-        <div class="vcard-field">
-          <div class="vcard-label">VALID THRU</div>
-          <div class="vcard-value">${esc(c.expiry || '••/••')}</div>
-        </div>
-        <div class="vcard-field">
-          <div class="vcard-label">CARDHOLDER</div>
-          <div class="vcard-value">${esc((c.name_on_card || '').slice(0, 18))}</div>
-        </div>
-        <svg class="vcard-brand-logo" viewBox="0 0 48 32" fill="currentColor" opacity=".85">
-          <circle cx="16" cy="16" r="10" opacity=".9"/>
-          <circle cx="32" cy="16" r="10" opacity=".6"/>
-        </svg>
-      </div>
-    </div>
-  `;
+  const cls = c.status === 'frozen' || c.status === 'deleted' ? 'frozen' : '';
+  return `<div class="kc ${cls}"><img class="kc-fox" src="./kardo-mark.png" alt="" aria-hidden="true">
+    <div class="kc-top"><span>${esc(c.card_name || 'بطاقة كاردو')}</span><span class="kc-brand">KARDO</span></div>
+    <div class="kc-chip"></div>
+    <div class="kc-num">•••• •••• •••• ${esc(c.last4 || '0000')}</div>
+    <div class="kc-bot"><div><small>CARD HOLDER</small><b>${esc((c.name_on_card || '—').slice(0, 20))}</b></div>
+      <div><small>STATUS</small><b>${c.status === 'active' ? 'ACTIVE' : c.status === 'frozen' ? 'FROZEN' : 'CLOSED'}</b></div></div>
+  </div>`;
 }
 
 /* ═══════════════════════════════════════════════════════════
@@ -1671,7 +1627,7 @@ function vSettings() {
   return `
   <div class="page-enter settings-page">
     <div class="mb-6">
-      <h1 class="h2" style="margin-bottom:6px">الإعدادات</h1>
+      <h1 class="kpage-title" style="margin:0">حسابي</h1>
     </div>
 
     <div class="card card-lg mb-5">
@@ -1685,11 +1641,13 @@ function vSettings() {
     </div>
 
     <div class="quick-links mb-5">
-      ${[['wallet', I.wallet || I.up, 'المحفظة'], ...(merchantsOn() ? [['chats', I.chat || I.help, 'المحادثات']] : []), ['trust', I.shield || I.help, 'الأمان'], ['transactions', I.list, 'المعاملات'], ['plans', I.box, 'الباقات'], ['support', I.help, 'الدعم']]
+      ${[['orders', I.receipt, 'طلباتي'], ['wallet', I.wallet || I.up, 'المحفظة'], ...(merchantsOn() ? [['chats', I.chat || I.help, 'المحادثات']] : []), ['trust', I.shield || I.help, 'الأمان'], ['transactions', I.list, 'المعاملات'], ['plans', I.box, 'الباقات'], ['support', I.help, 'الدعم']]
         .map(([pg, ic, t]) => `<button class="ql" data-nav="${pg}"><span class="ql-ic">${svg(ic, 2)}</span><span>${t}</span></button>`).join('')}
     </div>
     <button class="card ref-strip mb-5" data-nav="referral" type="button">${fennec('success', 48)}
       <span style="flex:1;text-align:right"><b style="display:block">ادعُ صديقًا واربح</b><span class="caption">رمز دعوتك ومكافآتك</span></span><span class="prow-add">←</span></button>
+    <div class="card mb-5"><div class="h4" style="margin-bottom:12px">المظهر</div>
+      <div class="ktheme">${[['auto', 'تلقائي'], ['light', 'نهاري'], ['dark', 'ليلي']].map(([k, t]) => `<button class="${themePref() === k ? 'on' : ''}" data-theme-set="${k}" type="button">${t}</button>`).join('')}</div></div>
     ${pushOn() ? '' : `<button class="btn btn-secondary btn-block mb-3" id="pushOn" type="button">تفعيل إشعارات الهاتف</button>`}
     ${false ? '' : (merchantsOn() ? `<button class="btn btn-secondary btn-block mb-4" id="joinMerchant" type="button">افتح متجرك في كاردو</button>` : '')}
     <div class="legal-links mb-5"><a href="./terms.html" target="_blank" rel="noopener">الشروط والأحكام</a> · <a href="./terms.html#privacy" target="_blank" rel="noopener">سياسة الخصوصية</a></div>
@@ -1751,6 +1709,7 @@ function vSettings() {
 function bind() {
   bindMarket();
   bindRsc();
+  $$('[data-theme-set]').forEach(b => b.onclick = () => { try { localStorage.setItem('kardo_theme', b.dataset.themeSet); } catch {} if (window.kardoTheme) window.kardoTheme(); render(); });
   $$('[data-nav]').forEach(b => b.onclick = () => go(b.dataset.nav));
 
   $$('[data-action]').forEach(b => {
@@ -1765,6 +1724,9 @@ function bind() {
   });
 
   $$('[data-card]').forEach(b => b.onclick = () => openCardDetails(b.dataset.card));
+  $$('[data-cardsel]').forEach(b => b.onclick = () => { S.cardSel = b.dataset.cardsel; render(); });
+  $$('[data-cardtop]').forEach(b => b.onclick = () => { const c = (S.manualCards || []).find(x => x.id === b.dataset.cardtop); if (c) openCardTopup(c); });
+  $$('[data-cardotp]').forEach(b => b.onclick = () => openOtp());
 
   // المتجر والباقات
   $$('[data-cat]').forEach(b => b.onclick = () => {
@@ -2502,7 +2464,8 @@ function featTile(p) {
 
 const FENNEC_SLOT = { welcome: 'welcome', success: 'purchase', card: 'no_cards', wait: 'wait', mail: 'mail', offline: 'offline', error: 'error', empty: 'empty' };
 const stickerUrl = (slot, fallback) => ((S.config && S.config.stickers) || {})[slot] || `./fennec-${fallback}.webp`;
-const fennec = (n, size = 120, slot) => `<img class="fennec" src="${esc(stickerUrl(slot || FENNEC_SLOT[n], n))}" alt="" width="${size}" height="${size}" loading="lazy" decoding="async">`;
+const FENNEC_ICON = { success: ['ok', 'check'], error: ['bad', 'x'], empty: ['', 'box'], wait: ['', 'clock'], card: ['', 'card'], mail: ['', 'bell'], offline: ['bad', 'alert'] };
+const fennec = (n) => { const f = FENNEC_ICON[n]; return f ? `<div class="kstate ${f[0]}">${svg(I[f[1]] || I.box)}</div>` : `<div class="kstate"><img src="./kardo-mark.png" alt=""></div>`; };
 // نافذة ملصق للمواقف المهمة (نجاح/فشل)
 function stickerModal(slot, fallback, title, text, ok = true) {
   modal(`
@@ -3146,7 +3109,7 @@ const _cuMem = {};
 function runCountUps() {
   $$('[data-cu]').forEach(el => {
     const k = el.dataset.cu, to = Number(el.dataset.to) || 0;
-    const fmt = el.dataset.fmt === 'usd' ? usd : lyd;
+    const fmt = el.dataset.fmt === 'usd' ? usd : el.dataset.fmt === 'num' ? (x => Number(x || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })) : lyd;
     const from = k in _cuMem ? _cuMem[k] : 0;
     _cuMem[k] = to;
     if (Math.abs(from - to) < 0.005) return;
@@ -4180,9 +4143,9 @@ async function openJoinMerchant() {
 }
 
 const TOUR = [
-  ['card', 'بطاقتك للدفع أونلاين', 'اشحن محفظتك بالدينار عبر ليبيانا أو المدار، واطلب بطاقة فيزا افتراضية تدفع بها نتفلكس وChatGPT والشراء أونلاين.'],
-  ['welcome', 'اشحنها بالدينار 💰', 'أودع في محفظتك عبر ليبيانا أو المدار أو التحويل المصرفي، ويُضاف رصيدك بسرعة.'],
-  ['success', 'تابع كل شيء من «طلباتي» 📦', 'حالة كل طلب إصدار أو شحن، ورمز التحقق 3D عند الدفع، ودعم مباشر إذا واجهت أي مشكلة.'],
+  ['welcome', 'أهلًا بك في كاردو', 'محفظتك الرقمية بالدينار الليبي: اشحنها مرة، واشترِ منها شحن الألعاب وبطاقات الهدايا وبطاقتك الافتراضية.'],
+  ['card', 'اشحن محفظتك', 'عبر ليبيانا أو المدار أو التحويل المصرفي أو USDT، ويُضاف رصيدك بسرعة.'],
+  ['success', 'كل طلباتك في مكان واحد', 'الأكواد تصلك فورًا في «طلباتي»، وإن تعذّر طلب يُعاد المبلغ لمحفظتك تلقائيًا.'],
 ];
 function maybeTour() {
   try { if (localStorage.getItem('kardo_tour') === '1') return; } catch { return; }
@@ -4528,106 +4491,110 @@ async function loadRscOrders() {
 const rscCatBy = key => (S.rsc.cats || []).find(c => c.key === key);
 const rscFrom = c => Math.min(...(c.offers || []).map(o => o.price));
 function rscTile(c) {
-  return `<button class="rsc-tile" data-rsccat="${esc(c.key)}" type="button">
-    <span class="rsc-tile-img">${c.image ? `<img src="${esc(rscImgUrl(c.image))}" alt="" loading="lazy" decoding="async">` : `<span class="rsc-tile-ph">${c.type === 'topup' ? '🎮' : '🎁'}</span>`}</span>
+  return `<button class="rsc-tile" data-rsccat="${esc(c.key)}" data-kind="${esc(c.type)}" type="button">
+    <span class="rsc-tile-img">${c.image ? `<img src="${esc(rscImgUrl(c.image))}" alt="" loading="lazy" decoding="async">` : `<span class="rsc-tile-ph">${svg(c.type === 'topup' ? I.game : I.giftbox)}</span>`}</span>
     <span class="rsc-tile-name">${esc(c.name)}</span>
     <span class="rsc-tile-from">من ${esc(lyd(rscFrom(c) * rate()))}</span>
   </button>`;
 }
 function rscHome() {
   if (!rscOn()) return '';
-  if (!S.rsc.loaded) { loadRsc(); return `<div class="h4 mb-3">متجر كاردو</div><div class="rsc-grid mb-5">${'<div class="skeleton" style="aspect-ratio:1/1.1;border-radius:18px"></div>'.repeat(4)}</div>`; }
+  if (!S.rsc.loaded) { loadRsc(); return `<div class="ksh"><h2>الأكثر طلبًا</h2></div><div class="rsc-grid mb-5">${'<div class="skeleton" style="aspect-ratio:1/1;border-radius:20px"></div>'.repeat(4)}</div>`; }
   const cats = S.rsc.cats || [];
   if (!cats.length) return '';
-  return `
-    <div class="flex-between mb-3"><div class="h4">متجر كاردو</div>
-      <button class="btn btn-ghost btn-sm" data-nav="kstore">عرض الكل ←</button></div>
-    <div class="trust-row mb-3"><span>⚡ تسليم فوري</span><span>🔒 دفع من محفظتك</span><span>🇱🇾 بالدينار</span></div>
-    <div class="rsc-grid mb-5 stagger">${cats.slice(0, 8).map(rscTile).join('')}</div>`;
+  return `<div class="ksh"><h2>الأكثر طلبًا</h2><button data-nav="kstore" type="button">عرض الكل</button></div>
+    <div class="rsc-grid mb-6">${cats.slice(0, 6).map(rscTile).join('')}</div>`;
 }
 function vKStore() {
   if (!S.rsc.loaded) loadRsc();
   const cur = S.rscCat ? rscCatBy(S.rscCat) : null;
   if (cur) {
     return `<div class="page-enter">
-      <div class="rsc-head mb-4">
-        <button class="btn btn-ghost btn-sm" data-rscback type="button">${svg(I.next, 2)} رجوع</button>
-        <div class="rsc-head-main">
-          ${cur.image ? `<img class="rsc-head-img" src="${esc(rscImgUrl(cur.image))}" alt="">` : ''}
-          <div><h1 class="h3" style="margin:0">${esc(cur.name)}</h1>
-            <div class="caption">${cur.type === 'topup' ? 'شحن مباشر لحسابك في اللعبة' : 'كود يصلك فورًا في «طلباتي»'}</div></div>
-        </div>
+      <button class="btn btn-ghost btn-sm mb-3" data-rscback type="button" style="padding:0 !important">${svg(I.next)} المتجر</button>
+      <div class="rsc-head-main mb-5">
+        ${cur.image ? `<img class="rsc-head-img" src="${esc(rscImgUrl(cur.image))}" alt="">` : `<span class="kstate" style="margin:0;width:64px;height:64px">${svg(cur.type === 'topup' ? I.game : I.giftbox)}</span>`}
+        <div><h1 class="kpage-title" style="margin:0">${esc(cur.name)}</h1>
+          <div class="kpage-sub" style="margin:0">${cur.type === 'topup' ? 'شحن مباشر لحسابك في اللعبة' : 'يصلك الكود فورًا في «طلباتي»'}</div></div>
       </div>
-      ${cur.note ? `<div class="alert alert-info mb-3">${svg(I.help, 2)}<div style="white-space:pre-line">${esc(cur.note)}</div></div>` : ''}
-      <div class="list stagger">${cur.offers.map(o => `
+      ${cur.note ? `<div class="alert alert-info mb-4">${svg(I.help)}<div style="white-space:pre-line">${esc(cur.note)}</div></div>` : ''}
+      <div class="list">${cur.offers.map(o => `
         <button class="list-row rsc-offer" data-rscoffer="${esc(o.id)}" type="button">
-          <div class="list-content"><div class="list-title">${esc(o.name)}</div>
-            <div class="list-meta tabular">${esc(usd(o.price))}</div></div>
-          <div class="list-end"><div class="list-amount tabular">${esc(lyd(o.price * rate()))}</div><span class="prow-add">+</span></div>
+          <span class="list-icon">${svg(cur.type === 'topup' ? I.game : I.giftbox)}</span>
+          <div class="list-content"><div class="list-title"><bdi>${esc(o.name)}</bdi></div><div class="list-meta">تسليم فوري</div></div>
+          <div class="list-end"><div class="list-amount tabular">${esc(lyd(o.price * rate()))}</div></div>
         </button>`).join('')}</div>
     </div>`;
   }
   const q = (S.rscQ || '').trim().toLowerCase();
-  const cats = (S.rsc.cats || []).filter(c => !q || c.name.toLowerCase().includes(q));
   const tab = S.rscTab || 'all';
-  const shown = cats.filter(c => tab === 'all' || c.type === tab);
+  const shown = (S.rsc.cats || []).filter(c => (!q || c.name.toLowerCase().includes(q)) && (tab === 'all' || c.type === tab));
   return `<div class="page-enter">
-    <div class="mb-4"><h1 class="h2" style="margin-bottom:6px">متجر كاردو</h1>
-      <p class="body-sm text-2">بطاقات هدايا وشحن ألعاب — تُدفع من محفظتك وتصلك فورًا</p></div>
-    <div class="input-wrap mb-3"><span class="input-icon">${svg(I.search, 2)}</span>
-      <input class="input" id="rscQ" placeholder="ابحث: PUBG، Roblox، Steam…" value="${esc(S.rscQ || '')}" autocomplete="off"></div>
-    <div class="pills mb-4">${[['all', 'الكل'], ['gift', 'بطاقات هدايا'], ['topup', 'شحن ألعاب']].map(([k, t]) => `<button class="pill ${tab === k ? 'active' : ''}" data-rsctab="${k}" type="button">${t}</button>`).join('')}</div>
-    ${!S.rsc.loaded && !S.rsc.error ? `<div class="rsc-grid">${'<div class="skeleton" style="aspect-ratio:1/1.1;border-radius:18px"></div>'.repeat(6)}</div>` : ''}
-    ${S.rsc.error && !S.rsc.loaded ? `<div class="card" style="text-align:center;padding:24px">${fennec('error', 110)}<div class="h4 mb-3">تعذّر تحميل المتجر</div><button class="btn btn-secondary btn-sm" data-rscretry type="button" style="padding:0 18px">إعادة المحاولة</button></div>` : ''}
-    ${S.rsc.loaded && shown.length ? `<div class="rsc-grid stagger">${shown.map(rscTile).join('')}</div>` : ''}
-    ${S.rsc.loaded && !shown.length ? `<div class="card" style="text-align:center;padding:28px 20px">${fennec('empty', 110)}<div class="h4" style="margin-bottom:6px">${q ? 'لا نتائج' : 'نجهّز المتجر'}</div><p class="body-sm text-2">${q ? 'جرّب كلمة أخرى' : 'أقسام جديدة قريبًا'}</p></div>` : ''}
+    <h1 class="kpage-title">المتجر</h1>
+    <p class="kpage-sub">بطاقات هدايا وشحن ألعاب، يصلك الكود خلال ثوانٍ</p>
+    <div class="input-wrap mb-3"><span class="input-icon">${svg(I.search)}</span>
+      <input class="input" id="rscQ" placeholder="ابحث عن لعبة أو بطاقة" value="${esc(S.rscQ || '')}" autocomplete="off"></div>
+    <div class="pills mb-5">${[['all', 'الكل'], ['topup', 'شحن ألعاب'], ['gift', 'بطاقات هدايا']].map(([k, t]) => `<button class="pill ${tab === k ? 'active' : ''}" data-rsctab="${k}" type="button">${t}</button>`).join('')}</div>
+    ${!S.rsc.loaded && !S.rsc.error ? `<div class="rsc-grid">${'<div class="skeleton" style="aspect-ratio:1/1;border-radius:20px"></div>'.repeat(6)}</div>` : ''}
+    ${S.rsc.error && !S.rsc.loaded ? `<div class="card" style="text-align:center;padding:28px 20px">${fennec('error')}<div class="h4 mb-3">تعذّر تحميل المتجر</div><button class="btn btn-secondary btn-sm" data-rscretry type="button">إعادة المحاولة</button></div>` : ''}
+    ${S.rsc.loaded && shown.length ? `<div class="rsc-grid">${shown.map(rscTile).join('')}</div>` : ''}
+    ${S.rsc.loaded && !shown.length ? `<div class="card" style="text-align:center;padding:32px 20px">${fennec('empty')}<div class="h4" style="margin-bottom:6px">${q ? 'لا نتائج' : 'نجهّز المتجر'}</div><p class="body-sm text-2">${q ? 'جرّب اسمًا آخر' : 'أقسام جديدة قريبًا'}</p></div>` : ''}
   </div>`;
 }
 function openRscBuy(cat, off) {
   const isTop = cat.type === 'topup';
   const key = newIdemKey();
+  const chips = (cat.offers || []).length <= 9 ? cat.offers : null;
+  let sel = off;
   modal(`
-    <div class="modal-head"><div class="modal-title">${esc(cat.name)}</div>
-      <button class="modal-close" data-act="close-modal" aria-label="إغلاق">${svg(I.x, 2)}</button></div>
-    <div class="rsc-buy-head mb-3">
-      ${cat.image ? `<img src="${esc(rscImgUrl(cat.image))}" alt="">` : ''}
-      <div><div class="body" style="font-weight:700">${esc(off.name)}</div>
-        <div class="caption tabular">${esc(lyd(off.price * rate()))} · ${esc(usd(off.price))}</div></div>
+    <div class="rsc-buy-head mb-5">
+      ${cat.image ? `<img src="${esc(rscImgUrl(cat.image))}" alt="">` : `<span class="kstate" style="margin:0;width:64px;height:64px">${svg(isTop ? I.game : I.giftbox)}</span>`}
+      <div><div class="h4" style="margin:0">${esc(cat.name)}</div><div class="caption">${isTop ? 'شحن مباشر — يصل خلال دقائق' : 'كود رقمي — يصلك فورًا'}</div></div>
     </div>
+    ${chips ? `<div class="field-label">اختر الباقة</div><div class="kopts">${chips.map(o => `<button class="kopt ${o.id === off.id ? 'on' : ''}" data-kopt="${esc(o.id)}" type="button"><b dir="auto">${esc(o.name)}</b><small>${esc(lyd(o.price * rate()))}</small></button>`).join('')}</div>`
+      : `<div class="field-label">الباقة</div><div class="copy-box mb-4"><div class="copy-value" dir="auto">${esc(off.name)}</div></div>`}
     ${isTop ? (cat.fields || []).map((f, i) => `
-      <div class="field mb-3"><label class="field-label" for="rf${i}">${esc(f.label)} *</label>
+      <div class="field mb-2"><label class="field-label" for="rf${i}">${esc(f.label)}</label>
         <input class="input" id="rf${i}" ${f.type === 'number' ? 'inputmode="numeric"' : ''} dir="ltr" maxlength="120" autocomplete="off"></div>`).join('') + `
-      <div class="alert alert-warning mb-3" style="font-size:12px">${svg(I.help, 2)}<div>تأكد من البيانات جيدًا — الشحن يُرسل مباشرة ولا يمكن استرجاعه بعد التنفيذ.</div></div>` : `
-      <div class="field mb-3"><label class="field-label" for="rQty">الكمية</label>
+      <div class="caption mb-4" style="display:flex;gap:6px;align-items:center">${svg(I.help)}تأكد من البيانات — الشحن يُرسل مباشرة ولا يُسترجع</div>` : `
+      <div class="field mb-4" id="rQtyW"><label class="field-label" for="rQty">الكمية</label>
         <input class="input tabular" id="rQty" type="number" inputmode="numeric" min="${off.min}" max="${off.max}" value="${off.min}"></div>`}
-    <div class="card card-sm mb-3" style="background:var(--surface-2);border:none" id="rSum"></div>
-    <button class="btn btn-primary btn-block" id="rGo" type="button">ادفع من محفظتي</button>`);
+    <div class="ksum" id="rSum"></div>
+    <button class="btn btn-primary btn-block btn-lg" id="rGo" type="button"></button>`);
   let total = off.price;
   const calc = () => {
     const q = isTop ? 1 : Math.floor(n(($('#rQty') || {}).value));
-    const ok = isTop || (q >= off.min && q <= off.max);
-    total = Math.round(off.price * (ok ? q : off.min) * 100) / 100;
+    const ok = isTop || (q >= sel.min && q <= sel.max);
+    total = Math.round(sel.price * (ok ? q : sel.min) * 100) / 100;
     const bal = n(S.profile.wallet_balance), short = bal < total;
     $('#rSum').innerHTML = `
-      <div class="flex-between" style="padding:4px 0"><span style="font-weight:600">الإجمالي</span><span class="tabular" style="font-weight:800;color:var(--brand)">${esc(lyd(total * rate()))}</span></div>
-      <div class="flex-between" style="padding:2px 0"><span class="caption">بالدولار</span><span class="caption tabular">${esc(usd(total))}</span></div>
-      <div class="flex-between" style="padding:2px 0"><span class="caption">رصيد محفظتك</span><span class="caption tabular" style="${short ? 'color:var(--error)' : ''}">${esc(lyd(bal * rate()))}</span></div>
-      ${!ok ? `<div class="caption" style="color:var(--warning);margin-top:6px">الكمية من ${off.min} إلى ${off.max}</div>` : ''}
-      ${short ? `<div class="caption" style="color:var(--error);margin-top:6px">رصيدك غير كافٍ — اشحن محفظتك أولًا</div>` : ''}`;
-    $('#rGo').disabled = !ok || short;
+      <div><span>رصيد محفظتك</span><b class="tabular" style="${short ? 'color:var(--u-err)' : ''}">${esc(lyd(bal * rate()))}</b></div>
+      <div class="tot"><span>الإجمالي</span><b class="tabular">${esc(lyd(total * rate()))}</b></div>
+      ${!ok ? `<div style="color:var(--u-warn)">الكمية من ${sel.min} إلى ${sel.max}</div>` : ''}`;
+    const b = $('#rGo');
+    b.innerHTML = short ? `${svg(I.plus)} اشحن محفظتك أولًا` : `${svg(I.lock)} ادفع ${esc(lyd(total * rate()))} من محفظتي`;
+    b.dataset.short = short ? '1' : '';
+    b.disabled = !ok;
   };
   calc();
   if ($('#rQty')) $('#rQty').oninput = calc;
+  $$('[data-kopt]').forEach(b => b.onclick = () => {
+    const o = cat.offers.find(x => x.id === b.dataset.kopt); if (!o) return;
+    sel = o; $$('[data-kopt]').forEach(x => x.classList.toggle('on', x === b));
+    if ($('#rQty')) { $('#rQty').min = o.min; $('#rQty').max = o.max; }
+    calc();
+  });
   onTap('#rGo', async () => {
+    const btn = $('#rGo');
+    if (btn.dataset.short) { closeModal(); openDeposit(); return; }
     const fields = {};
     if (isTop) for (let i = 0; i < (cat.fields || []).length; i++) {
       const v = ($('#rf' + i).value || '').trim();
       if (!v) { toast(`${cat.fields[i].label} مطلوب`, 'bad'); $('#rf' + i).focus(); return; }
       fields[cat.fields[i].key] = v;
     }
-    const btn = $('#rGo'); btn.disabled = true; btn.classList.add('loading');
+    btn.disabled = true; btn.classList.add('loading');
     try {
-      const r = await api('/api/rsc/order', { cat: cat.key, offer: off.id, qty: isTop ? 1 : Math.floor(n($('#rQty').value)), fields, expect: total, idempotency_key: key }, 60000);
+      const r = await api('/api/rsc/order', { cat: cat.key, offer: sel.id, qty: isTop ? 1 : Math.floor(n($('#rQty').value)), fields, expect: total, idempotency_key: key }, 60000);
       S.rscOrders = null; loadRscOrders();
       openRscResult(r.order);
     } catch (e) {
@@ -4641,12 +4608,11 @@ function openRscResult(o) {
   if (!o) return;
   const done = o.status === 'completed', bad = o.status === 'refunded';
   modal(`
-    <div class="modal-head"><div class="modal-title">${done ? 'تم بنجاح ✓' : bad ? 'لم يكتمل الطلب' : 'طلبك قيد التنفيذ'}</div>
-      <button class="modal-close" data-act="close-modal" aria-label="إغلاق">${svg(I.x, 2)}</button></div>
-    <div style="text-align:center" class="mb-3">${fennec(done ? 'success' : bad ? 'error' : 'wait', 120, done ? 'purchase' : bad ? 'failed' : 'wait')}</div>
-    <div class="body-sm mb-3" style="text-align:center"><b>${esc(o.cat_name)}</b> — ${esc(o.offer_name)}${o.qty > 1 ? ` × ${o.qty}` : ''}</div>
+    <div style="text-align:center" class="mb-4">${fennec(done ? 'success' : bad ? 'error' : 'wait')}
+      <div class="h3" style="margin-bottom:4px">${done ? 'تم بنجاح' : bad ? 'لم يكتمل الطلب' : 'طلبك قيد التنفيذ'}</div>
+      <div class="body-sm text-2"><bdi>${esc(o.cat_name)} — ${esc(o.offer_name)}</bdi>${o.qty > 1 ? ` × ${o.qty}` : ''}</div></div>
     ${rscOrderBody(o)}
-    <button class="btn btn-primary btn-block" data-act="close-modal" type="button">حسنًا</button>`);
+    <button class="btn btn-primary btn-block" data-act="close-modal" type="button">تم</button>`);
   if (done) haptic.ok(); else if (bad) haptic.bad();
 }
 function rscOrderBody(o) {
@@ -4675,6 +4641,9 @@ function bindRsc() {
   $$('[data-rscretry]').forEach(b => b.onclick = () => { S.rsc.error = false; loadRsc(true); render(); });
   $$('[data-rscoffer]').forEach(b => b.onclick = () => { const c = rscCatBy(S.rscCat); const o = c && c.offers.find(x => x.id === b.dataset.rscoffer); if (o) openRscBuy(c, o); });
   $$('[data-rscorder]').forEach(b => b.onclick = () => { const o = (S.rscOrders || []).find(x => x.id === b.dataset.rscorder); if (o) openRscResult(o); });
+  $$('[data-rscgo]').forEach(b => b.onclick = () => { S.rscTab = b.dataset.rscgo; S.rscCat = null; go('kstore', true); });
   const q = $('#rscQ');
   if (q) q.oninput = () => { S.rscQ = q.value; render(); };
 }
+
+function themePref() { try { return localStorage.getItem('kardo_theme') || 'auto'; } catch { return 'auto'; } }
