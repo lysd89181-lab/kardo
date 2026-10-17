@@ -189,6 +189,8 @@ async function route(path, request, url, env) {
     case '/api/rsc/order':             return handleRscOrder(user, body, env);
     case '/api/rsc/my-orders':         return handleRscMyOrders(user, body, env);
     case '/api/admin/rsc':             return handleAdminRsc(user, body, env);
+    case '/api/admin/usdt/find':       return handleAdminUsdtFind(user, body, env);
+    case '/api/admin/usdt/credit':     return handleAdminUsdtCredit(user, body, env);
     case '/api/wallet/claim':          return handleWalletClaim(user, body, env);
     case '/api/wallet/withdraw':       return handleWithdrawRequest(user, body, env);
     case '/api/wallet/transfer':       return handleTransfer(user, body, env);
@@ -7513,4 +7515,62 @@ async function handleAdminRsc(user, body, env) {
     return rscOrderView(env, oid, null);
   }
   throw httpError(400, 'إجراء غير معروف');
+}
+
+/* ═══ v48 — أداة الأدمن: البحث عن صاحب إيداع USDT واعتماده ═══ */
+async function handleAdminUsdtFind(user, body, env) {
+  await requirePermission(user, env, 'deposits.view');
+  const amount = num(toLatinDigits(String(body.amount || '')).replace(/[^\d.]/g, ''), 0);
+  const txid = String(body.txid || '').trim().toLowerCase().replace(/[^0-9a-zx_-]/g, '').slice(0, 90);
+  if (!(amount > 0) && txid.length < 8) throw httpError(400, 'أدخل المبلغ أو رقم المعاملة (TxID)');
+  const out = { success: true, invoices: [], txid_used: null };
+  const rowsToInv = async rows => {
+    const list = [];
+    for (const r of rows) {
+      let d = {}; try { d = JSON.parse(r.data); } catch {}
+      const u = d.uid ? await fsGet(env, `users/${d.uid}`).catch(() => null) : null;
+      list.push({ id: r.id, uid: d.uid || '', name: u ? (u.name || '') : '', email: u ? (u.email || '') : '', phone: u ? String(u.phone_verified || '') : '',
+        amount: num(d.amount_usd, 0), pay_amount: num(d.pay_amount, 0), network: d.network || 'trc20', status: d.status || '',
+        created_at: d.created_at || '', txid: d.txid || '' });
+    }
+    return list;
+  };
+  if (!env.DB) throw httpError(503, 'قاعدة البيانات غير متاحة');
+  if (amount > 0) {
+    const rows = await d1All(env, `SELECT id, data FROM usdt_invoices WHERE json_extract(data, '$.pay_amount') BETWEEN ? AND ? ORDER BY ts DESC LIMIT 20`,
+      [round4(amount - (amount % 1 ? 0.00005 : 0)), round4(amount + (amount % 1 ? 0.00005 : 0.9999))]).catch(() => []);
+    out.invoices = await rowsToInv(rows);
+    if (!out.invoices.length) {        // قريب منه (اختلاف كسور بسيط)
+      const near = await d1All(env, `SELECT id, data FROM usdt_invoices WHERE json_extract(data, '$.pay_amount') BETWEEN ? AND ? ORDER BY ts DESC LIMIT 20`,
+        [Math.floor(amount) - 0.5, Math.floor(amount) + 1.5]).catch(() => []);
+      out.invoices = await rowsToInv(near); out.near = true;
+    }
+  }
+  if (txid) {
+    const t = await d1All(env, `SELECT id, data FROM usdt_txids WHERE lower(id) LIKE ? LIMIT 5`, ['%' + txid.replace(/^0x/, '').slice(0, 40) + '%']).catch(() => []);
+    if (t.length) { let d = {}; try { d = JSON.parse(t[0].data); } catch {} const u = d.uid ? await fsGet(env, `users/${d.uid}`).catch(() => null) : null;
+      out.txid_used = { invoice_id: d.invoice_id || '', uid: d.uid || '', name: u ? u.name || '' : '', email: u ? u.email || '' : '', amount: num(d.amount, 0), at: d.created_at || '' }; }
+  }
+  return out;
+}
+function round4(x) { return Math.round(x * 10000) / 10000; }
+
+// يعيد فحص الفاتورة على البلوكشين (حتى لو انتهت مهلتها) ويضيف الرصيد لصاحبها إن وُجد التحويل — آمن من التكرار
+async function handleAdminUsdtCredit(user, body, env) {
+  const staff = await requirePermission(user, env, 'deposits.approve');
+  const id = String(body.invoice_id || '').trim();
+  if (!/^INV\d+[A-Z0-9]{4}$/.test(id)) throw httpError(400, 'رقم الفاتورة غير صالح');
+  const inv = await fsGet(env, `usdt_invoices/${id}`);
+  if (!inv) throw httpError(404, 'الفاتورة غير موجودة');
+  if (inv.status === 'paid') return { success: true, paid: true, already: true, credited: num(inv.received, 0) };
+  const prev = { status: inv.status, expires_ms: inv.expires_ms };
+  // نوسّع نافذة البحث حتى 48 ساعة بعد الفاتورة
+  await fsPatch(env, `usdt_invoices/${id}`, { status: 'awaiting', expires_ms: Math.min(Date.now(), num(inv.created_ms, 0) + 48 * 3600000) });
+  let r;
+  try { r = await handleUsdtVerify({ uid: inv.uid }, { invoice_id: id }, env); }
+  catch (e) { await fsPatch(env, `usdt_invoices/${id}`, prev).catch(() => {}); throw e; }
+  if (!r.paid) await fsPatch(env, `usdt_invoices/${id}`, prev).catch(() => {});
+  else notify(env, inv.uid, 'deposit_ok', { amount: num(r.credited, 0).toFixed(2), method: 'USDT' });
+  await logOp(env, staff.uid, 'deposit.usdt.admin_credit', { id }, { paid: !!r.paid, credited: r.credited || 0 }, true);
+  return { success: true, paid: !!r.paid, credited: r.credited || 0, duplicate: !!r.duplicate };
 }

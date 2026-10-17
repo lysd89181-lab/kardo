@@ -1893,6 +1893,17 @@ function vDeposits() {
       <p class="body-sm text-2" style="font-size:11.5px">${pendDep() ? pendDep() + ' طلب ينتظر' : 'لا طلبات معلّقة'}</p>
     </div>
 
+    <div class="card mb-3">
+      <div class="h4" style="margin-bottom:4px">🔎 لمن هذا التحويل؟ (USDT)</div>
+      <p class="caption" style="margin-bottom:10px">اكتب المبلغ اللي وصلك بالضبط (مثل 35.0769) أو رقم المعاملة TxID</p>
+      <div style="display:flex;gap:8px;flex-wrap:wrap">
+        <input class="input" id="ufAmt" inputmode="decimal" dir="ltr" placeholder="35.0769" style="flex:1;min-width:120px" value="${esc(S.uf ? S.uf.amount : '')}">
+        <input class="input" id="ufTx" dir="ltr" placeholder="TxID (اختياري)" style="flex:2;min-width:160px" value="${esc(S.uf ? S.uf.txid : '')}">
+        <button class="btn btn-primary btn-sm" id="ufGo" type="button">بحث</button>
+      </div>
+      ${S.uf && S.uf.res ? ufResults(S.uf.res) : ''}
+    </div>
+
     <div class="pills mb-3">
       ${F.map(([k, t]) => {
         const c = k === 'all' ? S.deposits.length : S.deposits.filter(d => d.status === k).length;
@@ -4580,3 +4591,40 @@ function bindRscA() {
     catch (e) { toast(e.message, 'bad'); b.disabled = false; b.textContent = '↻ تحديث الكتالوج من المزود'; }
   });
 }
+
+/* ═══ v48 — البحث عن صاحب إيداع USDT ═══ */
+const UF_ST = { awaiting: ['badge-warning', 'بانتظار الدفع'], expired: ['badge-neutral', 'انتهت مهلتها'], paid: ['badge-success', 'أُضيف الرصيد'] };
+function ufResults(r) {
+  return `<div style="margin-top:12px">
+    ${r.txid_used ? `<div class="alert alert-success mb-2">${svg(I.check)}<div>هذه المعاملة <b>انحسبت قبل</b> لـ ${esc(r.txid_used.name || r.txid_used.email || r.txid_used.uid)} (${esc(String(r.txid_used.amount))}$)</div></div>` : ''}
+    ${r.near && r.invoices.length ? '<div class="caption mb-2">ما لقيت المبلغ بالضبط — هذي فواتير بمبالغ قريبة:</div>' : ''}
+    ${r.invoices.length ? `<div class="list">${r.invoices.map(v => `
+      <div class="list-row" style="cursor:default;align-items:flex-start">
+        <div class="list-content">
+          <div class="list-title">${esc(v.name || '—')} <span class="caption" dir="ltr">${esc(v.email)}</span></div>
+          <div class="list-meta" dir="ltr" style="text-align:right">${esc(String(v.pay_amount))} USDT · ${esc(v.network.toUpperCase())} · ${esc(dt(v.created_at))}${v.phone ? ' · 0' + esc(v.phone) : ''}</div>
+          ${v.status !== 'paid' ? `<button class="btn btn-primary btn-sm" data-ufcredit="${esc(v.id)}" type="button" style="margin-top:8px">تحقق من البلوكشين وأضف الرصيد</button>` : ''}
+        </div>
+        <div class="list-end"><span class="badge ${(UF_ST[v.status] || ['badge'])[0]}">${esc((UF_ST[v.status] || ['', v.status])[1])}</span></div>
+      </div>`).join('')}</div>` : (!r.txid_used ? '<div class="caption" style="color:var(--error)">ما فيش فاتورة بهذا المبلغ — المرسل غالبًا حوّل بدون ما يفتح طلب إيداع في الموقع.</div>' : '')}
+  </div>`;
+}
+document.addEventListener('click', async e => {
+  const go = e.target.closest && e.target.closest('#ufGo');
+  const cr = e.target.closest && e.target.closest('[data-ufcredit]');
+  if (go) {
+    const amount = ($('#ufAmt').value || '').trim(), txid = ($('#ufTx').value || '').trim();
+    go.disabled = true;
+    try { const r = await api('/api/admin/usdt/find', { amount, txid }); S.uf = { amount, txid, res: r }; render(true); }
+    catch (err) { toast(err.message, 'bad'); go.disabled = false; }
+  }
+  if (cr) {
+    if (!confirm('نفحص البلوكشين، ولو لقينا التحويل نضيف الرصيد لصاحب الفاتورة. نكمل؟')) return;
+    cr.disabled = true; cr.textContent = 'جارٍ الفحص…';
+    try {
+      const r = await api('/api/admin/usdt/credit', { invoice_id: cr.dataset.ufcredit });
+      if (r.paid) { toast(r.already ? 'الرصيد مضاف من قبل ✓' : `أُضيف ${r.credited}$ لصاحب الفاتورة ✓`, 'ok'); S.uf = null; render(true); }
+      else { toast(r.duplicate ? 'هذا التحويل محسوب لفاتورة ثانية' : 'ما لقينا التحويل على البلوكشين لهذه الفاتورة', 'bad'); cr.disabled = false; cr.textContent = 'تحقق من البلوكشين وأضف الرصيد'; }
+    } catch (err) { toast(err.message, 'bad'); cr.disabled = false; cr.textContent = 'تحقق من البلوكشين وأضف الرصيد'; }
+  }
+});
