@@ -1278,7 +1278,6 @@ function vCards() {
     <h1 class="kpage-title">بطاقاتي</h1>
     <p class="kpage-sub">بطاقتك الافتراضية للدفع أونلاين · باقة ${esc(PLAN_AR[myPlan()])}</p>
     ${cardsMaintHtml()}
-    ${cardWarningHtml()}
     ${allC.length > 1 ? `<div class="kcards-switch">${allC.map(c => `<button class="${cur && c.id === cur.id ? 'on' : ''}" data-cardsel="${esc(c.id)}" type="button">${openIds.has(c.id) ? '' : '🔒 '}${esc(c.card_name || 'بطاقة')} ••${esc(c.last4 || '')}</button>`).join('')}</div>` : ''}
     ${cur ? `
       ${locked ? `<button class="card mb-4" data-nav="plans" type="button" style="width:100%;text-align:right;padding:14px 16px"><b>البطاقة مقفلة</b><div class="caption">انتهت باقتك — جدّدها لفتح بطاقاتك الإضافية</div></button>` : ''}
@@ -1896,20 +1895,23 @@ async function openNewCard() {
     <div id="ncQuote"></div>
     ${types.length ? `<details class="faq-item mb-3" id="ncRulesBox" open><summary>📋 قوانين بطاقة <span id="ncRulesName">${esc(selType ? selType.name : '')}</span></summary><div id="ncRules">${typeRulesHtml(selType)}</div></details>` : ''}
 
-    ${cardWarningHtml()}
-    <div class="card-warn">
-      <div class="card-warn-title">${svg(I.help, 2)} قبل الإصدار، انتبه:</div>
+    <div class="field-label">قبل الإصدار</div>
+    <div class="list mb-3">${cardPoints().map(([t, d]) => `<div class="list-row" style="cursor:default"><span class="list-icon" style="width:34px !important;height:34px !important">${svg(I.check)}</span>
+      <div class="list-content"><div class="list-title">${esc(t)}</div>${d ? `<div class="list-meta">${esc(d)}</div>` : ''}</div></div>`).join('')}</div>
+    <label class="kagree"><input type="checkbox" class="kcheck" id="ncAccept">
+      <span>قرأت وأوافق على <button type="button" class="klink" id="ncTermsT">الشروط كاملة</button></span></label>
+    <div id="ncTerms" class="kterms" hidden>
+      ${String(mc.warning || '').trim() ? String(mc.warning).split(/\n+/).map(l => `<p>${esc(l)}</p>`).join('') : ''}
       <ul>
-        <li>للدفع <b>أونلاين فقط</b>، لا تعمل في الصراف أو نقاط البيع.</li>
-        <li>رمز CVV يظهر <b>مرة واحدة فقط</b> خلال ${n(mc.cvv_minutes) || 5} دقائق من الإصدار، ورقم البطاقة لمدة ${n(mc.reveal_hours) || 24} ساعة. <b>احفظهما فورًا.</b></li>
-        <li>رسوم الإصدار <b>لا تُسترد</b> بعد إصدار البطاقة.</li>
+        <li>للدفع أونلاين فقط، لا تعمل في الصراف أو نقاط البيع.</li>
+        <li>رمز CVV يظهر مرة واحدة فقط خلال ${n(mc.cvv_minutes) || 5} دقائق من الإصدار، ورقم البطاقة لمدة ${n(mc.reveal_hours) || 24} ساعة. احفظهما فورًا.</li>
+        <li>رسوم الإصدار لا تُسترد بعد إصدار البطاقة.</li>
         <li>بعض المواقع قد ترفض البطاقات الافتراضية.</li>
-        <li>بعض المواقع تطلب <b>رمز تحقق 3D Secure</b> — تجده في صفحة بطاقتك، وتُخصم رسوم <b>${esc('$' + Number(mc.otp_fee ?? 0.03).toFixed(2))}</b> عن كل عملية تحقق حتى لو لم تنجح.</li>
+        <li>بعض المواقع تطلب رمز تحقق 3D Secure، وتُخصم ${esc('$' + Number(mc.otp_fee ?? 0.03).toFixed(2))} عن كل عملية تحقق.</li>
         <li>يُمنع استخدامها في القمار أو أي نشاط غير قانوني، والمخالفة توقف البطاقة والحساب.</li>
         <li>الاسم على البطاقة لا يمكن تعديله بعد الإصدار.</li>
       </ul>
-      <label class="card-warn-ok"><input type="checkbox" id="ncAccept">
-        <span>قرأت التحذيرات وأوافق على <a href="./terms.html#cards" target="_blank" rel="noopener">شروط البطاقات</a></span></label>
+      <a href="./terms.html#cards" target="_blank" rel="noopener" class="klink">صفحة الشروط والأحكام</a>
     </div>
 
     <button class="btn btn-primary btn-block" id="ncSubmit" style="margin-top:16px" disabled>
@@ -1917,6 +1919,7 @@ async function openNewCard() {
     </button>
   `);
 
+  onTap('#ncTermsT', () => { const t = $('#ncTerms'); if (t) t.hidden = !t.hidden; });
   const calc = () => {
     const a = n($('#ncAmount').value);
     const box = $('#ncQuote');
@@ -2761,7 +2764,6 @@ function vPlans() {
     <div class="mb-5"><h1 class="h2" style="margin-bottom:6px">الباقات</h1>
       <p class="body-sm text-2">باقتك الحالية: <b>${esc(PLAN_AR[cur])}</b>${cur !== 'free' ? ` · سارية حتى ${esc(new Date(exp).toLocaleDateString('ar-LY'))}` : ''}</p></div>
     ${hiddenCardsCount() ? `<div class="alert alert-warning mb-4">🔒<div>عندك ${hiddenCardsCount()} بطاقات مخفية — تظهر فور اشتراكك.</div></div>` : ''}
-    ${cardWarningHtml()}
     <div class="plans-grid stagger">${planTiles(cur, false)}</div>
   </div>`;
 }
@@ -4641,3 +4643,10 @@ function bindRsc() {
 }
 
 function themePref() { try { return localStorage.getItem('kardo_theme') || 'auto'; } catch { return 'auto'; } }
+
+const CARD_POINTS_DEF = [['للدفع أونلاين فقط', 'لا تعمل في الصراف أو نقاط البيع'], ['CVV يظهر مرة واحدة', 'احفظه فورًا مع رقم البطاقة'], ['رسوم الإصدار لا تُسترد', 'وبعض المواقع قد ترفض البطاقات الافتراضية']];
+function cardPoints() {
+  const raw = String(((S.config.manual_cards || {}).points) || '').split('\n').map(l => l.trim()).filter(Boolean).slice(0, 5)
+    .map(l => { const [t, ...d] = l.split('|'); return [t.trim(), d.join('|').trim()]; }).filter(x => x[0]);
+  return raw.length ? raw : CARD_POINTS_DEF;
+}

@@ -4013,9 +4013,14 @@ function settingsMcard(s) {
       <input class="input" data-op="otp_fee_usd" type="number" step="0.01" value="${n(s.otp_fee_usd, 0.03)}">
     </div>
 
-    <div class="set-sub">⚠️ تحذير البطاقات</div>
+    <div class="set-sub">✅ النقاط المختصرة عند الإصدار</div>
     <div class="field" style="grid-template-columns:1fr">
-      <div><div class="sw-desc">يظهر للعميل بمربع أحمر متوهج في صفحة بطاقاتي ونافذة الإصدار. كل سطر فقرة. اتركه فارغًا لإخفائه.</div></div>
+      <div><div class="sw-desc">3 نقاط تظهر للعميل قبل الإصدار. سطر لكل نقطة بهذا الشكل: العنوان | شرح قصير. اتركه فارغًا لاستخدام النقاط الافتراضية.</div></div>
+      <textarea class="input" data-op="card_points" rows="4" maxlength="600" placeholder="للدفع أونلاين فقط | لا تعمل في الصراف أو نقاط البيع">${esc(s.card_points || '')}</textarea>
+    </div>
+    <div class="set-sub">⚠️ الشروط الكاملة للبطاقات</div>
+    <div class="field" style="grid-template-columns:1fr">
+      <div><div class="sw-desc">تظهر عند ضغط العميل على «الشروط كاملة» في نافذة الإصدار. كل سطر فقرة.</div></div>
       <textarea class="input" data-op="card_warning" rows="8" maxlength="2000" placeholder="مثال: البطاقة ليست للتخزين…">${esc(s.card_warning || '')}</textarea>
     </div>
   </div>
