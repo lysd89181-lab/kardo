@@ -659,7 +659,7 @@ function paint() {
   if (S.page === 'kstore' && !rscOn()) S.page = 'dashboard';
 
   const av = $('#avatarInitial');
-  if (av && av.dataset.seed !== S.user.uid) { av.dataset.seed = S.user.uid; av.innerHTML = avatarImg(S.user.uid, S.profile.name || S.user.email, 28); av.style.background = 'none'; av.style.border = '0'; }
+  { const ini = esc(((S.profile.name || S.user.email || 'ك').trim()[0] || 'ك').toUpperCase()); if (av && av.dataset.seed !== ini) { av.dataset.seed = ini; av.textContent = ini; av.className = 'kav-sm'; av.removeAttribute('style'); } }
 
   paintDock();
   paintBell();
@@ -1623,79 +1623,73 @@ function vSupport() {
 
 function vSettings() {
   const nm = S.profile.name || 'مستخدم';
-
+  const email = S.profile.email || S.user?.email || '';
+  const ch = svg(I.next);
+  const row = (attrs, ic, title, end = '', cls = '') => `<button class="kset-row ${cls}" ${attrs} type="button">
+      <span class="kset-ic">${svg(ic)}</span><span class="kset-t">${title}</span>${end}<span class="kset-ch">${ch}</span></button>`;
   return `
   <div class="page-enter settings-page">
-    <div class="mb-6">
-      <h1 class="kpage-title" style="margin:0">حسابي</h1>
-    </div>
-
-    <div class="card card-lg mb-5">
-      <div style="display:flex;gap:16px;align-items:center">
-        ${avatarImg(S.user.uid, nm, 64)}
-        <div style="flex:1;min-width:0">
-          <div class="h4" style="margin-bottom:4px">${esc(nm)}</div>
-          <div class="caption" dir="ltr">${esc(S.profile.email || S.user?.email || '')}</div>
+    <div class="kme">
+      <div class="kme-av" aria-hidden="true">${esc((nm.trim()[0] || 'ك').toUpperCase())}</div>
+      <div class="kme-main">
+        <div class="kme-name">${esc(nm)}</div>
+        <div class="kme-mail" dir="ltr">${esc(email)}</div>
+        <div class="kme-tags">
+          <span class="kme-tag gold">باقة ${esc(PLAN_AR[myPlan()])}</span>
+          ${S.profile.email_verified ? '<span class="kme-tag ok">البريد مؤكَّد</span>' : ''}
+          ${S.profile.phone_verified ? '<span class="kme-tag ok">الرقم موثّق</span>' : ''}
         </div>
       </div>
     </div>
 
-    <div class="quick-links mb-5">
-      ${[['orders', I.receipt, 'طلباتي'], ['wallet', I.wallet || I.up, 'المحفظة'], ...(merchantsOn() ? [['chats', I.chat || I.help, 'المحادثات']] : []), ['trust', I.shield || I.help, 'الأمان'], ['transactions', I.list, 'المعاملات'], ['plans', I.box, 'الباقات'], ['support', I.help, 'الدعم']]
-        .map(([pg, ic, t]) => `<button class="ql" data-nav="${pg}"><span class="ql-ic">${svg(ic, 2)}</span><span>${t}</span></button>`).join('')}
-    </div>
-    <button class="card ref-strip mb-5" data-nav="referral" type="button">${fennec('success', 48)}
-      <span style="flex:1;text-align:right"><b style="display:block">ادعُ صديقًا واربح</b><span class="caption">رمز دعوتك ومكافآتك</span></span><span class="prow-add">←</span></button>
-    <div class="card mb-5"><div class="h4" style="margin-bottom:12px">المظهر</div>
-      <div class="ktheme">${[['auto', 'تلقائي'], ['light', 'نهاري'], ['dark', 'ليلي']].map(([k, t]) => `<button class="${themePref() === k ? 'on' : ''}" data-theme-set="${k}" type="button">${t}</button>`).join('')}</div></div>
-    ${pushOn() ? '' : `<button class="btn btn-secondary btn-block mb-3" id="pushOn" type="button">تفعيل إشعارات الهاتف</button>`}
-    ${false ? '' : (merchantsOn() ? `<button class="btn btn-secondary btn-block mb-4" id="joinMerchant" type="button">افتح متجرك في كاردو</button>` : '')}
-    <div class="legal-links mb-5"><a href="./terms.html" target="_blank" rel="noopener">الشروط والأحكام</a> · <a href="./terms.html#privacy" target="_blank" rel="noopener">سياسة الخصوصية</a></div>
-
-    <div class="card mb-5">
-      <div class="h4" style="margin-bottom:16px">المعلومات الشخصية</div>
-      <div class="field mb-3">
-        <label class="field-label">الاسم</label>
-        <input class="input" id="pName" value="${esc(S.profile.name || '')}">
-      </div>
-      <div class="field mb-3">
-        <label class="field-label">البريد الإلكتروني</label>
-        <input class="input" value="${esc(S.profile.email || S.user?.email || '')}" disabled>
-      </div>
-      <div class="field mb-4">
-        <label class="field-label">رقم الهاتف</label>
-        ${S.profile.phone_verified
-          ? `<div class="input" dir="ltr" aria-readonly="true">0${esc(S.profile.phone_verified)} ✓</div>`
-          : `<button class="btn btn-secondary btn-block" id="verifyPhoneBtn" type="button">توثيق رقم الهاتف</button>
-             <div class="caption" style="margin-top:6px">مطلوب للإيداع عبر ليبيانا والمدار</div>`}
-      </div>
-      <button class="btn btn-primary" id="saveProfile">حفظ التغييرات</button>
+    <div class="kset-label">حسابي</div>
+    <div class="kset">
+      ${row('data-nav="orders"', I.receipt, 'طلباتي')}
+      ${row('data-nav="wallet"', I.wallet2, 'المحفظة', `<span class="kset-v tabular">${esc(lyd(n(S.profile.wallet_balance) * rate()))}</span>`)}
+      ${row('data-nav="transactions"', I.list, 'المعاملات')}
+      ${row('data-nav="plans"', I.star, 'الباقات', `<span class="kset-v">${esc(PLAN_AR[myPlan()])}</span>`)}
+      ${row('data-nav="referral"', I.giftbox, 'ادعُ صديقًا واربح')}
     </div>
 
-    <div class="card mb-5">
-      <div class="h4" style="margin-bottom:8px">الإشعارات</div>
-      <label style="display:flex;justify-content:space-between;align-items:center;gap:12px;cursor:pointer">
-        <span class="body-sm">إشعارات البريد (إصدار البطاقة، الإيداع، الطلبات، السحب)</span>
-        <input type="checkbox" id="notifyEmail" ${S.profile.notify_email === false ? '' : 'checked'} style="width:20px;height:20px">
-      </label>
-      <p class="caption" style="margin-top:6px">تصل إلى ${esc(S.profile.email || S.user?.email || '')}${S.profile.email_verified ? ' ✓ مؤكَّد' : ''}. البريد لا يحتوي أبدًا على بيانات بطاقة أو أكواد.</p>
-      ${needsEmailVerify() ? '<button class="btn btn-primary btn-sm" id="evOpen2" type="button" style="margin-top:8px">تأكيد البريد الآن</button>' : ''}
+    <div class="kset-label">التفضيلات</div>
+    <div class="kset">
+      <div class="kset-row static"><span class="kset-ic">${svg(I.sun)}</span><span class="kset-t">المظهر</span>
+        <div class="kseg">${[['auto', 'تلقائي'], ['light', 'نهاري'], ['dark', 'ليلي']].map(([k, t]) => `<button class="${themePref() === k ? 'on' : ''}" data-theme-set="${k}" type="button">${t}</button>`).join('')}</div></div>
+      <label class="kset-row static" for="notifyEmail"><span class="kset-ic">${svg(I.bell)}</span>
+        <span class="kset-t">إشعارات البريد<small>${S.profile.email_verified ? 'تصل إلى بريدك المؤكَّد' : 'تصل إلى بريدك'}</small></span>
+        <input type="checkbox" class="kswitch" id="notifyEmail" ${S.profile.notify_email === false ? '' : 'checked'}></label>
+      ${pushOn() ? '' : row('id="pushOn"', I.bell, 'تفعيل إشعارات الهاتف')}
+      ${needsEmailVerify() ? row('id="evOpen2"', I.check, 'تأكيد البريد الإلكتروني', '<span class="kset-dot"></span>') : ''}
     </div>
 
-    <div class="card mb-5">
-      <div class="h4" style="margin-bottom:16px">الأمان</div>
-      <button class="btn btn-secondary btn-block" id="changePass">
-        تغيير كلمة المرور
-      </button>
+    <div class="kset-label">الأمان</div>
+    <div class="kset">
+      ${S.profile.phone_verified
+        ? `<div class="kset-row static"><span class="kset-ic">${svg(I.shield)}</span><span class="kset-t">رقم الهاتف</span><span class="kset-v" dir="ltr">0${esc(S.profile.phone_verified)}</span></div>`
+        : row('id="verifyPhoneBtn"', I.shield, 'توثيق رقم الهاتف<small>مطلوب للإيداع عبر ليبيانا والمدار</small>', '<span class="kset-dot"></span>')}
+      ${row('id="changePass"', I.lock, 'تغيير كلمة المرور')}
+      ${row('data-nav="trust"', I.shield, 'كيف نحمي أموالك؟')}
     </div>
 
-    <div class="card">
-      <button class="btn btn-outline-danger btn-block" id="doLogout">
-        ${svg(I.out, 2)} تسجيل الخروج
-      </button>
+    <div class="kset-label">المعلومات الشخصية</div>
+    <div class="kset kset-form">
+      <label class="field-label" for="pName">الاسم</label>
+      <div class="kset-inline"><input class="input" id="pName" value="${esc(S.profile.name || '')}" autocomplete="name">
+        <button class="btn btn-secondary" id="saveProfile" type="button">حفظ</button></div>
     </div>
-  </div>
-  `;
+
+    <div class="kset-label">المساعدة</div>
+    <div class="kset">
+      ${row('data-nav="support"', I.help, 'الدعم والتذاكر')}
+      <a class="kset-row" href="./terms.html" target="_blank" rel="noopener"><span class="kset-ic">${svg(I.list)}</span><span class="kset-t">الشروط والأحكام</span><span class="kset-ch">${ch}</span></a>
+      <a class="kset-row" href="./terms.html#privacy" target="_blank" rel="noopener"><span class="kset-ic">${svg(I.lock)}</span><span class="kset-t">سياسة الخصوصية</span><span class="kset-ch">${ch}</span></a>
+    </div>
+
+    <div class="kset">
+      <button class="kset-row danger" id="doLogout" type="button"><span class="kset-ic">${svg(I.out)}</span><span class="kset-t">تسجيل الخروج</span></button>
+    </div>
+    <p class="kme-foot">كاردو · kardo.ly</p>
+  </div>`;
 }
 
 /* ═══════════════════════════════════════════════════════════

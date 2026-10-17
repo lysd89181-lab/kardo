@@ -328,3 +328,46 @@ textarea.input { height: auto; }
 .balance-action[data-action="deposit"] { background: var(--u-grad) !important; color: #1B1206 !important; border: 0 !important; }
 .list-meta, .caption, .field-hint, [class*="-label"] { letter-spacing: 0 !important; text-transform: none !important; }
 .list-meta { font-family: var(--u-text) !important; }
+
+/* ═══ حسابي ═══ */
+.kme { display: flex; gap: 16px; align-items: center; padding: 8px 0 24px; }
+.kme-av { width: 68px; height: 68px; border-radius: 22px; flex: none; display: grid; place-items: center; font: 600 28px var(--u-display);
+  color: #FFF4E2; background: radial-gradient(120% 120% at 100% 0%, #2B2117, #0F0C09); box-shadow: inset 0 0 0 1.5px rgba(232, 150, 46, .55), 0 10px 24px -14px rgba(40, 22, 4, .8); }
+.kme-main { min-width: 0; }
+.kme-name { font: 600 21px var(--u-display); color: var(--u-ink); line-height: 1.3; }
+.kme-mail { font: 400 13px var(--u-text); color: var(--u-ink-3); text-align: right; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.kme-tags { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 8px; }
+.kme-tag { font: 500 11.5px var(--u-text); padding: 3px 10px; border-radius: 999px; background: var(--u-s2); color: var(--u-ink-2); }
+.kme-tag.gold { background: var(--u-gold-soft); color: var(--u-gold); }
+.kme-tag.ok { background: var(--u-ok-soft); color: var(--u-ok); }
+.kset-label { font: 500 13px var(--u-text); color: var(--u-ink-3); margin: 0 4px 8px; }
+.kset { background: var(--u-s1); border: 1px solid var(--u-line); border-radius: var(--u-r); box-shadow: var(--u-shadow); margin-bottom: 24px; overflow: hidden; }
+.kset-row { width: 100%; display: flex; align-items: center; gap: 12px; padding: 0 16px; min-height: 56px; background: none; border: 0; color: var(--u-ink);
+  font: 500 14.5px var(--u-text); text-align: right; cursor: pointer; text-decoration: none; }
+.kset-row + .kset-row { border-top: 1px solid var(--u-line); }
+.kset-row.static { cursor: default; }
+label.kset-row.static { cursor: pointer; }
+.kset-row:active:not(.static) { background: var(--u-s2); }
+.kset-ic { width: 34px; height: 34px; border-radius: 10px; display: grid; place-items: center; flex: none; background: var(--u-gold-soft); color: var(--u-gold); }
+.kset-ic svg { width: 18px !important; height: 18px !important; }
+.kset-t { flex: 1; min-width: 0; display: flex; flex-direction: column; padding: 10px 0; }
+.kset-t small { font: 400 12px var(--u-text); color: var(--u-ink-3); margin-top: 2px; }
+.kset-v { font: 500 13.5px var(--u-display); color: var(--u-ink-3); }
+.kset-ch { color: var(--u-ink-3); display: grid; transform: scaleX(-1); }
+.kset-ch svg { width: 16px !important; height: 16px !important; }
+.kset-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--u-gold-fill); }
+.kset-row.danger { color: var(--u-err); }
+.kset-row.danger .kset-ic { background: var(--u-err-soft); color: var(--u-err); }
+.kseg { display: flex; background: var(--u-s2); border-radius: 10px; padding: 3px; gap: 2px; }
+.kseg button { height: 30px; padding: 0 10px; border-radius: 8px; border: 0; background: none; color: var(--u-ink-2); font: 500 12.5px var(--u-text); cursor: pointer; }
+.kseg button.on { background: var(--u-s1); color: var(--u-ink); font-weight: 600; box-shadow: var(--u-shadow); }
+.kswitch { appearance: none; -webkit-appearance: none; width: 46px; height: 28px; border-radius: 999px; background: var(--u-s3); position: relative; flex: none; cursor: pointer; transition: background .2s; margin: 0; }
+.kswitch::after { content: ''; position: absolute; top: 3px; right: 3px; width: 22px; height: 22px; border-radius: 50%; background: #fff; box-shadow: 0 1px 3px rgba(0, 0, 0, .25); transition: transform .2s; }
+.kswitch:checked { background: var(--u-gold-fill); }
+.kswitch:checked::after { transform: translateX(-18px); }
+.kset-form { padding: 16px; }
+.kset-inline { display: flex; gap: 8px; }
+.kset-inline .input { flex: 1; }
+.kme-foot { text-align: center; font: 400 12px var(--u-display); color: var(--u-ink-3); margin-top: -8px; }
+.kav-sm { width: 30px; height: 30px; border-radius: 9px; display: grid; place-items: center; font: 600 14px var(--u-display); color: #FFF4E2;
+  background: radial-gradient(120% 120% at 100% 0%, #2B2117, #0F0C09); box-shadow: inset 0 0 0 1px rgba(232, 150, 46, .55); }
