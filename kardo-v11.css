@@ -1,0 +1,116 @@
+/* ═══════════════════════════════════════════════════════════
+   KARDO v11 — الهوية الجديدة (شعار الفنك)
+   ألوان مأخوذة من الشعار: زعفراني ذهبي على ليل الصحراء الدافئ،
+   ولمسة ليبية: شريط مثلثات أمازيغي/طوارقي هادئ.
+   يُحمَّل بعد كل ملفات التصميم ويتقدّم عليها.
+   ═══════════════════════════════════════════════════════════ */
+:root {
+  --kx-gold: #E8962E; --kx-gold-1: #F6C26B; --kx-gold-3: #B8661F;
+  --kx-bg: #0E0B08; --kx-s1: #16120D; --kx-s2: #1D1812; --kx-s3: #272018;
+  --kx-line: rgba(232, 150, 46, .14); --kx-line-2: rgba(232, 150, 46, .24);
+  --kx-t1: #F5EBDB; --kx-t2: #BFAF97; --kx-t3: #8C7D68;
+  --kx-grad: linear-gradient(135deg, #F6C26B 0%, #E8962E 52%, #B8661F 100%);
+  --kx-band: linear-gradient(135deg, var(--kx-gold) 25%, transparent 25%) -6px 0/12px 12px,
+             linear-gradient(225deg, var(--kx-gold) 25%, transparent 25%) -6px 0/12px 12px,
+             linear-gradient(315deg, var(--kx-gold) 25%, transparent 25%) 0 0/12px 12px,
+             linear-gradient(45deg, var(--kx-gold) 25%, transparent 25%) 0 0/12px 12px;
+
+  /* ربط كل أنظمة التصميم السابقة بالهوية الجديدة */
+  --k-bg: var(--kx-bg); --k-surface: var(--kx-s1); --k-border: var(--kx-line);
+  --k-t1: var(--kx-t1); --k-t2: var(--kx-t2); --k-t3: var(--kx-t3); --k-gold: var(--kx-gold);
+  --k-success: #3CB97A; --k-error: #E5604F; --k-warning: #F2B33D;
+  --brand: var(--kx-gold); --brand-hover: var(--kx-gold-1); --brand-dark: var(--kx-gold-3);
+  --brand-light: rgba(232, 150, 46, .13); --brand-50: rgba(232, 150, 46, .06);
+  --sand: var(--kx-gold); --sand-2: var(--kx-gold-3); --sand-light: #F7E6C8; --sand-bg: rgba(232, 150, 46, .08);
+  --gold-grad: var(--kx-grad); --gold-text: var(--kx-grad);
+  --ds-gold-1: var(--kx-gold-1); --ds-gold-2: var(--kx-gold); --ds-gold-3: var(--kx-gold-3); --ds-ink: #1A0F04;
+  --ds-text: var(--kx-t1); --ds-text-2: var(--kx-t2); --ds-text-3: var(--kx-t3);
+  --ds-surface: var(--kx-s1); --ds-surface-2: var(--kx-s2); --ds-line: var(--kx-line); --ds-line-2: var(--kx-line-2);
+  --bg: var(--kx-bg); --surface: var(--kx-s1); --surface-2: var(--kx-s2); --surface-3: var(--kx-s3);
+  --text: var(--kx-t1); --text-2: var(--kx-t2); --text-3: var(--kx-t3);
+  --border: var(--kx-line); --border-2: var(--kx-line-2); --border-3: rgba(232, 150, 46, .38);
+  --success: #3CB97A; --error: #E5604F; --warning: #F2B33D;
+  --shadow-focus: 0 0 0 3px rgba(232, 150, 46, .3);
+  --k-hair: rgba(246, 194, 107, .07);
+  --k-gold-line: rgba(232, 150, 46, .22);
+}
+
+html, body { background: var(--kx-bg) !important; }
+body::before {
+  background:
+    radial-gradient(60% 55% at 85% 0%, rgba(232, 150, 46, .14), transparent 70%),
+    radial-gradient(50% 40% at 0% 35%, rgba(184, 102, 31, .09), transparent 70%) !important;
+}
+
+/* الشعار في الشريط العلوي */
+.k-mark { display: block; filter: drop-shadow(0 4px 12px rgba(232, 150, 46, .25)); }
+.bar { position: sticky; }
+.bar::after {
+  content: ''; position: absolute; inset: auto 0 -6px 0; height: 6px; opacity: .22; pointer-events: none;
+  background: var(--kx-band);
+}
+.bar-logo span { color: var(--kx-t1); letter-spacing: .02em; }
+
+/* الأزرار الرئيسية بلون الشعار */
+.btn.btn-primary, .btn-primary {
+  background: var(--kx-grad) !important; color: #1A0F04 !important; border: 0 !important;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, .35), 0 8px 20px -12px rgba(232, 150, 46, .8) !important;
+}
+.pill.active { background: var(--kx-grad) !important; color: #1A0F04 !important; }
+a { color: inherit; }
+
+/* البطاقات والقوائم */
+.card { border-color: var(--kx-line) !important; }
+.list-row { border-color: var(--kx-line) !important; }
+.list-icon.brand { background: rgba(232, 150, 46, .12) !important; color: var(--kx-gold) !important; }
+
+/* البطاقة الترحيبية: نقش مثلثات ليبي خفيف */
+.hero-bn { position: relative; overflow: hidden; border: 1px solid var(--kx-line-2) !important;
+  background: radial-gradient(120% 120% at 100% 0%, rgba(232, 150, 46, .22), transparent 55%), var(--kx-s1) !important; }
+.hero-bn::after { content: ''; position: absolute; inset: auto 0 0 0; height: 8px; opacity: .35; background: var(--kx-band); }
+.hero-bn h3 { font-family: 'Reem Kufi', 'IBM Plex Sans Arabic', sans-serif; color: var(--kx-gold-1) !important; }
+
+/* صفحة الهبوط */
+.hero-amazigh .hero-tag { color: var(--kx-gold-1) !important; border-color: var(--kx-line-2) !important; background: rgba(232, 150, 46, .08) !important; }
+.hero-title-ar, .hero-title-en { background: var(--kx-grad); -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent; font-family: 'Reem Kufi', 'IBM Plex Sans Arabic', sans-serif; }
+.hero-vcard-wrap { display: flex; justify-content: center; }
+.hero-vcard-wrap > .vcard { display: none !important; }
+.hero-logo { width: min(260px, 62vw); height: auto; filter: drop-shadow(0 18px 40px rgba(232, 150, 46, .28)); animation: kx-float 6s ease-in-out infinite; }
+@keyframes kx-float { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-8px); } }
+.stat-value { color: var(--kx-gold-1) !important; }
+
+/* ── متجر كاردو ── */
+.rsc-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+@media (min-width: 640px) { .rsc-grid { grid-template-columns: repeat(4, minmax(0, 1fr)); } }
+.rsc-tile {
+  display: flex; flex-direction: column; text-align: right; padding: 0; overflow: hidden; cursor: pointer;
+  background: var(--kx-s1); border: 1px solid var(--kx-line); border-radius: 18px; color: var(--kx-t1);
+  transition: transform .16s ease, border-color .2s; -webkit-tap-highlight-color: transparent;
+}
+.rsc-tile:active { transform: scale(.97); }
+.rsc-tile:hover { border-color: var(--kx-line-2); }
+.rsc-tile-img { display: block; aspect-ratio: 16 / 11; background: var(--kx-s2); position: relative; }
+.rsc-tile-img img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.rsc-tile-ph { position: absolute; inset: 0; display: grid; place-items: center; font-size: 36px; }
+.rsc-tile-name { padding: 10px 12px 2px; font-weight: 800; font-size: 14px; line-height: 1.4; }
+.rsc-tile-from { padding: 0 12px 12px; font-size: 12px; color: var(--kx-gold-1); font-weight: 700; }
+.rsc-head { display: flex; flex-direction: column; gap: 10px; }
+.rsc-head-main { display: flex; gap: 12px; align-items: center; }
+.rsc-head-img { width: 64px; height: 64px; border-radius: 16px; object-fit: cover; border: 1px solid var(--kx-line-2); }
+.rsc-offer { width: 100%; text-align: right; background: none; cursor: pointer; }
+.rsc-offer .list-amount { color: var(--kx-gold-1); font-weight: 800; }
+.rsc-buy-head { display: flex; gap: 12px; align-items: center; }
+.rsc-buy-head img { width: 56px; height: 56px; border-radius: 14px; object-fit: cover; }
+.trust-row { display: flex; gap: 8px; flex-wrap: wrap; }
+.trust-row span { font-size: 12px; padding: 5px 10px; border-radius: 999px; background: rgba(232, 150, 46, .08); border: 1px solid var(--kx-line); color: var(--kx-t2); }
+
+/* الشريط السفلي */
+.bottom-nav { background: rgba(14, 11, 8, .92) !important; border-top: 1px solid var(--kx-line) !important; }
+.bottom-nav .nav-item.active { color: var(--kx-gold) !important; }
+.bottom-nav .nav-item::before { background: var(--kx-gold) !important; }
+
+/* الهاتف: روابط الشريط العلوي في صفحة الهبوط تُخفى حتى لا يخرج زر التسجيل عن الشاشة */
+@media (max-width: 640px) {
+  #public > .bar nav { display: none !important; }
+  #public > .bar .bar-actions { margin-inline-start: auto; }
+}

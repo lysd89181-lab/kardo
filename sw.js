@@ -1,6 +1,6 @@
 /* KARDO service worker — ملفات الموقع فقط، لا يلمس الـ API ولا البيانات */
-const V = 'kardo-v43';
-const CORE = ['./', './index.html', './app.js', './config.js', './styles.css', './theme-desert.css', './kardo-v8.css', './kardo-v9.css', './kardo-v10.css', './icon-192.png',
+const V = 'kardo-v44';
+const CORE = ['./', './index.html', './app.js', './config.js', './styles.css', './theme-desert.css', './kardo-v8.css', './kardo-v9.css', './kardo-v10.css', './kardo-v11.css', './gate.js', './kardo-mark.png', './kardo-logo.png', './icon-192.png',
   './fennec-welcome.webp', './fennec-success.webp', './fennec-empty.webp', './fennec-card.webp', './fennec-wait.webp', './fennec-error.webp'];
 
 self.addEventListener('install', e => {

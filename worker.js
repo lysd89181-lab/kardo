@@ -36,6 +36,7 @@ const DEFAULT_SETTINGS = {
   banners: [], banner_rotate_sec: 6, custom_methods: [],
   method_order: 'libyana,almadar,usdt,bank,binance', deposit_note: '',
   store_enabled: true, subscriptions_visible: true, manual_cards_enabled: true, mc_topup_on: false, mc_maint_on: false,
+  site_maint_on: true, site_maint_msg: '', rsc_on: true, rsc_margin_pct: 10, rsc_low_usd: 20,
   mc_create_min: 10, mc_create_max: 500, mc_create_fee_fixed: 8, mc_create_fee_pct: 2.5,
   mc_topup_min: 10, mc_topup_max: 500, mc_topup_fee_fixed: 8, mc_topup_fee_pct: 2.5,
   mc_tx_fee: 0, mc_reveal_hours: 24, mc_cvv_minutes: 5,
@@ -94,6 +95,7 @@ export default {
     if (request.method === 'GET') {
       const im = /^\/img\/([pcmbslvxygq])\/([A-Za-z0-9_-]{1,60})$/.exec(path);
       if (im) { try { return await handleImage(request, env, ctx, im[1], decodeURIComponent(im[2])); } catch { return new Response('Error', { status: 500 }); } }
+      if (path.startsWith('/rsc/img/') || path === '/rsc/pimg') { try { return await handleRscImage(request, env, ctx, url); } catch { return new Response('Error', { status: 500 }); } }
       if (path === '/sitemap.xml') {
         try {
           const ck = new Request(url.origin + '/sitemap.xml');
@@ -127,6 +129,7 @@ export default {
     const jobs = [purgeExpiredCvv(env).catch(e => console.error('CVV_PURGE_FAILED', e.message)),
       d1Cron(env, event.scheduledTime).catch(e => console.error('D1_CRON_FAILED', e.message)),
     ];
+    { const _m = new Date(event.scheduledTime || Date.now()).getUTCMinutes(); jobs.push(rscCron(env, _m < 5).catch(e => console.error('RSC_CRON_FAILED', e.message))); }
     const _t = new Date(event.scheduledTime || Date.now());
     const minute = _t.getUTCMinutes(), hour = _t.getUTCHours();
     if (minute < 5) {
@@ -137,7 +140,6 @@ export default {
         migrateAndPurgeCodes(env).catch(e => console.error('CODES_JOB_FAILED', e.message)),
         purgeExpiredIdempotency(env).catch(e => console.error('IDEM_PURGE_FAILED', e.message)),
       );
-      if (hour % 3 === 0) jobs.push(merchantsCron(env).catch(e => console.error('MERCHANT_CRON_FAILED', e.message)));
       if (hour === 6) jobs.push(statementsCron(env).catch(e => console.error('STATEMENTS_CRON_FAILED', e.message)));
     }
     ctx.waitUntil(Promise.all(jobs).then(() => Promise.allSettled(drainBackground())));
@@ -146,7 +148,7 @@ export default {
 
 async function route(path, request, url, env) {
   if (request.method === 'GET') {
-    const h = { '/api/status': handleStatus, '/api/catalog': handleCatalog, '/api/services/list': handleServicesList, '/api/merchants/list': handleMerchantsList, '/api/platforms': handlePlatformsList }[path];
+    const h = { '/api/status': handleStatus, '/api/catalog': handleCatalog, '/api/services/list': handleServicesList, '/api/merchants/list': async () => ({ success: true, merchants: [], removed: true }), '/api/rsc/catalog': handleRscCatalog, '/api/platforms': handlePlatformsList }[path];
     if (!h) throw httpError(404, 'المسار غير موجود');
     const hit = _pubCache.get(path);
     if (hit && hit.exp > Date.now()) return hit.v;
@@ -177,8 +179,16 @@ async function route(path, request, url, env) {
   await verifyAppCheck(request, env);
   await enforceGlobalRateLimit(env, user.uid);
   const body = await safeJson(request);
+  if (path.startsWith('/api/m/') || path.startsWith('/api/admin/merchant')) throw httpError(410, 'خدمة المتاجر أُلغيت');
+  if (!path.startsWith('/api/admin/')) {
+    const s0 = await getSettings(env);
+    if (s0.site_maint_on === true && !(await isStaffCached(env, user.uid))) throw httpError(503, s0.site_maint_msg || 'الموقع قيد الصيانة — نعود قريبًا');
+  }
 
   switch (path) {
+    case '/api/rsc/order':             return handleRscOrder(user, body, env);
+    case '/api/rsc/my-orders':         return handleRscMyOrders(user, body, env);
+    case '/api/admin/rsc':             return handleAdminRsc(user, body, env);
     case '/api/wallet/claim':          return handleWalletClaim(user, body, env);
     case '/api/wallet/withdraw':       return handleWithdrawRequest(user, body, env);
     case '/api/wallet/transfer':       return handleTransfer(user, body, env);
@@ -451,7 +461,10 @@ async function handleStatus(env) {
       otp_fee: num(s.otp_fee_usd, 0.03),
     },
     store_on: s.kardo_store_on === true,
-    merchants_on: s.merchants_on === true,
+    merchants_on: false,
+    site_maint: s.site_maint_on === true,
+    site_maint_msg: String(s.site_maint_msg || '').slice(0, 300),
+    rsc_on: s.rsc_on !== false,
     d1: await d1PublicFlags(env),
     d1p: await d1IsPrimary(env).catch(() => false),
     crypto_nets: s.m_usdt_on === true ? Object.entries(CRYPTO_NETS).filter(([k, n]) => k === 'trc20' ? /^T/.test(String(s.usdt_address || '')) : s[n.onKey] === true && n.addrRe.test(String(s[n.addrKey] || ''))).map(([k, n]) => ({ id: k, label: n.label })) : [],
@@ -1535,6 +1548,16 @@ async function getStaff(env, uid) {
   const a = await fsGet(env, `admins/${uid}`).catch(() => null);
   if (!a || a.disabled === true || !STAFF_ROLES.includes(a.role)) return null;
   return { ...a, uid };
+}
+
+const _staffMemM = new Map();
+async function isStaffCached(env, uid) {
+  const h = _staffMemM.get(uid);
+  if (h && h.exp > Date.now()) return h.v;
+  const v = !!(await getStaff(env, uid).catch(() => null));
+  _staffMemM.set(uid, { v, exp: Date.now() + 60000 });
+  if (_staffMemM.size > 2000) _staffMemM.clear();
+  return v;
 }
 
 function staffCan(staff, perm) {
@@ -4035,6 +4058,9 @@ const MAIL = {
   plan_ok: (v) => [`تم تفعيل باقة ${escHtml(v.plan)}`, [`باقتك سارية حتى ${escHtml(v.until)}.`], 'فتح كاردو'],
   test: () => ['بريد تجريبي', ['إعداد البريد يعمل بشكل صحيح ✓'], ''],
   verify_code: (v) => ['رمز تأكيد بريدك', [`رمزك هو:`, `<div style="font-size:30px;letter-spacing:8px;font-weight:bold;color:#e8b64c;font-family:monospace;direction:ltr;text-align:center;padding:10px 0">${escHtml(v.code)}</div>`, 'صالح لمدة 10 دقائق. إذا لم تطلبه، تجاهل هذه الرسالة.'], ''],
+  rsc_done: (v) => ['تم تنفيذ طلبك ✓', [`اكتمل طلبك <b>${escHtml(v.name)}</b>.`, v.codes ? 'الكود جاهز في «طلباتي».' : 'وصل الشحن إلى حسابك.'], 'عرض طلباتي'],
+  rsc_failed: (v) => ['تعذّر تنفيذ طلبك', [`طلبك <b>${escHtml(v.name)}</b> لم يكتمل: ${escHtml(v.reason || '')}.`, `أُعيد <b>$${escHtml(v.amount)}</b> إلى محفظتك.`], 'فتح كاردو'],
+  rsc_admin: (v) => ['طلب متجر يحتاج مراجعة', [`الطلب <b>${escHtml(v.oid)}</b>: ${escHtml(v.why)}.`, 'افتح «متجر كاردو» في لوحة الإدارة.'], 'لوحة الإدارة'],
   order_placed: (v) => ['تم الشراء ✓', [`تم شراء <b>${escHtml(v.name)}</b> بقيمة <b>${escHtml(v.amount)}</b>.`, v.instant ? 'الكود جاهز في «طلباتي».' : 'سيُنفَّذ طلبك يدويًا ونُعلمك فور اكتماله.'], 'عرض طلباتي'],
   card_requested: (v) => ['وصل طلب البطاقة', [`طلبك لإصدار بطاقة بقيمة <b>$${escHtml(v.amount)}</b> قيد التنفيذ. سنُعلمك فور إصدارها.`], 'فتح كاردو'],
   deposit_pending: (v) => ['وصل طلب الإيداع', [`طلب إيداع <b>${escHtml(v.amount)}</b> عبر ${escHtml(v.method)} قيد المراجعة.`], 'فتح كاردو'],
@@ -5626,7 +5652,7 @@ async function markMerchantDirty(env, mid) {
 }
 
 // كاش Cloudflare المشترك لكل الزوار (لا يصل لـ Firestore) + نسخة احتياطية تُستخدم إذا رفض Firestore (حصة منتهية)
-const PUB_TTL = { '/api/status': 60, '/api/platforms': 600, '/api/merchants/list': 180, '/api/catalog': 300, '/api/services/list': 300 };
+const PUB_TTL = { '/api/rsc/catalog': 120, '/api/status': 60, '/api/platforms': 600, '/api/merchants/list': 180, '/api/catalog': 300, '/api/services/list': 300 };
 const edgeKey = (p, stale) => new Request(`https://kardo-edge.cache${stale ? '/stale' : ''}${p}`);
 async function edgeGet(p, stale) {
   if (typeof caches === 'undefined') return null;
@@ -6037,6 +6063,7 @@ const D1_IDX = {
   merchant_applications: [['status']], merchant_stock: [['sid', 'used']], stock: [['pid', 'used']], service_stock: [['service_id', 'is_used']],
   tickets: [['uid'], ['updated_at']], sms_transactions: [['created_at'], ['sender']], audit_log: [['created_at']], products: [['cat']],
   categories: [['parent']], coupon_uses: [['uid']], plan_orders: [['uid']], transfers: [['uid']], usdt_invoices: [['uid']], ref_codes: [['uid']],
+  rsc_orders: [['uid'], ['status'], ['created_at']],
   rate_limits: [], idempotency: [], otp_codes: [], otp_waits: [], email_codes: [], card_cvv_once: [], manual_card_reveal: [], public: [], settings: [],
   admins: [], stickers: [], platforms: [], daily_counters: [], usdt_amounts: [], usdt_txids: [], phone_bindings: [], phone_owners: [], phone_verifications: [['status']],
 };
@@ -7057,4 +7084,432 @@ async function handleAdminD1Rows(user, body, env) {
   if (body.field) { if (!allow[coll].includes(body.field)) throw httpError(400, 'حقل غير مسموح'); sq.where = qEq(String(body.field), String(body.value || '')); }
   const rows = await fsQueryStrict(env, sq);
   return { success: true, list: fsRowsPlain(rows, coll), d1: await d1ReadOn(env, coll) };
+}
+
+/* ═══════════════════════════════════════════════════════════
+   v44 — متجر كاردو عبر Resell Codes (RSC)
+   - الكتالوج يُسحب ويُخزَّن (KV)، والعروض تُحدَّث للأقسام المفعّلة فقط
+   - الشراء: خصم من المحفظة ← طلب للمزود ← متابعة حتى الاكتمال
+   - لا إعادة إرسال تلقائي لطلب الشراء أبدًا (المزود بلا idempotency)
+   ═══════════════════════════════════════════════════════════ */
+const RSC_BASE = 'https://resell.codes/api/v1';
+const RSC_ORIGIN = 'https://resell.codes';
+const RSC_FAIL_AR = {
+  out_of_stock: 'نفدت الكمية لدى المزود', stock_short: 'الكمية المتوفرة غير كافية', price_changed: 'تغيّر السعر لدى المزود',
+  offer_gone: 'العرض لم يعد متاحًا', account_problem: 'مشكلة في حساب اللاعب', region_restricted: 'المنطقة غير مدعومة لهذا المنتج',
+  limit_exceeded: 'تجاوز الحد المسموح', timed_out: 'انتهت مهلة التنفيذ', cancelled: 'أُلغي الطلب', declined: 'رُفض الطلب',
+};
+const RSC_OPEN = ['created', 'processing'];
+
+async function rscCall(env, method, path, body) {
+  if (!env.RSC_API_KEY) throw httpError(503, 'مفتاح المزود غير مضاف بعد (RSC_API_KEY)');
+  const r = await fetch(RSC_BASE + path, {
+    method, signal: AbortSignal.timeout(20000),
+    headers: { authorization: 'Bearer ' + env.RSC_API_KEY, accept: 'application/json', ...(body ? { 'content-type': 'application/json' } : {}) },
+    body: body ? JSON.stringify(body) : undefined,
+  });
+  let j = null; try { j = await r.json(); } catch {}
+  if (!r.ok) {
+    const e = new Error((j && j.error && j.error.message) || ('HTTP ' + r.status));
+    e.rscStatus = r.status; e.rscType = j && j.error && j.error.type;
+    throw e;
+  }
+  return j || {};
+}
+const rscKey = (type, id) => (type === 'topup' ? 't' : 'g') + '~' + String(id);
+const rscKeyOk = k => /^[gt]~[A-Za-z0-9_.:-]{1,80}$/.test(String(k || ''));
+const rscSplit = k => ({ type: k[0] === 't' ? 'topup' : 'gift', id: k.slice(2) });
+function rscImg(env, key, cfg, cat) {
+  const c = cfg && cfg.cats && cfg.cats[key] || {};
+  if (c.img_v) return `/rsc/img/${encodeURIComponent(key)}?v=${c.img_v}`;
+  if (cat && /^https:\/\//.test(cat.image || '')) return cat.image;
+  if (cat && cat.image) return `/rsc/pimg?p=${encodeURIComponent(cat.image)}`;
+  return '';
+}
+
+/* ─── الإعدادات (KV + نسخة في القاعدة) ─── */
+let _rscCfg = { v: null, exp: 0 };
+async function rscCfg(env) {
+  if (_rscCfg.v && _rscCfg.exp > Date.now()) return _rscCfg.v;
+  let v = await kvGetJSON(env, 'rsc:cfg');
+  if (!v) { v = await fsGet(env, 'settings/rsc_cfg').catch(() => null); if (v) kvPutJSON(env, 'rsc:cfg', v, 86400 * 30); }
+  v = v && typeof v === 'object' ? v : {};
+  v.cats = v.cats && typeof v.cats === 'object' ? v.cats : {};
+  _rscCfg = { v, exp: Date.now() + 60000 };
+  return v;
+}
+async function rscCfgSave(env, v) {
+  _rscCfg = { v, exp: Date.now() + 60000 };
+  if (env.KV) await env.KV.put('rsc:cfg', JSON.stringify(v), { expirationTtl: 86400 * 30 }).catch(() => {});
+  await fsSet(env, 'settings/rsc_cfg', v).catch(() => {});
+  bustPublic();
+}
+async function rscKvGet(env, k) { return env.KV ? env.KV.get(k, 'json').catch(() => null) : null; }
+async function rscKvPut(env, k, v, ttl) { if (env.KV) await env.KV.put(k, JSON.stringify(v), { expirationTtl: ttl || 86400 * 7 }).catch(() => {}); }
+
+/* ─── مزامنة قائمة الأقسام (طلبان أو أكثر) ─── */
+async function rscSyncCategories(env) {
+  const out = [];
+  for (const [type, path] of [['gift', '/gift-cards/categories'], ['topup', '/top-ups/categories']]) {
+    let cursor = null;
+    for (let page = 0; page < 10; page++) {
+      const j = await rscCall(env, 'GET', `${path}?limit=100${cursor ? '&cursor=' + encodeURIComponent(cursor) : ''}`);
+      for (const c of (j.data || [])) {
+        if (!c || !c.category_id) continue;
+        out.push({ key: rscKey(type, c.category_id), type, id: String(c.category_id), name: String(c.name || c.category_id).slice(0, 80),
+          image: typeof c.image === 'string' ? c.image.slice(0, 300) : '', note: String(c.note || '').slice(0, 300) });
+      }
+      if (!j.has_more || !j.next_cursor) break;
+      cursor = j.next_cursor;
+    }
+  }
+  if (out.length) await rscKvPut(env, 'rsc:cats', { at: Date.now(), list: out }, 86400 * 30);
+  return out;
+}
+async function rscCats(env) { const v = await rscKvGet(env, 'rsc:cats'); return (v && v.list) || []; }
+
+/* ─── عروض قسم واحد (طلب واحد) ─── */
+async function rscFetchOffers(env, key) {
+  const { type, id } = rscSplit(key);
+  const j = await rscCall(env, 'GET', type === 'topup'
+    ? `/top-ups/categories/${encodeURIComponent(id)}/offers`
+    : `/gift-cards/categories/${encodeURIComponent(id)}/cards`);
+  const offers = (j.offers || []).map(o => ({
+    id: String(type === 'topup' ? o.offer_id : o.card_id), name: String(o.name || '').slice(0, 120),
+    cost: num(o.price_usd, 0), stock: o.stock == null ? null : num(o.stock, 0),
+    min: Math.max(1, Math.floor(num(o.min_quantity, 1))), max: Math.min(100, Math.max(1, Math.floor(num(o.max_quantity, type === 'topup' ? 1 : 20)))),
+  })).filter(o => o.id && o.cost > 0);
+  const fields = type === 'topup' ? (j.fields || []).slice(0, 6).map(f => ({ key: String(f.key || '').slice(0, 40), label: String(f.label || f.key || '').slice(0, 60), type: f.type === 'number' ? 'number' : 'text' })).filter(f => f.key) : [];
+  const v = { at: Date.now(), offers, fields };
+  await rscKvPut(env, 'rsc:off:' + key, v, 86400 * 7);
+  return v;
+}
+async function rscOffers(env, key, maxAgeMs) {
+  const v = await rscKvGet(env, 'rsc:off:' + key);
+  if (v && (!maxAgeMs || Date.now() - num(v.at, 0) < maxAgeMs)) return v;
+  return rscFetchOffers(env, key);
+}
+const rscSell = (cost, margin) => Math.ceil(cost * (1 + Math.max(0, margin) / 100) * 100) / 100;
+function rscMargin(s, cfg, key) {
+  const c = cfg.cats[key] || {};
+  return c.margin != null && c.margin !== '' && Number.isFinite(Number(c.margin)) ? Number(c.margin) : num(s.rsc_margin_pct, 10);
+}
+
+/* ─── الكتالوج العام (مخزّن مؤقتًا) ─── */
+async function handleRscCatalog(env) {
+  const s = await getSettings(env);
+  if (s.rsc_on === false) return { success: true, on: false, categories: [] };
+  const cfg = await rscCfg(env);
+  const all = await rscCats(env);
+  const byKey = new Map(all.map(c => [c.key, c]));
+  const keys = Object.keys(cfg.cats).filter(k => cfg.cats[k] && cfg.cats[k].on === true && byKey.has(k));
+  const categories = [];
+  for (const key of keys) {
+    const cat = byKey.get(key), c = cfg.cats[key];
+    const off = await rscKvGet(env, 'rsc:off:' + key);
+    if (!off) continue;
+    const m = rscMargin(s, cfg, key);
+    categories.push({
+      key, type: cat.type, name: c.name || cat.name, image: rscImg(env, key, cfg, cat), note: c.note || cat.note || '',
+      sort: num(c.sort, 99), fields: off.fields || [],
+      offers: (off.offers || []).filter(o => o.stock == null || o.stock > 0).map(o => ({ id: o.id, name: o.name, price: rscSell(o.cost, m), min: o.min, max: o.max })),
+    });
+  }
+  categories.sort((a, b) => a.sort - b.sort || a.name.localeCompare(b.name));
+  return { success: true, on: true, rate: num(s.usd_to_lyd, 11.8), categories: categories.filter(c => c.offers.length) };
+}
+
+/* ─── صور الأقسام: مخصّصة (KV) أو من المزود (وكيل مع تخزين) ─── */
+async function handleRscImage(request, env, ctx, url) {
+  const cache = caches.default;
+  const ck = new Request(url.origin + url.pathname + url.search);
+  const hit = await cache.match(ck); if (hit) return hit;
+  let bytes = null, type = 'image/jpeg';
+  const m = /^\/rsc\/img\/([^/]+)$/.exec(url.pathname);
+  if (m) {
+    const key = decodeURIComponent(m[1]);
+    if (!rscKeyOk(key) || !env.KV) return new Response('Not found', { status: 404 });
+    const kv = await env.KV.getWithMetadata('rsc:img:' + key, 'arrayBuffer').catch(() => null);
+    if (!kv || !kv.value) return new Response('Not found', { status: 404 });
+    bytes = kv.value; type = (kv.metadata && kv.metadata.type) || type;
+  } else {
+    const p = String(url.searchParams.get('p') || '');
+    if (!/^\/api\/media\/[^\s"'<>\\]{1,300}$/.test(p) || p.includes('..')) return new Response('Bad', { status: 400 });
+    if (!ipAllow(request, 'img', 120)) return new Response('Too many', { status: 429 });
+    const r = await fetch(RSC_ORIGIN + p, { headers: env.RSC_API_KEY ? { authorization: 'Bearer ' + env.RSC_API_KEY } : {}, signal: AbortSignal.timeout(10000) }).catch(() => null);
+    if (!r || !r.ok || !/^image\//.test(r.headers.get('content-type') || '')) return new Response('Not found', { status: 404, headers: { 'cache-control': 'public, max-age=600' } });
+    bytes = await r.arrayBuffer(); type = r.headers.get('content-type');
+    if (bytes.byteLength > 800000) return new Response('Too big', { status: 404 });
+  }
+  const res = new Response(bytes, { headers: { 'content-type': type, 'cache-control': 'public, max-age=86400', 'access-control-allow-origin': '*', 'x-content-type-options': 'nosniff' } });
+  ctx.waitUntil(cache.put(ck, res.clone()));
+  return res;
+}
+
+/* ─── الشراء ─── */
+function rscCodesOf(j) {
+  const raw = (j && (j.codes || j.keys)) || [];
+  return (Array.isArray(raw) ? raw : []).slice(0, 100).map(c => {
+    if (typeof c === 'string' || typeof c === 'number') return String(c);
+    if (c && typeof c === 'object') return [c.code, c.pin, c.serial, c.key].filter(Boolean).map(String).join(' | ') || JSON.stringify(c).slice(0, 300);
+    return '';
+  }).filter(Boolean);
+}
+const rscNumOf = j => { const v = j && (j.number ?? j.order_number ?? j.order_id ?? j.id); return v == null ? '' : String(v).slice(0, 60); };
+const rscStatusOf = j => String((j && j.status) || 'created').toLowerCase();
+
+async function handleRscOrder(user, body, env) {
+  const s = await getSettings(env);
+  assertLive(s);
+  if (s.rsc_on === false) throw httpError(503, 'المتجر متوقف مؤقتًا');
+  const key = idemKeyOf(body);
+  if (!memAllowWin(`rsc_${user.uid}`, 20, 3600)) throw httpError(429, 'محاولات كثيرة — حاول بعد ساعة');
+  const ckey = String(body.cat || '');
+  if (!rscKeyOk(ckey)) throw httpError(400, 'قسم غير صالح');
+  const cfg = await rscCfg(env);
+  if (!cfg.cats[ckey] || cfg.cats[ckey].on !== true) throw httpError(404, 'القسم غير متاح');
+  const { type, id: catId } = rscSplit(ckey);
+  const offerId = String(body.offer || '').slice(0, 80);
+
+  let live;
+  try { live = await rscFetchOffers(env, ckey); }                     // سعر ومخزون لحظي قبل الخصم
+  catch (e) { throw httpError(502, 'تعذّر الوصول للمزود الآن — حاول بعد قليل'); }
+  const off = live.offers.find(o => o.id === offerId);
+  if (!off) throw httpError(404, 'العرض لم يعد متاحًا — حدّث الصفحة');
+  const qty = type === 'topup' ? 1 : Math.floor(num(body.qty, 1));
+  if (!(qty >= off.min && qty <= off.max)) throw httpError(400, `الكمية من ${off.min} إلى ${off.max}`);
+  if (off.stock != null && off.stock < qty) throw httpError(409, 'الكمية غير متوفرة حاليًا');
+  const fields = {};
+  if (type === 'topup') {
+    for (const f of live.fields) {
+      const v = toLatinDigits(String((body.fields || {})[f.key] || '')).trim().slice(0, 120);
+      if (!v) throw httpError(400, `${f.label} مطلوب`);
+      fields[f.key] = v;
+    }
+  }
+  const unit = rscSell(off.cost, rscMargin(s, cfg, ckey));
+  const total = round2(unit * qty);
+  const expect = num(body.expect, 0);
+  if (expect > 0 && total > round2(expect + 0.009)) throw httpError(409, 'تغيّر السعر — حدّث الصفحة وأعد المحاولة');
+  const cats = await rscCats(env);
+  const cat = cats.find(c => c.key === ckey) || {};
+  const catName = (cfg.cats[ckey] && cfg.cats[ckey].name) || cat.name || catId;
+  const oid = `RSC${Date.now()}${randomSuffix(4)}`;
+
+  const resp = await fsRunTransaction(env, async (tx) => {
+    const hit = await idemRead(tx, user.uid, key); if (hit) return hit;
+    const L = await ledgerOpen(tx, user.uid);
+    if (L.doc.banned === true) throw httpError(403, 'الحساب موقوف');
+    assertEmailVerified(env, s, L.doc);
+    await ledgerPost(L, { type: 'debit', amount: total, reason: 'rsc_order', reference: oid, entryId: `txn_rsc_${oid}` });
+    ledgerClose(tx, L, { total_spent: round2(num(L.doc.total_spent, 0) + total) });
+    tx.create('rsc_orders', oid, {
+      uid: user.uid, kind: type, cat: ckey, cat_name: catName, offer_id: off.id, offer_name: off.name, qty, fields,
+      cost_usd: round2(off.cost * qty), total_usd: total, status: 'submitting', created_at: nowIso(), updated_at: nowIso(),
+    });
+    const r = { success: true, id: oid, total };
+    idemWrite(tx, user.uid, key, r);
+    return r;
+  });
+  if (resp.replayed) return rscOrderView(env, resp.id, user.uid);
+
+  // إرسال واحد فقط للمزود
+  let j = null;
+  try {
+    j = await rscCall(env, 'POST', type === 'topup' ? '/top-ups/order' : '/gift-cards/order',
+      type === 'topup' ? { category_id: catId, offer_id: off.id, fields } : { category_id: catId, card_id: off.id, quantity: qty });
+  } catch (e) {
+    const definite = e.rscStatus && e.rscStatus >= 400 && e.rscStatus < 500;   // رفض صريح ← لم يُنفَّذ ← نُرجع المبلغ
+    if (definite) {
+      await rscRefund(env, oid, 'تعذّر تنفيذ الطلب لدى المزود', 'system', e.message);
+    } else {
+      await fsPatch(env, `rsc_orders/${oid}`, { status: 'unknown', provider_error: String(e.message || '').slice(0, 200), updated_at: nowIso() }).catch(() => {});
+      rscAlertAdmins(env, oid, 'طلب بحالة غير معروفة يحتاج مراجعة');
+    }
+    await logOp(env, user.uid, 'rsc.order', { oid, cat: ckey }, { error: String(e.message || '').slice(0, 120) }, false);
+    return rscOrderView(env, oid, user.uid);
+  }
+  const number = rscNumOf(j);
+  await fsPatch(env, `rsc_orders/${oid}`, { number, status: rscStatusOf(j), updated_at: nowIso() });
+  await rscApply(env, oid, j);
+  // متابعة قصيرة: بطاقات الهدايا غالبًا تكتمل خلال ثوانٍ
+  for (let i = 0; i < 3 && number; i++) {
+    const o = await fsGet(env, `rsc_orders/${oid}`);
+    if (!o || !RSC_OPEN.includes(o.status)) break;
+    await sleep(2500);
+    try { await rscApply(env, oid, await rscCall(env, 'GET', `/orders/${encodeURIComponent(number)}`)); } catch { break; }
+  }
+  await logOp(env, user.uid, 'rsc.order', { oid, cat: ckey, qty }, { number }, true);
+  return rscOrderView(env, oid, user.uid);
+}
+
+// تطبيق حالة المزود على طلبنا (آمن للتكرار)
+async function rscApply(env, oid, j) {
+  const st = rscStatusOf(j);
+  const o = await fsGet(env, `rsc_orders/${oid}`);
+  if (!o || ['completed', 'refunded'].includes(o.status)) return;
+  if (st === 'completed') {
+    const codes = rscCodesOf(j);
+    await fsPatch(env, `rsc_orders/${oid}`, { status: 'completed', codes_enc: await encCodes(env, `rsc:${oid}`, codes), codes_n: codes.length,
+      completed_at: nowIso(), updated_at: nowIso(), charged_usd: num(j.charged_usd, 0) });
+    notify(env, o.uid, 'rsc_done', { name: `${o.cat_name} — ${o.offer_name}`, codes: codes.length > 0 });
+  } else if (st === 'failed' || st === 'refund' || st === 'refunded' || st === 'cancelled') {
+    const code = String(j.fail_code || '').toLowerCase();
+    await rscRefund(env, oid, RSC_FAIL_AR[code] || String(j.status_reason || 'تعذّر تنفيذ الطلب').slice(0, 120), 'system', code);
+  } else if (st !== o.status) {
+    await fsPatch(env, `rsc_orders/${oid}`, { status: st, updated_at: nowIso() });
+  }
+}
+
+async function rscRefund(env, oid, reason, by, code) {
+  let o0 = null;
+  await fsRunTransaction(env, async (tx) => {
+    const o = await tx.get(`rsc_orders/${oid}`);
+    if (!o || ['refunded', 'completed'].includes(o.status)) return;
+    o0 = o;
+    const L = await ledgerOpen(tx, o.uid);
+    await ledgerPost(L, { type: 'credit', amount: num(o.total_usd, 0), reason: 'rsc_refund', reference: oid, entryId: `txn_rsc_refund_${oid}`, created_by: by || 'system' });
+    ledgerClose(tx, L, { total_spent: Math.max(0, round2(num(L.doc.total_spent, 0) - num(o.total_usd, 0))) });
+    tx.update(`rsc_orders/${oid}`, { status: 'refunded', fail_reason: String(reason || '').slice(0, 160), fail_code: String(code || '').slice(0, 60), refunded_by: by || 'system', updated_at: nowIso() });
+  });
+  if (o0) notify(env, o0.uid, 'rsc_failed', { name: `${o0.cat_name} — ${o0.offer_name}`, amount: num(o0.total_usd, 0).toFixed(2), reason });
+}
+
+async function rscOrderView(env, oid, uid) {
+  const o = await fsGet(env, `rsc_orders/${oid}`);
+  if (!o || (uid && o.uid !== uid)) throw httpError(404, 'الطلب غير موجود');
+  return { success: true, order: await rscPublic(env, { ...o, _id: oid }) };
+}
+async function rscPublic(env, o) {
+  return { id: o._id, status: o.status, kind: o.kind, cat_name: o.cat_name, offer_name: o.offer_name, qty: o.qty, fields: o.fields || {},
+    total_usd: num(o.total_usd, 0), created_at: o.created_at, fail_reason: o.fail_reason || '',
+    codes: o.status === 'completed' && o.codes_enc ? (await decCodes(env, `rsc:${o._id}`, o.codes_enc)) || [] : [] };
+}
+
+async function handleRscMyOrders(user, body, env) {
+  const rows = await fsQueryRaw(env, { from: [{ collectionId: 'rsc_orders' }],
+    where: { fieldFilter: { field: { fieldPath: 'uid' }, op: 'EQUAL', value: { stringValue: user.uid } } }, limit: 60 });
+  const list = rows.map(r => withId(r, 'rsc_orders')).sort((a, b) => String(b.created_at || '').localeCompare(String(a.created_at || ''))).slice(0, 40);
+  const orders = [];
+  for (const o of list) orders.push(await rscPublic(env, o));
+  return { success: true, orders };
+}
+
+function rscAlertAdmins(env, oid, why) {
+  background((async () => {
+    const admins = await fsQueryRaw(env, { from: [{ collectionId: 'admins' }], limit: 30 }).catch(() => []);
+    for (const a of admins.map(r => withId(r, 'admins')).filter(a => a.role === 'super_admin')) await pushInApp(env, a._id, 'rsc_admin', { oid, why }).catch(() => {});
+  })());
+}
+
+/* ─── المتابعة الدورية (كل 5 دقائق) + تحديث العروض (كل ساعة) ─── */
+async function rscCron(env, hourly) {
+  if (!env.RSC_API_KEY) return;
+  let polled = 0;
+  for (const st of RSC_OPEN) {
+    const rows = await fsQueryRaw(env, { from: [{ collectionId: 'rsc_orders' }],
+      where: { fieldFilter: { field: { fieldPath: 'status' }, op: 'EQUAL', value: { stringValue: st } } }, limit: 25 }).catch(() => []);
+    for (const r of rows) {
+      const o = withId(r, 'rsc_orders');
+      if (!o.number || polled >= 15) continue;
+      polled++;
+      try { await rscApply(env, o._id, await rscCall(env, 'GET', `/orders/${encodeURIComponent(o.number)}`)); } catch {}
+    }
+  }
+  if (!hourly) return;
+  const cfg = await rscCfg(env);
+  const on = Object.keys(cfg.cats).filter(k => cfg.cats[k] && cfg.cats[k].on === true).slice(0, 20);
+  for (const k of on) { try { await rscFetchOffers(env, k); } catch {} }
+  if (on.length) bustPublic();
+  const cats = await rscKvGet(env, 'rsc:cats');
+  if (!cats || Date.now() - num(cats.at, 0) > 86400000) await rscSyncCategories(env).catch(() => {});
+}
+
+/* ─── الأدمن ─── */
+async function handleAdminRsc(user, body, env) {
+  const action = String(body.action || 'state');
+  const perm = ['state', 'orders'].includes(action) ? 'orders.view' : action === 'order' ? 'orders.approve' : 'store.edit';
+  const staff = await requirePermission(user, env, perm);
+  const s = await getSettings(env);
+  const cfg = await rscCfg(env);
+
+  if (action === 'state') {
+    let me = null, err = '';
+    try { me = await rscCall(env, 'GET', '/me'); } catch (e) { err = e.message; }
+    let cats = await rscCats(env);
+    if (!cats.length && env.RSC_API_KEY) { try { cats = await rscSyncCategories(env); } catch (e) { err = err || e.message; } }
+    const list = [];
+    for (const c of cats) {
+      const cc = cfg.cats[c.key] || {};
+      const off = cc.on ? await rscKvGet(env, 'rsc:off:' + c.key) : null;
+      list.push({ key: c.key, type: c.type, name: c.name, alias: cc.name || '', on: cc.on === true, margin: cc.margin ?? '', sort: cc.sort ?? '',
+        image: rscImg(env, c.key, cfg, c), custom_img: !!cc.img_v, offers: off ? off.offers.length : null, synced_at: off ? off.at : null });
+    }
+    const bal = me && (me.balance_usd ?? me.balance ?? (me.account && me.account.balance));
+    return { success: true, key_set: !!env.RSC_API_KEY, error: err, balance: bal == null ? null : num(bal, 0), me: me ? { email: me.email || '', limits: me.limits || me.rate_limits || null } : null,
+      margin: num(s.rsc_margin_pct, 10), low: num(s.rsc_low_usd, 20), on: s.rsc_on !== false, cats: list };
+  }
+  if (action === 'sync') {
+    const cats = await rscSyncCategories(env);
+    let n = 0;
+    for (const k of Object.keys(cfg.cats).filter(k => cfg.cats[k].on === true).slice(0, 20)) { try { await rscFetchOffers(env, k); n++; } catch {} }
+    bustPublic();
+    await logOp(env, staff.uid, 'rsc.sync', {}, { cats: cats.length, offers: n }, true);
+    return { success: true, cats: cats.length, refreshed: n };
+  }
+  if (action === 'cat') {
+    const key = String(body.key || '');
+    if (!rscKeyOk(key)) throw httpError(400, 'قسم غير صالح');
+    const cur = { ...(cfg.cats[key] || {}) };
+    if ('on' in body) cur.on = body.on === true;
+    if ('name' in body) cur.name = String(body.name || '').trim().slice(0, 60);
+    if ('note' in body) cur.note = String(body.note || '').trim().slice(0, 300);
+    if ('margin' in body) cur.margin = body.margin === '' || body.margin == null ? '' : Math.min(300, Math.max(0, num(body.margin, 0)));
+    if ('sort' in body) cur.sort = body.sort === '' || body.sort == null ? '' : Math.floor(num(body.sort, 99));
+    if ('image' in body) {
+      const img = String(body.image || '');
+      if (!img) { cur.img_v = 0; if (env.KV) await env.KV.delete('rsc:img:' + key).catch(() => {}); }
+      else {
+        const m = /^data:(image\/(?:png|jpeg|webp));base64,([A-Za-z0-9+/=]+)$/.exec(img);
+        if (!m || m[2].length > 400000) throw httpError(400, 'صورة غير صالحة أو كبيرة');
+        const bin = Uint8Array.from(atob(m[2]), c => c.charCodeAt(0));
+        if (env.KV) await env.KV.put('rsc:img:' + key, bin, { metadata: { type: m[1] } });
+        cur.img_v = Date.now();
+      }
+    }
+    if (cur.on) { try { await rscFetchOffers(env, key); } catch (e) { if (!(await rscKvGet(env, 'rsc:off:' + key))) throw httpError(502, 'تعذّر جلب عروض القسم: ' + e.message); } }
+    cfg.cats[key] = cur;
+    await rscCfgSave(env, cfg);
+    await logOp(env, staff.uid, 'rsc.cat', { key }, { on: cur.on }, true);
+    return { success: true };
+  }
+  if (action === 'orders') {
+    const out = [];
+    for (const st of ['unknown', 'submitting', 'created', 'processing', 'completed', 'refunded']) {
+      const rows = await fsQueryRaw(env, { from: [{ collectionId: 'rsc_orders' }],
+        where: { fieldFilter: { field: { fieldPath: 'status' }, op: 'EQUAL', value: { stringValue: st } } }, limit: st === 'completed' || st === 'refunded' ? 40 : 30 }).catch(() => []);
+      rows.forEach(r => { const o = withId(r, 'rsc_orders'); out.push({ id: o._id, uid: o.uid, status: o.status, cat_name: o.cat_name, offer_name: o.offer_name, qty: o.qty,
+        total_usd: num(o.total_usd, 0), cost_usd: num(o.cost_usd, 0), number: o.number || '', fields: o.fields || {}, fail_reason: o.fail_reason || '', provider_error: o.provider_error || '', created_at: o.created_at }); });
+    }
+    out.sort((a, b) => String(b.created_at || '').localeCompare(String(a.created_at || '')));
+    return { success: true, orders: out.slice(0, 150) };
+  }
+  if (action === 'order') {
+    const oid = String(body.id || '');
+    const o = await fsGet(env, `rsc_orders/${oid}`);
+    if (!o) throw httpError(404, 'الطلب غير موجود');
+    const op = String(body.op || '');
+    if (op === 'recheck') {
+      if (body.number) await fsPatch(env, `rsc_orders/${oid}`, { number: String(body.number).slice(0, 60), status: 'processing', updated_at: nowIso() });
+      const n = String(body.number || o.number || '');
+      if (!n) throw httpError(400, 'أدخل رقم الطلب لدى المزود');
+      await rscApply(env, oid, await rscCall(env, 'GET', `/orders/${encodeURIComponent(n)}`));
+    } else if (op === 'refund') {
+      if (['completed', 'refunded'].includes(o.status)) throw httpError(409, 'الطلب مُغلق');
+      await rscRefund(env, oid, String(body.reason || 'أُلغي الطلب وأُعيد المبلغ').slice(0, 160), staff.uid, 'admin');
+    } else throw httpError(400, 'إجراء غير معروف');
+    await logOp(env, staff.uid, 'rsc.order.' + op, { oid }, {}, true);
+    return rscOrderView(env, oid, null);
+  }
+  throw httpError(400, 'إجراء غير معروف');
 }

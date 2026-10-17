@@ -312,6 +312,7 @@ onAuthStateChanged(auth, async user => {
   S.unsub.forEach(u => { try { u(); } catch {} });
   S.unsub = [];
   if (!user) {
+    try { localStorage.removeItem('kardo_staff'); } catch {}
     $('#gate').style.display = 'grid';
     $('#app').style.display = 'none';
     return;
@@ -333,6 +334,7 @@ onAuthStateChanged(auth, async user => {
       return;
     }
     S.admin = { uid: user.uid, email: user.email, ...adm };
+    try { localStorage.setItem('kardo_staff', '1'); } catch {}
     $('#gate').style.display = 'none';
     $('#app').style.display = 'block';
     const ROLE_AR = { super_admin: 'مسؤول رئيسي', staff: 'موظف', finance: 'مالية', support: 'دعم', ops: 'عمليات' };
@@ -467,6 +469,7 @@ window.refreshAll = () => render();
 /* ═══ Nav ═══ */
 const PAGES = [
   { k: 'home',       t: 'الرئيسية',       i: I.home,     g: 'الرئيسية' },
+  { k: 'rsc',        t: 'متجر كاردو (API)', i: I.box,    g: 'العمليات' },
   { k: 'mcards',     t: 'طلبات البطاقات', i: I.card,     g: 'العمليات', badge: 'pendMc' },
   { k: 'cards',      t: 'البطاقات',       i: I.card,     g: 'العمليات' },
   { k: 'orders',     t: 'طلبات المتجر',   i: I.orders,   g: 'العمليات', badge: 'pendOrd' },
@@ -478,7 +481,6 @@ const PAGES = [
   { k: 'coupons',    t: 'الكوبونات',      i: I.coupon,   g: 'المزيد' },
   { k: 'users',      t: 'المستخدمون',     i: I.users,    g: 'المزيد' },
   { k: 'sms',        t: 'الرسائل',        i: I.sms,      g: 'المزيد' },
-  { k: 'merchants',  t: 'المتاجر الموثوقة', i: I.bag || I.box, g: 'العمليات', badge: 'openReports' },
   { k: 'platforms',  t: 'منصات الاستخدام', i: I.grid || I.box, g: 'المزيد' },
   { k: 'stickers',   t: 'الملصقات',       i: I.box,      g: 'المزيد' },
   { k: 'settings',   t: 'الإعدادات',      i: I.gear,     g: 'النظام' },
@@ -510,13 +512,13 @@ const ROLE_DEFAULT_PERMS = {
   support: { tickets: ['view', 'reply', 'close'], users: ['view', 'ban'] },
   ops: { mcards: ['view', 'approve'], cards: ['view', 'edit'], orders: ['view', 'approve'], store: ['view', 'add', 'edit', 'delete'], services: ['view', 'add', 'edit', 'delete', 'approve'], users: ['view'] },
 };
-const PAGE_SEC = { platforms: 'stickers', mview: 'merchants', mcards: 'mcards', cards: 'cards', orders: 'orders', services: 'services', store: 'store', deposits: 'deposits',
+const PAGE_SEC = { rsc: 'store', platforms: 'stickers', mview: 'merchants', mcards: 'mcards', cards: 'cards', orders: 'orders', services: 'services', store: 'store', deposits: 'deposits',
   withdraw: 'withdraw', sms: 'sms', tickets: 'tickets', coupons: 'coupons', users: 'users', stickers: 'stickers', merchants: 'merchants', settings: '__super', system: '__super' };
 function isSuperAdmin() { return S.admin && S.admin.role === 'super_admin'; }
 function myPerms() { const a = S.admin || {}; return (a.perms && typeof a.perms === 'object') ? a.perms : (ROLE_DEFAULT_PERMS[a.role] || {}); }
 function can(sec, act) { if (isSuperAdmin()) return true; if (sec === '__super') return false; return (myPerms()[sec] || []).includes(act); }
 function pageAllowed(k) { const sec = PAGE_SEC[k]; return !sec || can(sec, 'view'); }
-const visiblePages = () => PAGES.filter(p => pageAllowed(p.k) && !(p.k === 'merchants' && !(S.settings && S.settings.merchants_on === true) && !(S.merchants || []).length));
+const visiblePages = () => PAGES.filter(p => pageAllowed(p.k) && p.k !== 'merchants' && p.k !== 'mview');
 let DOCK = DOCK_ALL;
 
 // إخفاء أزرار الإجراءات غير المسموحة (الخادم يرفضها أصلًا)
@@ -622,12 +624,14 @@ function openMoreMenu() {
 }
 
 window.go = k => {
+  if (k === 'merchants' || k === 'mview') k = 'home';
   if (!pageAllowed(k)) { toast('لا تملك صلاحية هذا القسم', 'bad'); k = 'home'; }
   if (S.unsub && S.admin) syncSubs(k);
   S._dirty = false;
   if (k === 'stickers') loadStickers();
   if (k === 'platforms') loadPlatforms();
   if (k === 'store') loadStore();
+  if (k === 'rsc') loadRscA();
   if (k === 'system') { loadStaff(); loadD1Status(); }
   S.page = k;
   S.q = '';
@@ -646,6 +650,7 @@ function render(force = false) {
 
   const views = {
     home: vHome,
+    rsc: vRsc,
     mcards: vMcardOrders,
     cards: vCards,
     orders: vShopOrders,
@@ -755,6 +760,7 @@ function vHome() {
       <span class="caption">${esc(new Date().toLocaleDateString('ar-LY', { weekday: 'long', day: 'numeric', month: 'long' }))}</span>
     </div>
 
+    ${maintCard()}
     ${S.settings.kill_switch === true ? `
       <div class="alert alert-error mb-4">${svg(I.warn, 2)}
         <div><strong>المنصة متوقفة الآن</strong> — العملاء لا يستطيعون الشراء.
@@ -4162,6 +4168,7 @@ async function saveSettings(btn) {
    ═══════════════════════════════════════════════════════════ */
 
 function bind() {
+  bindRscA();
   const q = $('#qBox');
   if (q) {
     q.oninput = e => {
@@ -4394,3 +4401,177 @@ onTap('#logoutBtn', () => {
   `);
   onTap('#doOut', () => { closeModal(); signOut(auth); });
 });
+
+/* ═══════════════════════════════════════════════════════════
+   v44 — متجر كاردو (Resell Codes) + وضع الصيانة
+   ═══════════════════════════════════════════════════════════ */
+S.rscA = { loaded: false, tab: 'cats', q: '', onlyOn: false, orders: null };
+async function loadRscA(withOrders) {
+  try { const r = await api('/api/admin/rsc', { action: 'state' }); S.rscA = { ...S.rscA, ...r, loaded: true, err: '' }; }
+  catch (e) { S.rscA = { ...S.rscA, loaded: true, err: e.message }; }
+  if (withOrders || S.rscA.tab === 'orders') await loadRscOrdersA(true);
+  if (S.page === 'rsc') render(true);
+}
+async function loadRscOrdersA(silent) {
+  try { const r = await api('/api/admin/rsc', { action: 'orders' }); S.rscA.orders = r.orders || []; }
+  catch (e) { if (!silent) toast(e.message, 'bad'); }
+  if (S.page === 'rsc') render(true);
+}
+const RSC_ST_A = { submitting: ['badge-warning', 'قيد الإرسال'], created: ['badge-warning', 'قيد التنفيذ'], processing: ['badge-warning', 'قيد التنفيذ'],
+  unknown: ['badge-error', 'تحتاج مراجعة'], completed: ['badge-success', 'مكتمل'], refunded: ['badge-neutral', 'مُسترد'] };
+function maintCard() {
+  const on = S.settings && S.settings.site_maint_on !== false;
+  return `<div class="card mb-4" style="border:1px solid ${on ? 'var(--warning)' : 'var(--border)'}">
+    <div class="flex-between" style="gap:10px;flex-wrap:wrap">
+      <div><div class="h4" style="margin-bottom:4px">🛠️ وضع الصيانة: ${on ? '<span style="color:var(--warning)">مفعّل</span>' : '<span style="color:var(--success)">متوقف — الموقع مفتوح للجميع</span>'}</div>
+        <div class="caption">${on ? 'الزوار يرون شاشة الصيانة. أنت (الإدارة) ترى الموقع كاملًا للمعاينة.' : 'كل العملاء يستخدمون الموقع الآن.'}</div></div>
+      <div style="display:flex;gap:8px;flex-wrap:wrap">
+        <a class="btn btn-secondary btn-sm" href="./index.html" target="_blank" rel="noopener">معاينة الموقع</a>
+        <button class="btn btn-sm ${on ? 'btn-primary' : 'btn-secondary'}" id="maintTgl" type="button">${on ? 'افتح الموقع للجميع' : 'فعّل الصيانة'}</button>
+      </div>
+    </div></div>`;
+}
+function vRsc() {
+  const R = S.rscA;
+  if (!R.loaded) { loadRscA(); return `<div class="page-enter"><div class="skeleton" style="height:140px;border-radius:16px"></div></div>`; }
+  const low = R.balance != null && R.balance < n(R.low);
+  const q = (R.q || '').trim().toLowerCase();
+  const cats = (R.cats || []).filter(c => (!R.onlyOn || c.on) && (!q || (c.name + ' ' + c.alias).toLowerCase().includes(q)));
+  const onCount = (R.cats || []).filter(c => c.on).length;
+  const imgU = u => !u ? '' : /^\//.test(u) ? API_BASE + u : u;
+  return `<div class="page-enter">
+    <div class="mb-4"><h1 class="h2" style="margin:0 0 4px;font-family:var(--font-display)">متجر كاردو</h1>
+      <p class="caption">الربط مع Resell Codes — الأقسام والأسعار والطلبات</p></div>
+    ${!R.key_set ? `<div class="alert alert-error mb-3">${svg(I.warn, 2)}<div><b>المفتاح غير مضاف.</b> أضف السر <code>RSC_API_KEY</code> في Cloudflare ثم حدّث الصفحة.</div></div>` : ''}
+    ${R.err || R.error ? `<div class="alert alert-error mb-3">${svg(I.warn, 2)}<div>${esc(R.err || R.error)}</div></div>` : ''}
+    <div class="grid-2 mb-3">
+      <div class="card card-sm" ${low ? 'style="border:1px solid var(--error)"' : ''}><div class="caption">رصيدك عند المزود</div>
+        <div class="h3 tabular" style="margin:4px 0;color:${low ? 'var(--error)' : 'var(--brand)'}">${R.balance == null ? '—' : '$' + n(R.balance).toFixed(2)}</div>
+        ${low ? '<div class="caption" style="color:var(--error)">الرصيد منخفض — اشحنه بـ USDT</div>' : '<div class="caption">يُخصم منه عند كل طلب</div>'}</div>
+      <div class="card card-sm"><div class="caption">الأقسام المفعّلة</div><div class="h3 tabular" style="margin:4px 0">${onCount}</div>
+        <div class="caption">من ${(R.cats || []).length} قسم لدى المزود</div></div>
+    </div>
+    <div class="card mb-3">
+      <div class="flex-between mb-2" style="gap:8px;flex-wrap:wrap">
+        <div><div class="h4" style="margin:0">المتجر ظاهر للعملاء</div><div class="caption">إيقافه يخفي المتجر ويمنع الشراء</div></div>
+        <button class="btn btn-sm ${R.on ? 'btn-primary' : 'btn-secondary'}" id="rscOn" type="button" style="min-width:80px">${R.on ? 'ظاهر' : 'مخفي'}</button>
+      </div>
+      <div class="grid-2" style="gap:8px;align-items:end">
+        <div class="field"><label class="field-label" for="rscMg">نسبة الربح العامة (%)</label><input class="input tabular" id="rscMg" type="number" min="0" max="300" step="0.5" value="${esc(String(R.margin))}"></div>
+        <div class="field"><label class="field-label" for="rscLow">تنبيه إذا قلّ الرصيد عن ($)</label><input class="input tabular" id="rscLow" type="number" min="0" step="1" value="${esc(String(R.low))}"></div>
+      </div>
+      <div style="display:flex;gap:8px;margin-top:10px;flex-wrap:wrap">
+        <button class="btn btn-primary btn-sm" id="rscSaveMg" type="button">حفظ</button>
+        <button class="btn btn-secondary btn-sm" id="rscSync" type="button">↻ تحديث الكتالوج من المزود</button>
+      </div>
+    </div>
+    <div class="pills mb-3">
+      <button class="pill ${R.tab === 'cats' ? 'active' : ''}" data-rsctab="cats" type="button">الأقسام</button>
+      <button class="pill ${R.tab === 'orders' ? 'active' : ''}" data-rsctab="orders" type="button">الطلبات${(R.orders || []).filter(o => o.status === 'unknown').length ? ` <span class="admin-badge">${(R.orders || []).filter(o => o.status === 'unknown').length}</span>` : ''}</button>
+    </div>
+    ${R.tab === 'cats' ? `
+      <div style="display:flex;gap:8px;margin-bottom:10px">
+        <input class="input" id="rscQ" placeholder="ابحث في أقسام المزود…" value="${esc(R.q || '')}" style="flex:1">
+        <button class="btn btn-sm ${R.onlyOn ? 'btn-primary' : 'btn-secondary'}" id="rscOnly" type="button">المفعّلة</button>
+      </div>
+      <div class="list">${cats.slice(0, 120).map(c => `
+        <div class="list-row" style="cursor:default">
+          <div class="list-icon" style="overflow:hidden;padding:0">${c.image ? `<img src="${esc(imgU(c.image))}" alt="" loading="lazy" style="width:100%;height:100%;object-fit:cover">` : (c.type === 'topup' ? '🎮' : '🎁')}</div>
+          <div class="list-content"><div class="list-title">${esc(c.alias || c.name)}${c.alias ? ` <span class="caption">(${esc(c.name)})</span>` : ''}</div>
+            <div class="list-meta">${c.type === 'topup' ? 'شحن ألعاب' : 'بطاقات هدايا'}${c.on ? ` · ${c.offers ?? 0} عرض` : ''}${c.margin !== '' ? ` · ربح ${esc(String(c.margin))}%` : ''}${c.custom_img ? ' · صورة مخصّصة' : ''}</div></div>
+          <div class="list-end" style="display:flex;gap:6px">
+            <button class="btn btn-ghost btn-sm" data-rscedit="${esc(c.key)}" type="button">تعديل</button>
+            <button class="btn btn-sm ${c.on ? 'btn-primary' : 'btn-secondary'}" data-rsctgl="${esc(c.key)}" type="button" style="min-width:68px">${c.on ? 'مفعّل' : 'مقفول'}</button>
+          </div>
+        </div>`).join('') || '<div class="caption" style="padding:16px;text-align:center">لا أقسام — اضغط «تحديث الكتالوج»</div>'}</div>
+      ${cats.length > 120 ? '<p class="caption" style="text-align:center;margin-top:8px">اكتب في البحث لتضييق النتائج</p>' : ''}` : `
+      ${R.orders == null ? '<div class="skeleton" style="height:120px;border-radius:14px"></div>' : (R.orders.length ? `<div class="list">${R.orders.map(o => `
+        <div class="list-row" style="cursor:default;align-items:flex-start">
+          <div class="list-content">
+            <div class="list-title">${esc(o.cat_name)} — ${esc(o.offer_name)}${o.qty > 1 ? ' × ' + o.qty : ''}</div>
+            <div class="list-meta">${esc(userName(o.uid))} · ${esc(dt(o.created_at))}${o.number ? ' · #' + esc(o.number) : ''}</div>
+            ${Object.keys(o.fields || {}).length ? `<div class="caption mono" dir="ltr">${esc(Object.entries(o.fields).map(([k, v]) => k + ': ' + v).join(' · '))}</div>` : ''}
+            ${o.fail_reason || o.provider_error ? `<div class="caption" style="color:var(--error)">${esc(o.fail_reason || o.provider_error)}</div>` : ''}
+            ${['unknown', 'submitting', 'created', 'processing'].includes(o.status) ? `<div style="display:flex;gap:6px;margin-top:6px">
+              <button class="btn btn-secondary btn-sm" data-rscchk="${esc(o.id)}" type="button">إعادة الفحص</button>
+              <button class="btn btn-outline-danger btn-sm" data-rscref="${esc(o.id)}" type="button">استرداد للعميل</button></div>` : ''}
+          </div>
+          <div class="list-end"><div class="list-amount tabular">$${n(o.total_usd).toFixed(2)}</div>
+            <div class="caption tabular">ربح $${(n(o.total_usd) - n(o.cost_usd)).toFixed(2)}</div>
+            <span class="badge ${(RSC_ST_A[o.status] || ['badge'])[0]}" style="margin-top:4px">${esc((RSC_ST_A[o.status] || ['', o.status])[1])}</span></div>
+        </div>`).join('')}</div>` : emptyState(I.box, 'لا طلبات بعد')) }`}
+  </div>`;
+}
+function openRscCatEdit(key) {
+  const c = (S.rscA.cats || []).find(x => x.key === key); if (!c) return;
+  let img = null;
+  modal(`
+    <div class="modal-head"><div class="modal-title">${esc(c.name)}</div>
+      <button class="modal-close" data-act="close-modal" aria-label="إغلاق">${svg(I.x)}</button></div>
+    <div class="field mb-3"><label class="field-label" for="rcN">الاسم الظاهر للعملاء (اختياري)</label><input class="input" id="rcN" maxlength="60" value="${esc(c.alias || '')}" placeholder="${esc(c.name)}"></div>
+    <div class="grid-2 mb-3">
+      <div class="field"><label class="field-label" for="rcM">ربح خاص (%)</label><input class="input tabular" id="rcM" type="number" min="0" max="300" step="0.5" value="${esc(String(c.margin))}" placeholder="العام ${esc(String(S.rscA.margin))}%"></div>
+      <div class="field"><label class="field-label" for="rcS">الترتيب</label><input class="input tabular" id="rcS" type="number" value="${esc(String(c.sort))}" placeholder="99"></div>
+    </div>
+    <div class="field mb-3"><label class="field-label">صورة القسم</label>
+      <div style="display:flex;gap:10px;align-items:center">
+        <span id="rcPrev" style="width:64px;height:64px;border-radius:14px;overflow:hidden;background:var(--surface-2);display:grid;place-items:center">${c.image ? `<img src="${esc(/^\//.test(c.image) ? API_BASE + c.image : c.image)}" style="width:100%;height:100%;object-fit:cover">` : '📷'}</span>
+        <input type="file" id="rcF" accept="image/*" style="flex:1">
+      </div>
+      ${c.custom_img ? '<button class="btn btn-ghost btn-sm" id="rcClr" type="button" style="padding:0;margin-top:6px">إرجاع صورة المزود</button>' : '<div class="caption" style="margin-top:4px">الصورة الحالية من المزود — ارفع صورة لتغييرها</div>'}
+    </div>
+    <button class="btn btn-primary btn-block" id="rcGo" type="button">حفظ</button>`);
+  $('#rcF').onchange = async () => {
+    try { img = await compressImg($('#rcF').files[0], 480, 0.82, 120000); $('#rcPrev').innerHTML = `<img src="${img}" style="width:100%;height:100%;object-fit:cover">`; } catch (e) { toast(e.message, 'bad'); }
+  };
+  onTap('#rcClr', () => { img = ''; $('#rcPrev').innerHTML = '📷'; toast('ستُستخدم صورة المزود عند الحفظ', 'ok'); });
+  onTap('#rcGo', async () => {
+    const body = { action: 'cat', key, name: $('#rcN').value.trim(), margin: $('#rcM').value.trim(), sort: $('#rcS').value.trim() };
+    if (img !== null) body.image = img;
+    const b = $('#rcGo'); b.disabled = true;
+    try { await api('/api/admin/rsc', body); closeModal(); toast('حُفظ ✓', 'ok'); loadRscA(); }
+    catch (e) { toast(e.message, 'bad'); b.disabled = false; }
+  });
+}
+function bindRscA() {
+  onTap('#maintTgl', async () => {
+    const on = S.settings && S.settings.site_maint_on !== false;
+    if (!confirm(on ? 'فتح الموقع لكل العملاء الآن؟' : 'تفعيل الصيانة؟ العملاء سيرون شاشة الصيانة.')) return;
+    try { await api('/api/admin/settings', { site_maint_on: !on }); S.settings = { ...S.settings, site_maint_on: !on }; toast(on ? 'الموقع مفتوح للجميع ✓' : 'الصيانة مفعّلة', 'ok'); render(true); }
+    catch (e) { toast(e.message, 'bad'); }
+  });
+  if (S.page !== 'rsc') return;
+  document.querySelectorAll('[data-rsctab]').forEach(b => b.onclick = () => { S.rscA.tab = b.dataset.rsctab; if (S.rscA.tab === 'orders') loadRscOrdersA(); render(true); });
+  document.querySelectorAll('[data-rscedit]').forEach(b => b.onclick = () => openRscCatEdit(b.dataset.rscedit));
+  document.querySelectorAll('[data-rsctgl]').forEach(b => b.onclick = async () => {
+    const c = (S.rscA.cats || []).find(x => x.key === b.dataset.rsctgl); if (!c) return;
+    b.disabled = true; b.textContent = '…';
+    try { await api('/api/admin/rsc', { action: 'cat', key: c.key, on: !c.on }); toast(!c.on ? 'فُعّل القسم وجُلبت عروضه ✓' : 'أُقفل القسم', 'ok'); await loadRscA(); }
+    catch (e) { toast(e.message, 'bad'); b.disabled = false; }
+  });
+  document.querySelectorAll('[data-rscchk]').forEach(b => b.onclick = async () => {
+    const o = (S.rscA.orders || []).find(x => x.id === b.dataset.rscchk); if (!o) return;
+    let number = o.number;
+    if (!number) { number = prompt('رقم الطلب لدى المزود (من لوحة Resell Codes):', ''); if (!number) return; }
+    try { await api('/api/admin/rsc', { action: 'order', id: o.id, op: 'recheck', number: o.number ? undefined : number }); toast('حُدّثت حالة الطلب', 'ok'); loadRscOrdersA(); }
+    catch (e) { toast(e.message, 'bad'); }
+  });
+  document.querySelectorAll('[data-rscref]').forEach(b => b.onclick = async () => {
+    if (!confirm('إرجاع المبلغ لمحفظة العميل وإغلاق الطلب؟ تأكد أن الطلب لم يُنفَّذ لدى المزود.')) return;
+    try { await api('/api/admin/rsc', { action: 'order', id: b.dataset.rscref, op: 'refund' }); toast('أُعيد المبلغ للعميل ✓', 'ok'); loadRscOrdersA(); }
+    catch (e) { toast(e.message, 'bad'); }
+  });
+  const q = $('#rscQ'); if (q) q.oninput = () => { S.rscA.q = q.value; render(); };
+  onTap('#rscOnly', () => { S.rscA.onlyOn = !S.rscA.onlyOn; render(true); });
+  onTap('#rscOn', async () => {
+    try { await api('/api/admin/settings', { rsc_on: !S.rscA.on }); S.rscA.on = !S.rscA.on; toast('حُفظ ✓', 'ok'); render(true); } catch (e) { toast(e.message, 'bad'); }
+  });
+  onTap('#rscSaveMg', async () => {
+    try { await api('/api/admin/settings', { rsc_margin_pct: n($('#rscMg').value), rsc_low_usd: n($('#rscLow').value) }); toast('حُفظ ✓ — الأسعار تتحدث خلال دقيقتين', 'ok'); loadRscA(); } catch (e) { toast(e.message, 'bad'); }
+  });
+  onTap('#rscSync', async () => {
+    const b = $('#rscSync'); b.disabled = true; b.textContent = 'جارٍ التحديث…';
+    try { const r = await api('/api/admin/rsc', { action: 'sync' }, 60000); toast(`تم: ${r.cats} قسم، وحُدّثت عروض ${r.refreshed} قسم مفعّل`, 'ok'); await loadRscA(); }
+    catch (e) { toast(e.message, 'bad'); b.disabled = false; b.textContent = '↻ تحديث الكتالوج من المزود'; }
+  });
+}

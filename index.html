@@ -3,13 +3,14 @@
 <head>
 <meta charset="UTF-8">
 <script src="./boot.js"></script>
+<script src="./gate.js"></script>
 <link rel="preconnect" href="https://kardo.sdkhyrallh08.workers.dev" crossorigin>
 <link rel="preconnect" href="https://www.gstatic.com" crossorigin>
 <link rel="preconnect" href="https://firestore.googleapis.com" crossorigin>
 <link rel="preconnect" href="https://identitytoolkit.googleapis.com" crossorigin>
 <meta name="referrer" content="strict-origin-when-cross-origin">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<meta name="theme-color" content="#0B0F0D">
+<meta name="theme-color" content="#0E0B08">
 <meta name="description" content="كاردو: بطاقة فيزا افتراضية للدفع أونلاين تُصدر خلال دقائق وتُشحن بالدينار الليبي عبر ليبيانا والمدار والتحويل المصرفي. ادفع نتفلكس وChatGPT وجوجل والشراء أونلاين بسهولة.">
 <meta name="robots" content="index,follow">
 <link rel="canonical" href="https://kardo.ly/">
@@ -22,7 +23,7 @@
 <meta name="twitter:card" content="summary_large_image">
 <script type="application/ld+json">{"@context":"https://schema.org","@graph":[{"@type":"Organization","name":"كاردو","alternateName":"KARDO","url":"https://kardo.ly/","logo":"https://kardo.ly/icon-512.png","areaServed":"LY"},{"@type":"WebSite","name":"كاردو","url":"https://kardo.ly/","inLanguage":"ar"}]}</script>
 <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' https://www.gstatic.com https://www.google.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data: blob: https:; connect-src 'self' https://*.googleapis.com https://kardo.sdkhyrallh08.workers.dev; frame-src https://www.google.com https://kardo-1c657.firebaseapp.com; object-src 'none'; base-uri 'self'; form-action 'self'">
-<title>كاردو — بطاقة فيزا افتراضية في ليبيا تُشحن بالدينار</title>
+<title>كاردو — شحن ألعاب وبطاقات هدايا بالدينار الليبي</title>
 
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -32,8 +33,10 @@
 <link rel="stylesheet" href="./kardo-v8.css">
 <link rel="stylesheet" href="./kardo-v9.css">
 <link rel="stylesheet" href="./kardo-v10.css">
+<link rel="stylesheet" href="./kardo-v11.css">
 <link rel="manifest" href="./manifest.json">
 <link rel="apple-touch-icon" href="./icon-192.png">
+<link rel="icon" type="image/png" href="./favicon-64.png">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 
@@ -483,13 +486,7 @@ html.boot-app #view:empty::before { content: ''; display: block; height: 180px; 
   <!-- Top Navigation -->
   <header class="bar">
     <a href="/" class="bar-logo" aria-label="كاردو">
-      <svg width="24" height="24" viewBox="0 0 40 40" aria-hidden="true">
-        <rect width="40" height="40" rx="9" fill="#0B0F0D"/>
-        <path d="M11 9h4.4v22H11z" fill="#D4A574"/>
-        <path d="M17 20.2 27.5 9H33L22.4 20.2 33 31h-5.6z" fill="#D4A574"/>
-        <rect x="19" y="15.6" width="12.4" height="8.8" rx="2" fill="#0B0F0D"/>
-        <rect x="21" y="18.4" width="3.4" height="2.6" rx=".7" fill="#D4A574" opacity=".7"/>
-      </svg>
+      <img src="./kardo-mark.png" alt="" class="k-mark" style="height:30px;width:auto" aria-hidden="true">
       <span style="font-family:var(--font-display);font-weight:600">كاردو</span>
     </a>
 
@@ -512,17 +509,17 @@ html.boot-app #view:empty::before { content: ''; display: block; height: 180px; 
 
         <div class="page-enter">
           <div class="hero-tag" style="margin-bottom:16px">
-            Digital Banking · Libya
+            منصة ليبية · KARDO.LY
           </div>
 
           <h1 class="display" style="margin-bottom:20px;color:var(--text)">
-            <span class="hero-title-ar">بطاقتك الرقمية.</span><br>
-            <span class="hero-title-en">بخطوات بسيطة.</span>
+            <span class="hero-title-ar">دفعك أسهل..</span><br>
+            <span class="hero-title-en">عالمك أوسع.</span>
           </h1>
 
           <p class="body-lg text-2" style="max-width:540px;margin-bottom:28px;color:var(--text-2)">
-            أضف رصيدك، أصدر بطاقة فيزا افتراضية، واشترك في خدماتك الرقمية المفضلة
-            — كل ذلك من مكان واحد.
+            اشحن محفظتك بالدينار عبر ليبيانا والمدار والتحويل المصرفي، واشترِ بطاقات الهدايا وشحن الألعاب
+            — ويصلك الكود خلال ثوانٍ.
           </p>
 
           <div style="display:flex;gap:10px;flex-wrap:wrap">
@@ -535,22 +532,23 @@ html.boot-app #view:empty::before { content: ''; display: block; height: 180px; 
 
           <div style="display:flex;gap:24px;margin-top:40px;flex-wrap:wrap">
             <div class="stat-block">
-              <div class="stat-value">+2,400</div>
-              <div class="stat-label">Active Users</div>
+              <div class="stat-value">⚡</div>
+              <div class="stat-label">تسليم فوري</div>
             </div>
             <div class="stat-block">
-              <div class="stat-value">+15,000</div>
-              <div class="stat-label">Transactions</div>
+              <div class="stat-value">د.ل</div>
+              <div class="stat-label">بالدينار الليبي</div>
             </div>
             <div class="stat-block">
-              <div class="stat-value">24/7</div>
-              <div class="stat-label">Support</div>
+              <div class="stat-value">🇱🇾</div>
+              <div class="stat-label">دعم محلي</div>
             </div>
           </div>
         </div>
 
         <!-- Hero Card Preview -->
         <div class="hero-vcard-wrap page-enter">
+          <img class="hero-logo" src="./kardo-logo.png" alt="كاردو KARDO" width="442" height="819">
           <div class="vcard"><span class="vcard-deco" aria-hidden="true"></span>
             <div class="vcard-top">
               <span class="vcard-brand">KARDO</span>
@@ -811,11 +809,7 @@ html.boot-app #view:empty::before { content: ''; display: block; height: 180px; 
     <div class="container">
       <div style="display:flex;justify-content:space-between;align-items:center;gap:20px;flex-wrap:wrap">
         <div style="display:flex;align-items:center;gap:8px">
-          <svg width="22" height="22" viewBox="0 0 40 40" aria-hidden="true">
-            <rect width="40" height="40" rx="9" fill="#0B0F0D"/>
-            <path d="M11 9h4.4v22H11z" fill="#D4A574"/>
-            <path d="M17 20.2 27.5 9H33L22.4 20.2 33 31h-5.6z" fill="#D4A574"/>
-          </svg>
+          <img src="./kardo-mark.png" alt="" class="k-mark" style="height:27px;width:auto" aria-hidden="true">
           <span style="font-family:var(--font-display);font-weight:600;color:var(--text);font-size:14px">كاردو</span>
         </div>
         <p class="caption" style="font-family:var(--font-mono);letter-spacing:0.08em;font-size:10.5px">© 2026 KARDO — ALL RIGHTS RESERVED</p>
@@ -836,13 +830,7 @@ html.boot-app #view:empty::before { content: ''; display: block; height: 180px; 
     <!-- Sidebar (Desktop) -->
     <aside class="sidebar">
       <a href="#" data-act="go" data-page="dashboard" style="display:flex;align-items:center;gap:8px;padding:0 10px;margin-bottom:20px">
-        <svg width="24" height="24" viewBox="0 0 40 40">
-          <rect width="40" height="40" rx="9" fill="#0B0F0D"/>
-          <path d="M11 9h4.4v22H11z" fill="#D4A574"/>
-          <path d="M17 20.2 27.5 9H33L22.4 20.2 33 31h-5.6z" fill="#D4A574"/>
-          <rect x="19" y="15.6" width="12.4" height="8.8" rx="2" fill="#0B0F0D"/>
-          <rect x="21" y="18.4" width="3.4" height="2.6" rx=".7" fill="#D4A574" opacity=".7"/>
-        </svg>
+        <img src="./kardo-mark.png" alt="" class="k-mark" style="height:30px;width:auto" aria-hidden="true">
         <span style="font-family:var(--font-display);font-size:15px;font-weight:600">كاردو</span>
       </a>
 
@@ -857,9 +845,9 @@ html.boot-app #view:empty::before { content: ''; display: block; height: 180px; 
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M21 8 12 3 3 8v8l9 5 9-5z"/><path d="M3 8l9 5 9-5M12 13v8"/></svg>
             <span>الخدمات الرقمية</span>
           </button>
-          <button class="sidebar-item" data-nav="stores">
+          <button class="sidebar-item" data-nav="kstore">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7.5" height="7.5" rx="2"/><rect x="13.5" y="3" width="7.5" height="7.5" rx="2"/><rect x="3" y="13.5" width="7.5" height="7.5" rx="2"/><rect x="13.5" y="13.5" width="7.5" height="7.5" rx="2"/></svg>
-            <span>المتاجر</span>
+            <span>المتجر</span>
           </button>
         </div>
 
@@ -910,11 +898,7 @@ html.boot-app #view:empty::before { content: ''; display: block; height: 180px; 
 
       <header class="bar">
         <div class="bar-logo" style="gap:6px;display:flex;align-items:center">
-          <svg width="20" height="20" viewBox="0 0 40 40">
-            <rect width="40" height="40" rx="9" fill="#0B0F0D"/>
-            <path d="M11 9h4.4v22H11z" fill="#D4A574"/>
-            <path d="M17 20.2 27.5 9H33L22.4 20.2 33 31h-5.6z" fill="#D4A574"/>
-          </svg>
+          <img src="./kardo-mark.png" alt="" class="k-mark" style="height:26px;width:auto" aria-hidden="true">
           <span style="font-family:var(--font-display);font-size:14px;font-weight:600">كاردو</span>
         </div>
 
@@ -959,9 +943,9 @@ html.boot-app #view:empty::before { content: ''; display: block; height: 180px; 
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect class="nv-fill" x="2.5" y="5.5" width="19" height="13" rx="2.6"/><rect x="5.5" y="9" width="4" height="3" rx=".8"/><path d="M5.5 15.2h4.5M15 15.2h3.5"/></svg>
       <span>بطاقاتي</span>
     </button>
-    <button class="nav-item" data-nav="stores">
+    <button class="nav-item" data-nav="kstore">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path class="nv-fill" d="M4.5 10.5V19.5h15v-9"/><path d="M3 9.2 4.8 4.5h14.4L21 9.2a2.6 2.6 0 0 1-4.5 1.6 2.7 2.7 0 0 1-4.5 0 2.7 2.7 0 0 1-4.5 0A2.6 2.6 0 0 1 3 9.2z"/><path d="M10 19.5v-4h4v4"/></svg>
-      <span>المتاجر</span>
+      <span>المتجر</span>
     </button>
     <button class="nav-item" data-nav="orders">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path class="nv-fill" d="M5.5 8h13l-1 11.2a1.4 1.4 0 0 1-1.4 1.3H7.9a1.4 1.4 0 0 1-1.4-1.3z"/><path d="M9 8V6.8a3 3 0 0 1 6 0V8"/><path d="M9.5 13.5l1.8 1.8 3.2-3.3"/></svg>

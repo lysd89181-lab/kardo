@@ -555,10 +555,6 @@ function ensurePageData() {
   if (S.page === 'orders') {
     lazySub('orders', () => query(collection(db, 'orders'),
       where('uid', '==', uid), limit(50)));
-    lazySub('morders', () => query(collection(db, 'merchant_orders'),
-      where('uid', '==', uid), limit(30)));
-    lazySub('mcases', () => query(collection(db, 'merchant_reports'),
-      where('uid', '==', uid), limit(30)));
   } else if (S.page === 'mystore') {
     lazySub('mstore', () => query(collection(db, 'merchant_orders'),
       where('merchant_owner', '==', uid), limit(25)));
@@ -592,7 +588,7 @@ function ensurePageData() {
 }
 
 /* ═══ Navigation ═══ */
-const ROUTABLE = new Set(['dashboard', 'cards', 'orders', 'settings', 'wallet', 'transactions', 'plans', 'referral', 'support', 'stores', 'store', 'chats', 'mystore', 'trust']);
+const ROUTABLE = new Set(['dashboard', 'cards', 'orders', 'settings', 'wallet', 'transactions', 'plans', 'referral', 'support', 'kstore', 'trust']);
 window.go = (page, keepCat, fromPop) => {
   if (!fromPop && ROUTABLE.has(page) && (S.page !== page || page === 'store')) {
     try { history.pushState({ page, store: S.curStore || null, sec: S.curSection || null }, '', '#/' + page + (page === 'store' && S.curStore ? '/' + encodeURIComponent(S.curStore) : '')); } catch {}
@@ -607,8 +603,9 @@ window.go = (page, keepCat, fromPop) => {
 
   if (page === 'services' || page === 'orders') loadServices();
   if (page === 'shop' || page === 'plans' || page === 'dashboard') loadCatalog();
-  if (page === 'stores' || page === 'store' || page === 'dashboard') loadMerchants();
-  if (page === 'mystore') loadMine(false);
+  if (page === 'kstore' || page === 'dashboard') loadRsc();
+  if (page === 'orders') loadRscOrders();
+  if (!keepCat) S.rscCat = null;
   if (page === 'transactions' || page === 'wallet') subscribeLedger();
 };
 
@@ -629,7 +626,7 @@ function render() {
   _raf = requestAnimationFrame(() => { _raf = null; paint(); });
 }
 
-const merchantsOn = () => S.config && S.config.merchants_on === true;
+const merchantsOn = () => false;   // v44: أُلغيت المتاجر الموثوقة
 // رمز الدعوة: يُلتقط من الرابط أو من خانة التسجيل، ويُسجَّل بعد وجود الحساب
 (function captureRef() {
   try {
@@ -650,8 +647,8 @@ async function claimStoredRef() {
 }
 function paint() {
   if (!S.user) return;
-  if (!merchantsOn() && ['stores', 'store', 'chats'].includes(S.page)) S.page = 'dashboard';
-  if (S.page === 'mystore' && !S.profile.merchant_id) S.page = 'dashboard';
+  if (['stores', 'store', 'chats', 'mystore'].includes(S.page)) S.page = 'dashboard';
+  if (S.page === 'kstore' && !rscOn()) S.page = 'dashboard';
 
   const av = $('#avatarInitial');
   if (av && av.dataset.seed !== S.user.uid) { av.dataset.seed = S.user.uid; av.innerHTML = avatarImg(S.user.uid, S.profile.name || S.user.email, 28); av.style.background = 'none'; av.style.border = '0'; }
@@ -660,7 +657,8 @@ function paint() {
   paintBell();
 
   $$('[data-nav]').forEach(b => b.classList.toggle('active', b.dataset.nav === S.page));
-  $$('[data-nav="stores"]').forEach(b => { b.style.display = merchantsOn() ? '' : 'none'; });   // تبويب المتاجر يظهر فقط عند التشغيل
+  $$('[data-nav="stores"]').forEach(b => { b.style.display = 'none'; });
+  $$('[data-nav="kstore"]').forEach(b => { b.style.display = rscOn() ? '' : 'none'; });
 
   const view = $('#view');
   if (!view) return;
@@ -682,6 +680,7 @@ function paint() {
     mystore: vMyStore,
     chats: vChats,
     trust: vTrust,
+    kstore: vKStore,
   };
   if (S.page === 'shop' && !S.config.store_on) S.page = 'dashboard';
 
@@ -723,13 +722,14 @@ function vDashboard() {
       ${S.config.store_on ? `<button class="icon-pill" id="openCart" aria-label="السلة">${svg(I.cart, 2)}${cartCount() ? `<span class="pill-count">${cartCount()}</span>` : ''}</button>` : ''}
     </div>
 
+    ${S.config.site_maint ? `<div class="alert alert-warning mb-4">${svg(I.help, 2)}<div><b>معاينة الإدارة</b> — الموقع في وضع الصيانة والزوار يرون شاشة الصيانة. افتحه للجميع من لوحة الإدارة.</div></div>` : ''}
     ${verifyBannerHtml()}
     ${bannersHtml() || `
       <div class="hero-bn mb-5">
         <span class="hero-orb"></span>
-        <h3>${S.config.store_on ? 'اكتشف عالم الخدمات الرقمية' : 'بطاقتك للدفع أونلاين'}</h3>
-        <p>${S.config.store_on ? 'اشتراكات وألعاب وبطاقات — بتسليم فوري وبالدينار الليبي' : merchantsOn() ? 'بطاقات فيزا افتراضية بالدينار الليبي — ومتاجر موثوقة في مكان واحد' : 'بطاقة دولية افتراضية تُصدر خلال دقائق وتُشحن بالدينار الليبي'}</p>
-        ${S.config.store_on ? '<button class="btn btn-primary btn-sm" data-scroll="storeSec" style="padding:0 20px">تسوّق الآن</button>' : merchantsOn() ? '<button class="btn btn-primary btn-sm" data-nav="stores" style="padding:0 20px">تصفّح المتاجر</button>' : (cards.length ? '<button class="btn btn-primary btn-sm" data-nav="plans" style="padding:0 20px">الأسعار والباقات</button>' : '<button class="btn btn-primary btn-sm" data-action="new-card" style="padding:0 20px">أصدر بطاقتك مجانًا</button>')}
+        <h3>${rscOn() ? 'شحن ألعاب وبطاقات هدايا فورًا' : S.config.store_on ? 'اكتشف عالم الخدمات الرقمية' : 'بطاقتك للدفع أونلاين'}</h3>
+        <p>${rscOn() ? 'PUBG وRoblox وSteam وغيرها — ادفع من محفظتك بالدينار ويصلك الكود خلال ثوانٍ' : S.config.store_on ? 'اشتراكات وألعاب وبطاقات — بتسليم فوري وبالدينار الليبي' : merchantsOn() ? 'بطاقات فيزا افتراضية بالدينار الليبي — ومتاجر موثوقة في مكان واحد' : 'بطاقة دولية افتراضية تُصدر خلال دقائق وتُشحن بالدينار الليبي'}</p>
+        ${rscOn() ? '<button class="btn btn-primary btn-sm" data-nav="kstore" style="padding:0 20px">تسوّق الآن</button>' : S.config.store_on ? '<button class="btn btn-primary btn-sm" data-scroll="storeSec" style="padding:0 20px">تسوّق الآن</button>' : merchantsOn() ? '<button class="btn btn-primary btn-sm" data-nav="stores" style="padding:0 20px">تصفّح المتاجر</button>' : (cards.length ? '<button class="btn btn-primary btn-sm" data-nav="plans" style="padding:0 20px">الأسعار والباقات</button>' : '<button class="btn btn-primary btn-sm" data-action="new-card" style="padding:0 20px">أصدر بطاقتك مجانًا</button>')}
       </div>`}
 
     ${!merchantsOn() ? (card ? `<button class="card home-card-cta mb-5" data-nav="cards" type="button">${fennec('card', 54)}
@@ -737,7 +737,8 @@ function vDashboard() {
       : `<button class="card home-card-cta mb-5" data-action="new-card" type="button">${fennec('card', 64)}
         <span style="flex:1;text-align:right"><b style="display:block;margin-bottom:4px">أصدر بطاقتك الأولى</b><span class="caption">بطاقة دولار افتراضية للاشتراكات والشراء أونلاين</span></span><span class="prow-add">+</span></button>`) : ''}
 
-    ${S.config.store_on ? `<div id="storeSec">${storeSection(true)}</div>` : merchantsOn() ? merchantsSection() : cardsInfoSections(!!card)}
+    ${rscHome()}
+    ${S.config.store_on ? `<div id="storeSec">${storeSection(true)}</div>` : rscOn() ? '' : cardsInfoSections(!!card)}
   </div>`;
 }
 
@@ -1448,7 +1449,7 @@ function vWallet() {
 
 const REASON_AR = { deposit_approved: 'إيداع معتمد', deposit_claim: 'إيداع', sms_deposit: 'إيداع', sms_manual: 'إيداع',
   usdt_deposit: 'إيداع USDT', phone_verification_deposit: 'حوالة توثيق الرقم', admin_adjust: 'تعديل من الإدارة', opening_balance_migration: 'الرصيد الافتتاحي',
-  service_order: 'شراء خدمة', service_order_rejected: 'استرداد خدمة', store_order: 'شراء من المتجر', order_rejected: 'استرداد طلب',
+  rsc_order: 'شراء من متجر كاردو', rsc_refund: 'استرداد طلب متجر', service_order: 'شراء خدمة', service_order_rejected: 'استرداد خدمة', store_order: 'شراء من المتجر', order_rejected: 'استرداد طلب',
   card_create: 'إصدار بطاقة', card_topup: 'شحن بطاقة', card_rejected_refund: 'استرداد طلب بطاقة', withdraw_request: 'سحب',
   withdraw_rejected: 'استرداد سحب', transfer_out: 'تحويل صادر', transfer_in: 'تحويل وارد', points_redeem: 'استبدال نقاط',
   referral_bonus_invitee: 'مكافأة دعوة', referral_bonus_inviter: 'مكافأة دعوة', plan_basic: 'باقة الأساسي', plan_vip: 'باقة VIP' };
@@ -1506,12 +1507,12 @@ function vOrders() {
           <span class="badge ${(ST[o.status] || ['badge', o.status])[0]}" style="margin-top:4px;font-size:10px">${esc((ST[o.status] || ['', o.status])[1])}</span></div>
       </div>` })),
     ...(S.svcOrders || []).map(o => ({ t: toT(o.created_at), html: svcOrderRow(o, o.status === 'delivered') })),
-    ...(S.mOrders || []).map(o => ({ t: toT(o.created_at), html: mOrderRow(o, false) })),
+    ...rscOrderRows(),
   ].sort((a, b) => b.t - a.t);
   return `
   <div class="page-enter">
     <div class="mb-5"><h1 class="h2" style="margin-bottom:6px">طلباتي</h1>
-      <p class="body-sm text-2">${merchantsOn() ? 'كل طلباتك من المتاجر في مكان واحد' : 'طلبات إصدار وشحن بطاقاتك'}</p></div>
+      <p class="body-sm text-2">مشترياتك من المتجر وطلبات بطاقاتك في مكان واحد</p></div>
     ${(S.mCases || []).length ? `<div class="h4 mb-2">بلاغاتي</div><div class="list mb-4">${(S.mCases || []).map(r => `
       <div class="list-row" data-mcase="${esc(r.id)}" role="button" tabindex="0"><div class="list-icon brand">⚑</div>
         <div class="list-content"><div class="list-title">${esc(r.merchant_name)} — ${esc(r.reason)}</div><div class="list-meta">${esc(dt(r.updated_at || r.created_at))}</div></div>
@@ -1520,8 +1521,8 @@ function vOrders() {
       <div class="card" style="text-align:center;padding:44px 20px">
         ${fennec('empty', 130)}
         <div class="h4" style="margin-bottom:6px">لا طلبات بعد</div>
-        <p class="body-sm text-2 mb-4">${merchantsOn() ? 'اطلب أول خدمة من المتاجر الموثوقة وستظهر هنا' : 'طلبات الشحن والإصدار تظهر هنا'}</p>
-        <button class="btn btn-primary btn-sm" data-nav="${merchantsOn() ? 'stores' : 'cards'}" style="padding:0 20px">${merchantsOn() ? 'تصفّح المتاجر' : 'بطاقاتي'}</button>
+        <p class="body-sm text-2 mb-4">مشترياتك من متجر كاردو تظهر هنا مع أكوادها</p>
+        <button class="btn btn-primary btn-sm" data-nav="${rscOn() ? 'kstore' : 'cards'}" style="padding:0 20px">${rscOn() ? 'تسوّق الآن' : 'بطاقاتي'}</button>
       </div>`}
   </div>`;
 }
@@ -1690,7 +1691,7 @@ function vSettings() {
     <button class="card ref-strip mb-5" data-nav="referral" type="button">${fennec('success', 48)}
       <span style="flex:1;text-align:right"><b style="display:block">ادعُ صديقًا واربح</b><span class="caption">رمز دعوتك ومكافآتك</span></span><span class="prow-add">←</span></button>
     ${pushOn() ? '' : `<button class="btn btn-secondary btn-block mb-3" id="pushOn" type="button">تفعيل إشعارات الهاتف</button>`}
-    ${S.profile.merchant_id ? `<button class="btn btn-primary btn-block btn-compact mb-4" data-nav="mystore">لوحة متجري</button>` : (merchantsOn() ? `<button class="btn btn-secondary btn-block mb-4" id="joinMerchant" type="button">افتح متجرك في كاردو</button>` : '')}
+    ${false ? '' : (merchantsOn() ? `<button class="btn btn-secondary btn-block mb-4" id="joinMerchant" type="button">افتح متجرك في كاردو</button>` : '')}
     <div class="legal-links mb-5"><a href="./terms.html" target="_blank" rel="noopener">الشروط والأحكام</a> · <a href="./terms.html#privacy" target="_blank" rel="noopener">سياسة الخصوصية</a></div>
 
     <div class="card mb-5">
@@ -1749,6 +1750,7 @@ function vSettings() {
 
 function bind() {
   bindMarket();
+  bindRsc();
   $$('[data-nav]').forEach(b => b.onclick = () => go(b.dataset.nav));
 
   $$('[data-action]').forEach(b => {
@@ -4501,3 +4503,178 @@ if (!auth.currentUser) {
 
 // إعادة محاولة تحميل لوحة المتجر بعد خطأ مؤقت
 document.addEventListener('click', e => { if (e.target && e.target.closest && e.target.closest('#msRetry')) { S.mine = null; render(); } });
+
+/* ═══════════════════════════════════════════════════════════
+   v44 — متجر كاردو (Resell Codes): أقسام، عروض، شراء فوري، أكواد
+   ═══════════════════════════════════════════════════════════ */
+const rscOn = () => S.config && S.config.rsc_on !== false;
+const rscImgUrl = u => !u ? '' : /^\//.test(u) ? API_BASE + u : u;
+const RSC_ST = { submitting: ['badge-warning', 'قيد الإرسال'], created: ['badge-warning', 'قيد التنفيذ'], processing: ['badge-warning', 'قيد التنفيذ'],
+  unknown: ['badge-warning', 'قيد المراجعة'], completed: ['badge-success', 'مكتمل'], refunded: ['badge-error', 'مُسترد'] };
+S.rsc = { loaded: false, cats: [], error: false };
+let _rscLoading = null;
+async function loadRsc(force) {
+  if (_rscLoading || (S.rsc.loaded && !force && Date.now() - (S.rsc.at || 0) < 120000)) return _rscLoading;
+  _rscLoading = (async () => {
+    try { const d = await apiGet('/api/rsc/catalog'); S.rsc = { loaded: true, cats: d.categories || [], on: d.on !== false, at: Date.now() }; }
+    catch { S.rsc = { ...S.rsc, error: true }; }
+    _rscLoading = null; render();
+  })();
+  return _rscLoading;
+}
+async function loadRscOrders() {
+  try { const r = await api('/api/rsc/my-orders', {}); S.rscOrders = r.orders || []; render(); } catch {}
+}
+const rscCatBy = key => (S.rsc.cats || []).find(c => c.key === key);
+const rscFrom = c => Math.min(...(c.offers || []).map(o => o.price));
+function rscTile(c) {
+  return `<button class="rsc-tile" data-rsccat="${esc(c.key)}" type="button">
+    <span class="rsc-tile-img">${c.image ? `<img src="${esc(rscImgUrl(c.image))}" alt="" loading="lazy" decoding="async">` : `<span class="rsc-tile-ph">${c.type === 'topup' ? '🎮' : '🎁'}</span>`}</span>
+    <span class="rsc-tile-name">${esc(c.name)}</span>
+    <span class="rsc-tile-from">من ${esc(lyd(rscFrom(c) * rate()))}</span>
+  </button>`;
+}
+function rscHome() {
+  if (!rscOn()) return '';
+  if (!S.rsc.loaded) { loadRsc(); return `<div class="h4 mb-3">متجر كاردو</div><div class="rsc-grid mb-5">${'<div class="skeleton" style="aspect-ratio:1/1.1;border-radius:18px"></div>'.repeat(4)}</div>`; }
+  const cats = S.rsc.cats || [];
+  if (!cats.length) return '';
+  return `
+    <div class="flex-between mb-3"><div class="h4">متجر كاردو</div>
+      <button class="btn btn-ghost btn-sm" data-nav="kstore">عرض الكل ←</button></div>
+    <div class="trust-row mb-3"><span>⚡ تسليم فوري</span><span>🔒 دفع من محفظتك</span><span>🇱🇾 بالدينار</span></div>
+    <div class="rsc-grid mb-5 stagger">${cats.slice(0, 8).map(rscTile).join('')}</div>`;
+}
+function vKStore() {
+  if (!S.rsc.loaded) loadRsc();
+  const cur = S.rscCat ? rscCatBy(S.rscCat) : null;
+  if (cur) {
+    return `<div class="page-enter">
+      <div class="rsc-head mb-4">
+        <button class="btn btn-ghost btn-sm" data-rscback type="button">${svg(I.next, 2)} رجوع</button>
+        <div class="rsc-head-main">
+          ${cur.image ? `<img class="rsc-head-img" src="${esc(rscImgUrl(cur.image))}" alt="">` : ''}
+          <div><h1 class="h3" style="margin:0">${esc(cur.name)}</h1>
+            <div class="caption">${cur.type === 'topup' ? 'شحن مباشر لحسابك في اللعبة' : 'كود يصلك فورًا في «طلباتي»'}</div></div>
+        </div>
+      </div>
+      ${cur.note ? `<div class="alert alert-info mb-3">${svg(I.help, 2)}<div style="white-space:pre-line">${esc(cur.note)}</div></div>` : ''}
+      <div class="list stagger">${cur.offers.map(o => `
+        <button class="list-row rsc-offer" data-rscoffer="${esc(o.id)}" type="button">
+          <div class="list-content"><div class="list-title">${esc(o.name)}</div>
+            <div class="list-meta tabular">${esc(usd(o.price))}</div></div>
+          <div class="list-end"><div class="list-amount tabular">${esc(lyd(o.price * rate()))}</div><span class="prow-add">+</span></div>
+        </button>`).join('')}</div>
+    </div>`;
+  }
+  const q = (S.rscQ || '').trim().toLowerCase();
+  const cats = (S.rsc.cats || []).filter(c => !q || c.name.toLowerCase().includes(q));
+  const tab = S.rscTab || 'all';
+  const shown = cats.filter(c => tab === 'all' || c.type === tab);
+  return `<div class="page-enter">
+    <div class="mb-4"><h1 class="h2" style="margin-bottom:6px">متجر كاردو</h1>
+      <p class="body-sm text-2">بطاقات هدايا وشحن ألعاب — تُدفع من محفظتك وتصلك فورًا</p></div>
+    <div class="input-wrap mb-3"><span class="input-icon">${svg(I.search, 2)}</span>
+      <input class="input" id="rscQ" placeholder="ابحث: PUBG، Roblox، Steam…" value="${esc(S.rscQ || '')}" autocomplete="off"></div>
+    <div class="pills mb-4">${[['all', 'الكل'], ['gift', 'بطاقات هدايا'], ['topup', 'شحن ألعاب']].map(([k, t]) => `<button class="pill ${tab === k ? 'active' : ''}" data-rsctab="${k}" type="button">${t}</button>`).join('')}</div>
+    ${!S.rsc.loaded && !S.rsc.error ? `<div class="rsc-grid">${'<div class="skeleton" style="aspect-ratio:1/1.1;border-radius:18px"></div>'.repeat(6)}</div>` : ''}
+    ${S.rsc.error && !S.rsc.loaded ? `<div class="card" style="text-align:center;padding:24px">${fennec('error', 110)}<div class="h4 mb-3">تعذّر تحميل المتجر</div><button class="btn btn-secondary btn-sm" data-rscretry type="button" style="padding:0 18px">إعادة المحاولة</button></div>` : ''}
+    ${S.rsc.loaded && shown.length ? `<div class="rsc-grid stagger">${shown.map(rscTile).join('')}</div>` : ''}
+    ${S.rsc.loaded && !shown.length ? `<div class="card" style="text-align:center;padding:28px 20px">${fennec('empty', 110)}<div class="h4" style="margin-bottom:6px">${q ? 'لا نتائج' : 'نجهّز المتجر'}</div><p class="body-sm text-2">${q ? 'جرّب كلمة أخرى' : 'أقسام جديدة قريبًا'}</p></div>` : ''}
+  </div>`;
+}
+function openRscBuy(cat, off) {
+  const isTop = cat.type === 'topup';
+  const key = newIdemKey();
+  modal(`
+    <div class="modal-head"><div class="modal-title">${esc(cat.name)}</div>
+      <button class="modal-close" data-act="close-modal" aria-label="إغلاق">${svg(I.x, 2)}</button></div>
+    <div class="rsc-buy-head mb-3">
+      ${cat.image ? `<img src="${esc(rscImgUrl(cat.image))}" alt="">` : ''}
+      <div><div class="body" style="font-weight:700">${esc(off.name)}</div>
+        <div class="caption tabular">${esc(lyd(off.price * rate()))} · ${esc(usd(off.price))}</div></div>
+    </div>
+    ${isTop ? (cat.fields || []).map((f, i) => `
+      <div class="field mb-3"><label class="field-label" for="rf${i}">${esc(f.label)} *</label>
+        <input class="input" id="rf${i}" ${f.type === 'number' ? 'inputmode="numeric"' : ''} dir="ltr" maxlength="120" autocomplete="off"></div>`).join('') + `
+      <div class="alert alert-warning mb-3" style="font-size:12px">${svg(I.help, 2)}<div>تأكد من البيانات جيدًا — الشحن يُرسل مباشرة ولا يمكن استرجاعه بعد التنفيذ.</div></div>` : `
+      <div class="field mb-3"><label class="field-label" for="rQty">الكمية</label>
+        <input class="input tabular" id="rQty" type="number" inputmode="numeric" min="${off.min}" max="${off.max}" value="${off.min}"></div>`}
+    <div class="card card-sm mb-3" style="background:var(--surface-2);border:none" id="rSum"></div>
+    <button class="btn btn-primary btn-block" id="rGo" type="button">ادفع من محفظتي</button>`);
+  let total = off.price;
+  const calc = () => {
+    const q = isTop ? 1 : Math.floor(n(($('#rQty') || {}).value));
+    const ok = isTop || (q >= off.min && q <= off.max);
+    total = Math.round(off.price * (ok ? q : off.min) * 100) / 100;
+    const bal = n(S.profile.wallet_balance), short = bal < total;
+    $('#rSum').innerHTML = `
+      <div class="flex-between" style="padding:4px 0"><span style="font-weight:600">الإجمالي</span><span class="tabular" style="font-weight:800;color:var(--brand)">${esc(lyd(total * rate()))}</span></div>
+      <div class="flex-between" style="padding:2px 0"><span class="caption">بالدولار</span><span class="caption tabular">${esc(usd(total))}</span></div>
+      <div class="flex-between" style="padding:2px 0"><span class="caption">رصيد محفظتك</span><span class="caption tabular" style="${short ? 'color:var(--error)' : ''}">${esc(lyd(bal * rate()))}</span></div>
+      ${!ok ? `<div class="caption" style="color:var(--warning);margin-top:6px">الكمية من ${off.min} إلى ${off.max}</div>` : ''}
+      ${short ? `<div class="caption" style="color:var(--error);margin-top:6px">رصيدك غير كافٍ — اشحن محفظتك أولًا</div>` : ''}`;
+    $('#rGo').disabled = !ok || short;
+  };
+  calc();
+  if ($('#rQty')) $('#rQty').oninput = calc;
+  onTap('#rGo', async () => {
+    const fields = {};
+    if (isTop) for (let i = 0; i < (cat.fields || []).length; i++) {
+      const v = ($('#rf' + i).value || '').trim();
+      if (!v) { toast(`${cat.fields[i].label} مطلوب`, 'bad'); $('#rf' + i).focus(); return; }
+      fields[cat.fields[i].key] = v;
+    }
+    const btn = $('#rGo'); btn.disabled = true; btn.classList.add('loading');
+    try {
+      const r = await api('/api/rsc/order', { cat: cat.key, offer: off.id, qty: isTop ? 1 : Math.floor(n($('#rQty').value)), fields, expect: total, idempotency_key: key }, 60000);
+      S.rscOrders = null; loadRscOrders();
+      openRscResult(r.order);
+    } catch (e) {
+      btn.disabled = false; btn.classList.remove('loading');
+      if (/السعر/.test(e.message)) loadRsc(true);
+      toast(e.message, 'bad');
+    }
+  });
+}
+function openRscResult(o) {
+  if (!o) return;
+  const done = o.status === 'completed', bad = o.status === 'refunded';
+  modal(`
+    <div class="modal-head"><div class="modal-title">${done ? 'تم بنجاح ✓' : bad ? 'لم يكتمل الطلب' : 'طلبك قيد التنفيذ'}</div>
+      <button class="modal-close" data-act="close-modal" aria-label="إغلاق">${svg(I.x, 2)}</button></div>
+    <div style="text-align:center" class="mb-3">${fennec(done ? 'success' : bad ? 'error' : 'wait', 120, done ? 'purchase' : bad ? 'failed' : 'wait')}</div>
+    <div class="body-sm mb-3" style="text-align:center"><b>${esc(o.cat_name)}</b> — ${esc(o.offer_name)}${o.qty > 1 ? ` × ${o.qty}` : ''}</div>
+    ${rscOrderBody(o)}
+    <button class="btn btn-primary btn-block" data-act="close-modal" type="button">حسنًا</button>`);
+  if (done) haptic.ok(); else if (bad) haptic.bad();
+}
+function rscOrderBody(o) {
+  if (o.status === 'completed') return (o.codes || []).length ? `<div class="field-label mb-2">الأكواد — احفظها الآن</div>${o.codes.map(c => `
+      <div class="copy-box mb-2"><div class="copy-value" dir="ltr" style="font-size:14px;word-break:break-all">${esc(c)}</div>
+        <button class="copy-btn" data-act="copy" data-copy-text="${esc(c)}" aria-label="نسخ">${svg(I.copy, 2)}</button></div>`).join('')}` :
+    `<div class="alert alert-success mb-3">${svg(I.check || I.help, 2)}<div>تم الشحن مباشرة إلى حسابك${Object.values(o.fields || {}).length ? ` (${esc(Object.values(o.fields).join(' · '))})` : ''}.</div></div>`;
+  if (o.status === 'refunded') return `<div class="alert alert-error mb-3">${svg(I.x, 2)}<div>${esc(o.fail_reason || 'تعذّر التنفيذ')} — أُعيد ${esc(usd(o.total_usd))} إلى محفظتك.</div></div>`;
+  if (o.status === 'unknown') return `<div class="alert alert-warning mb-3">${svg(I.help, 2)}<div>نراجع طلبك مع المزود الآن. إن لم يكتمل يُعاد المبلغ لمحفظتك كاملًا.</div></div>`;
+  return `<div class="alert alert-info mb-3">${svg(I.help, 2)}<div>يُنفَّذ خلال دقائق عادةً، ويصلك إشعار فور الاكتمال. تجده في «طلباتي».</div></div>`;
+}
+function rscOrderRows() {
+  if (!S.rscOrders && S.user) { S.rscOrders = []; loadRscOrders(); }
+  return (S.rscOrders || []).map(o => ({ t: new Date(o.created_at || 0).getTime(), html: `
+    <div class="list-row" data-rscorder="${esc(o.id)}" role="button" tabindex="0">
+      <div class="list-icon brand">${o.kind === 'topup' ? '🎮' : '🎁'}</div>
+      <div class="list-content"><div class="list-title">${esc(o.cat_name)} — ${esc(o.offer_name)}</div><div class="list-meta">${esc(dt(o.created_at))}</div></div>
+      <div class="list-end"><div class="list-amount">${esc(usd(o.total_usd))}</div>
+        <span class="badge ${(RSC_ST[o.status] || ['badge'])[0]}" style="margin-top:4px;font-size:10px">${esc((RSC_ST[o.status] || ['', o.status])[1])}</span></div>
+    </div>` }));
+}
+function bindRsc() {
+  $$('[data-rsccat]').forEach(b => b.onclick = () => { S.rscCat = b.dataset.rsccat; if (S.page !== 'kstore') go('kstore', true); else { render(); window.scrollTo({ top: 0, behavior: 'instant' }); } });
+  $$('[data-rscback]').forEach(b => b.onclick = () => { S.rscCat = null; render(); });
+  $$('[data-rsctab]').forEach(b => b.onclick = () => { S.rscTab = b.dataset.rsctab; render(); });
+  $$('[data-rscretry]').forEach(b => b.onclick = () => { S.rsc.error = false; loadRsc(true); render(); });
+  $$('[data-rscoffer]').forEach(b => b.onclick = () => { const c = rscCatBy(S.rscCat); const o = c && c.offers.find(x => x.id === b.dataset.rscoffer); if (o) openRscBuy(c, o); });
+  $$('[data-rscorder]').forEach(b => b.onclick = () => { const o = (S.rscOrders || []).find(x => x.id === b.dataset.rscorder); if (o) openRscResult(o); });
+  const q = $('#rscQ');
+  if (q) q.oninput = () => { S.rscQ = q.value; render(); };
+}
