@@ -263,6 +263,7 @@ const I = {
   download: '<path d="M12 4v11M7.5 10.5 12 15l4.5-4.5"/><path d="M5 20h14"/>',
   zap: '<path d="M13 3 5 14h6l-1 7 8-11h-6z"/>',
   mail: '<rect x="3" y="5" width="18" height="14" rx="2.5"/><path d="m4 7 8 6 8-6"/>',
+  phone: '<path d="M5 4h4l2 5-2.5 1.5a11 11 0 0 0 5 5L15 13l5 2v4a2 2 0 0 1-2 2A16 16 0 0 1 3 6a2 2 0 0 1 2-2z"/>',
   share: '<path d="M12 3v12"/><path d="m8 7 4-4 4 4"/><path d="M5 12v7a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-7"/>',
   copy: '<rect x="9" y="9" width="12" height="12" rx="2.5"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/>',
   up: '<path d="M12 19V5M5.5 11.5 12 5l6.5 6.5"/>',
@@ -712,7 +713,7 @@ function paint() {
   };
   if (S.page === 'shop' && !S.config.store_on) S.page = 'dashboard';
 
-  const html = (pages[S.page] || vDashboard)();
+  const html = (pages[S.page] || vDashboard)() + (S.page !== 'settings' && !(S.page === 'kstore' && S.rscCat) ? siteFooter() : '');
   const samePage = _lastPage === S.page;
   if (samePage && html === _lastHtml) return;                 // لا تغيير → لا إعادة رسم (سبب الرمشة)
   const ae = document.activeElement;
@@ -763,8 +764,11 @@ function vDashboard() {
       <button data-nav="transactions" type="button"><span class="kq-ic">${svg(I.wallet2)}</span>المعاملات</button>
     </div>
     ${bannersHtml()}
+    ${rateNudge()}
     ${rscHome()}
     ${S.config.store_on ? `<div id="storeSec">${storeSection(true)}</div>` : ''}
+    ${homeReviews()}
+    ${homeFaq()}
   </div>`;
 }
 
@@ -4435,7 +4439,6 @@ function rscTile(c) {
     <span class="ktall-cv">${c.image ? `<span class="ktall-bg" style="background-image:url('${esc(rscImgUrl(c.image))}')"></span>` : ''}${rscImgTag(c, 'ktall-img')}
       ${c.promo ? `<i class="ktag hot">${esc(c.promo.slice(0, 18))}</i>` : c.type === 'topup' ? '<i class="ktag">⚡ فوري</i>' : ''}</span>
     <span class="ktall-nm">${esc(c.name)}</span>
-    <span class="ktall-pr">من <em>${esc(lyd(rscFrom(c) * rate()))}</em></span>
   </button>`;
 }
 // بطاقة هدايا بشكل بطاقة حقيقية
@@ -4443,7 +4446,7 @@ function rscGiftTile(c) {
   return `<button class="kgift" data-rsccat="${esc(c.key)}" type="button">
     ${c.image ? `<span class="kgift-bg" style="background-image:url('${esc(rscImgUrl(c.image))}')"></span>` : '<span class="kgift-bg ph"></span>'}
     <span class="kgift-top"><b>${esc(c.name)}</b><span class="kgift-chip"></span></span>
-    <span class="kgift-from">من ${esc(lyd(rscFrom(c) * rate()))}</span>
+    <span class="kgift-from">${c.type === 'topup' ? '⚡ فوري' : 'كود فوري'}</span>
   </button>`;
 }
 function rscHero(list) {
@@ -4452,7 +4455,7 @@ function rscHero(list) {
       ${c.image ? `<span class="khero-bg" style="background-image:url('${esc(rscImgUrl(c.image))}')"></span>` : '<span class="khero-bg ph"></span>'}
       <span class="khero-img">${rscImgTag(c)}</span>
       <i class="khero-tag">${c.type === 'topup' ? '⚡ يوصل خلال دقيقة' : '🎁 الكود يوصلك فورًا'}</i>
-      <span class="khero-txt"><b>${esc(c.name)}</b><span>${esc(c.promo || 'من ' + lyd(rscFrom(c) * rate()))}</span></span>
+      <span class="khero-txt"><b>${esc(c.name)}</b>${c.promo ? `<span>${esc(c.promo)}</span>` : ''}</span>
     </button>`).join('')}</div>
     ${list.length > 1 ? `<div class="kdots" id="kDots">${list.map((_, i) => `<i class="${i ? '' : 'on'}"></i>`).join('')}</div>` : ''}`;
 }
@@ -4625,6 +4628,7 @@ function openRscResult(o) {
       <div class="h3" style="margin-bottom:4px">${done ? 'تم بنجاح' : bad ? 'لم يكتمل الطلب' : 'طلبك قيد التنفيذ'}</div>
       <div class="body-sm text-2"><bdi>${esc(o.cat_name)} — ${esc(o.offer_name)}</bdi>${o.qty > 1 ? ` × ${o.qty}` : ''}</div></div>
     ${rscOrderBody(o)}
+    ${done && !o.reviewed ? rateBox(o) : ''}
     <button class="btn btn-primary btn-block" data-act="close-modal" type="button">تم</button>`);
   if (done) haptic.ok(); else if (bad) haptic.bad();
 }
@@ -5300,3 +5304,99 @@ function rscHeroAuto() {
     box.scrollTo({ left: rtl ? -step : step, behavior: 'smooth' });
   }, 4500);
 }
+
+/* ═══ v54 — خاتمة الصفحات + آراء العملاء + الأسئلة الشائعة + التقييم بعد الشراء ═══ */
+const FAQ_DEF = [
+  ['كم ياخذ الشحن؟', 'أغلب الطلبات توصل خلال دقيقة إلى دقائق. الأكواد تظهرلك فورًا في «طلباتي».'],
+  ['كيف أشحن محفظتي؟', 'من زر «شحن» تحت: ليبيانا أو المدار أو العملات الرقمية أو تحويل مصرفي. وفي كل طريقة زر «كيف؟» يشرحها بالصور.'],
+  ['لو الطلب ما وصلش؟', 'لو المزوّد ما نفّذش الطلب، المبلغ يرجع لمحفظتك كامل وتلقائيًا. ولو عندك أي مشكلة كلّمنا من الدعم.'],
+  ['هل أقدر أسحب رصيدي؟', 'الرصيد مخصّص للشراء داخل كاردو. لو عندك حالة خاصة تواصل مع الدعم.'],
+];
+const SOC_IC = {
+  fb: '<path d="M14 8h3V4h-3a4 4 0 0 0-4 4v2H7v4h3v6h4v-6h3l1-4h-4V8z"/>',
+  ig: '<rect x="3.5" y="3.5" width="17" height="17" rx="5"/><circle cx="12" cy="12" r="4"/><path d="M17.5 6.5h.01"/>',
+  tt: '<path d="M14 3v11.5a3.5 3.5 0 1 1-3-3.46"/><path d="M14 3c.5 2.6 2.2 4.2 5 4.5"/>',
+  tg: '<path d="m21 4-3 16-6-5-3 3-1-6-5-2z"/><path d="m8 12 9-6"/>',
+};
+function siteFooter() {
+  const c = S.config.contact || {};
+  const wa = c.whatsapp ? c.whatsapp.replace(/^\+?218/, '0').replace(/^00218/, '0') : '';
+  const waLink = c.whatsapp ? 'https://wa.me/' + c.whatsapp.replace(/^\+/, '').replace(/^0/, '218') : '';
+  const soc = ['fb', 'ig', 'tt', 'tg'].filter(k => c[k]);
+  return `<footer class="kfoot">
+    <div class="kfoot-cols">
+      <div><h4>تواصل معنا</h4>
+        ${wa ? `<a href="${esc(waLink)}" target="_blank" rel="noopener">${svg(I.phone || I.help)}<span dir="ltr">${esc(wa)}</span></a>` : ''}
+        ${c.email ? `<a href="mailto:${esc(c.email)}">${svg(I.mail)}<span>${esc(c.email)}</span></a>` : ''}
+        <button type="button" data-nav="support">${svg(I.chat || I.help)}<span>الدعم داخل التطبيق</span></button></div>
+      <div><h4>روابط</h4>
+        <button type="button" data-howto="all"><span>كيف أدفع؟</span></button>
+        <button type="button" data-faq><span>الأسئلة الشائعة</span></button>
+        <button type="button" data-nav="referral"><span>ادعُ صديقًا</span></button>
+        <a href="./terms.html" target="_blank" rel="noopener"><span>الشروط والخصوصية</span></a></div>
+    </div>
+    ${soc.length ? `<div class="kfoot-soc">${soc.map(k => `<a href="${esc(c[k])}" target="_blank" rel="noopener" aria-label="${k}">${svg(SOC_IC[k])}</a>`).join('')}</div>` : ''}
+    <div class="kfoot-cp"><img src="./kardo-mark.png" alt="">© ${new Date().getFullYear()} كاردو. جميع الحقوق محفوظة.</div>
+  </footer>`;
+}
+function faqList() { const f = (S.config.contact || {}).faq; return f && f.length ? f : FAQ_DEF; }
+function homeFaq() {
+  return `<div class="ksh"><h2>أسئلة شائعة</h2></div>
+    <div class="kfaq">${faqList().slice(0, 5).map(([q, a]) => `<details><summary>${esc(q)}<i>+</i></summary><p>${esc(a)}</p></details>`).join('')}</div>`;
+}
+document.addEventListener('click', e => {
+  const f = e.target.closest && e.target.closest('[data-faq]');
+  if (!f) return;
+  e.preventDefault();
+  modal(`<div class="modal-head"><div class="modal-title">الأسئلة الشائعة</div><button class="modal-close" data-act="close-modal" aria-label="إغلاق">${svg(I.x, 2)}</button></div>
+    <div class="kfaq">${faqList().map(([q, a], i) => `<details ${i ? '' : 'open'}><summary>${esc(q)}<i>+</i></summary><p>${esc(a)}</p></details>`).join('')}</div>`);
+});
+// آراء العملاء — تقييمات حقيقية فقط (تظهر بعد ما يتجمّع عدد كافٍ)
+S.reviews = null;
+function loadReviews() { if (S._revLoading) return; S._revLoading = 1; apiGet('/api/reviews').then(r => { S.reviews = r; render(); }).catch(() => { S.reviews = { list: [] }; }); }
+function homeReviews() {
+  if (!S.reviews) { loadReviews(); return ''; }
+  const R = S.reviews; if (!R.list || !R.list.length || R.hidden) return '';
+  const stars = v => '★'.repeat(Math.round(v)) + '☆'.repeat(5 - Math.round(v));
+  return `<div class="ksh"><h2>آراء العملاء</h2></div>
+    <div class="krev-sum"><b class="tabular">${esc(String(R.avg))}</b><div><div class="kst">${stars(R.avg)}</div><span>من ${esc(String(R.count))} تقييم بعد شراء حقيقي</span></div></div>
+    <div class="krow">${R.list.map(r => `<div class="krev"><div class="krev-h"><span class="krev-av">${esc(Array.from(r.name || '؟')[0])}</span><div><b dir="auto">${esc(r.name)}</b><div class="kst sm">${stars(r.stars)}</div></div><span class="krev-vf">✓ شراء مؤكد</span></div>
+      <p>${esc(r.text)}</p><span class="krev-it" dir="auto">${esc(r.item || '')}</span></div>`).join('')}</div>`;
+}
+// التقييم بعد الشراء
+function rateBox(o) {
+  return `<div class="krate" data-rateo="${esc(o.id)}"><b>وصلك الطلب؟ قيّم تجربتك</b>
+    <div class="krate-st" dir="ltr">${[1, 2, 3, 4, 5].map(i => `<button type="button" data-star="${i}" aria-label="${i} نجوم">★</button>`).join('')}</div>
+    <textarea class="input" data-ratetxt rows="2" maxlength="300" placeholder="اكتب رأيك (اختياري)" style="height:auto;padding-top:10px;display:none"></textarea>
+    <button class="btn btn-secondary btn-sm btn-block" data-ratego type="button" style="display:none">إرسال التقييم</button></div>`;
+}
+function rateNudge() {
+  const o = (S.rscOrders || []).find(x => x.status === 'completed' && !x.reviewed && Date.now() - Date.parse(x.created_at || 0) < 3 * 86400000);
+  if (!o) return '';
+  try { if (localStorage.getItem('kardo_rate_skip_' + o.id)) return ''; } catch {}
+  return `<div class="card mb-4 krate-card">${rateBox({ ...o, id: o.id }).replace('<b>وصلك الطلب؟ قيّم تجربتك</b>', `<b>وصلك ${esc(o.offer_name)}؟ قيّم تجربتك</b><button class="krate-x" data-rateskip="${esc(o.id)}" type="button" aria-label="لاحقًا">${svg(I.x, 2)}</button>`)}</div>`;
+}
+document.addEventListener('click', async e => {
+  const t = e.target.closest ? e.target : null; if (!t) return;
+  const sk = t.closest('[data-rateskip]'); if (sk) { try { localStorage.setItem('kardo_rate_skip_' + sk.dataset.rateskip, '1'); } catch {} render(); return; }
+  const st = t.closest('[data-star]');
+  if (st) {
+    const box = st.closest('[data-rateo]'), v = Number(st.dataset.star);
+    box.dataset.v = v;
+    box.querySelectorAll('[data-star]').forEach(b => b.classList.toggle('on', Number(b.dataset.star) <= v));
+    box.querySelector('[data-ratetxt]').style.display = ''; box.querySelector('[data-ratego]').style.display = '';
+    haptic.tap(); return;
+  }
+  const go = t.closest('[data-ratego]');
+  if (go) {
+    const box = go.closest('[data-rateo]'), v = Number(box.dataset.v || 0);
+    if (!v) return toast('اختر عدد النجوم', 'bad');
+    go.disabled = true;
+    try {
+      await api('/api/review', { order_id: box.dataset.rateo, stars: v, text: box.querySelector('[data-ratetxt]').value.trim() });
+      (S.rscOrders || []).forEach(x => { if (x.id === box.dataset.rateo) x.reviewed = true; });
+      box.innerHTML = '<b style="color:var(--u-ok)">شكرًا على تقييمك 🌟</b>'; haptic.ok();
+      setTimeout(() => render(), 1500);
+    } catch (er) { toast(er.message, 'bad'); go.disabled = false; }
+  }
+});

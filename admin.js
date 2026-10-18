@@ -491,6 +491,8 @@ const PAGES = [
   { k: 'analytics', t: 'تحليل الزوار', i: I.chart, g: 'المتجر والعملاء' },
   { k: 'methods',   t: 'طرق الدفع',  i: I.cash,   g: 'الإعدادات' },
   { k: 'howto',     t: 'كيف أدفع؟',  i: I.help,   g: 'الإعدادات' },
+  { k: 'reviews',   t: 'آراء العملاء', i: I.chart, g: 'المتجر والعملاء' },
+  { k: 'contact',   t: 'التواصل والأسئلة', i: I.help, g: 'الإعدادات' },
   { k: 'settings',  t: 'الإعدادات',  i: I.gear,   g: 'الإعدادات' },
   { k: 'system',    t: 'الموظفين والنظام', i: I.users, g: 'الإعدادات' },
   { k: 'orders',    t: 'طلبات المتجر القديم', i: I.orders, g: 'أرشيف', hide: true },
@@ -529,7 +531,7 @@ const ROLE_DEFAULT_PERMS = {
   ops: { mcards: ['view', 'approve'], cards: ['view', 'edit'], orders: ['view', 'approve'], store: ['view', 'add', 'edit', 'delete'], services: ['view', 'add', 'edit', 'delete', 'approve'], users: ['view'] },
 };
 const PAGE_SEC = { rsc: 'store', platforms: 'stickers', mview: 'merchants', mcards: 'mcards', cards: 'cards', orders: 'orders', services: 'services', store: 'store', deposits: 'deposits',
-  withdraw: 'withdraw', sms: 'sms', tickets: 'tickets', coupons: 'coupons', users: 'users', stickers: 'stickers', merchants: 'merchants', settings: '__super', system: '__super', methods: '__super', analytics: 'users', howto: '__super' };
+  withdraw: 'withdraw', sms: 'sms', tickets: 'tickets', coupons: 'coupons', users: 'users', stickers: 'stickers', merchants: 'merchants', settings: '__super', system: '__super', methods: '__super', analytics: 'users', howto: '__super', reviews: 'users', contact: '__super' };
 function isSuperAdmin() { return S.admin && S.admin.role === 'super_admin'; }
 function myPerms() { const a = S.admin || {}; return (a.perms && typeof a.perms === 'object') ? a.perms : (ROLE_DEFAULT_PERMS[a.role] || {}); }
 function can(sec, act) { if (isSuperAdmin()) return true; if (sec === '__super') return false; return (myPerms()[sec] || []).includes(act); }
@@ -654,6 +656,8 @@ function render(force = false) {
     methods: vMethods,
     analytics: vAnalytics,
     howto: vHowtoA,
+    reviews: vReviewsA,
+    contact: vContactA,
     rsc: vRsc,
     mcards: vMcardOrders,
     cards: vCards2,
@@ -4970,6 +4974,7 @@ function vMore() {
   const set = [
     isSuperAdmin() ? { i: I.cash, c: 'g', t: 'طرق الدفع', s: 'التشغيل، الإيقاف المؤقت، الأسعار، QR', attrs: 'data-nav="methods"' } : null,
     isSuperAdmin() ? { i: I.help, c: 'g', t: 'كيف أدفع؟', s: 'شرح الدفع بالصور لكل طريقة', attrs: 'data-nav="howto"' } : null,
+    isSuperAdmin() ? { i: I.help, c: 'g', t: 'التواصل والأسئلة', s: 'واتساب، البريد، السوشيال، الأسئلة الشائعة', attrs: 'data-nav="contact"' } : null,
     isSuperAdmin() ? { i: I.shield, c: 'g', t: 'الحماية والحدود', s: 'السقف اليومي، الحسابات الجديدة', attrs: 'data-setgo="limits"' } : null,
     isSuperAdmin() ? { i: I.tool, c: 'g', t: 'تشغيل الموقع', s: 'الصيانة، الإيقاف، الرسائل', attrs: 'data-setgo="ops"' } : null,
     isSuperAdmin() ? { i: I.users, c: 'g', t: 'الموظفين والنظام', s: 'الصلاحيات، سجل العمليات، النسخ الاحتياطي', attrs: 'data-nav="system"' } : null,
@@ -4978,7 +4983,7 @@ function vMore() {
   return `<div class="page-enter astag">
     ${aHead('المزيد', 'كل أقسام الإدارة')}
     <div class="alabel"><span>المتجر والعملاء</span></div>
-    <div class="atiles">${tile('rsc', I.bag, 'الأقسام والأسعار')}${tile('tickets', I.chat, 'الدعم', ovA('tickets'))}${tile('coupons', I.tag, 'الكوبونات')}${tile('analytics', I.chart, 'تحليل الزوار')}${tile('cards', I.card, 'البطاقات')}</div>
+    <div class="atiles">${tile('rsc', I.bag, 'الأقسام والأسعار')}${tile('tickets', I.chat, 'الدعم', ovA('tickets'))}${tile('coupons', I.tag, 'الكوبونات')}${tile('analytics', I.chart, 'تحليل الزوار')}${tile('reviews', I.chat, 'آراء العملاء')}${tile('cards', I.card, 'البطاقات')}</div>
     ${cardsOn ? `<div class="alabel"><span>البطاقات</span></div><div class="atiles">${tile('mcards', I.card, 'طلبات البطاقات', ovA('mcards'))}</div>` : ''}
     ${set.length ? `<div class="alabel"><span>الإعدادات</span></div><div class="acard">${set.map(aRow).join('')}</div>` : ''}
     ${isSuperAdmin() ? `<div class="alabel"><span>أرشيف</span></div><div class="acard">${[
@@ -5323,4 +5328,91 @@ document.addEventListener('click', e => {
   e.preventDefault();
   if (b.closest('#modal')) closeModal();
   go(b.dataset.nav);
+});
+
+
+/* ═══ v54 — آراء العملاء ═══ */
+async function loadRevA() {
+  const tab = S.revTab || 'pending';
+  try { const r = await api('/api/admin/reviews', { action: 'list', status: tab }); S.revA = { tab, items: r.items || [], counts: r.counts || {} }; }
+  catch (e) { S.revA = { tab, items: [], counts: {}, err: e.message }; toast(e.message, 'bad'); }
+  render(true);
+}
+function vReviewsA() {
+  const tab = S.revTab || 'pending';
+  if (!S.revA || S.revA.tab !== tab) { S.revA = { loading: true, tab, counts: (S.revA || {}).counts }; setTimeout(loadRevA, 0); }
+  const R = S.revA || {}, c = R.counts || {};
+  const minN = n((S.settings || {}).reviews_min) || 5;
+  const st = k => '★'.repeat(k) + '☆'.repeat(5 - k);
+  const head = `<div class="ah"><button class="aib" data-nav="more" type="button" aria-label="رجوع">${svg(I.back)}</button><div style="flex:1"><h1>آراء العملاء</h1><p>تقييمات حقيقية بعد الشراء — تظهر في الرئيسية بعد الموافقة</p></div></div>
+    <div class="aseg">${[['pending', 'بانتظار المراجعة'], ['approved', 'منشورة'], ['hidden', 'مخفية']].map(([k, t]) => `<button class="${tab === k ? 'on' : ''}" data-revtab="${k}" type="button">${t}${c[k] ? ` (${c[k]})` : ''}</button>`).join('')}</div>
+    ${n(c.approved) < minN ? `<div class="aalert w">${svg(I.help)}<div>القسم ما يظهرش للعملاء لين يوصل عدد المنشورة ${minN} (الحالي ${n(c.approved)}). التقييم بالنجوم فقط يُنشر تلقائيًا، واللي فيه نص يحتاج موافقتك.</div></div>` : ''}`;
+  if (R.loading) return `<div class="page-enter astag">${head}<div class="acard"><div class="arow"><i class="ask"></i></div></div></div>`;
+  const items = R.items || [];
+  return `<div class="page-enter astag">${head}
+    ${!items.length ? `<div class="acard"><div class="arow static"><span class="art"><b>لا يوجد شيء هنا</b></span></div></div>` : items.map(r => `<div class="acard" style="padding:12px 14px;margin-bottom:10px">
+      <div style="display:flex;justify-content:space-between;gap:8px;align-items:center"><b style="font-size:14px">${esc(r.name || 'عميل')}</b><span style="color:#F5B400;letter-spacing:1px">${st(Math.max(1, Math.min(5, n(r.stars))))}</span></div>
+      <div class="caption" style="margin-top:2px">${esc(r.item || '')} · ${esc(String(r.created_at || '').slice(0, 10))} · ${esc(r.id)}</div>
+      ${r.text ? `<p style="margin:8px 0 0;font-size:14px;line-height:1.7;white-space:pre-wrap">${esc(r.text)}</p>` : `<p class="caption" style="margin:8px 0 0">نجوم فقط بدون تعليق</p>`}
+      <div style="display:flex;gap:6px;margin-top:10px">
+        ${tab !== 'approved' ? `<button class="abtn sm p" data-revact="approve" data-id="${esc(r.id)}" type="button">نشر</button>` : ''}
+        ${tab !== 'hidden' ? `<button class="abtn sm" data-revact="hide" data-id="${esc(r.id)}" type="button" style="color:var(--u-err)">إخفاء</button>` : ''}
+        ${r.uid ? `<button class="abtn sm" data-ufile2="${esc(r.uid)}" type="button">ملف العميل</button>` : ''}
+      </div></div>`).join('')}
+  </div>`;
+}
+document.addEventListener('click', async e => {
+  const t = e.target.closest('[data-revtab],[data-revact]'); if (!t) return;
+  if (t.dataset.revtab) { S.revTab = t.dataset.revtab; S.revA = null; render(true); return; }
+  t.disabled = true;
+  try { await api('/api/admin/reviews', { action: t.dataset.revact, id: t.dataset.id }); toast(t.dataset.revact === 'approve' ? 'نُشر ✓' : 'أُخفي', 'ok'); S.revA = null; render(true); }
+  catch (er) { toast(er.message, 'bad'); t.disabled = false; }
+});
+
+/* ═══ v54 — التواصل والأسئلة الشائعة ═══ */
+function vContactA() {
+  const s = S.settings || {};
+  const F = (id, k, label, ph, type = 'text') => `<div class="field"><label class="field-label" for="${id}">${label}</label><input class="input" id="${id}" data-ck="${k}" type="${type}" dir="ltr" maxlength="200" placeholder="${ph}" value="${esc(s[k] || '')}"></div>`;
+  return `<div class="page-enter astag">
+    <div class="ah"><button class="aib" data-nav="more" type="button" aria-label="رجوع">${svg(I.back)}</button><div style="flex:1"><h1>التواصل والأسئلة</h1><p>يظهر في خاتمة كل صفحة عند العميل. الحقل الفاضي ما يظهرش.</p></div></div>
+    <div class="alabel"><span>تواصل معنا</span></div>
+    <div class="acard" style="padding:12px 14px">
+      ${F('ckWa', 'contact_whatsapp', 'رقم واتساب (بالمفتاح الدولي)', '2189XXXXXXXX', 'tel')}
+      ${F('ckMail', 'contact_email', 'بريد الدعم', 'support@kardo.ly', 'email')}
+    </div>
+    <div class="alabel"><span>حسابات التواصل الاجتماعي (روابط كاملة https)</span></div>
+    <div class="acard" style="padding:12px 14px">
+      ${F('ckFb', 'social_fb', 'فيسبوك', 'https://facebook.com/...', 'url')}
+      ${F('ckIg', 'social_ig', 'إنستغرام', 'https://instagram.com/...', 'url')}
+      ${F('ckTt', 'social_tt', 'تيك توك', 'https://tiktok.com/@...', 'url')}
+      ${F('ckTg', 'social_tg', 'تيليجرام', 'https://t.me/...', 'url')}
+    </div>
+    <div class="alabel"><span>الأسئلة الشائعة</span></div>
+    <div class="acard" style="padding:12px 14px">
+      <p class="caption" style="margin:0 0 8px">كل سطر سؤال وجوابه بينهم علامة | — مثال:<br><span dir="rtl">كم ياخد وقت الشحن؟|أغلب الطلبات تكتمل فورًا.</span><br>لو خليتها فاضية تظهر الأسئلة الافتراضية.</p>
+      <textarea class="input" id="ckFaq" rows="8" maxlength="2000" style="height:auto;padding-top:10px;font-size:14px;line-height:1.8">${esc(s.faq_text || '')}</textarea>
+    </div>
+    <div class="alabel"><span>آراء العملاء</span></div>
+    <div class="acard" style="padding:12px 14px">
+      <div class="field"><label class="field-label" for="ckMin">أقل عدد آراء منشورة قبل ما يظهر القسم</label><input class="input" id="ckMin" type="number" min="1" max="100" value="${n(s.reviews_min) || 5}"></div>
+    </div>
+    <button class="abtn p block" data-cksave type="button" style="margin-top:12px">حفظ</button>
+  </div>`;
+}
+document.addEventListener('click', async e => {
+  const b = e.target.closest('[data-cksave]'); if (!b) return;
+  const patch = {}; let bad = '';
+  $$('[data-ck]').forEach(i => {
+    let v = i.value.trim(); const k = i.dataset.ck;
+    if (k === 'contact_whatsapp') { v = v.replace(/[^\d]/g, ''); if (v && !/^\d{9,15}$/.test(v)) bad = 'رقم واتساب غير صحيح'; }
+    if (k === 'contact_email' && v && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v)) bad = 'البريد غير صحيح';
+    if (/^social_/.test(k) && v && !/^https:\/\/[^\s"'<>]+$/.test(v)) bad = 'الرابط لازم يبدا بـ https://';
+    patch[k] = v;
+  });
+  patch.faq_text = ($('#ckFaq') || {}).value || '';
+  const mn = Math.round(n(($('#ckMin') || {}).value)); patch.reviews_min = mn >= 1 && mn <= 100 ? mn : 5;
+  if (bad) return toast(bad, 'bad');
+  b.disabled = true;
+  try { await api('/api/admin/settings', patch); S.settings = { ...S.settings, ...patch }; toast('حُفظ ✓ — يظهر للعملاء خلال دقائق', 'ok'); }
+  catch (er) { toast(er.message, 'bad'); } finally { b.disabled = false; }
 });

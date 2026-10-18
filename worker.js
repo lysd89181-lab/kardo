@@ -60,6 +60,7 @@ const DEFAULT_SETTINGS = {
   hero_title: 'بطاقة تعمل في كل مكان يقبل الدفع الإلكتروني',
   hero_sub: 'بالدولار · بدون رسوم شهرية · تُصدر خلال دقائق',
   support_url: '',
+  contact_whatsapp: '', contact_email: '', social_fb: '', social_ig: '', social_tt: '', social_tg: '', faq_text: '', reviews_min: 5,
   deposit_mode: 'auto',
   m_libyana_mode: '', m_almadar_mode: '', m_bank_receipt: true, m_binance_receipt: true,
   require_email_verify: true,
@@ -151,7 +152,7 @@ export default {
 
 async function route(path, request, url, env) {
   if (request.method === 'GET') {
-    const h = { '/api/status': handleStatus, '/api/catalog': handleCatalog, '/api/services/list': handleServicesList, '/api/merchants/list': async () => ({ success: true, merchants: [], removed: true }), '/api/rsc/catalog': handleRscCatalog, '/api/platforms': handlePlatformsList, '/api/howto': handleHowto }[path];
+    const h = { '/api/status': handleStatus, '/api/catalog': handleCatalog, '/api/services/list': handleServicesList, '/api/merchants/list': async () => ({ success: true, merchants: [], removed: true }), '/api/rsc/catalog': handleRscCatalog, '/api/platforms': handlePlatformsList, '/api/howto': handleHowto, '/api/reviews': handleReviewsPublic }[path];
     if (!h) throw httpError(404, 'المسار غير موجود');
     const hit = _pubCache.get(path);
     if (hit && hit.exp > Date.now()) return hit.v;
@@ -210,6 +211,8 @@ async function route(path, request, url, env) {
     case '/api/admin/analytics':       return handleAdminAnalytics(user, body, env);
     case '/api/admin/howto':           return handleAdminHowto(user, body, env);
     case '/api/admin/export':          return handleAdminExport(user, body, env);
+    case '/api/review':                return handleReviewSubmit(user, body, env);
+    case '/api/admin/reviews':         return handleAdminReviews(user, body, env);
     case '/api/admin/users/find':      return handleAdminUsersFind(user, body, env);
     case '/api/admin/user/file':       return handleAdminUserFile(user, body, env);
     case '/api/wallet/invoice':        return handleInvoiceGet(user, body, env);
@@ -553,6 +556,11 @@ async function handleStatus(env) {
       hero_title: s.hero_title || 'بطاقة تعمل في كل مكان يقبل الدفع الإلكتروني',
       hero_sub: s.hero_sub || 'بالدولار · بدون رسوم شهرية · تُصدر خلال دقائق',
       support_url: s.support_url || '',
+    },
+    contact: {                                                      // v54: بيانات خاتمة الصفحات (تُعدَّل من الإدارة)
+      whatsapp: String(s.contact_whatsapp || '').replace(/[^\d+]/g, '').slice(0, 16), email: /^[^@\s<>"]+@[^@\s<>"]+\.[^@\s<>"]+$/.test(String(s.contact_email || '')) ? String(s.contact_email) : '',
+      fb: safeUrl(s.social_fb), ig: safeUrl(s.social_ig), tt: safeUrl(s.social_tt), tg: safeUrl(s.social_tg),
+      faq: String(s.faq_text || '').split('\n').map(l => l.split('|')).filter(x => x[0] && x[1]).slice(0, 12).map(([q, ...a]) => [q.trim().slice(0, 120), a.join('|').trim().slice(0, 500)]),
     },
     methods: {
       libyana: { on: s.m_libyana_on !== false, logo: imgRef(env, 'm', 'libyana', s.m_libyana_logo), label: s.m_libyana_label || 'ليبيانا', phone: s.m_libyana_phone || s.deposit_phone || '', rate: num(s.rate_libyana, 11.8), auto: true, mode: (s.m_libyana_mode || s.deposit_mode) === 'manual' ? 'manual' : 'auto' },
@@ -5774,7 +5782,7 @@ async function markMerchantDirty(env, mid) {
 }
 
 // كاش Cloudflare المشترك لكل الزوار (لا يصل لـ Firestore) + نسخة احتياطية تُستخدم إذا رفض Firestore (حصة منتهية)
-const PUB_TTL = { '/api/howto': 600, '/api/rsc/catalog': 120, '/api/status': 60, '/api/platforms': 600, '/api/merchants/list': 180, '/api/catalog': 300, '/api/services/list': 300 };
+const PUB_TTL = { '/api/reviews': 300, '/api/howto': 600, '/api/rsc/catalog': 120, '/api/status': 60, '/api/platforms': 600, '/api/merchants/list': 180, '/api/catalog': 300, '/api/services/list': 300 };
 const edgeKey = (p, stale) => new Request(`https://kardo-edge.cache${stale ? '/stale' : ''}${p}`);
 async function edgeGet(p, stale) {
   if (typeof caches === 'undefined') return null;
@@ -6185,7 +6193,7 @@ const D1_IDX = {
   merchant_applications: [['status']], merchant_stock: [['sid', 'used']], stock: [['pid', 'used']], service_stock: [['service_id', 'is_used']],
   tickets: [['uid'], ['updated_at'], ['status']], sms_transactions: [['created_at'], ['sender'], ['status']], audit_log: [['created_at']], products: [['cat']],
   categories: [['parent']], coupon_uses: [['uid']], plan_orders: [['uid']], transfers: [['uid']], usdt_invoices: [['uid'], ['status'], ['created_at']], ref_codes: [['uid']],
-  rsc_orders: [['uid'], ['status'], ['created_at']], crypto_unmatched: [['status']],
+  rsc_orders: [['uid'], ['status'], ['created_at']], crypto_unmatched: [['status']], reviews: [['status'], ['created_at']],
   rate_limits: [], idempotency: [], otp_codes: [], otp_waits: [], email_codes: [], card_cvv_once: [], manual_card_reveal: [], public: [], settings: [],
   admins: [], stickers: [], platforms: [], daily_counters: [], usdt_amounts: [], usdt_txids: [], phone_bindings: [], phone_owners: [], phone_verifications: [['status']],
 };
@@ -7513,7 +7521,7 @@ async function rscOrderView(env, oid, uid) {
   return { success: true, order: await rscPublic(env, { ...o, _id: oid }) };
 }
 async function rscPublic(env, o) {
-  return { id: o._id, status: o.status, kind: o.kind, cat: o.cat || '', offer_id: o.offer_id || '', cat_name: o.cat_name, offer_name: o.offer_name, qty: o.qty, fields: o.fields || {},
+  return { id: o._id, status: o.status, kind: o.kind, cat: o.cat || '', offer_id: o.offer_id || '', reviewed: o.reviewed === true, cat_name: o.cat_name, offer_name: o.offer_name, qty: o.qty, fields: o.fields || {},
     total_usd: num(o.total_usd, 0), created_at: o.created_at, fail_reason: o.fail_reason || '',
     codes: o.status === 'completed' && o.codes_enc ? (await decCodes(env, `rsc:${o._id}`, o.codes_enc)) || [] : [] };
 }
@@ -8453,4 +8461,60 @@ async function promoFirstDeposit(env, uid, amount, ref) {
     await logOp(env, uid, 'promo.first_deposit', { ref }, { bonus }, true);
     notify(env, uid, 'promo_bonus', { amount: bonus.toFixed(2), min: String(min) });
   } catch (e) { console.error('PROMO_FIRST', e.message); }
+}
+
+
+/* ═══ v54 — تقييمات حقيقية: بعد طلب مكتمل فقط، ولا تظهر إلا بعد موافقة الإدارة ═══ */
+function safeUrl(u) { u = String(u || '').trim(); return /^https:\/\/[^\s"'<>]{4,200}$/.test(u) ? u : ''; }
+function maskName(n) { const w = String(n || '').trim().split(/\s+/)[0] || 'عميل'; return Array.from(w)[0] + '*****'; }
+async function handleReviewSubmit(user, body, env) {
+  if (!memAllowWin(`rev_${user.uid}`, 10, 3600)) throw httpError(429, 'محاولات كثيرة');
+  const oid = String(body.order_id || '').trim();
+  if (!/^RSC\d+[A-Z0-9]{4}$/.test(oid)) throw httpError(400, 'طلب غير صالح');
+  const stars = Math.floor(num(body.stars, 0));
+  if (!(stars >= 1 && stars <= 5)) throw httpError(400, 'اختر عدد النجوم');
+  const text = String(body.text || '').replace(/[<>]/g, '').replace(/\s+/g, ' ').trim().slice(0, 300);
+  const u = await fsGet(env, `users/${user.uid}`).catch(() => null);
+  await fsRunTransaction(env, async (tx) => {
+    const o = await tx.get(`rsc_orders/${oid}`);
+    if (!o || o.uid !== user.uid) throw httpError(404, 'الطلب غير موجود');
+    if (o.status !== 'completed') throw httpError(409, 'تقدر تقيّم بعد ما يكتمل الطلب');
+    if (o.reviewed === true) throw httpError(409, 'قيّمت هذا الطلب من قبل');
+    tx.create('reviews', oid, { uid: user.uid, stars, text, name: maskName(u && u.name), item: `${o.cat_name || ''} · ${o.offer_name || ''}`.slice(0, 80),
+      status: text ? 'pending' : 'approved', created_at: nowIso() });                      // تقييم بنجوم بدون نص لا يحتاج مراجعة
+    tx.update(`rsc_orders/${oid}`, { reviewed: true });
+  });
+  bustPublic();
+  return { success: true };
+}
+async function handleReviewsPublic(env) {
+  const s = await getSettings(env);
+  if (!env.DB || !(await d1Table(env, 'reviews'))) return { success: true, count: 0, avg: 0, list: [] };
+  const [agg, rows] = await Promise.all([
+    d1All(env, `SELECT COUNT(*) AS n, AVG(json_extract(data, '$.stars')) AS a FROM reviews WHERE status = 'approved'`),
+    d1All(env, `SELECT data FROM reviews WHERE status = 'approved' AND json_extract(data, '$.text') != '' ORDER BY created_at DESC LIMIT 8`),
+  ]);
+  const count = num(agg[0] && agg[0].n, 0);
+  if (count < Math.max(1, num(s.reviews_min, 5))) return { success: true, count, avg: 0, list: [], hidden: true };
+  return { success: true, count, avg: Math.round(num(agg[0].a, 0) * 10) / 10,
+    list: rows.map(r => { let d = {}; try { d = JSON.parse(r.data); } catch {} return { name: d.name, stars: d.stars, text: d.text, item: d.item, at: d.created_at }; }) };
+}
+async function handleAdminReviews(user, body, env) {
+  const staff = await requirePermission(user, env, body.action === 'list' || !body.action ? 'users.view' : 'users.edit');
+  if (!env.DB || !(await d1Table(env, 'reviews'))) return { success: true, items: [] };
+  if (!body.action || body.action === 'list') {
+    const st = ['pending', 'approved', 'hidden'].includes(body.status) ? body.status : 'pending';
+    const rows = await d1All(env, `SELECT id, data FROM reviews WHERE status = ? ORDER BY created_at DESC LIMIT 60`, [st]);
+    const cnt = await d1All(env, `SELECT status, COUNT(*) AS n FROM reviews GROUP BY status`);
+    return { success: true, items: rows.map(r => { let d = {}; try { d = JSON.parse(r.data); } catch {} return { id: r.id, ...d }; }), counts: Object.fromEntries(cnt.map(c => [c.status, num(c.n, 0)])) };
+  }
+  const id = String(body.id || '');
+  if (!/^RSC\d+[A-Z0-9]{4}$/.test(id)) throw httpError(400, 'غير صالح');
+  const to = body.action === 'approve' ? 'approved' : body.action === 'hide' ? 'hidden' : '';
+  if (!to) throw httpError(400, 'إجراء غير معروف');
+  if (!(await fsGet(env, `reviews/${id}`))) throw httpError(404, 'غير موجود');
+  await fsPatch(env, `reviews/${id}`, { status: to, by: staff.uid, at: nowIso() });
+  bustPublic();
+  await logOp(env, staff.uid, 'review.' + body.action, { id }, {}, true);
+  return { success: true };
 }

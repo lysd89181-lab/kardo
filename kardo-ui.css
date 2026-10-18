@@ -631,3 +631,47 @@ label.kset-row.static { cursor: pointer; }
 .kbuy-b svg { width: 19px; height: 19px; }
 .kbuy-b:disabled { opacity: .55; }
 @media (min-width: 1024px) { .kbuy { bottom: 16px; border-radius: 18px; border: 1px solid var(--u-line); } }
+
+/* ═══ v54 — خاتمة الصفحات ═══ */
+.kfoot { margin: 44px 0 8px; padding-top: 24px; border-top: 1px solid var(--u-line); animation: none !important; }
+.kfoot-cols { display: grid; grid-template-columns: 1fr 1fr; gap: 18px; }
+.kfoot h4 { font: 600 13px var(--u-text); color: var(--u-ink-3); margin: 0 0 8px; }
+.kfoot-cols a, .kfoot-cols button { display: flex; align-items: center; gap: 8px; width: 100%; padding: 7px 0; border: 0; background: none; color: var(--u-ink); font: 500 13.5px var(--u-text); text-decoration: none; text-align: right; cursor: pointer; min-width: 0; }
+.kfoot-cols a span, .kfoot-cols button span { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.kfoot-cols svg { width: 17px; height: 17px; color: var(--u-ink-3); flex: none; }
+.kfoot-soc { display: flex; gap: 8px; margin-top: 18px; }
+.kfoot-soc a { width: 40px; height: 40px; border-radius: 12px; background: var(--u-s1); border: 1px solid var(--u-line); display: grid; place-items: center; color: var(--u-ink-2); }
+.kfoot-soc svg { width: 19px; height: 19px; }
+.kfoot-cp { margin-top: 20px; display: flex; align-items: center; gap: 8px; font: 400 12px var(--u-text); color: var(--u-ink-3); }
+.kfoot-cp img { height: 20px; opacity: .8; }
+/* الأسئلة الشائعة */
+.kfaq { background: var(--u-s1); border: 1px solid var(--u-line); border-radius: var(--u-r-md); overflow: hidden; margin-bottom: 8px; }
+.kfaq details + details { border-top: 1px solid var(--u-line); }
+.kfaq summary { list-style: none; display: flex; justify-content: space-between; align-items: center; gap: 10px; padding: 14px 16px; font: 600 14px var(--u-text); color: var(--u-ink); cursor: pointer; }
+.kfaq summary::-webkit-details-marker { display: none; }
+.kfaq summary i { font-style: normal; color: var(--u-gold); font: 600 18px var(--u-display); transition: transform .2s; }
+.kfaq details[open] summary i { transform: rotate(45deg); }
+.kfaq p { margin: 0; padding: 0 16px 14px; font: 400 13.5px/1.8 var(--u-text); color: var(--u-ink-2); }
+/* آراء العملاء */
+.krev-sum { display: flex; align-items: center; gap: 14px; background: var(--u-s1); border: 1px solid var(--u-line); border-radius: var(--u-r-md); padding: 14px 16px; margin-bottom: 10px; }
+.krev-sum > b { font: 700 34px var(--u-display); color: var(--u-ink); }
+.krev-sum span { font: 400 12px var(--u-text); color: var(--u-ink-3); }
+.kst { color: #F5B400; letter-spacing: 2px; font-size: 15px; } .kst.sm { font-size: 11px; letter-spacing: 1px; }
+.krev { flex: none; width: 250px; background: var(--u-s1); border: 1px solid var(--u-line); border-radius: 16px; padding: 12px 14px; }
+.krev-h { display: flex; align-items: center; gap: 10px; }
+.krev-av { width: 36px; height: 36px; border-radius: 12px; background: var(--u-gold-soft); color: var(--u-gold); display: grid; place-items: center; font: 600 14px var(--u-display); flex: none; }
+.krev-h b { font: 600 13px var(--u-text); color: var(--u-ink); }
+.krev-vf { margin-inline-start: auto; font: 500 10.5px var(--u-text); color: var(--u-ok); background: var(--u-ok-soft); padding: 2px 8px; border-radius: 999px; white-space: nowrap; }
+.krev p { font: 400 13px/1.7 var(--u-text); color: var(--u-ink); margin: 8px 0 4px; display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
+.krev-it { font: 400 11px var(--u-text); color: var(--u-ink-3); }
+/* التقييم */
+.krate { text-align: center; padding: 12px; border-radius: var(--u-r-md); background: var(--u-s2); margin-bottom: 12px; position: relative; }
+.krate > b { display: block; font: 600 14px var(--u-text); color: var(--u-ink); margin-bottom: 6px; padding: 0 28px; }
+.krate-st { display: flex; justify-content: center; gap: 6px; margin-bottom: 8px; }
+.krate-st button { border: 0; background: none; font-size: 32px; color: var(--u-line-2); cursor: pointer; padding: 0 2px; transition: transform .15s, color .15s; }
+.krate-st button.on { color: #F5B400; transform: scale(1.08); }
+.krate textarea { margin-bottom: 8px; }
+.krate-card { padding: 4px !important; }
+.krate-card .krate { margin: 0; background: transparent; }
+.krate-x { position: absolute; top: 8px; left: 8px; width: 30px; height: 30px; border-radius: 10px; border: 0; background: var(--u-s2); color: var(--u-ink-3); display: grid; place-items: center; cursor: pointer; }
+.krate-x svg { width: 15px; height: 15px; }
