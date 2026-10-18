@@ -4537,6 +4537,11 @@ function openRscCatEdit(key) {
       <div class="field"><label class="field-label" for="rcM">ربح خاص (%)</label><input class="input tabular" id="rcM" type="number" min="0" max="300" step="0.5" value="${esc(String(c.margin))}" placeholder="العام ${esc(String(S.rscA.margin))}%"></div>
       <div class="field"><label class="field-label" for="rcS">الترتيب</label><input class="input tabular" id="rcS" type="number" value="${esc(String(c.sort))}" placeholder="99"></div>
     </div>
+    <div class="arow static" style="padding:4px 0 12px"><span class="art"><b>يظهر في «عروض اليوم»</b><span>بطاقة كبيرة في أعلى المتجر</span></span><button class="asw ${c.featured ? 'on' : ''}" id="rcFeat" type="button"></button></div>
+    <div class="field mb-3"><label class="field-label" for="rcP">نص العرض (اختياري)</label><input class="input" id="rcP" maxlength="70" value="${esc(c.promo || '')}" placeholder="مثال: 660 UC بـ 118 د.ل بدل 125"></div>
+    <div class="field mb-3"><label class="field-label" for="rcG">التصنيف</label><select class="input" id="rcG">
+      <option value="" ${!c.group ? 'selected' : ''}>تلقائي (${c.type === 'topup' ? 'شحن ألعاب' : 'بطاقات هدايا'})</option>
+      <option value="subs" ${c.group === 'subs' ? 'selected' : ''}>اشتراكات</option><option value="apps" ${c.group === 'apps' ? 'selected' : ''}>تطبيقات</option></select></div>
     <div class="field mb-3"><label class="field-label">صورة القسم</label>
       <div style="display:flex;gap:10px;align-items:center">
         <span id="rcPrev" style="width:64px;height:64px;border-radius:14px;overflow:hidden;background:var(--surface-2);display:grid;place-items:center">${c.image ? `<img src="${esc(/^\//.test(c.image) ? API_BASE + c.image : c.image)}" style="width:100%;height:100%;object-fit:cover">` : '📷'}</span>
@@ -4548,9 +4553,10 @@ function openRscCatEdit(key) {
   $('#rcF').onchange = async () => {
     try { img = await compressImg($('#rcF').files[0], 480, 0.82, 120000); $('#rcPrev').innerHTML = `<img src="${img}" style="width:100%;height:100%;object-fit:cover">`; } catch (e) { toast(e.message, 'bad'); }
   };
+  onTap('#rcFeat', () => $('#rcFeat').classList.toggle('on'));
   onTap('#rcClr', () => { img = ''; $('#rcPrev').innerHTML = '📷'; toast('ستُستخدم صورة المزود عند الحفظ', 'ok'); });
   onTap('#rcGo', async () => {
-    const body = { action: 'cat', key, name: $('#rcN').value.trim(), margin: $('#rcM').value.trim(), sort: $('#rcS').value.trim() };
+    const body = { action: 'cat', key, name: $('#rcN').value.trim(), margin: $('#rcM').value.trim(), sort: $('#rcS').value.trim(), featured: $('#rcFeat').classList.contains('on'), promo: $('#rcP').value.trim(), group: $('#rcG').value };
     if (img !== null) body.image = img;
     const b = $('#rcGo'); b.disabled = true;
     try { await api('/api/admin/rsc', body); closeModal(); toast('حُفظ ✓', 'ok'); loadRscA(); }

@@ -7329,6 +7329,12 @@ async function handleRscCatalog(env) {
   const byKey = new Map(all.map(c => [c.key, c]));
   const keys = Object.keys(cfg.cats).filter(k => cfg.cats[k] && cfg.cats[k].on === true && byKey.has(k));
   const categories = [];
+  // v53: شعبية كل قسم (طلبات مكتملة آخر 30 يومًا) — الكتالوج مخزّن على الحافة فالاستعلام نادر
+  const pop = {};
+  if (env.DB && await d1Table(env, 'rsc_orders').catch(() => false)) {
+    const rows = await d1All(env, `SELECT json_extract(data, '$.cat') AS c, COUNT(*) AS n FROM rsc_orders WHERE status = 'completed' AND created_at > ? GROUP BY c`, [new Date(Date.now() - 30 * 86400000).toISOString()]).catch(() => []);
+    for (const r of rows) if (r.c) pop[r.c] = num(r.n, 0);
+  }
   for (const key of keys) {
     const cat = byKey.get(key), c = cfg.cats[key];
     const off = await rscKvGet(env, 'rsc:off:' + key);
@@ -7336,7 +7342,7 @@ async function handleRscCatalog(env) {
     const m = rscMargin(s, cfg, key);
     categories.push({
       key, type: cat.type, name: c.name || cat.name, image: rscImg(env, key, cfg, cat), note: c.note || cat.note || '',
-      sort: num(c.sort, 99), fields: off.fields || [],
+      sort: num(c.sort, 99), fields: off.fields || [], featured: c.featured === true, promo: c.promo || '', group: c.group || '', pop: pop[key] || 0,
       offers: (off.offers || []).filter(o => o.stock == null || o.stock > 0).map(o => ({ id: o.id, name: o.name, price: rscSell(o.cost, m), min: o.min, max: o.max })),
     });
   }
@@ -7507,15 +7513,22 @@ async function rscOrderView(env, oid, uid) {
   return { success: true, order: await rscPublic(env, { ...o, _id: oid }) };
 }
 async function rscPublic(env, o) {
-  return { id: o._id, status: o.status, kind: o.kind, cat_name: o.cat_name, offer_name: o.offer_name, qty: o.qty, fields: o.fields || {},
+  return { id: o._id, status: o.status, kind: o.kind, cat: o.cat || '', offer_id: o.offer_id || '', cat_name: o.cat_name, offer_name: o.offer_name, qty: o.qty, fields: o.fields || {},
     total_usd: num(o.total_usd, 0), created_at: o.created_at, fail_reason: o.fail_reason || '',
     codes: o.status === 'completed' && o.codes_enc ? (await decCodes(env, `rsc:${o._id}`, o.codes_enc)) || [] : [] };
 }
 
 async function handleRscMyOrders(user, body, env) {
-  const rows = await fsQueryRaw(env, { from: [{ collectionId: 'rsc_orders' }],
-    where: { fieldFilter: { field: { fieldPath: 'uid' }, op: 'EQUAL', value: { stringValue: user.uid } } }, limit: 60 });
-  const list = rows.map(r => withId(r, 'rsc_orders')).sort((a, b) => String(b.created_at || '').localeCompare(String(a.created_at || ''))).slice(0, 40);
+  if (!memAllowWin(`rscmy_${user.uid}`, 120, 3600)) throw httpError(429, 'محاولات كثيرة');
+  let docs;
+  if (env.DB && await d1Table(env, 'rsc_orders')) {                 // v53: آخر 40 بالترتيب من الفهرس (بدل 60 عشوائية)
+    const rows = await d1All(env, 'SELECT id, data FROM rsc_orders WHERE uid = ? ORDER BY created_at DESC LIMIT 40', [user.uid]);
+    docs = rows.map(r => { let d = {}; try { d = JSON.parse(r.data); } catch {} return { ...d, _id: r.id }; });
+  } else {
+    const rows = await fsQueryRaw(env, { from: [{ collectionId: 'rsc_orders' }], where: { fieldFilter: { field: { fieldPath: 'uid' }, op: 'EQUAL', value: { stringValue: user.uid } } }, limit: 60 });
+    docs = rows.map(r => withId(r, 'rsc_orders'));
+  }
+  const list = docs.sort((a, b) => String(b.created_at || '').localeCompare(String(a.created_at || ''))).slice(0, 40);
   const orders = [];
   for (const o of list) orders.push(await rscPublic(env, o));
   return { success: true, orders };
@@ -7568,7 +7581,7 @@ async function handleAdminRsc(user, body, env) {
     for (const c of cats) {
       const cc = cfg.cats[c.key] || {};
       const off = cc.on ? await rscKvGet(env, 'rsc:off:' + c.key) : null;
-      list.push({ key: c.key, type: c.type, name: c.name, alias: cc.name || '', on: cc.on === true, margin: cc.margin ?? '', sort: cc.sort ?? '',
+      list.push({ key: c.key, type: c.type, name: c.name, alias: cc.name || '', on: cc.on === true, margin: cc.margin ?? '', sort: cc.sort ?? '', featured: cc.featured === true, promo: cc.promo || '', group: cc.group || '',
         image: rscImg(env, c.key, cfg, c), custom_img: !!cc.img_v, offers: off ? off.offers.length : null, synced_at: off ? off.at : null });
     }
     const bal = me && (me.balance_usd ?? me.balance ?? (me.account && me.account.balance));
@@ -7592,6 +7605,9 @@ async function handleAdminRsc(user, body, env) {
     if ('note' in body) cur.note = String(body.note || '').trim().slice(0, 300);
     if ('margin' in body) cur.margin = body.margin === '' || body.margin == null ? '' : Math.min(300, Math.max(0, num(body.margin, 0)));
     if ('sort' in body) cur.sort = body.sort === '' || body.sort == null ? '' : Math.floor(num(body.sort, 99));
+    if ('featured' in body) cur.featured = body.featured === true;                                   // v53: يظهر في «عروض اليوم»
+    if ('promo' in body) cur.promo = String(body.promo || '').replace(/[<>]/g, '').trim().slice(0, 70);
+    if ('group' in body) cur.group = ['subs', 'apps', ''].includes(String(body.group || '')) ? String(body.group || '') : '';
     if ('image' in body) {
       const img = String(body.image || '');
       if (!img) { cur.img_v = 0; if (env.KV) await env.KV.delete('rsc:img:' + key).catch(() => {}); }

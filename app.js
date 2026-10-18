@@ -4425,57 +4425,130 @@ async function loadRscOrders() {
 }
 const rscCatBy = key => (S.rsc.cats || []).find(c => c.key === key);
 const rscFrom = c => Math.min(...(c.offers || []).map(o => o.price));
+const rscGroup = c => c.group || (c.type === 'topup' ? 'topup' : 'gift');
+const RSC_TABS = [['all', 'الكل', '✦'], ['topup', 'شحن ألعاب', '🎮'], ['gift', 'بطاقات هدايا', '🎁'], ['subs', 'اشتراكات', '📺'], ['apps', 'تطبيقات', '📱']];
+const rscImgTag = (c, cls = '') => c.image ? `<img class="${cls}" src="${esc(rscImgUrl(c.image))}" alt="" loading="lazy" decoding="async">` : `<span class="rsc-ph ${cls}">${svg(c.type === 'topup' ? I.game : I.giftbox)}</span>`;
+const rscPop = c => c.pop >= 1000 ? (c.pop / 1000).toFixed(1).replace('.0', '') + ' ألف طلب' : c.pop >= 10 ? c.pop + ' طلب' : '';
+// بطاقة طويلة (ألعاب) — الصورة واضحة فوق خلفية ضبابية منها
 function rscTile(c) {
-  return `<button class="rsc-tile" data-rsccat="${esc(c.key)}" data-kind="${esc(c.type)}" type="button">
-    <span class="rsc-tile-img">${c.image ? `<img src="${esc(rscImgUrl(c.image))}" alt="" loading="lazy" decoding="async">` : `<span class="rsc-tile-ph">${svg(c.type === 'topup' ? I.game : I.giftbox)}</span>`}</span>
-    <span class="rsc-tile-name">${esc(c.name)}</span>
-    <span class="rsc-tile-from">من ${esc(lyd(rscFrom(c) * rate()))}</span>
+  return `<button class="ktall" data-rsccat="${esc(c.key)}" type="button">
+    <span class="ktall-cv">${c.image ? `<span class="ktall-bg" style="background-image:url('${esc(rscImgUrl(c.image))}')"></span>` : ''}${rscImgTag(c, 'ktall-img')}
+      ${c.promo ? `<i class="ktag hot">${esc(c.promo.slice(0, 18))}</i>` : c.type === 'topup' ? '<i class="ktag">⚡ فوري</i>' : ''}</span>
+    <span class="ktall-nm">${esc(c.name)}</span>
+    <span class="ktall-pr">من <em>${esc(lyd(rscFrom(c) * rate()))}</em></span>
   </button>`;
 }
+// بطاقة هدايا بشكل بطاقة حقيقية
+function rscGiftTile(c) {
+  return `<button class="kgift" data-rsccat="${esc(c.key)}" type="button">
+    ${c.image ? `<span class="kgift-bg" style="background-image:url('${esc(rscImgUrl(c.image))}')"></span>` : '<span class="kgift-bg ph"></span>'}
+    <span class="kgift-top"><b>${esc(c.name)}</b><span class="kgift-chip"></span></span>
+    <span class="kgift-from">من ${esc(lyd(rscFrom(c) * rate()))}</span>
+  </button>`;
+}
+function rscHero(list) {
+  if (!list.length) return '';
+  return `<div class="kheros" id="kHeros">${list.map(c => `<button class="khero" data-rsccat="${esc(c.key)}" type="button">
+      ${c.image ? `<span class="khero-bg" style="background-image:url('${esc(rscImgUrl(c.image))}')"></span>` : '<span class="khero-bg ph"></span>'}
+      <span class="khero-img">${rscImgTag(c)}</span>
+      <i class="khero-tag">${c.type === 'topup' ? '⚡ يوصل خلال دقيقة' : '🎁 الكود يوصلك فورًا'}</i>
+      <span class="khero-txt"><b>${esc(c.name)}</b><span>${esc(c.promo || 'من ' + lyd(rscFrom(c) * rate()))}</span></span>
+    </button>`).join('')}</div>
+    ${list.length > 1 ? `<div class="kdots" id="kDots">${list.map((_, i) => `<i class="${i ? '' : 'on'}"></i>`).join('')}</div>` : ''}`;
+}
+function rscAgain() {
+  const seen = new Set(), out = [];
+  for (const o of (S.rscOrders || [])) {
+    if (o.status !== 'completed' || !o.cat || !o.offer_id) continue;
+    const k = o.cat + '|' + o.offer_id; if (seen.has(k)) continue; seen.add(k);
+    const c = rscCatBy(o.cat), off = c && c.offers.find(x => x.id === o.offer_id);
+    if (c && off) out.push({ o, c, off });
+    if (out.length >= 6) break;
+  }
+  if (!out.length) return '';
+  const mask = v => { v = String(v || ''); return v.length > 6 ? v.slice(0, 4) + '…' + v.slice(-2) : v; };
+  return `<div class="ksh"><h2>اشتري مرة ثانية</h2></div>
+    <div class="krow">${out.map(({ o, c, off }) => { const f = Object.values(o.fields || {})[0];
+      return `<button class="kagain" data-rscagain="${esc(o.id)}" type="button"><span class="kagain-ic">${rscImgTag(c)}</span>
+        <span class="kagain-t"><b dir="auto">${esc(off.name)}</b><span>${f ? `<bdi dir="ltr">${esc(mask(f))}</bdi> · ` : ''}${esc(lyd(off.price * rate()))}</span></span><span class="kagain-go">↺</span></button>`; }).join('')}</div>`;
+}
+function rscChips(tab, cats) {
+  const has = g => g === 'all' || cats.some(c => rscGroup(c) === g);
+  return `<div class="kchipsx">${RSC_TABS.filter(([k]) => has(k)).map(([k, t, e]) => `<button class="${tab === k ? 'on' : ''}" data-rsctab="${k}" type="button"><em>${e}</em>${t}</button>`).join('')}</div>`;
+}
+function rscPopular(cats, n = 8) { return [...cats].sort((a, b) => (b.pop || 0) - (a.pop || 0) || a.sort - b.sort).slice(0, n); }
 function rscHome() {
   if (!rscOn()) return '';
-  if (!S.rsc.loaded) { loadRsc(); return `<div class="ksh"><h2>الأكثر طلبًا</h2></div><div class="rsc-grid mb-5">${'<div class="skeleton" style="aspect-ratio:1/1;border-radius:20px"></div>'.repeat(4)}</div>`; }
+  if (!S.rsc.loaded) { loadRsc(); return `<div class="ksh"><h2>الأكثر شحنًا</h2></div><div class="krow mb-5">${'<div class="skeleton" style="flex:none;width:118px;height:190px;border-radius:18px"></div>'.repeat(3)}</div>`; }
   const cats = S.rsc.cats || [];
   if (!cats.length) return '';
-  return `<div class="ksh"><h2>الأكثر طلبًا</h2><button data-nav="kstore" type="button">عرض الكل</button></div>
-    <div class="rsc-grid mb-6">${cats.slice(0, 6).map(rscTile).join('')}</div>`;
+  const feat = cats.filter(c => c.featured).slice(0, 5);
+  if (S.user && !S.rscOrders) { S.rscOrders = []; loadRscOrders(); }
+  return `${feat.length ? `<div class="ksh"><h2>عروض اليوم</h2></div>${rscHero(feat)}` : ''}
+    ${rscAgain()}
+    <div class="ksh"><h2>الأكثر شحنًا</h2><button data-nav="kstore" type="button">عرض الكل</button></div>
+    <div class="krow mb-6">${rscPopular(cats).map(c => rscGroup(c) === 'topup' ? rscTile(c) : rscGiftTile(c).replace('class="kgift"', 'class="kgift inrow"')).join('')}</div>`;
 }
 function vKStore() {
   if (!S.rsc.loaded) loadRsc();
   const cur = S.rscCat ? rscCatBy(S.rscCat) : null;
-  if (cur) {
-    return `<div class="page-enter">
-      <button class="btn btn-ghost btn-sm mb-3" data-rscback type="button" style="padding:0 !important">${svg(I.next)} المتجر</button>
-      <div class="rsc-head-main mb-5">
-        ${cur.image ? `<img class="rsc-head-img" src="${esc(rscImgUrl(cur.image))}" alt="">` : `<span class="kstate" style="margin:0;width:64px;height:64px">${svg(cur.type === 'topup' ? I.game : I.giftbox)}</span>`}
-        <div><h1 class="kpage-title" style="margin:0">${esc(cur.name)}</h1>
-          <div class="kpage-sub" style="margin:0">${cur.type === 'topup' ? 'شحن مباشر لحسابك في اللعبة' : 'يصلك الكود فورًا في «طلباتي»'}</div></div>
-      </div>
-      ${cur.note ? `<div class="alert alert-info mb-4">${svg(I.help)}<div style="white-space:pre-line">${esc(cur.note)}</div></div>` : ''}
-      <div class="list">${cur.offers.map(o => `
-        <button class="list-row rsc-offer" data-rscoffer="${esc(o.id)}" type="button">
-          <span class="list-icon">${svg(cur.type === 'topup' ? I.game : I.giftbox)}</span>
-          <div class="list-content"><div class="list-title"><bdi>${esc(o.name)}</bdi></div><div class="list-meta">تسليم فوري</div></div>
-          <div class="list-end"><div class="list-amount tabular">${esc(lyd(o.price * rate()))}</div></div>
-        </button>`).join('')}</div>
-    </div>`;
-  }
+  if (cur) return vRscProduct(cur);
   const q = (S.rscQ || '').trim().toLowerCase();
   const tab = S.rscTab || 'all';
-  const shown = (S.rsc.cats || []).filter(c => (!q || c.name.toLowerCase().includes(q)) && (tab === 'all' || c.type === tab));
+  const cats = S.rsc.cats || [];
+  const shown = cats.filter(c => (!q || c.name.toLowerCase().includes(q)) && (tab === 'all' || rscGroup(c) === tab));
+  const feat = cats.filter(c => c.featured).slice(0, 5);
+  const home = tab === 'all' && !q;
+  if (home && S.user && !S.rscOrders) { S.rscOrders = []; loadRscOrders(); }
+  const games = shown.filter(c => rscGroup(c) === 'topup'), gifts = shown.filter(c => rscGroup(c) !== 'topup');
+  const grid = list => list.length ? `<div class="kgrid3">${list.map(rscTile).join('')}</div>` : '';
+  const ggrid = list => list.length ? `<div class="kgrid2">${list.map(rscGiftTile).join('')}</div>` : '';
   return `<div class="page-enter">
     <h1 class="kpage-title">المتجر</h1>
-    <p class="kpage-sub">بطاقات هدايا وشحن ألعاب، يصلك الكود خلال ثوانٍ</p>
-    <div class="input-wrap mb-3"><span class="input-icon">${svg(I.search)}</span>
-      <input class="input" id="rscQ" placeholder="ابحث عن لعبة أو بطاقة" value="${esc(S.rscQ || '')}" autocomplete="off"></div>
-    <div class="pills mb-5">${[['all', 'الكل'], ['topup', 'شحن ألعاب'], ['gift', 'بطاقات هدايا']].map(([k, t]) => `<button class="pill ${tab === k ? 'active' : ''}" data-rsctab="${k}" type="button">${t}</button>`).join('')}</div>
-    ${!S.rsc.loaded && !S.rsc.error ? `<div class="rsc-grid">${'<div class="skeleton" style="aspect-ratio:1/1;border-radius:20px"></div>'.repeat(6)}</div>` : ''}
+    <p class="kpage-sub">شحن ألعاب وبطاقات هدايا — يوصلك خلال ثوانٍ</p>
+    <label class="ksearch">${svg(I.search)}<input id="rscQ" placeholder="ابحث عن لعبة أو بطاقة…" value="${esc(S.rscQ || '')}" autocomplete="off" inputmode="search"></label>
+    ${rscChips(tab, cats)}
+    ${!S.rsc.loaded && !S.rsc.error ? `<div class="kgrid3">${'<div class="skeleton" style="height:190px;border-radius:18px"></div>'.repeat(6)}</div>` : ''}
     ${S.rsc.error && !S.rsc.loaded ? `<div class="card" style="text-align:center;padding:28px 20px">${fennec('error')}<div class="h4 mb-3">تعذّر تحميل المتجر</div><button class="btn btn-secondary btn-sm" data-rscretry type="button">إعادة المحاولة</button></div>` : ''}
-    ${S.rsc.loaded && shown.length ? `<div class="rsc-grid">${shown.map(rscTile).join('')}</div>` : ''}
+    ${S.rsc.loaded && home ? `
+      ${feat.length ? `<div class="ksh"><h2>عروض اليوم</h2></div>${rscHero(feat)}` : ''}
+      ${rscAgain()}
+      ${games.length ? `<div class="ksh"><h2>الأكثر شحنًا</h2><button data-rsctab="topup" type="button">عرض الكل</button></div><div class="krow">${rscPopular(games).map(rscTile).join('')}</div>` : ''}
+      ${gifts.length ? `<div class="ksh"><h2>بطاقات الهدايا</h2><button data-rsctab="gift" type="button">${gifts.length} بطاقة</button></div>${ggrid(gifts.slice(0, 6))}` : ''}
+      ${games.length > 8 ? `<div class="ksh"><h2>كل الألعاب</h2></div>${grid(games)}` : ''}` : ''}
+    ${S.rsc.loaded && !home && shown.length ? (tab === 'topup' ? grid(shown) : tab === 'all' ? grid(games) + ggrid(gifts) : ggrid(shown)) : ''}
     ${S.rsc.loaded && !shown.length ? `<div class="card" style="text-align:center;padding:32px 20px">${fennec('empty')}<div class="h4" style="margin-bottom:6px">${q ? 'لا نتائج' : 'نجهّز المتجر'}</div><p class="body-sm text-2">${q ? 'جرّب اسمًا آخر' : 'أقسام جديدة قريبًا'}</p></div>` : ''}
   </div>`;
 }
-function openRscBuy(cat, off) {
+// صفحة المنتج: الباقات كبطاقات + البيانات + شريط دفع ثابت
+function vRscProduct(cur) {
+  const isTop = cur.type === 'topup';
+  S.rscF = S.rscF || {};
+  if (S.rscKeyCat !== cur.key) { S.rscKeyCat = cur.key; S.rscKey = newIdemKey(); S.rscSel = null; S.rscQty = null; }
+  const sel = cur.offers.find(o => o.id === S.rscSel) || cur.offers[0];
+  const qty = isTop ? 1 : Math.min(sel.max, Math.max(sel.min, Math.floor(n(S.rscQty) || sel.min)));
+  const total = Math.round(sel.price * qty * 100) / 100;
+  const bal = n(S.profile.wallet_balance), short = bal < total;
+  const pop = rscPop(cur);
+  return `<div class="page-enter kprod">
+    <div class="kp-hero">${cur.image ? `<span class="kp-bg" style="background-image:url('${esc(rscImgUrl(cur.image))}')"></span>` : '<span class="kp-bg ph"></span>'}<span class="kp-fade"></span>
+      <button class="kp-back" data-rscback type="button" aria-label="رجوع">${svg(I.next)}</button></div>
+    <div class="kp-info"><span class="kp-ic">${rscImgTag(cur)}</span><div><h1>${esc(cur.name)}</h1><span>${isTop ? 'شحن مباشر على حسابك في اللعبة' : 'الكود يوصلك فورًا في «طلباتي»'}</span></div></div>
+    <div class="kp-badges"><span class="g">⚡ ${isTop ? 'يوصل خلال دقائق' : 'تسليم فوري'}</span><span>🔒 دفع من محفظتك</span>${pop ? `<span>🔥 ${esc(pop)} هذا الشهر</span>` : ''}</div>
+    ${cur.note ? `<div class="alert alert-info mb-3">${svg(I.help)}<div style="white-space:pre-line">${esc(cur.note)}</div></div>` : ''}
+    <div class="kp-lbl">اختر الباقة</div>
+    <div class="kpk">${cur.offers.map(o => `<button class="kpkc ${o.id === sel.id ? 'on' : ''}" data-rscpick="${esc(o.id)}" type="button">
+      <b dir="auto">${esc(o.name)}</b><span class="p">${esc(lyd(o.price * rate()))}</span><span class="u">≈ ${esc(usd(o.price))}</span></button>`).join('')}</div>
+    ${isTop ? (cur.fields || []).map((f, i) => `<div class="kp-lbl">${esc(f.label)}</div>
+      <input class="input kp-in" id="rpf${i}" data-rpf="${esc(f.key)}" ${f.type === 'number' ? 'inputmode="numeric"' : ''} dir="ltr" maxlength="120" autocomplete="off" value="${esc((S.rscF[cur.key] || {})[f.key] || '')}">`).join('') +
+      `<div class="caption" style="margin-top:8px;display:flex;gap:6px;align-items:center">${svg(I.help)}تأكد من الرقم — الشحن يمشي مباشرة ولا يُسترجع</div>` : `
+      <div class="kp-lbl">الكمية</div>
+      <div class="kqty"><button type="button" data-rscqty="-1" ${qty <= sel.min ? 'disabled' : ''}>−</button><b class="tabular">${qty}</b><button type="button" data-rscqty="1" ${qty >= sel.max ? 'disabled' : ''}>+</button></div>`}
+    <div class="kbuy"><div class="kbuy-t"><span>${short ? `رصيدك ${esc(lyd(bal * rate()))}` : 'الإجمالي'}</span><b class="tabular">${esc(lyd(total * rate()))}</b></div>
+      <button class="kbuy-b" id="rpGo" type="button" data-total="${total}" data-short="${short ? 1 : ''}">${short ? `${svg(I.wallet2)} ادفع الفرق ${esc(usd(Math.ceil((total - bal) * 100) / 100))}` : `${svg(I.lock)} ادفع من محفظتي`}</button></div>
+  </div>`;
+}
+function openRscBuy(cat, off, pre) {
   const isTop = cat.type === 'topup';
   const key = newIdemKey();
   const chips = (cat.offers || []).length <= 9 ? cat.offers : null;
@@ -4489,7 +4562,7 @@ function openRscBuy(cat, off) {
       : `<div class="field-label">الباقة</div><div class="copy-box mb-4"><div class="copy-value" dir="auto">${esc(off.name)}</div></div>`}
     ${isTop ? (cat.fields || []).map((f, i) => `
       <div class="field mb-2"><label class="field-label" for="rf${i}">${esc(f.label)}</label>
-        <input class="input" id="rf${i}" ${f.type === 'number' ? 'inputmode="numeric"' : ''} dir="ltr" maxlength="120" autocomplete="off"></div>`).join('') + `
+        <input class="input" id="rf${i}" ${f.type === 'number' ? 'inputmode="numeric"' : ''} dir="ltr" maxlength="120" autocomplete="off" value="${esc((pre || {})[f.key] || '')}"></div>`).join('') + `
       <div class="caption mb-4" style="display:flex;gap:6px;align-items:center">${svg(I.help)}تأكد من البيانات — الشحن يُرسل مباشرة ولا يُسترجع</div>` : `
       <div class="field mb-4" id="rQtyW"><label class="field-label" for="rQty">الكمية</label>
         <input class="input tabular" id="rQty" type="number" inputmode="numeric" min="${off.min}" max="${off.max}" value="${off.min}"></div>`}
@@ -4576,7 +4649,13 @@ function rscOrderRows() {
 }
 function bindRsc() {
   $$('[data-rsccat]').forEach(b => b.onclick = () => { S.rscCat = b.dataset.rsccat; if (S.page !== 'kstore') go('kstore', true); else { render(); window.scrollTo({ top: 0, behavior: 'instant' }); } });
-  $$('[data-rscback]').forEach(b => b.onclick = () => { S.rscCat = null; render(); });
+  $$('[data-rscback]').forEach(b => b.onclick = () => { S.rscCat = null; render(); window.scrollTo({ top: 0, behavior: 'instant' }); });
+  $$('[data-rscpick]').forEach(b => b.onclick = () => { S.rscSel = b.dataset.rscpick; S.rscQty = null; haptic.tap(); render(); });
+  $$('[data-rscqty]').forEach(b => b.onclick = () => { const c = rscCatBy(S.rscCat), o = c && (c.offers.find(x => x.id === S.rscSel) || c.offers[0]); if (!o) return; S.rscQty = Math.min(o.max, Math.max(o.min, (n(S.rscQty) || o.min) + Number(b.dataset.rscqty))); render(); });
+  $$('[data-rpf]').forEach(inp => inp.oninput = () => { S.rscF[S.rscCat] = { ...(S.rscF[S.rscCat] || {}), [inp.dataset.rpf]: inp.value }; });
+  $$('[data-rscagain]').forEach(b => b.onclick = () => { const o = (S.rscOrders || []).find(x => x.id === b.dataset.rscagain); const c = o && rscCatBy(o.cat), off = c && c.offers.find(x => x.id === o.offer_id); if (off) openRscBuy(c, off, o.fields); });
+  onTap('#rpGo', () => rscProductPay());
+  rscHeroAuto();
   $$('[data-rsctab]').forEach(b => b.onclick = () => { S.rscTab = b.dataset.rsctab; render(); });
   $$('[data-rscretry]').forEach(b => b.onclick = () => { S.rsc.error = false; loadRsc(true); render(); });
   $$('[data-rscoffer]').forEach(b => b.onclick = () => { const c = rscCatBy(S.rscCat); const o = c && c.offers.find(x => x.id === b.dataset.rscoffer); if (o) openRscBuy(c, o); });
@@ -5169,4 +5248,55 @@ async function openPayLink(inv) {
     onTap('#plOff', async () => { try { await api('/api/wallet/invoice/share', { id: inv.id, on: false }); inv.shared = false; toast('أُوقف الرابط', 'ok'); openInvoice(inv); } catch (e) { toast(e.message, 'bad'); } });
     onTap('#plBack', () => openInvoice(inv));
   } catch (e) { toast(e.message, 'bad'); openInvoice(inv); }
+}
+
+/* ═══ v53 — المتجر الجديد: دفع من صفحة المنتج + تقليب العروض ═══ */
+async function rscProductPay() {
+  const cat = rscCatBy(S.rscCat); if (!cat) return;
+  const isTop = cat.type === 'topup';
+  const sel = cat.offers.find(o => o.id === S.rscSel) || cat.offers[0];
+  const qty = isTop ? 1 : Math.min(sel.max, Math.max(sel.min, Math.floor(n(S.rscQty) || sel.min)));
+  const total = Math.round(sel.price * qty * 100) / 100;
+  const fields = {};
+  if (isTop) for (let i = 0; i < (cat.fields || []).length; i++) {
+    const el = $('#rpf' + i), v = (el ? el.value : '').trim();
+    if (!v) { toast(`${cat.fields[i].label} مطلوب`, 'bad'); el && el.focus(); return; }
+    fields[cat.fields[i].key] = v;
+  }
+  const body = { cat: cat.key, offer: sel.id, qty, fields, expect: total, idempotency_key: S.rscKey };
+  if (n(S.profile.wallet_balance) < total) {
+    const short = Math.ceil((total - n(S.profile.wallet_balance)) * 100) / 100;
+    CHECKOUT = { name: `${cat.name} — ${sel.name}`, total, body };
+    return openDeposit(short, true);
+  }
+  if (!confirm(`تأكيد شراء ${sel.name}${qty > 1 ? ' × ' + qty : ''} بـ ${lyd(total * rate())}؟`)) return;
+  const btn = $('#rpGo'); if (btn) { btn.disabled = true; btn.classList.add('loading'); }
+  try {
+    const r = await api('/api/rsc/order', body, 60000);
+    anEv('buy');
+    S.rscKey = newIdemKey(); S.rscOrders = null; loadRscOrders();
+    openRscResult(r.order);
+  } catch (e) {
+    if (/السعر/.test(e.message)) loadRsc(true);
+    toast(e.message, 'bad');
+  }
+  if (btn && document.body.contains(btn)) { btn.disabled = false; btn.classList.remove('loading'); }
+}
+let _heroT = null;
+function rscHeroAuto() {
+  clearInterval(_heroT);
+  const box = $('#kHeros'); if (!box) return;
+  const dots = $$('#kDots i');
+  const idx = () => Math.round(Math.abs(box.scrollLeft) / Math.max(1, box.firstElementChild ? box.firstElementChild.offsetWidth + 12 : 1));
+  box.onscroll = () => { const i = idx(); dots.forEach((d, k) => d.classList.toggle('on', k === i)); };
+  if (box.children.length < 2 || matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+  let paused = false;
+  box.ontouchstart = () => { paused = true; }; box.ontouchend = () => { setTimeout(() => { paused = false; }, 4000); };
+  _heroT = setInterval(() => {
+    if (paused || document.visibilityState !== 'visible' || !document.body.contains(box)) return;
+    const next = (idx() + 1) % box.children.length, el = box.children[next];
+    const r = box.getBoundingClientRect(); if (r.bottom < 0 || r.top > innerHeight) return;    // خارج الشاشة: لا نحرّك
+    const step = next * (el.offsetWidth + 12), rtl = getComputedStyle(box).direction === 'rtl';
+    box.scrollTo({ left: rtl ? -step : step, behavior: 'smooth' });
+  }, 4500);
 }
