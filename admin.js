@@ -413,7 +413,7 @@ const QUERY_SEC = { users: ['users'], manualCards: ['cards', 'mcards', 'users'],
   sms: ['sms'], services: ['services', 'store'], serviceOrders: ['services', 'users'], merchants: ['merchants'], mreports: ['merchants'], mapps: ['merchants'], mstatements: ['merchants'], platforms: ['stickers'] };
 // v14 — اشتراكات حسب الصفحة المفتوحة فقط (توفير قراءات Firestore)
 const PAGE_KEYS = {
-  home: ['deposits', 'manualOrders', 'orders', 'serviceOrders', 'sms', 'withdrawals', 'tickets', 'mreports', 'mapps'],
+  home: ['deposits', 'manualOrders', 'orders', 'serviceOrders', 'sms', 'withdrawals', 'tickets'],   // v50: المتاجر أُلغيت — لا قراءات لها
   deposits: ['deposits'], withdraw: ['withdrawals'], sms: ['sms', 'users'], mcards: ['manualOrders', 'manualCards'], cards: ['manualCards'],
   orders: ['orders'], services: ['services', 'serviceOrders'], tickets: ['tickets'], coupons: ['coupons'],
   users: ['users', 'manualCards', 'manualOrders', 'orders', 'deposits'], merchants: ['merchants', 'mreports', 'mapps', 'mstatements'], system: ['users'],
@@ -4653,7 +4653,7 @@ async function loadInvA() {
   render(true);
 }
 function invAdminHtml() {
-  if (!S.invA) { setTimeout(loadInvA, 0); S.invA = { loading: true, days: 1 }; }
+  if (!S.invA) { S.invA = { days: 1 }; setTimeout(loadInvA, 0); }
   const A = S.invA, st = A.stats || {}, ps = pausedSet(), set = S.settings || {};
   return `
   <div class="card mb-3">

@@ -6149,7 +6149,7 @@ const D1_IDX = {
   merchant_reports: [['uid'], ['merchant_owner'], ['created_at']], merchant_statements: [['merchant_owner'], ['mid'], ['status']],
   merchant_applications: [['status']], merchant_stock: [['sid', 'used']], stock: [['pid', 'used']], service_stock: [['service_id', 'is_used']],
   tickets: [['uid'], ['updated_at']], sms_transactions: [['created_at'], ['sender']], audit_log: [['created_at']], products: [['cat']],
-  categories: [['parent']], coupon_uses: [['uid']], plan_orders: [['uid']], transfers: [['uid']], usdt_invoices: [['uid'], ['status']], ref_codes: [['uid']],
+  categories: [['parent']], coupon_uses: [['uid']], plan_orders: [['uid']], transfers: [['uid']], usdt_invoices: [['uid'], ['status'], ['created_at']], ref_codes: [['uid']],
   rsc_orders: [['uid'], ['status'], ['created_at']], crypto_unmatched: [['status']],
   rate_limits: [], idempotency: [], otp_codes: [], otp_waits: [], email_codes: [], card_cvv_once: [], manual_card_reveal: [], public: [], settings: [],
   admins: [], stickers: [], platforms: [], daily_counters: [], usdt_amounts: [], usdt_txids: [], phone_bindings: [], phone_owners: [], phone_verifications: [['status']],
@@ -7377,7 +7377,8 @@ async function handleRscOrder(user, body, env) {
   const unit = rscSell(off.cost, rscMargin(s, cfg, ckey));
   const total = round2(unit * qty);
   const expect = num(body.expect, 0);
-  if (expect > 0 && total > round2(expect + 0.009)) throw httpError(409, 'تغيّر السعر — حدّث الصفحة وأعد المحاولة');
+  if (!(expect > 0) || total > round2(expect + 0.009)) throw httpError(409, 'تغيّر السعر — حدّث الصفحة وأعد المحاولة');
+  if (!(total > 0) || total < round2(off.cost * qty)) throw httpError(409, 'السعر غير متاح الآن — حاول بعد قليل');   // لا بيع بخسارة
   const cats = await rscCats(env);
   const cat = cats.find(c => c.key === ckey) || {};
   const catName = (cfg.cats[ckey] && cfg.cats[ckey].name) || cat.name || catId;
@@ -7673,6 +7674,7 @@ async function invoiceCron(env) {
   const since = now - 26 * 3600000;
   const rows = await d1All(env, `SELECT id, data FROM usdt_invoices WHERE status IN ('awaiting','cancelled') AND json_extract(data, '$.created_ms') > ? ORDER BY ts DESC LIMIT 200`, [since - 48 * 3600000]).catch(() => []);
   const open = rows.map(r => { let d = {}; try { d = JSON.parse(r.data); } catch {} return { ...d, _id: r.id }; });
+  if (!open.length && new Date(now).getUTCMinutes() % 15 >= 5) return;     // لا فواتير مفتوحة: فحص التحويلات اليتيمة كل 15 دقيقة فقط
   let dep = [], pay = [];
   if (binanceReady(env)) {
     try { dep = await binanceDepositsRecent(env, 26); } catch (e) { console.error('INV_CRON_DEP', e.code || e.message); }
@@ -7726,17 +7728,29 @@ async function scanUnmatched(env, s, dep, pay) {
       from: String((t.payerInfo && (t.payerInfo.name || t.payerInfo.binanceId)) || '').slice(0, 60) });
   }
   const fresh = items.filter(i => i.txid && Date.now() - i.at > 10 * 60000);   // نعطي الفاتورة 10 دقائق لتلتقطه أولًا
+  if (!fresh.length) return;
+  // فحص جماعي: ما سُجّل أو حُسب سابقًا يُستبعد بطلبين فقط (بدل 2–3 قراءات لكل تحويل كل 5 دقائق)
   for (const i of fresh) {
-    const norm = /^0x[0-9a-fA-F]{64}$/.test(i.txid) ? i.txid.toLowerCase() : i.txid;
-    const key = i.network === 'trc20' ? norm : `${i.network}_${norm}`;
-    if (await fsGet(env, `usdt_txids/${key}`).catch(() => null)) continue;
-    if (norm !== i.txid && await fsGet(env, `usdt_txids/${i.network === 'trc20' ? i.txid : `${i.network}_${i.txid}`}`).catch(() => null)) continue;
-    const uid = 'U' + (await sha256Hex(key)).slice(0, 30);
-    if (await fsGet(env, `crypto_unmatched/${uid}`).catch(() => null)) continue;
-    // أقرب فاتورة (نفس الشبكة، أُنشئت قبل التحويل بـ 24 ساعة كحد أقصى، فرق ≤ 0.5)
-    const near = await d1All(env, `SELECT id, data FROM usdt_invoices WHERE json_extract(data, '$.network') = ? AND json_extract(data, '$.created_ms') BETWEEN ? AND ?
+    i.norm = /^0x[0-9a-fA-F]{64}$/.test(i.txid) ? i.txid.toLowerCase() : i.txid;
+    i.key = i.network === 'trc20' ? i.norm : `${i.network}_${i.norm}`;
+    i.alt = i.network === 'trc20' ? i.txid : `${i.network}_${i.txid}`;
+    i.uid = 'U' + (await sha256Hex(i.key)).slice(0, 30);
+  }
+  const known = new Set();
+  if (env.DB && await d1Table(env, 'usdt_txids') && await d1Table(env, 'crypto_unmatched')) {
+    const keys = [...new Set(fresh.flatMap(i => [i.key, i.alt]))].slice(0, 90), uids = fresh.map(i => i.uid).slice(0, 90);
+    for (const r of await d1All(env, `SELECT id FROM usdt_txids WHERE id IN (${keys.map(() => '?').join(',')})`, keys)) known.add(r.id);
+    for (const r of await d1All(env, `SELECT id FROM crypto_unmatched WHERE id IN (${uids.map(() => '?').join(',')})`, uids)) known.add(r.id);
+  } else {
+    for (const i of fresh) for (const k of [`usdt_txids/${i.key}`, `usdt_txids/${i.alt}`, `crypto_unmatched/${i.uid}`]) if (await fsGet(env, k).catch(() => null)) known.add(k.split('/')[1]);
+  }
+  for (const i of fresh) {
+    if (known.has(i.key) || known.has(i.alt) || known.has(i.uid)) continue;
+    const key = i.key, uid = i.uid;
+    // أقرب فاتورة (نفس الشبكة، أُنشئت قبل التحويل بـ 24 ساعة كحد أقصى، فرق ≤ 0.5) — بحث بالفهرس على التاريخ
+    const near = await d1All(env, `SELECT id, data FROM usdt_invoices WHERE created_at BETWEEN ? AND ? AND json_extract(data, '$.network') = ?
       AND abs(json_extract(data, '$.pay_amount') - ?) <= 0.5 ORDER BY abs(json_extract(data, '$.pay_amount') - ?) LIMIT 1`,
-      [i.network, i.at - 24 * 3600000, i.at + 60000, i.amount, i.amount]).catch(() => []);
+      [new Date(i.at - 24 * 3600000).toISOString(), new Date(i.at + 60000).toISOString(), i.network, i.amount, i.amount]).catch(() => []);
     let cand = null;
     if (near[0]) { let d = {}; try { d = JSON.parse(near[0].data); } catch {} cand = { invoice_id: near[0].id, uid: d.uid || '', pay_amount: num(d.pay_amount, 0), status: d.status || '', diff: round4(i.amount - num(d.pay_amount, 0)) }; }
     await fsSet(env, `crypto_unmatched/${uid}`, { key, txid: i.txid, network: i.network, amount: i.amount, at_ms: i.at, from: i.from || '',
@@ -7754,13 +7768,9 @@ async function handleAdminUnmatched(user, body, env) {
   const staff = await requirePermission(user, env, action === 'list' ? 'deposits.view' : 'deposits.approve');
   if (action === 'list') {
     const rows = await d1All(env, `SELECT id, data FROM crypto_unmatched WHERE status = 'open' ORDER BY ts DESC LIMIT 50`).catch(() => []);
-    const list = [];
-    for (const r of rows) {
-      let d = {}; try { d = JSON.parse(r.data); } catch {}
-      let cu = null;
-      if (d.candidate && d.candidate.uid) { const u = await fsGet(env, `users/${d.candidate.uid}`).catch(() => null); cu = u ? { name: u.name || '', email: u.email || '' } : null; }
-      list.push({ id: r.id, ...d, candidate_user: cu });
-    }
+    const items = rows.map(r => { let d = {}; try { d = JSON.parse(r.data); } catch {} return { id: r.id, ...d }; });
+    const names = await userNamesMap(env, items.map(d => d.candidate && d.candidate.uid).filter(Boolean));
+    const list = items.map(d => ({ ...d, candidate_user: (d.candidate && names.get(d.candidate.uid)) || null }));
     return { success: true, items: list };
   }
   const id = String(body.id || '');
@@ -7820,7 +7830,7 @@ async function handleAdminInvoices(user, body, env) {
   const days = Math.min(30, Math.max(1, Math.floor(num(body.days, 1))));
   const since = Date.now() - days * 86400000;
   const q = String(body.q || '').trim().toLowerCase().slice(0, 60);
-  const rows = await d1All(env, `SELECT id, data FROM usdt_invoices WHERE json_extract(data, '$.created_ms') > ? ORDER BY ts DESC LIMIT 400`, [since]).catch(() => []);
+  const rows = await d1All(env, `SELECT id, data FROM usdt_invoices WHERE created_at > ? ORDER BY created_at DESC LIMIT 400`, [new Date(since).toISOString()]).catch(() => []);
   const all = rows.map(r => { let d = {}; try { d = JSON.parse(r.data); } catch {} return { ...d, _id: r.id }; });
   const stats = { opened: all.length, paid: 0, expired: 0, open: 0, sum_paid: 0, by_net: {} };
   for (const v of all) {
@@ -7828,11 +7838,10 @@ async function handleAdminInvoices(user, body, env) {
     else if (INV_OPEN.includes(v.status) && invCheckUntil(v) > Date.now()) stats.open++;
     else stats.expired++;
   }
-  const names = new Map();
+  const names = await userNamesMap(env, all.slice(0, 120).map(v => v.uid));
   const out = [];
   for (const v of all.slice(0, 120)) {
-    if (!names.has(v.uid)) { const u = await fsGet(env, `users/${v.uid}`).catch(() => null); names.set(v.uid, u ? { name: u.name || '', email: u.email || '' } : { name: '', email: '' }); }
-    const u = names.get(v.uid);
+    const u = names.get(v.uid) || { name: '', email: '' };
     const row = { ...invView(v), uid: v.uid, name: u.name, email: u.email, paid_by: v.paid_by || '', cancelled_at: v.cancelled_at || '', created_at: v.created_at || '' };
     if (q && !(`${row.no} ${row.name} ${row.email} ${row.pay_amount}`.toLowerCase().includes(q))) continue;
     out.push(row);
@@ -7862,4 +7871,17 @@ async function serveBinanceQr(env) {
   return new Response(kv.value, { headers: { 'content-type': (kv.metadata && kv.metadata.type) || 'image/png', 'cache-control': 'public, max-age=3600', 'access-control-allow-origin': '*', 'x-content-type-options': 'nosniff' } });
 }
 
+// أسماء وبريد عدة مستخدمين بطلب واحد (بدل قراءة مستند لكل مستخدم)
+async function userNamesMap(env, uids) {
+  const ids = [...new Set(uids.filter(u => typeof u === 'string' && /^[A-Za-z0-9_-]{6,128}$/.test(u)))].slice(0, 100);
+  const m = new Map();
+  if (!ids.length) return m;
+  if (env.DB && await d1Table(env, 'users')) {
+    const rows = await d1All(env, `SELECT id, json_extract(data, '$.name') AS name, json_extract(data, '$.email') AS email FROM users WHERE id IN (${ids.map(() => '?').join(',')})`, ids).catch(() => []);
+    for (const r of rows) m.set(r.id, { name: r.name || '', email: r.email || '' });
+    return m;
+  }
+  for (const u of ids) { const d = await fsGet(env, `users/${u}`).catch(() => null); if (d) m.set(u, { name: d.name || '', email: d.email || '' }); }
+  return m;
+}
 async function saveSettingsPatch(env, ops) { await fsPatch(env, 'settings/main', ops); clearSettingsCache(); }

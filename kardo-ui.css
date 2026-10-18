@@ -459,3 +459,8 @@ label.kset-row.static { cursor: pointer; }
 .kpend b { display: block; font-size: 13.5px; font-weight: 600; }
 .kpend span.tabular { display: block; font-size: 12px; color: var(--u-ink-2); direction: ltr; text-align: right; }
 .kpend-go { flex: none; padding: 7px 12px; border-radius: 10px; background: var(--u-gold-fill); color: var(--u-on-gold); font: 600 12.5px var(--u-text); }
+.kco { display: flex; align-items: center; gap: 12px; padding: 12px 14px; margin-bottom: 12px; border-radius: var(--u-r-sm); background: var(--u-gold-soft); color: var(--u-gold); }
+.kco svg { width: 22px; height: 22px; flex: none; }
+.kco b { display: block; font: 600 13.5px var(--u-text); color: var(--u-ink); }
+.kco span { display: block; font: 400 12px var(--u-text); color: var(--u-ink-2); margin-top: 2px; }
+.kinv-acts .btn svg { width: 18px; height: 18px; }

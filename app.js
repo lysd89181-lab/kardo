@@ -252,6 +252,7 @@ const I = {
   cart: '<circle cx="9" cy="20" r="1.4"/><circle cx="18" cy="20" r="1.4"/><path d="M2.5 3h2.3l2.5 12.2a1.6 1.6 0 0 0 1.6 1.3h8.6a1.6 1.6 0 0 0 1.6-1.3L21 7H6"/>',
   search: '<circle cx="11" cy="11" r="7"/><path d="M20.5 20.5 16.5 16.5"/>',
   eye: '<path d="M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7-10-7-10-7"/><circle cx="12" cy="12" r="3"/>',
+  share: '<path d="M12 3v12"/><path d="m8 7 4-4 4 4"/><path d="M5 12v7a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-7"/>',
   copy: '<rect x="9" y="9" width="12" height="12" rx="2.5"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/>',
   up: '<path d="M12 19V5M5.5 11.5 12 5l6.5 6.5"/>',
   down: '<path d="M12 5v14M18.5 12.5 12 19l-6.5-6.5"/>',
@@ -345,6 +346,8 @@ async function appCheckHeader() {
   catch { return {}; }
 }
 
+// مسارات قراءة فقط: لا تستدعي تحديث كل الاشتراكات بعدها (كانت تضاعف القراءات أثناء انتظار الفاتورة)
+const KDB_QUIET = new Set(['/api/activity/ping', '/api/wallet/usdt/verify', '/api/wallet/invoices', '/api/wallet/invoice', '/api/rsc/my-orders', '/api/mcard/list']);
 async function api(path, body, ms = 20000) {
   if (!navigator.onLine) throw new Error('لا يوجد اتصال بالإنترنت');
   const token = await auth.currentUser.getIdToken();
@@ -355,7 +358,7 @@ async function api(path, body, ms = 20000) {
   }, ms);
   const d = await res.json().catch(() => ({ success: false, error: 'رد غير مفهوم' }));
   if (!d.success) throw new Error(d.error || 'فشلت العملية');
-  if (KDB && !/^\/api\/(db|sync)\//.test(path) && path !== '/api/activity/ping') kdbSoon(600);   // v35: تحديث فوري بعد أي عملية
+  if (KDB && !/^\/api\/(db|sync)\//.test(path) && !KDB_QUIET.has(path)) kdbSoon(600);   // v35: تحديث فوري بعد أي عملية
   return d;
 }
 async function apiGet(path) {
@@ -2077,9 +2080,11 @@ async function openDepositMethod(method, presetLyd) {
     try {
       const r = await api('/api/wallet/claim', { amount_lyd: amt, method, phone: phoneIn });
       if (/^0\d{9}$/.test(phoneIn)) rememberPhone(phoneIn);
+      if (r.matched && CHECKOUT) { toast('أُضيف ' + usd(r.credited_usd) + ' — نكمل الشراء…', 'ok'); return completeCheckout(); }
       if (r.matched) stickerModal('deposit', 'success', 'تم الإيداع ✓', 'أُضيف ' + usd(r.credited_usd) + ' إلى محفظتك.');
       else if (r.manual) stickerModal('wait', 'wait', 'وصل طلب الإيداع', 'يُضاف الرصيد بعد المراجعة خلال وقت قصير.');
-      else stickerModal('wait', 'wait', 'في انتظار الحوالة', 'سيُضاف الرصيد تلقائيًا فور وصول الحوالة.');
+      else stickerModal('wait', 'wait', 'في انتظار الحوالة', CHECKOUT ? 'يُضاف الرصيد فور وصول الحوالة، وبعدها كمّل شراء «' + CHECKOUT.name + '» من المتجر.' : 'سيُضاف الرصيد تلقائيًا فور وصول الحوالة.');
+      if (!r.matched) CHECKOUT = null;
     } catch (e) { toast(e.message, 'bad'); btn.disabled = false; btn.classList.remove('loading'); }
   });
 }
@@ -2820,7 +2825,8 @@ function moneyGateHtml() {
     </div>
     <button class="btn btn-primary btn-block" id="gateGo" type="button">الذهاب للتوثيق</button>`;
 }
-async function openDeposit(preset) {
+async function openDeposit(preset, checkout) {
+  if (!checkout) CHECKOUT = null;
   { const g = moneyGateHtml(); if (g) { modal(g); onTap('#gateGo', () => { closeModal(); go('settings'); }); return; } }
   const opts = depositOptions();
   if (!opts.length) { modal(`<div class="h4 mb-3">شحن المحفظة</div><p class="body-sm text-2">لا توجد طرق شحن مفعّلة حاليًا.</p>`); return; }
@@ -2831,8 +2837,9 @@ async function openDeposit(preset) {
   const draw = () => {
     const usdOf = o => cur === 'usd' ? amt : (o.unit === 'USDT' ? amt / (n(S.config.usd_to_lyd) || 11.8) : amt / (o.rate || 1));
     modal(`
-      <div class="modal-head"><div class="modal-title">شحن المحفظة</div>
+      <div class="modal-head"><div class="modal-title">${CHECKOUT ? 'ادفع وأكمل الشراء' : 'شحن المحفظة'}</div>
         <button class="modal-close" data-act="close-modal" aria-label="إغلاق">${svg(I.x)}</button></div>
+      ${CHECKOUT ? `<div class="kco">${svg(I.store)}<div><b>${esc(CHECKOUT.name)}</b><span>ينقصك ${esc(usd(preset))} — بعد ما يوصل الدفع نكمل الشراء تلقائيًا</span></div></div>` : ''}
       <div class="kdep-amt">
         <div class="kdep-row"><label for="kdA">${cur === 'usd' ? 'المبلغ بالدولار' : 'المبلغ بالدينار'}</label>
           <div class="kseg"><button type="button" data-cur="usd" class="${cur === 'usd' ? 'on' : ''}">$</button><button type="button" data-cur="lyd" class="${cur === 'lyd' ? 'on' : ''}">د.ل</button></div></div>
@@ -2859,7 +2866,7 @@ async function openDeposit(preset) {
       if (!o || o.paused) return toast('اختر طريقة دفع', 'bad');
       if (!(amt > 0)) { toast('اكتب المبلغ', 'bad'); $('#kdA').focus(); return; }
       const u = Math.round(usdOf(o) * 100) / 100;
-      if (o.min && u < o.min) return toast(`الحد الأدنى لهذه الطريقة $${o.min}`, 'bad');
+      if (o.min && u < o.min) return toast(`الحد الأدنى لهذه الطريقة $${o.min}${CHECKOUT ? ' — اكتب $' + o.min + ' والباقي يتبقى في محفظتك' : ''}`, 'bad');
       if (o.max && u > o.max) return toast(`الحد الأقصى لهذه الطريقة $${o.max}`, 'bad');
       try { localStorage.setItem('kardo_last_pm', o.key); } catch {}
       if (o.kind === 'crypto') return createInvoice(o.net, u);
@@ -4521,7 +4528,7 @@ function openRscBuy(cat, off) {
       <div class="tot"><span>الإجمالي</span><b class="tabular">${esc(lyd(total * rate()))}</b></div>
       ${!ok ? `<div style="color:var(--u-warn)">الكمية من ${sel.min} إلى ${sel.max}</div>` : ''}`;
     const b = $('#rGo');
-    b.innerHTML = short ? `${svg(I.plus)} اشحن محفظتك أولًا` : `${svg(I.lock)} ادفع ${esc(lyd(total * rate()))} من محفظتي`;
+    b.innerHTML = short ? `${svg(I.wallet2)} ادفع الفرق ${esc(usd(Math.ceil((total - bal) * 100) / 100))} مباشرة` : `${svg(I.lock)} ادفع ${esc(lyd(total * rate()))} من محفظتي`;
     b.dataset.short = short ? '1' : '';
     b.disabled = !ok;
   };
@@ -4535,12 +4542,16 @@ function openRscBuy(cat, off) {
   });
   onTap('#rGo', async () => {
     const btn = $('#rGo');
-    if (btn.dataset.short) { closeModal(); openDeposit(); return; }
     const fields = {};
     if (isTop) for (let i = 0; i < (cat.fields || []).length; i++) {
       const v = ($('#rf' + i).value || '').trim();
       if (!v) { toast(`${cat.fields[i].label} مطلوب`, 'bad'); $('#rf' + i).focus(); return; }
       fields[cat.fields[i].key] = v;
+    }
+    if (btn.dataset.short) {
+      const short = Math.ceil((total - n(S.profile.wallet_balance)) * 100) / 100;
+      CHECKOUT = { name: `${cat.name} — ${sel.name}`, total, body: { cat: cat.key, offer: sel.id, qty: isTop ? 1 : Math.floor(n($('#rQty').value)), fields, expect: total, idempotency_key: key } };
+      closeModal(); openDeposit(short, true); return;
     }
     btn.disabled = true; btn.classList.add('loading');
     try {
@@ -4691,7 +4702,9 @@ function openInvoice(inv) {
         <div><span>الوقت</span><b>${esc(dt(inv.paid_at))}</b></div>
         ${inv.txid ? `<div><span>المعاملة</span><b dir="ltr">${esc(inv.txid.slice(0, 8))}…${esc(inv.txid.slice(-6))}</b></div>` : ''}
       </div>
-      <button class="btn btn-primary btn-block" data-act="close-modal" type="button" style="margin-top:20px">تم</button>`);
+      <div class="kinv-acts" style="margin-top:20px"><button class="btn btn-primary" data-act="close-modal" type="button">تم</button>
+        <button class="btn btn-secondary" id="kShare" type="button">${svg(I.share || I.copy)} مشاركة الإيصال</button></div>`);
+    onTap('#kShare', () => shareReceipt(inv));
     S.profile && haptic.ok();
     return;
   }
@@ -4711,6 +4724,7 @@ function openInvoice(inv) {
       <div class="kinv-big tabular">${esc(amtTxt)} <small>USDT</small></div>
       <div class="caption">${isPay ? 'العملة USDT' : 'شبكة ' + esc(inv.network_label.replace('USDT ', '')) + ' فقط'} · يُضاف لمحفظتك ${esc(usd(inv.amount_usd))}</div>
     </div>
+    ${CHECKOUT ? `<div class="kco">${svg(I.store)}<div><b>${esc(CHECKOUT.name)}</b><span>بعد ما يوصل الدفع نكمل الشراء تلقائيًا — خلّي الصفحة مفتوحة</span></div></div>` : ''}
     ${isPay ? (S.config.binance_pay_qr ? `<div class="kqr"><img src="${esc(API_BASE + S.config.binance_pay_qr)}" alt="QR Binance Pay"></div>` : '') : `<div class="kqr" id="kQr"></div>`}
     <div class="copy-box mb-2"><div class="copy-value" dir="ltr" style="font-size:13px;word-break:break-all;white-space:normal;overflow:visible;text-overflow:clip">${isPay ? 'Pay ID: ' : ''}${esc(inv.address)}</div>
       <button class="copy-btn" data-act="copy" data-copy-text="${esc(inv.address)}" aria-label="نسخ">${svg(I.copy)}</button></div>
@@ -4743,7 +4757,9 @@ function openInvoice(inv) {
     if (!$('#kLive')) return;
     try {
       const r = await api('/api/wallet/usdt/verify', { invoice_id: inv.id });
-      if (r.invoice && r.invoice.status === 'paid') { stopInvoiceTimers(); S.invoices = null; openInvoice(r.invoice); toast('أُضيف ' + usd(r.invoice.received) + ' لمحفظتك ✓', 'ok'); return; }
+      if (r.invoice && r.invoice.status === 'paid') { stopInvoiceTimers(); S.invoices = null; kdbSoon(200);
+        if (CHECKOUT) { toast('وصل الدفع ✓ — نكمل الشراء…', 'ok'); completeCheckout(); return; }
+        openInvoice(r.invoice); toast('أُضيف ' + usd(r.invoice.received) + ' لمحفظتك ✓', 'ok'); return; }
       if (r.invoice && r.invoice.status !== inv.status) { openInvoice(r.invoice); return; }
     } catch {}
     _invPoll = setTimeout(poll, Date.now() - started < 15 * 60000 ? 15000 : 45000);
@@ -4784,4 +4800,59 @@ function bindInvoices() {
     try { const r = await api('/api/wallet/invoice', { id: v.id }); if (r.invoice && r.invoice.status !== v.status) openInvoice(r.invoice); } catch {}
   });
   $$('[data-pendinv]').forEach(b => b.onclick = () => { const v = pendingInvoice(); if (v) openInvoice(v); });
+}
+
+/* ═══ v50 — الدفع المباشر عند الشراء + مشاركة الإيصال ═══ */
+let CHECKOUT = null;     // شراء معلّق ينتظر وصول الدفع (في هذه الصفحة فقط — لو قفلها يبقى المبلغ في المحفظة)
+async function completeCheckout() {
+  const c = CHECKOUT; CHECKOUT = null;
+  if (!c) return;
+  modal(`<div style="text-align:center;padding:24px 0">${fennec('wait')}<div class="h4">نكمل شراء ${esc(c.name)}…</div><p class="caption">لحظات</p></div>`);
+  for (let i = 0; i < 3; i++) {
+    try {
+      const r = await api('/api/rsc/order', c.body, 60000);
+      S.rscOrders = null; loadRscOrders(); openRscResult(r.order); return;
+    } catch (e) {
+      if (/رصيد|الرصيد/.test(e.message) && i < 2) { await new Promise(r => setTimeout(r, 2500)); continue; }   // الرصيد قد يتأخر لحظة
+      modal(`<div style="text-align:center">${fennec('error')}<div class="h4">الدفع وصل لمحفظتك ✓</div>
+        <p class="body-sm text-2 mb-4">لكن ما قدرنا نكمل الشراء: ${esc(e.message)}<br>رصيدك محفوظ — كمّل الشراء من المتجر.</p>
+        <button class="btn btn-primary btn-block" id="coBack" type="button">رجوع للمتجر</button></div>`);
+      onTap('#coBack', () => { closeModal(); go('kstore'); });
+      return;
+    }
+  }
+}
+
+async function shareReceipt(inv) {
+  try {
+    if (document.fonts && document.fonts.ready) await document.fonts.ready;
+    const W = 1080, H = 1350, c = document.createElement('canvas'); c.width = W; c.height = H;
+    const g = c.getContext('2d');
+    const bg = g.createLinearGradient(0, 0, 0, H); bg.addColorStop(0, '#17120D'); bg.addColorStop(1, '#0F0C09');
+    g.fillStyle = bg; g.fillRect(0, 0, W, H);
+    g.fillStyle = '#E8962E'; g.fillRect(0, 0, W, 14);
+    const logo = await new Promise(res => { const im = new Image(); im.onload = () => res(im); im.onerror = () => res(null); im.src = './kardo-mark.png'; });
+    g.direction = 'rtl'; g.textAlign = 'center';
+    if (logo) g.drawImage(logo, W / 2 - 70, 90, 140, 140 * (logo.height / logo.width || 1));
+    const F = (w, sz) => `${w} ${sz}px "Readex Pro","IBM Plex Sans Arabic",sans-serif`;
+    g.fillStyle = '#F6C26B'; g.font = F(600, 54); g.fillText('كاردو', W / 2, 300);
+    g.fillStyle = '#4CC38A'; g.font = F(600, 44); g.fillText('✓ تم الشحن بنجاح', W / 2, 420);
+    g.fillStyle = '#F6EBD9'; g.font = F(700, 120); g.direction = 'ltr'; g.fillText('+' + usd(inv.received || inv.amount_usd), W / 2, 570); g.direction = 'rtl';
+    const rows = [['رقم الفاتورة', inv.no], ['المدفوع', Number(inv.pay_amount).toFixed(4) + ' USDT'], ['الطريقة', inv.network === 'binance_pay' ? 'Binance Pay' : inv.network_label],
+      ['الوقت', dt(inv.paid_at)], ...(inv.txid ? [['المعاملة', inv.txid.slice(0, 10) + '…' + inv.txid.slice(-6)]] : [])];
+    let y = 700;
+    g.fillStyle = 'rgba(255,255,255,.05)'; g.beginPath(); (g.roundRect ? g.roundRect(90, y - 60, W - 180, rows.length * 92 + 40, 32) : g.rect(90, y - 60, W - 180, rows.length * 92 + 40)); g.fill();
+    for (const [k, v] of rows) {
+      g.textAlign = 'right'; g.fillStyle = '#8F7F68'; g.font = F(400, 34); g.fillText(k, W - 140, y);
+      g.textAlign = 'left'; g.fillStyle = '#F3E7D3'; g.font = F(600, 36); g.direction = /[؀-ۿ]/.test(v) ? 'rtl' : 'ltr'; g.fillText(String(v), 140, y); g.direction = 'rtl';
+      y += 92;
+    }
+    g.textAlign = 'center'; g.fillStyle = '#8F7F68'; g.font = F(400, 30); g.fillText('kardo.ly', W / 2, H - 70);
+    const blob = await new Promise(r => c.toBlob(r, 'image/png'));
+    const file = new File([blob], `kardo-${inv.no}.png`, { type: 'image/png' });
+    if (navigator.canShare && navigator.canShare({ files: [file] })) { await navigator.share({ files: [file], title: 'إيصال كاردو ' + inv.no }); return; }
+    const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = file.name; document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(() => URL.revokeObjectURL(a.href), 4000);
+    toast('حُفظت صورة الإيصال', 'ok');
+  } catch (e) { if (e && e.name !== 'AbortError') toast('تعذّرت مشاركة الإيصال', 'bad'); }
 }
