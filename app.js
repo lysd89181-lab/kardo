@@ -713,7 +713,8 @@ function paint() {
   };
   if (S.page === 'shop' && !S.config.store_on) S.page = 'dashboard';
 
-  const html = (pages[S.page] || vDashboard)() + (S.page !== 'settings' && !(S.page === 'kstore' && S.rscCat) ? siteFooter() : '');
+  const _sec = PAGE_SEC[S.page], _gate = _sec && secShut(_sec) && !(_sec === 'cards' && secOf('cards').s === 'maint' && (S.manualCards || []).some(c => c.status !== 'deleted'));
+  const html = (_gate ? secClosedPage(_sec) : (pages[S.page] || vDashboard)()) + (S.page !== 'settings' && !(S.page === 'kstore' && S.rscCat) ? siteFooter() : '');
   const samePage = _lastPage === S.page;
   if (samePage && html === _lastHtml) return;                 // لا تغيير → لا إعادة رسم (سبب الرمشة)
   const ae = document.activeElement;
@@ -2064,6 +2065,7 @@ function openPhoneVerify(network = 'libyana') {
 function savedPhones() { try { return JSON.parse(localStorage.getItem('kardo_phones') || '[]').filter(x => /^0\d{9}$/.test(x)).slice(0, 4); } catch { return []; } }
 function rememberPhone(p) { try { const l = [p, ...savedPhones().filter(x => x !== p)].slice(0, 4); localStorage.setItem('kardo_phones', JSON.stringify(l)); } catch {} }
 async function openDepositMethod(method, presetLyd) {
+  if (secBlock('deposit')) return;
   const manualMode = (((S.config.methods || {})[method] || {}).mode || S.config.deposit_mode) === 'manual';
   const m = S.config.methods?.[method] || {};
   const phone = m.phone || S.config.deposit_phone || '';
@@ -2441,10 +2443,10 @@ function stickerModal(slot, fallback, title, text, ok = true) {
 }
 const SVC_CAT = '__svc';
 const TERMS_VERSION = '1.0';
-const cardsMaint = () => (S.config.manual_cards || {}).maint === true;
+const cardsMaint = () => (S.config.manual_cards || {}).maint === true || secShut('cards');
 function cardsMaintHtml() {
   if (!cardsMaint()) return '';
-  return `<div class="alert alert-warning mb-4" role="alert" style="align-items:flex-start">${svg(I.help, 2)}<div><b>🛠️ قسم البطاقات قيد الصيانة</b><div class="caption" style="margin-top:4px">إصدار البطاقات وإعادة التعبئة متوقفان مؤقتًا. بطاقاتك الحالية وبياناتها متاحة كالمعتاد.</div></div></div>`;
+  return `<div class="alert alert-warning mb-4" role="alert" style="align-items:flex-start">${svg(I.help, 2)}<div><b>🛠️ قسم البطاقات قيد الصيانة</b><div class="caption" style="margin-top:4px">إصدار البطاقات وإعادة التعبئة متوقفان مؤقتًا. بطاقاتك الحالية وبياناتها متاحة كالمعتاد.</div>${secOf('cards').msg ? `<div class="caption" style="margin-top:6px;color:var(--u-ink)"><b>رسالة من الإدارة:</b> ${esc(secOf('cards').msg)}</div>` : ''}</div></div>`;
 }
 function cardWarningHtml() {
   const w = String(((S.config.manual_cards || {}).warning) || '').trim();
@@ -2805,6 +2807,7 @@ function moneyGateHtml() {
     <button class="btn btn-primary btn-block" id="gateGo" type="button">الذهاب للتوثيق</button>`;
 }
 async function openDeposit(preset, checkout) {
+  if (secBlock('deposit')) return;
   if (!checkout) CHECKOUT = null;
   anEv(checkout ? 'buy_short' : 'dep_open');
   { const g = moneyGateHtml(); if (g) { modal(g); onTap('#gateGo', () => { closeModal(); go('settings'); }); return; } }
@@ -2944,6 +2947,7 @@ function openManualDeposit(key, preset) {
 
 /* ─── Withdraw & transfer ─── */
 function openWithdraw() {
+  if (secBlock('withdraw')) return;
   const w = S.config.withdraw || {};
   if (!w.on) return toast('السحب غير متاح حاليًا', 'bad');
   const key = newIdemKey();
@@ -2982,6 +2986,7 @@ function openWithdraw() {
 }
 
 function openTransfer() {
+  if (secBlock('transfer')) return;
   const t = S.config.transfer || {};
   if (!t.on) return toast('التحويل غير متاح حاليًا', 'bad');
   if (!S.profile.phone_verified) { toast('وثّق رقمك أولًا لتتمكن من التحويل', 'bad'); return openPhoneVerify(); }
@@ -4435,18 +4440,18 @@ const rscImgTag = (c, cls = '') => c.image ? `<img class="${cls}" src="${esc(rsc
 const rscPop = c => c.pop >= 1000 ? (c.pop / 1000).toFixed(1).replace('.0', '') + ' ألف طلب' : c.pop >= 10 ? c.pop + ' طلب' : '';
 // بطاقة طويلة (ألعاب) — الصورة واضحة فوق خلفية ضبابية منها
 function rscTile(c) {
-  return `<button class="ktall" data-rsccat="${esc(c.key)}" type="button">
+  return `<button class="ktall${c.maint ? ' kmaint' : ''}" data-rsccat="${esc(c.key)}" type="button">
     <span class="ktall-cv">${c.image ? `<span class="ktall-bg" style="background-image:url('${esc(rscImgUrl(c.image))}')"></span>` : ''}${rscImgTag(c, 'ktall-img')}
-      ${c.promo ? `<i class="ktag hot">${esc(c.promo.slice(0, 18))}</i>` : c.type === 'topup' ? '<i class="ktag">⚡ فوري</i>' : ''}</span>
+      ${c.maint ? '<i class="kmb">قيد الصيانة</i>' : ''}${c.promo ? `<i class="ktag hot">${esc(c.promo.slice(0, 18))}</i>` : c.type === 'topup' ? '<i class="ktag">⚡ فوري</i>' : ''}</span>
     <span class="ktall-nm">${esc(c.name)}</span>
   </button>`;
 }
 // بطاقة هدايا بشكل بطاقة حقيقية
 function rscGiftTile(c) {
-  return `<button class="kgift" data-rsccat="${esc(c.key)}" type="button">
+  return `<button class="kgift${c.maint ? ' kmaint' : ''}" data-rsccat="${esc(c.key)}" type="button">
     ${c.image ? `<span class="kgift-bg" style="background-image:url('${esc(rscImgUrl(c.image))}')"></span>` : '<span class="kgift-bg ph"></span>'}
     <span class="kgift-top"><b>${esc(c.name)}</b><span class="kgift-chip"></span></span>
-    <span class="kgift-from">${c.type === 'topup' ? '⚡ فوري' : 'كود فوري'}</span>
+    <span class="kgift-from">${c.maint ? 'قيد الصيانة' : c.type === 'topup' ? '⚡ فوري' : 'كود فوري'}</span>
   </button>`;
 }
 function rscHero(list) {
@@ -4479,23 +4484,35 @@ function rscChips(tab, cats) {
   const has = g => g === 'all' || cats.some(c => rscGroup(c) === g);
   return `<div class="kchipsx">${RSC_TABS.filter(([k]) => has(k)).map(([k, t, e]) => `<button class="${tab === k ? 'on' : ''}" data-rsctab="${k}" type="button"><em>${e}</em>${t}</button>`).join('')}</div>`;
 }
-function rscPopular(cats, n = 8) { return [...cats].sort((a, b) => (b.pop || 0) - (a.pop || 0) || a.sort - b.sort).slice(0, n); }
+function rscPopular(cats, n = 8) { return cats.filter(c => (c.pop || 0) > 0 && !c.maint).sort((a, b) => b.pop - a.pop || a.sort - b.sort).slice(0, n); }
+function rscPicks(cats, n = 8) { return cats.filter(c => c.pick).sort((a, b) => a.sort - b.sort).slice(0, n); }
 function rscHome() {
   if (!rscOn()) return '';
-  if (!S.rsc.loaded) { loadRsc(); return `<div class="ksh"><h2>الأكثر شحنًا</h2></div><div class="krow mb-5">${'<div class="skeleton" style="flex:none;width:118px;height:190px;border-radius:18px"></div>'.repeat(3)}</div>`; }
+  const st = secOf('store');
+  if (st.s === 'off') return '';
+  if (st.s === 'maint') return `<div class="ksec-note">${svg(I.help)}<div><b>المتجر قيد الصيانة</b><span>${esc(st.msg || 'نرجعوا قريب إن شاء الله')}</span></div></div>`;
+  if (!S.rsc.loaded) { loadRsc(); return `<div class="ksh"><h2>المتجر</h2></div><div class="krow mb-5">${'<div class="skeleton" style="flex:none;width:118px;height:190px;border-radius:18px"></div>'.repeat(3)}</div>`; }
   const cats = S.rsc.cats || [];
   if (!cats.length) return '';
-  const feat = cats.filter(c => c.featured).slice(0, 5);
+  const feat = cats.filter(c => c.featured && !c.maint).slice(0, 5);
   if (S.user && !S.rscOrders) { S.rscOrders = []; loadRscOrders(); }
+  const tile = c => rscGroup(c) === 'topup' ? rscTile(c) : rscGiftTile(c).replace(/class="kgift/, 'class="kgift inrow');
+  const top = rscPopular(cats), picks = top.length >= 3 ? [] : rscPicks(cats);
+  const row = (ic, t, list, tab) => list.length ? `<div class="ksh"><h2><i class="ksh-ic">${ic}</i>${t}</h2><button data-hometab="${tab}" type="button">عرض الكل</button></div><div class="krow mb-5">${list.map(tile).join('')}</div>` : '';
+  const ord = list => [...list].sort((a, b) => (a.maint ? 1 : 0) - (b.maint ? 1 : 0) || (b.pop || 0) - (a.pop || 0) || a.sort - b.sort).slice(0, 8);
+  const by = g => ord(cats.filter(c => rscGroup(c) === g));
   return `${feat.length ? `<div class="ksh"><h2>عروض اليوم</h2></div>${rscHero(feat)}` : ''}
     ${rscAgain()}
-    <div class="ksh"><h2>الأكثر شحنًا</h2><button data-nav="kstore" type="button">عرض الكل</button></div>
-    <div class="krow mb-6">${rscPopular(cats).map(c => rscGroup(c) === 'topup' ? rscTile(c) : rscGiftTile(c).replace('class="kgift"', 'class="kgift inrow"')).join('')}</div>`;
+    ${top.length >= 3 ? row('🔥', 'الأكثر شحنًا', top, 'all') : picks.length ? row('✦', 'مختارات كاردو', picks, 'all') : ''}
+    ${row('🎮', 'شحن ألعاب', by('topup'), 'topup')}
+    ${row('🎁', 'بطاقات هدايا', by('gift'), 'gift')}
+    ${row('📺', 'اشتراكات وتطبيقات', ord(cats.filter(c => ['subs', 'apps'].includes(rscGroup(c)))), 'subs')}`;
 }
 function vKStore() {
   if (!S.rsc.loaded) loadRsc();
   const cur = S.rscCat ? rscCatBy(S.rscCat) : null;
-  if (cur) return vRscProduct(cur);
+  if (cur && cur.maint) { S.rscCat = null; }
+  else if (cur) return vRscProduct(cur);
   const q = (S.rscQ || '').trim().toLowerCase();
   const tab = S.rscTab || 'all';
   const cats = S.rsc.cats || [];
@@ -4652,7 +4669,7 @@ function rscOrderRows() {
     </div>` }));
 }
 function bindRsc() {
-  $$('[data-rsccat]').forEach(b => b.onclick = () => { S.rscCat = b.dataset.rsccat; if (S.page !== 'kstore') go('kstore', true); else { render(); window.scrollTo({ top: 0, behavior: 'instant' }); } });
+  $$('[data-rsccat]').forEach(b => b.onclick = () => { const _c = rscCatBy(b.dataset.rsccat); if (_c && _c.maint) return toast('هذا القسم قيد الصيانة حاليًا — جرّب بعد شوية', 'bad'); S.rscCat = b.dataset.rsccat; if (S.page !== 'kstore') go('kstore', true); else { render(); window.scrollTo({ top: 0, behavior: 'instant' }); } });
   $$('[data-rscback]').forEach(b => b.onclick = () => { S.rscCat = null; render(); window.scrollTo({ top: 0, behavior: 'instant' }); });
   $$('[data-rscpick]').forEach(b => b.onclick = () => { S.rscSel = b.dataset.rscpick; S.rscQty = null; haptic.tap(); render(); });
   $$('[data-rscqty]').forEach(b => b.onclick = () => { const c = rscCatBy(S.rscCat), o = c && (c.offers.find(x => x.id === S.rscSel) || c.offers[0]); if (!o) return; S.rscQty = Math.min(o.max, Math.max(o.min, (n(S.rscQty) || o.min) + Number(b.dataset.rscqty))); render(); });
@@ -5399,4 +5416,33 @@ document.addEventListener('click', async e => {
       setTimeout(() => render(), 1500);
     } catch (er) { toast(er.message, 'bad'); go.disabled = false; }
   }
+});
+
+
+/* ═══ v55 — حالة أقسام الموقع ═══ */
+const PAGE_SEC = { kstore: 'store', cards: 'cards', support: 'support' };
+const SEC_T = { cards: ['قسم البطاقات', '💳'], store: ['المتجر', '🛍️'], deposit: ['شحن المحفظة', '💰'], transfer: ['التحويل', '↔️'], withdraw: ['السحب', '🏦'], support: ['الدعم', '💬'] };
+function secOf(k) { const x = ((S.config || {}).sections || {})[k]; return x && x.s ? x : { s: 'on', msg: '' }; }
+function secShut(k) { return secOf(k).s !== 'on'; }
+function secBody(k) {
+  const x = secOf(k), t = SEC_T[k] || [k, '🛠️'], m = x.s === 'maint';
+  return `<div class="ksec">
+    <div class="ksec-ic">${m ? '🛠️' : t[1]}</div>
+    <h1>${esc(t[0])} ${m ? 'مغلق مؤقتًا' : 'غير متاح حاليًا'}</h1>
+    <p>${m ? 'نشتغلوا على تحسينات، ويرجع القسم قريب إن شاء الله.' : 'هذا القسم موقوف حاليًا.'}${k === 'cards' ? '<br>بطاقاتك ورصيدها بأمان.' : k === 'deposit' || k === 'withdraw' || k === 'transfer' ? '<br>رصيدك بأمان.' : ''}</p>
+    ${x.msg ? `<div class="ksec-msg"><small>رسالة من الإدارة</small>${esc(x.msg)}</div>` : ''}
+    ${k !== 'store' ? `<button class="btn btn-primary btn-block btn-lg mb-2" data-nav="kstore" type="button">تصفح المتجر</button>` : `<button class="btn btn-primary btn-block btn-lg mb-2" data-nav="dashboard" type="button">الرئيسية</button>`}
+    ${k !== 'support' ? `<button class="btn btn-secondary btn-block" data-nav="support" type="button">تواصل مع الدعم</button>` : ''}
+  </div>`;
+}
+function secClosedPage(k) { return `<div class="page-enter">${secBody(k)}</div>`; }
+function secBlock(k) {
+  if (!secShut(k)) return false;
+  modal(`<div class="modal-body" style="padding-top:8px">${secBody(k).replace(/data-nav=/g, 'data-secgo=')}</div>`);
+  return true;
+}
+document.addEventListener('click', e => {
+  const g = e.target.closest('[data-secgo]'); if (g) { window.closeModal(); go(g.dataset.secgo); return; }
+  const t = e.target.closest('[data-hometab]'); if (!t) return;
+  S.rscTab = t.dataset.hometab === 'all' ? 'all' : t.dataset.hometab; S.rscCat = null; go('kstore', true);
 });

@@ -675,3 +675,20 @@ label.kset-row.static { cursor: pointer; }
 .krate-card .krate { margin: 0; background: transparent; }
 .krate-x { position: absolute; top: 8px; left: 8px; width: 30px; height: 30px; border-radius: 10px; border: 0; background: var(--u-s2); color: var(--u-ink-3); display: grid; place-items: center; cursor: pointer; }
 .krate-x svg { width: 15px; height: 15px; }
+
+/* ═══ v55 — الصيانة وصفوف الرئيسية ═══ */
+.ksh-ic { font-style: normal; margin-inline-end: 6px; }
+.kmaint { cursor: not-allowed; }
+.kmaint .ktall-cv, .kmaint.kgift { filter: grayscale(1); opacity: .6; }
+.kmaint .ktall-nm { color: var(--u-ink-3); }
+.kmb { position: absolute; inset: auto 6px 6px 6px; z-index: 3; background: rgba(20,22,24,.85); color: #fff; font: 600 10.5px var(--u-text); font-style: normal; text-align: center; padding: 4px; border-radius: 9px; }
+.ksec { text-align: center; padding: 48px 6px 8px; }
+.ksec-ic { width: 96px; height: 96px; margin: 0 auto 18px; border-radius: 30px; background: var(--u-warn-soft, #FCF1DE); display: grid; place-items: center; font-size: 44px; }
+.ksec h1 { font: 700 22px var(--u-display); color: var(--u-ink); margin: 0 0 8px; }
+.ksec p { font: 400 14.5px/1.8 var(--u-text); color: var(--u-ink-2); margin: 0 0 18px; }
+.ksec-msg { background: var(--u-s1); border: 1px solid var(--u-line); border-radius: 16px; padding: 14px; font: 500 14px/1.8 var(--u-text); color: var(--u-ink); text-align: right; margin-bottom: 18px; white-space: pre-wrap; }
+.ksec-msg small { display: block; color: var(--u-ink-3); font-size: 12px; }
+.ksec-note { display: flex; gap: 12px; align-items: center; background: var(--u-warn-soft, #FCF1DE); border-radius: var(--u-r-md); padding: 14px 16px; margin: 18px 0; }
+.ksec-note svg { width: 22px; height: 22px; color: var(--u-warn, #A8650C); flex: none; }
+.ksec-note b { display: block; font: 600 14px var(--u-text); color: var(--u-ink); }
+.ksec-note span { font: 400 12.5px var(--u-text); color: var(--u-ink-2); }

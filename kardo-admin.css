@@ -210,3 +210,19 @@ html .sw.on::after { right: 21px !important; background: #fff !important; box-sh
 .ahm i { aspect-ratio: 1; border-radius: 4px; background: var(--u-gold-fill); }
 .htthumb { width: 84px; aspect-ratio: 220 / 300; border-radius: 12px; background: var(--u-s2); border: 1px dashed var(--u-line-2); overflow: hidden; display: grid; place-items: center; text-align: center; font: 500 11px var(--u-text); color: var(--u-ink-3); }
 .htthumb img { width: 100%; height: 100%; object-fit: cover; object-position: top; }
+
+/* ═══ v55 — تحديد جماعي ═══ */
+.rsc-all { display: flex; align-items: center; gap: 10px; padding: 10px 4px; font: 500 13.5px var(--u-text, inherit); color: var(--u-ink, inherit); cursor: pointer; }
+.rsc-all input, .rsc-cb { width: 20px; height: 20px; accent-color: var(--u-gold-fill, #E8962E); flex: none; cursor: pointer; margin: 0; }
+.rsc-cb { margin-inline-end: 4px; }
+.rsc-all button { margin-inline-start: auto; border: 0; background: none; color: var(--u-gold, #C47A17); font: 500 13px var(--u-text, inherit); cursor: pointer; }
+.rsc-bulk { position: fixed; left: 12px; right: 12px; bottom: calc(84px + env(safe-area-inset-bottom)); z-index: 60; max-width: 560px; margin: 0 auto; background: #15191A; color: #fff; border-radius: 18px; padding: 12px; box-shadow: 0 14px 30px -10px rgba(0,0,0,.5); animation: rscUp .2s ease-out; }
+@keyframes rscUp { from { transform: translateY(16px); opacity: 0; } }
+.rsc-bulk b { display: block; font: 600 13.5px var(--u-text, inherit); margin-bottom: 8px; }
+.rsc-bb { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 6px; }
+.rsc-bb2 { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; margin-top: 6px; }
+.rsc-bulk button { height: 40px; border: 0; border-radius: 12px; background: rgba(255,255,255,.1); color: #fff; font: 600 13px var(--u-text, inherit); cursor: pointer; }
+.rsc-bb2 button { height: 34px; font-size: 12px; font-weight: 500; }
+.rsc-bulk button.p { background: var(--u-gold-fill, #E8962E); }
+.rsc-bulk button:disabled { opacity: .5; }
+.rsc-prog { font: 400 11.5px var(--u-text, inherit); color: #BFC5C7; margin-top: 8px; }

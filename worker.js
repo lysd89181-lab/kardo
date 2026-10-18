@@ -61,6 +61,8 @@ const DEFAULT_SETTINGS = {
   hero_sub: 'بالدولار · بدون رسوم شهرية · تُصدر خلال دقائق',
   support_url: '',
   contact_whatsapp: '', contact_email: '', social_fb: '', social_ig: '', social_tt: '', social_tg: '', faq_text: '', reviews_min: 5,
+  sec_cards: 'on', sec_store: 'on', sec_deposit: 'on', sec_transfer: 'on', sec_withdraw: 'on', sec_support: 'on',
+  sec_msg_cards: '', sec_msg_store: '', sec_msg_deposit: '', sec_msg_transfer: '', sec_msg_withdraw: '', sec_msg_support: '',
   deposit_mode: 'auto',
   m_libyana_mode: '', m_almadar_mode: '', m_bank_receipt: true, m_binance_receipt: true,
   require_email_verify: true,
@@ -183,7 +185,7 @@ async function route(path, request, url, env) {
   _ipByUid.set(user.uid, (request.headers.get('cf-connecting-ip') || '').slice(0, 45));
   if (_ipByUid.size > 5000) _ipByUid.clear();
   await verifyAppCheck(request, env);
-  await enforceGlobalRateLimit(env, user.uid);
+  await enforceGlobalRateLimit(env, user.uid, path.startsWith('/api/admin/') && await isStaffCached(env, user.uid) ? 240 : 45);
   const body = await safeJson(request);
   if (path.startsWith('/api/m/') || path.startsWith('/api/admin/merchant')) throw httpError(410, 'خدمة المتاجر أُلغيت');
   if (!path.startsWith('/api/admin/')) {
@@ -394,14 +396,14 @@ function b64ToBytes(s) {
    ═══════════════════════════════════════════════════════════ */
 
 const _grl = new Map();
-async function enforceGlobalRateLimit(env, uid) {
+async function enforceGlobalRateLimit(env, uid, lim = 45) {
   // حد عام تقريبي داخل الذاكرة (بلا Firestore). الحدود المالية الدقيقة تبقى ذرّية في Firestore.
   const bucket = Math.floor(Date.now() / 60000);
   const k = uid + ':' + bucket;
   const c = (_grl.get(k) || 0) + 1;
   _grl.set(k, c);
   if (_grl.size > 5000) for (const key of _grl.keys()) { if (!key.endsWith(':' + bucket)) _grl.delete(key); }
-  if (c > 45) throw httpError(429, 'محاولات كثيرة — انتظر قليلاً');
+  if (c > lim) throw httpError(429, 'محاولات كثيرة — انتظر قليلاً');
 }
 
 async function checkRateLimit(env, key, limit, windowSec) {
@@ -557,6 +559,7 @@ async function handleStatus(env) {
       hero_sub: s.hero_sub || 'بالدولار · بدون رسوم شهرية · تُصدر خلال دقائق',
       support_url: s.support_url || '',
     },
+    sections: Object.fromEntries(SECTIONS.map(k => [k, { s: secState(s, k), msg: String(s['sec_msg_' + k] || '').slice(0, 300) }])),   // v55
     contact: {                                                      // v54: بيانات خاتمة الصفحات (تُعدَّل من الإدارة)
       whatsapp: String(s.contact_whatsapp || '').replace(/[^\d+]/g, '').slice(0, 16), email: /^[^@\s<>"]+@[^@\s<>"]+\.[^@\s<>"]+$/.test(String(s.contact_email || '')) ? String(s.contact_email) : '',
       fb: safeUrl(s.social_fb), ig: safeUrl(s.social_ig), tt: safeUrl(s.social_tt), tg: safeUrl(s.social_tg),
@@ -1914,6 +1917,8 @@ function sanitizeSettingsPatch(body) {
     } else {
       v = String(v == null ? '' : v).slice(0, /_logo$/.test(k) ? 400000 : 2000);
     }
+    if (/^sec_(cards|store|deposit|transfer|withdraw|support)$/.test(k) && !['on', 'maint', 'off'].includes(v)) throw httpError(400, `حالة غير صالحة: ${k}`);
+    if (/^sec_msg_/.test(k)) v = v.replace(/[<>]/g, '').slice(0, 300);
     out[k] = v;
   }
   for (const k of ['rate_libyana', 'rate_almadar', 'rate_bank', 'rate_usdt', 'usd_to_lyd']) {
@@ -1962,6 +1967,7 @@ function sanitizeSettingsPatch(body) {
 /* ═══ Wallet — claim / USDT / SMS credit / withdraw / transfer ═══ */
 
 async function handleWalletClaim(user, body, env) {
+  await secGuard(env, await getSettings(env), 'deposit', user.uid);
   const amountLyd = round3(num(body.amount_lyd, NaN));
   const method = body.method === 'almadar' ? 'almadar' : 'libyana';
 
@@ -2075,6 +2081,7 @@ async function handleUsdtInvoice(user, body, env) {
   { const _s = await getSettings(env); const _u = await fsGet(env, `users/${user.uid}`); assertMoneyVerified(env, _s, _u); }
   const s = await getSettings(env);
   assertLive(s);
+  await secGuard(env, s, 'deposit', user.uid);
   if (s.m_usdt_on !== true) throw httpError(503, 'الدفع بالعملات الرقمية غير متاح');
   const network = CRYPTO_NETS[String(body.network || 'trc20')] ? String(body.network || 'trc20') : 'trc20';
   const net = CRYPTO_NETS[network];
@@ -2245,6 +2252,7 @@ async function handleInvoiceList(user, body, env) {
 }
 
 async function handleWithdrawRequest(user, body, env) {
+  await secGuard(env, await getSettings(env), 'withdraw', user.uid);
   { const _s = await getSettings(env); const _u = await fsGet(env, `users/${user.uid}`); assertMoneyVerified(env, _s, _u); }
   const s = await getSettings(env);
   assertLive(s);
@@ -2321,6 +2329,7 @@ async function handleAdminWithdraw(user, body, env) {
 }
 
 async function handleTransfer(user, body, env) {
+  await secGuard(env, await getSettings(env), 'transfer', user.uid);
   const s = await getSettings(env);
   assertLive(s);
   if (s.transfer_enabled !== true) throw httpError(503, 'التحويل غير متاح');
@@ -2447,6 +2456,7 @@ async function handleAdminWalletAdjust(user, body, env) {
 /* ═══ Manual cards ═══ */
 
 async function handleManualCardRequest(user, body, env) {
+  await secGuard(env, await getSettings(env), 'cards', user.uid);
   if (body.accept_terms !== true) throw httpError(400, 'يجب الموافقة على تحذيرات وشروط البطاقات');
   const termsVersion = String(body.terms_version || '').slice(0, 10);
   const s = await getSettings(env);
@@ -2522,6 +2532,7 @@ async function handleManualCardRequest(user, body, env) {
 }
 
 async function handleManualCardTopup(user, body, env) {
+  await secGuard(env, await getSettings(env), 'cards', user.uid);
   const s = await getSettings(env);
   assertLive(s);
   if (s.manual_cards_enabled === false) throw httpError(503, 'خدمة البطاقات متوقفة مؤقتًا');
@@ -3409,6 +3420,7 @@ async function handleAdminSmsAssign(user, body, env) {
 
 async function handleTicketCreate(user, body, env) {
   const s = await getSettings(env);
+  await secGuard(env, s, 'support', user.uid);
   if (s.tickets_enabled === false) throw httpError(503, 'الدعم غير متاح حاليًا');
   const subject = String(body.subject || '').trim().slice(0, 120);
   const msg = String(body.message || '').trim().slice(0, 1500);
@@ -3845,6 +3857,7 @@ function cleanProofImage(raw) {
 }
 
 async function handleManualDeposit(user, body, env) {
+  await secGuard(env, await getSettings(env), 'deposit', user.uid);
   { const _s = await getSettings(env); const _u = await fsGet(env, `users/${user.uid}`); assertMoneyVerified(env, _s, _u); }
   const s = await getSettings(env);
   assertLive(s);
@@ -7350,7 +7363,7 @@ async function handleRscCatalog(env) {
     const m = rscMargin(s, cfg, key);
     categories.push({
       key, type: cat.type, name: c.name || cat.name, image: rscImg(env, key, cfg, cat), note: c.note || cat.note || '',
-      sort: num(c.sort, 99), fields: off.fields || [], featured: c.featured === true, promo: c.promo || '', group: c.group || '', pop: pop[key] || 0,
+      sort: num(c.sort, 99), fields: off.fields || [], featured: c.featured === true, promo: c.promo || '', group: c.group || '', pop: pop[key] || 0, maint: c.maint === true, pick: c.pick === true,
       offers: (off.offers || []).filter(o => o.stock == null || o.stock > 0).map(o => ({ id: o.id, name: o.name, price: rscSell(o.cost, m), min: o.min, max: o.max })),
     });
   }
@@ -7401,12 +7414,14 @@ async function handleRscOrder(user, body, env) {
   const s = await getSettings(env);
   assertLive(s);
   if (s.rsc_on === false) throw httpError(503, 'المتجر متوقف مؤقتًا');
+  await secGuard(env, s, 'store', user.uid);
   const key = idemKeyOf(body);
   if (!memAllowWin(`rsc_${user.uid}`, 20, 3600)) throw httpError(429, 'محاولات كثيرة — حاول بعد ساعة');
   const ckey = String(body.cat || '');
   if (!rscKeyOk(ckey)) throw httpError(400, 'قسم غير صالح');
   const cfg = await rscCfg(env);
   if (!cfg.cats[ckey] || cfg.cats[ckey].on !== true) throw httpError(404, 'القسم غير متاح');
+  if (cfg.cats[ckey].maint === true) throw httpError(503, 'هذا القسم قيد الصيانة حاليًا — جرّب بعد قليل');
   const { type, id: catId } = rscSplit(ckey);
   const offerId = String(body.offer || '').slice(0, 80);
 
@@ -7563,10 +7578,18 @@ async function rscCron(env, hourly) {
       try { await rscApply(env, o._id, await rscCall(env, 'GET', `/orders/${encodeURIComponent(o.number)}`)); } catch {}
     }
   }
-  if (!hourly) return;
   const cfg = await rscCfg(env);
-  const on = Object.keys(cfg.cats).filter(k => cfg.cats[k] && cfg.cats[k].on === true).slice(0, 20);
-  for (const k of on) { try { await rscFetchOffers(env, k); } catch {} }
+  const allOn = Object.keys(cfg.cats).filter(k => cfg.cats[k] && cfg.cats[k].on === true);
+  if (!hourly) {                                                     // v55: أقسام مفعّلة بلا عروض بعد (تفعيل جماعي) — 4 كل دورة
+    let got = 0;
+    for (const k of allOn) { if (got >= 4) break; if (await rscKvGet(env, 'rsc:off:' + k)) continue; got++; try { await rscFetchOffers(env, k); } catch {} }
+    if (got) bustPublic();
+    return;
+  }
+  // تحديث الأقدم أولاً (30 قسم كل ساعة) بدل أول 20 دائمًا
+  const ages = await Promise.all(allOn.map(async k => { const o = await rscKvGet(env, 'rsc:off:' + k); return [k, o ? num(o.at, 0) : 0]; }));
+  const on = ages.sort((a, b) => a[1] - b[1]).slice(0, 30).map(x => x[0]);
+  for (const k of on) { try { await rscFetchOffers(env, k); } catch {} await new Promise(r => setTimeout(r, 300)); }
   if (on.length) bustPublic();
   const cats = await rscKvGet(env, 'rsc:cats');
   if (!cats || Date.now() - num(cats.at, 0) > 86400000) await rscSyncCategories(env).catch(() => {});
@@ -7589,7 +7612,7 @@ async function handleAdminRsc(user, body, env) {
     for (const c of cats) {
       const cc = cfg.cats[c.key] || {};
       const off = cc.on ? await rscKvGet(env, 'rsc:off:' + c.key) : null;
-      list.push({ key: c.key, type: c.type, name: c.name, alias: cc.name || '', on: cc.on === true, margin: cc.margin ?? '', sort: cc.sort ?? '', featured: cc.featured === true, promo: cc.promo || '', group: cc.group || '',
+      list.push({ key: c.key, type: c.type, name: c.name, alias: cc.name || '', on: cc.on === true, margin: cc.margin ?? '', sort: cc.sort ?? '', featured: cc.featured === true, maint: cc.maint === true, pick: cc.pick === true, promo: cc.promo || '', group: cc.group || '',
         image: rscImg(env, c.key, cfg, c), custom_img: !!cc.img_v, offers: off ? off.offers.length : null, synced_at: off ? off.at : null });
     }
     const bal = me && (me.balance_usd ?? me.balance ?? (me.account && me.account.balance));
@@ -7604,6 +7627,34 @@ async function handleAdminRsc(user, body, env) {
     await logOp(env, staff.uid, 'rsc.sync', {}, { cats: cats.length, offers: n }, true);
     return { success: true, cats: cats.length, refreshed: n };
   }
+  if (action === 'bulk') {                                          // v55: تحديد جماعي — حفظ واحد، والعروض تنجاب على مهل
+    const keys = [...new Set((Array.isArray(body.keys) ? body.keys : []).map(String))].filter(rscKeyOk).slice(0, 200);
+    if (!keys.length) throw httpError(400, 'ما فيش أقسام محددة');
+    const to = String(body.set || '');
+    if (!['on', 'maint', 'off', 'pick', 'unpick'].includes(to)) throw httpError(400, 'إجراء غير معروف');
+    const known = new Set((await rscCats(env)).map(c => c.key));
+    const need = [];
+    for (const key of keys) {
+      if (!known.has(key) && !cfg.cats[key]) continue;
+      const cur = { ...(cfg.cats[key] || {}) };
+      if (to === 'on') { cur.on = true; cur.maint = false; }
+      else if (to === 'maint') { cur.on = true; cur.maint = true; }
+      else if (to === 'off') { cur.on = false; cur.maint = false; }
+      else cur.pick = to === 'pick';
+      cfg.cats[key] = cur;
+      if (cur.on && !(await rscKvGet(env, 'rsc:off:' + key))) need.push(key);
+    }
+    await rscCfgSave(env, cfg);
+    await logOp(env, staff.uid, 'rsc.bulk', { n: keys.length }, { set: to }, true);
+    return { success: true, need };                                  // الأقسام اللي تحتاج جلب عروض
+  }
+  if (action === 'fetch') {                                          // جلب عروض قسم واحد (اللوحة تناديه ورا بعض بفاصل)
+    const key = String(body.key || '');
+    if (!rscKeyOk(key) || !cfg.cats[key] || cfg.cats[key].on !== true) throw httpError(400, 'قسم غير مفعّل');
+    if (!memAllowWin(`rscf_${staff.uid}`, 120, 600)) throw httpError(429, 'انتظر شوية');
+    try { const o = await rscFetchOffers(env, key); bustPublic(); return { success: true, offers: (o.offers || []).length }; }
+    catch (e) { return { success: false, retry: true, error: e.message }; }
+  }
   if (action === 'cat') {
     const key = String(body.key || '');
     if (!rscKeyOk(key)) throw httpError(400, 'قسم غير صالح');
@@ -7613,6 +7664,8 @@ async function handleAdminRsc(user, body, env) {
     if ('note' in body) cur.note = String(body.note || '').trim().slice(0, 300);
     if ('margin' in body) cur.margin = body.margin === '' || body.margin == null ? '' : Math.min(300, Math.max(0, num(body.margin, 0)));
     if ('sort' in body) cur.sort = body.sort === '' || body.sort == null ? '' : Math.floor(num(body.sort, 99));
+    if ('maint' in body) cur.maint = body.maint === true;
+    if ('pick' in body) cur.pick = body.pick === true;
     if ('featured' in body) cur.featured = body.featured === true;                                   // v53: يظهر في «عروض اليوم»
     if ('promo' in body) cur.promo = String(body.promo || '').replace(/[<>]/g, '').trim().slice(0, 70);
     if ('group' in body) cur.group = ['subs', 'apps', ''].includes(String(body.group || '')) ? String(body.group || '') : '';
@@ -8466,6 +8519,17 @@ async function promoFirstDeposit(env, uid, amount, ref) {
 
 /* ═══ v54 — تقييمات حقيقية: بعد طلب مكتمل فقط، ولا تظهر إلا بعد موافقة الإدارة ═══ */
 function safeUrl(u) { u = String(u || '').trim(); return /^https:\/\/[^\s"'<>]{4,200}$/.test(u) ? u : ''; }
+/* ─── v55: حالة أقسام الموقع (مفعّل / صيانة / مخفي) ─── */
+const SECTIONS = ['cards', 'store', 'deposit', 'transfer', 'withdraw', 'support'];
+const SEC_AR = { cards: 'قسم البطاقات', store: 'المتجر', deposit: 'شحن المحفظة', transfer: 'التحويل', withdraw: 'السحب', support: 'الدعم' };
+function secState(s, k) { const v = s['sec_' + k]; if (k === 'cards' && s.mc_maint_on === true && (!v || v === 'on')) return 'maint'; return ['on', 'maint', 'off'].includes(v) ? v : 'on'; }
+async function secGuard(env, s, k, uid) {
+  const st = secState(s, k);
+  if (st === 'on') return;
+  if (uid && await isStaffCached(env, uid)) return;               // الطاقم يقدر يجرّب أثناء الصيانة
+  const msg = String(s['sec_msg_' + k] || '').slice(0, 300);
+  throw httpError(503, msg || `${SEC_AR[k]} ${st === 'maint' ? 'قيد الصيانة حاليًا — نعود قريبًا' : 'غير متاح حاليًا'}`);
+}
 function maskName(n) { const w = String(n || '').trim().split(/\s+/)[0] || 'عميل'; return Array.from(w)[0] + '*****'; }
 async function handleReviewSubmit(user, body, env) {
   if (!memAllowWin(`rev_${user.uid}`, 10, 3600)) throw httpError(429, 'محاولات كثيرة');

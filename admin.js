@@ -493,6 +493,7 @@ const PAGES = [
   { k: 'howto',     t: 'كيف أدفع؟',  i: I.help,   g: 'الإعدادات' },
   { k: 'reviews',   t: 'آراء العملاء', i: I.chart, g: 'المتجر والعملاء' },
   { k: 'contact',   t: 'التواصل والأسئلة', i: I.help, g: 'الإعدادات' },
+  { k: 'sections',  t: 'أقسام الموقع', i: I.grid, g: 'الإعدادات' },
   { k: 'settings',  t: 'الإعدادات',  i: I.gear,   g: 'الإعدادات' },
   { k: 'system',    t: 'الموظفين والنظام', i: I.users, g: 'الإعدادات' },
   { k: 'orders',    t: 'طلبات المتجر القديم', i: I.orders, g: 'أرشيف', hide: true },
@@ -531,7 +532,7 @@ const ROLE_DEFAULT_PERMS = {
   ops: { mcards: ['view', 'approve'], cards: ['view', 'edit'], orders: ['view', 'approve'], store: ['view', 'add', 'edit', 'delete'], services: ['view', 'add', 'edit', 'delete', 'approve'], users: ['view'] },
 };
 const PAGE_SEC = { rsc: 'store', platforms: 'stickers', mview: 'merchants', mcards: 'mcards', cards: 'cards', orders: 'orders', services: 'services', store: 'store', deposits: 'deposits',
-  withdraw: 'withdraw', sms: 'sms', tickets: 'tickets', coupons: 'coupons', users: 'users', stickers: 'stickers', merchants: 'merchants', settings: '__super', system: '__super', methods: '__super', analytics: 'users', howto: '__super', reviews: 'users', contact: '__super' };
+  withdraw: 'withdraw', sms: 'sms', tickets: 'tickets', coupons: 'coupons', users: 'users', stickers: 'stickers', merchants: 'merchants', settings: '__super', system: '__super', methods: '__super', analytics: 'users', howto: '__super', reviews: 'users', contact: '__super', sections: '__super' };
 function isSuperAdmin() { return S.admin && S.admin.role === 'super_admin'; }
 function myPerms() { const a = S.admin || {}; return (a.perms && typeof a.perms === 'object') ? a.perms : (ROLE_DEFAULT_PERMS[a.role] || {}); }
 function can(sec, act) { if (isSuperAdmin()) return true; if (sec === '__super') return false; return (myPerms()[sec] || []).includes(act); }
@@ -658,6 +659,7 @@ function render(force = false) {
     howto: vHowtoA,
     reviews: vReviewsA,
     contact: vContactA,
+    sections: vSections,
     rsc: vRsc,
     mcards: vMcardOrders,
     cards: vCards2,
@@ -4464,7 +4466,12 @@ function vRsc() {
   if (!R.loaded) { loadRscA(); return `<div class="page-enter"><div class="skeleton" style="height:140px;border-radius:16px"></div></div>`; }
   const low = R.balance != null && R.balance < n(R.low);
   const q = (R.q || '').trim().toLowerCase();
-  const cats = (R.cats || []).filter(c => (!R.onlyOn || c.on) && (!q || (c.name + ' ' + c.alias).toLowerCase().includes(q)));
+  const stOf = c => !c.on ? 'off' : c.maint ? 'maint' : 'on';
+  const flt = R.flt || 'all';
+  const cats = (R.cats || []).filter(c => (flt === 'all' || stOf(c) === flt || (flt === 'pick' && c.pick)) && (!q || (c.name + ' ' + c.alias).toLowerCase().includes(q)));
+  const sel = S.rscSel || (S.rscSel = new Set());
+  const vis = cats.slice(0, 120), allSel = vis.length && vis.every(c => sel.has(c.key));
+  const cnt = k => (R.cats || []).filter(c => stOf(c) === k).length;
   const onCount = (R.cats || []).filter(c => c.on).length;
   const imgU = u => !u ? '' : /^\//.test(u) ? API_BASE + u : u;
   return `<div class="page-enter">
@@ -4500,19 +4507,25 @@ function vRsc() {
     ${R.tab === 'cats' ? `
       <div style="display:flex;gap:8px;margin-bottom:10px">
         <input class="input" id="rscQ" placeholder="ابحث في أقسام المزود…" value="${esc(R.q || '')}" style="flex:1">
-        <button class="btn btn-sm ${R.onlyOn ? 'btn-primary' : 'btn-secondary'}" id="rscOnly" type="button">المفعّلة</button>
       </div>
-      <div class="list">${cats.slice(0, 120).map(c => `
+      <div class="pills mb-2" style="flex-wrap:wrap">${[['all', 'الكل', (R.cats || []).length], ['on', 'مفعّل', cnt('on')], ['maint', 'صيانة', cnt('maint')], ['off', 'مخفي', cnt('off')], ['pick', 'مختارات', (R.cats || []).filter(c => c.pick).length]].map(([k, t, nn]) => `<button class="pill ${flt === k ? 'active' : ''}" data-rscflt="${k}" type="button">${t} (${nn})</button>`).join('')}</div>
+      <label class="rsc-all"><input type="checkbox" data-rscall ${allSel ? 'checked' : ''}><span>تحديد الكل${sel.size ? ` — ${sel.size} محدد` : ''}</span>${sel.size ? '<button type="button" data-rscclr>إلغاء التحديد</button>' : ''}</label>
+      <div class="list">${vis.map(c => `
         <div class="list-row" style="cursor:default">
+          <input type="checkbox" class="rsc-cb" data-rscsel="${esc(c.key)}" ${sel.has(c.key) ? 'checked' : ''} aria-label="تحديد">
           <div class="list-icon" style="overflow:hidden;padding:0">${c.image ? `<img src="${esc(imgU(c.image))}" alt="" loading="lazy" style="width:100%;height:100%;object-fit:cover">` : (c.type === 'topup' ? '🎮' : '🎁')}</div>
           <div class="list-content"><div class="list-title">${esc(c.alias || c.name)}${c.alias ? ` <span class="caption">(${esc(c.name)})</span>` : ''}</div>
             <div class="list-meta">${c.type === 'topup' ? 'شحن ألعاب' : 'بطاقات هدايا'}${c.on ? ` · ${c.offers ?? 0} عرض` : ''}${c.margin !== '' ? ` · ربح ${esc(String(c.margin))}%` : ''}${c.custom_img ? ' · صورة مخصّصة' : ''}</div></div>
           <div class="list-end" style="display:flex;gap:6px">
             <button class="btn btn-ghost btn-sm" data-rscedit="${esc(c.key)}" type="button">تعديل</button>
-            <button class="btn btn-sm ${c.on ? 'btn-primary' : 'btn-secondary'}" data-rsctgl="${esc(c.key)}" type="button" style="min-width:68px">${c.on ? 'مفعّل' : 'مقفول'}</button>
+            <button class="btn btn-sm ${c.on ? (c.maint ? 'btn-secondary' : 'btn-primary') : 'btn-secondary'}" data-rsctgl="${esc(c.key)}" type="button" style="min-width:68px${c.maint ? ';color:var(--warning,#A8650C)' : ''}">${!c.on ? 'مخفي' : c.maint ? 'صيانة' : 'مفعّل'}${c.pick ? ' ✦' : ''}</button>
           </div>
         </div>`).join('') || '<div class="caption" style="padding:16px;text-align:center">لا أقسام — اضغط «تحديث الكتالوج»</div>'}</div>
-      ${cats.length > 120 ? '<p class="caption" style="text-align:center;margin-top:8px">اكتب في البحث لتضييق النتائج</p>' : ''}` : `
+      ${cats.length > 120 ? '<p class="caption" style="text-align:center;margin-top:8px">اكتب في البحث لتضييق النتائج</p>' : ''}
+      ${sel.size ? `<div class="rsc-bulk"><b>${sel.size} ${sel.size > 10 ? 'قسم' : 'أقسام'} محددة</b>
+        <div class="rsc-bb"><button type="button" class="p" data-rscbulk="on">تفعيل</button><button type="button" data-rscbulk="maint">صيانة</button><button type="button" data-rscbulk="off">إخفاء</button></div>
+        <div class="rsc-bb2"><button type="button" data-rscbulk="pick">✦ إضافة للمختارات</button><button type="button" data-rscbulk="unpick">شيل من المختارات</button></div>
+        ${S.rscProg ? `<div class="rsc-prog">${esc(S.rscProg)}</div>` : ''}</div><div style="height:150px"></div>` : S.rscProg ? `<div class="caption" style="text-align:center;margin-top:10px">${esc(S.rscProg)}</div>` : ''}` : `
       ${R.orders == null ? '<div class="skeleton" style="height:120px;border-radius:14px"></div>' : (R.orders.length ? `<div class="list">${R.orders.map(o => `
         <div class="list-row" style="cursor:default;align-items:flex-start">
           <div class="list-content">
@@ -4542,6 +4555,8 @@ function openRscCatEdit(key) {
       <div class="field"><label class="field-label" for="rcS">الترتيب</label><input class="input tabular" id="rcS" type="number" value="${esc(String(c.sort))}" placeholder="99"></div>
     </div>
     <div class="arow static" style="padding:4px 0 12px"><span class="art"><b>يظهر في «عروض اليوم»</b><span>بطاقة كبيرة في أعلى المتجر</span></span><button class="asw ${c.featured ? 'on' : ''}" id="rcFeat" type="button"></button></div>
+    <div class="arow static" style="padding:4px 0 12px"><span class="art"><b>من «مختارات كاردو»</b><span>تظهر في الرئيسية لين تتجمع طلبات حقيقية</span></span><button class="asw ${c.pick ? 'on' : ''}" id="rcPick" type="button"></button></div>
+    <div class="arow static" style="padding:4px 0 12px"><span class="art"><b>قيد الصيانة</b><span>يبان للعميل باهت وما يقدرش يشتري</span></span><button class="asw ${c.maint ? 'on' : ''}" id="rcMaint" type="button"></button></div>
     <div class="field mb-3"><label class="field-label" for="rcP">نص العرض (اختياري)</label><input class="input" id="rcP" maxlength="70" value="${esc(c.promo || '')}" placeholder="مثال: 660 UC بـ 118 د.ل بدل 125"></div>
     <div class="field mb-3"><label class="field-label" for="rcG">التصنيف</label><select class="input" id="rcG">
       <option value="" ${!c.group ? 'selected' : ''}>تلقائي (${c.type === 'topup' ? 'شحن ألعاب' : 'بطاقات هدايا'})</option>
@@ -4558,9 +4573,11 @@ function openRscCatEdit(key) {
     try { img = await compressImg($('#rcF').files[0], 480, 0.82, 120000); $('#rcPrev').innerHTML = `<img src="${img}" style="width:100%;height:100%;object-fit:cover">`; } catch (e) { toast(e.message, 'bad'); }
   };
   onTap('#rcFeat', () => $('#rcFeat').classList.toggle('on'));
+  onTap('#rcPick', () => $('#rcPick').classList.toggle('on'));
+  onTap('#rcMaint', () => $('#rcMaint').classList.toggle('on'));
   onTap('#rcClr', () => { img = ''; $('#rcPrev').innerHTML = '📷'; toast('ستُستخدم صورة المزود عند الحفظ', 'ok'); });
   onTap('#rcGo', async () => {
-    const body = { action: 'cat', key, name: $('#rcN').value.trim(), margin: $('#rcM').value.trim(), sort: $('#rcS').value.trim(), featured: $('#rcFeat').classList.contains('on'), promo: $('#rcP').value.trim(), group: $('#rcG').value };
+    const body = { action: 'cat', key, name: $('#rcN').value.trim(), margin: $('#rcM').value.trim(), sort: $('#rcS').value.trim(), featured: $('#rcFeat').classList.contains('on'), pick: $('#rcPick').classList.contains('on'), maint: $('#rcMaint').classList.contains('on'), promo: $('#rcP').value.trim(), group: $('#rcG').value };
     if (img !== null) body.image = img;
     const b = $('#rcGo'); b.disabled = true;
     try { await api('/api/admin/rsc', body); closeModal(); toast('حُفظ ✓', 'ok'); loadRscA(); }
@@ -4580,7 +4597,7 @@ function bindRscA() {
   document.querySelectorAll('[data-rsctgl]').forEach(b => b.onclick = async () => {
     const c = (S.rscA.cats || []).find(x => x.key === b.dataset.rsctgl); if (!c) return;
     b.disabled = true; b.textContent = '…';
-    try { await api('/api/admin/rsc', { action: 'cat', key: c.key, on: !c.on }); toast(!c.on ? 'فُعّل القسم وجُلبت عروضه ✓' : 'أُقفل القسم', 'ok'); await loadRscA(); }
+    try { await rscBulk([c.key], c.on ? 'off' : 'on'); }
     catch (e) { toast(e.message, 'bad'); b.disabled = false; }
   });
   document.querySelectorAll('[data-rscchk]').forEach(b => b.onclick = async () => {
@@ -4596,7 +4613,6 @@ function bindRscA() {
     catch (e) { toast(e.message, 'bad'); }
   });
   const q = $('#rscQ'); if (q) q.oninput = () => { S.rscA.q = q.value; render(); };
-  onTap('#rscOnly', () => { S.rscA.onlyOn = !S.rscA.onlyOn; render(true); });
   onTap('#rscOn', async () => {
     try { await api('/api/admin/settings', { rsc_on: !S.rscA.on }); S.rscA.on = !S.rscA.on; toast('حُفظ ✓', 'ok'); render(true); } catch (e) { toast(e.message, 'bad'); }
   });
@@ -4974,6 +4990,7 @@ function vMore() {
   const set = [
     isSuperAdmin() ? { i: I.cash, c: 'g', t: 'طرق الدفع', s: 'التشغيل، الإيقاف المؤقت، الأسعار، QR', attrs: 'data-nav="methods"' } : null,
     isSuperAdmin() ? { i: I.help, c: 'g', t: 'كيف أدفع؟', s: 'شرح الدفع بالصور لكل طريقة', attrs: 'data-nav="howto"' } : null,
+    isSuperAdmin() ? { i: I.grid, c: 'g', t: 'أقسام الموقع', s: 'تفعيل، صيانة، إخفاء — البطاقات، المتجر، الشحن، الدعم…', attrs: 'data-nav="sections"' } : null,
     isSuperAdmin() ? { i: I.help, c: 'g', t: 'التواصل والأسئلة', s: 'واتساب، البريد، السوشيال، الأسئلة الشائعة', attrs: 'data-nav="contact"' } : null,
     isSuperAdmin() ? { i: I.shield, c: 'g', t: 'الحماية والحدود', s: 'السقف اليومي، الحسابات الجديدة', attrs: 'data-setgo="limits"' } : null,
     isSuperAdmin() ? { i: I.tool, c: 'g', t: 'تشغيل الموقع', s: 'الصيانة، الإيقاف، الرسائل', attrs: 'data-setgo="ops"' } : null,
@@ -5415,4 +5432,73 @@ document.addEventListener('click', async e => {
   b.disabled = true;
   try { await api('/api/admin/settings', patch); S.settings = { ...S.settings, ...patch }; toast('حُفظ ✓ — يظهر للعملاء خلال دقائق', 'ok'); }
   catch (er) { toast(er.message, 'bad'); } finally { b.disabled = false; }
+});
+
+
+/* ═══ v55 — تحديد جماعي لأقسام المتجر ═══ */
+let _rscFetching = false;
+async function rscBulk(keys, set) {
+  const r = await api('/api/admin/rsc', { action: 'bulk', keys, set });
+  const lbl = { on: 'تفعّلت', maint: 'تحولت للصيانة', off: 'تخفّت', pick: 'تضافت للمختارات', unpick: 'تشالت من المختارات' }[set];
+  toast(`${keys.length} ${keys.length > 10 ? 'قسم' : 'أقسام'} ${lbl} ✓`, 'ok');
+  (S.rscSel || new Set()).clear();
+  await loadRscA();
+  if (r.need && r.need.length) rscFetchQueue(r.need);
+}
+async function rscFetchQueue(keys) {
+  if (_rscFetching) return; _rscFetching = true;
+  let ok = 0, left = [];
+  for (let i = 0; i < keys.length; i++) {
+    S.rscProg = `جاري جلب الأسعار… ${i + 1} من ${keys.length}`; if (S.page === 'rsc') render(true);
+    try { const r = await api('/api/admin/rsc', { action: 'fetch', key: keys[i] }); if (r.success) ok++; else left.push(keys[i]); }
+    catch { left.push(keys[i]); }
+    await new Promise(res => setTimeout(res, 1500));
+  }
+  S.rscProg = left.length ? `جُلبت أسعار ${ok} — والباقي (${left.length}) يجيبهم النظام وحده خلال دقائق` : `جُلبت أسعار ${ok} ${ok > 10 ? 'قسم' : 'أقسام'} ✓`;
+  _rscFetching = false; await loadRscA();
+  setTimeout(() => { S.rscProg = ''; if (S.page === 'rsc') render(true); }, 8000);
+}
+document.addEventListener('click', async e => {
+  const t = e.target;
+  const f = t.closest('[data-rscflt]'); if (f) { S.rscA.flt = f.dataset.rscflt; render(true); return; }
+  if (t.closest('[data-rscclr]')) { e.preventDefault(); (S.rscSel || new Set()).clear(); render(true); return; }
+  const cb = t.closest('[data-rscsel]');
+  if (cb) { const s0 = S.rscSel || (S.rscSel = new Set()); cb.checked ? s0.add(cb.dataset.rscsel) : s0.delete(cb.dataset.rscsel); render(true); return; }
+  const all = t.closest('[data-rscall]');
+  if (all) {
+    const s0 = S.rscSel || (S.rscSel = new Set());
+    $$('[data-rscsel]').forEach(x => all.checked ? s0.add(x.dataset.rscsel) : s0.delete(x.dataset.rscsel));
+    render(true); return;
+  }
+  const b = t.closest('[data-rscbulk]');
+  if (b) {
+    const keys = [...(S.rscSel || [])]; if (!keys.length) return;
+    $$('[data-rscbulk]').forEach(x => x.disabled = true);
+    try { await rscBulk(keys, b.dataset.rscbulk); } catch (er) { toast(er.message, 'bad'); $$('[data-rscbulk]').forEach(x => x.disabled = false); }
+  }
+});
+
+/* ═══ v55 — أقسام الموقع (مفعّل / صيانة / مخفي) ═══ */
+const SEC_A = [['cards', 'البطاقات', 'إصدار وتعبئة البطاقات — البطاقات الموجودة تبقى ظاهرة لأصحابها', I.card], ['store', 'المتجر', 'شحن الألعاب والبطاقات', I.bag], ['deposit', 'شحن المحفظة', 'كل طرق الشحن', I.cash], ['transfer', 'التحويل بين الحسابات', '', I.cash], ['withdraw', 'السحب', '', I.withdraw], ['support', 'الدعم والتذاكر', 'فتح تذاكر جديدة', I.chat]];
+function vSections() {
+  const s = S.settings || {};
+  const st = k => ['on', 'maint', 'off'].includes(s['sec_' + k]) ? s['sec_' + k] : 'on';
+  return `<div class="page-enter astag">
+    <div class="ah"><button class="aib" data-nav="more" type="button" aria-label="رجوع">${svg(I.back)}</button><div style="flex:1"><h1>أقسام الموقع</h1><p>شغّل أو اقفل أي قسم، أو حطه «قيد الصيانة» مع رسالة للعملاء</p></div></div>
+    <div class="aalert w">${svg(I.help)}<div>في الصيانة القسم يبان للعميل مقفول وفيه رسالتك، والطلبات الجديدة تنرفض من الخادم. أنت والموظفين تقدروا تجربوا عادي.</div></div>
+    ${SEC_A.map(([k, t, sub, ic]) => `<div class="acard" style="padding:12px 14px;margin-bottom:10px">
+      <div style="display:flex;gap:10px;align-items:center"><span class="aric g">${svg(ic)}</span><div style="flex:1;min-width:0"><b style="font-size:15px">${t}</b>${sub ? `<div class="caption">${sub}</div>` : ''}</div></div>
+      <div class="aseg" style="margin:10px 0 0">${[['on', 'مفعّل'], ['maint', 'صيانة'], ['off', 'مخفي']].map(([v, l]) => `<button class="${st(k) === v ? 'on' : ''}" data-secset="${k}" data-v="${v}" type="button">${l}</button>`).join('')}</div>
+      ${st(k) !== 'on' ? `<div class="field" style="margin:10px 0 0"><label class="field-label" for="secm_${k}">رسالة للعملاء (اختياري)</label><textarea class="input" id="secm_${k}" rows="2" maxlength="300" style="height:auto;padding-top:10px">${esc(s['sec_msg_' + k] || '')}</textarea>
+        <button class="abtn sm p" data-secmsg="${k}" type="button" style="margin-top:6px">حفظ الرسالة</button></div>` : ''}
+    </div>`).join('')}
+  </div>`;
+}
+document.addEventListener('click', async e => {
+  const b = e.target.closest('[data-secset],[data-secmsg]'); if (!b) return;
+  const patch = b.dataset.secset ? { ['sec_' + b.dataset.secset]: b.dataset.v } : { ['sec_msg_' + b.dataset.secmsg]: ($('#secm_' + b.dataset.secmsg) || {}).value || '' };
+  if (b.dataset.secset === 'cards' && b.dataset.v === 'on') patch.mc_maint_on = false;
+  b.disabled = true;
+  try { await api('/api/admin/settings', patch); S.settings = { ...S.settings, ...patch }; toast('حُفظ ✓ — يوصل للعملاء خلال دقيقة', 'ok'); render(true); }
+  catch (er) { toast(er.message, 'bad'); b.disabled = false; }
 });
