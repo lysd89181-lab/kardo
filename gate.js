@@ -1,6 +1,12 @@
 /* gate.js — وضع الصيانة: يُحمَّل قبل كل شيء.
    الزوار يرون شاشة الصيانة، والإدارة (بعد دخولها لوحة admin.html) ترى الموقع كاملًا للمعاينة.
    الحماية الحقيقية في الخادم: كل عمليات غير الإدارة مرفوضة أثناء الصيانة. */
+/* تثبيت التطبيق: نلتقط طلب التثبيت مبكرًا (قبل تحميل app.js) */
+(function () {
+  window.__bip = null;
+  addEventListener('beforeinstallprompt', function (e) { e.preventDefault(); window.__bip = e; try { document.dispatchEvent(new Event('kardo-bip')); } catch (x) {} });
+  addEventListener('appinstalled', function () { window.__bip = null; try { localStorage.setItem('kardo_installed', '1'); } catch (x) {} });
+})();
 /* المظهر: نهاري/ليلي (تلقائي حسب الهاتف أو اختيار المستخدم) */
 (function () {
   function apply() {

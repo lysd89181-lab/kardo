@@ -1,13 +1,16 @@
 {
+  "id": "./",
   "name": "كاردو — شحن ألعاب وبطاقات هدايا",
+  "description": "اشحن ألعابك واشترِ بطاقات الهدايا بالدينار الليبي — ليبيانا، المدار، USDT",
   "short_name": "كاردو",
   "lang": "ar",
   "dir": "rtl",
   "start_url": "./index.html",
   "scope": "./",
   "display": "standalone",
-  "background_color": "#0E0B08",
-  "theme_color": "#0E0B08",
+  "background_color": "#101314",
+  "theme_color": "#101314",
+  "orientation": "portrait",
   "icons": [
     { "src": "./icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any maskable" },
     { "src": "./icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any maskable" }

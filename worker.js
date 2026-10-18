@@ -196,6 +196,9 @@ async function route(path, request, url, env) {
     case '/api/admin/crypto/unmatched': return handleAdminUnmatched(user, body, env);
     case '/api/admin/invoices':        return handleAdminInvoices(user, body, env);
     case '/api/admin/binance-qr':      return handleAdminBinanceQr(user, body, env);
+    case '/api/admin/overview':        return handleAdminOverview(user, body, env);
+    case '/api/admin/users/find':      return handleAdminUsersFind(user, body, env);
+    case '/api/admin/user/file':       return handleAdminUserFile(user, body, env);
     case '/api/wallet/invoice':        return handleInvoiceGet(user, body, env);
     case '/api/wallet/invoice/cancel': return handleInvoiceCancel(user, body, env);
     case '/api/wallet/invoices':       return handleInvoiceList(user, body, env);
@@ -5400,7 +5403,8 @@ async function handleAdminNames(user, body, env) {
   if (!staff) throw httpError(403, 'غير مصرّح');
   const ids = [...new Set((Array.isArray(body.uids) ? body.uids : []).map(String).filter(x => /^[A-Za-z0-9]{6,64}$/.test(x)))].slice(0, 40);
   const out = {};
-  await Promise.all(ids.map(async id => { const u = await fsGet(env, `users/${id}`).catch(() => null); out[id] = u ? String(u.name || 'مستخدم').slice(0, 60) : ''; }));
+  const m = await userNamesMap(env, ids);                 // v51: طلب واحد بدل قراءة لكل مستخدم
+  for (const id of ids) { const u = m.get(id); out[id] = u ? String(u.name || u.email || 'مستخدم').slice(0, 60) : ''; }
   return { success: true, names: out };
 }
 
@@ -6148,7 +6152,7 @@ const D1_IDX = {
   service_orders: [['uid'], ['created_at']], merchant_orders: [['uid'], ['merchant_owner'], ['mid'], ['status']],
   merchant_reports: [['uid'], ['merchant_owner'], ['created_at']], merchant_statements: [['merchant_owner'], ['mid'], ['status']],
   merchant_applications: [['status']], merchant_stock: [['sid', 'used']], stock: [['pid', 'used']], service_stock: [['service_id', 'is_used']],
-  tickets: [['uid'], ['updated_at']], sms_transactions: [['created_at'], ['sender']], audit_log: [['created_at']], products: [['cat']],
+  tickets: [['uid'], ['updated_at'], ['status']], sms_transactions: [['created_at'], ['sender'], ['status']], audit_log: [['created_at']], products: [['cat']],
   categories: [['parent']], coupon_uses: [['uid']], plan_orders: [['uid']], transfers: [['uid']], usdt_invoices: [['uid'], ['status'], ['created_at']], ref_codes: [['uid']],
   rsc_orders: [['uid'], ['status'], ['created_at']], crypto_unmatched: [['status']],
   rate_limits: [], idempotency: [], otp_codes: [], otp_waits: [], email_codes: [], card_cvv_once: [], manual_card_reveal: [], public: [], settings: [],
@@ -7885,3 +7889,109 @@ async function userNamesMap(env, uids) {
   return m;
 }
 async function saveSettingsPatch(env, ops) { await fsPatch(env, 'settings/main', ops); clearSettingsCache(); }
+
+
+/* ═══ v51 — لوحة الإدارة: ملخص بطلب واحد (بدل الاشتراك في 7 مجموعات كل دقيقة) ═══ */
+const _ovMem = new Map();
+let _rscBalMem = { v: null, exp: 0 };
+async function d1Count(env, coll, where, args) {
+  if (!(await d1Table(env, coll))) return 0;
+  const r = await d1All(env, `SELECT COUNT(*) AS n FROM "${coll}" WHERE ${where}`, args || []).catch(() => [{ n: 0 }]);
+  return num(r[0] && r[0].n, 0);
+}
+async function d1Sum(env, coll, expr, where, args) {
+  if (!(await d1Table(env, coll))) return { n: 0, s: 0, s2: 0 };
+  const r = await d1All(env, `SELECT COUNT(*) AS n, COALESCE(SUM(${expr[0]}), 0) AS s${expr[1] ? `, COALESCE(SUM(${expr[1]}), 0) AS s2` : ''} FROM "${coll}" WHERE ${where}`, args || []).catch(() => [{}]);
+  return { n: num(r[0] && r[0].n, 0), s: round2(num(r[0] && r[0].s, 0)), s2: round2(num(r[0] && r[0].s2, 0)) };
+}
+async function handleAdminOverview(user, body, env) {
+  const staff = await getStaff(env, user.uid);
+  if (!staff) throw httpError(403, 'غير مصرّح');
+  if (!env.DB) throw httpError(503, 'قاعدة البيانات غير متاحة');
+  const can = p => staffCan(staff, p);
+  const ck = staff.role === 'super_admin' ? '*' : JSON.stringify(staff.perms || staff.role);
+  const hit = _ovMem.get(ck);
+  if (hit && hit.exp > Date.now() && !body.fresh) return hit.v;
+  const day0 = new Date(todayKey() + 'T00:00:00+02:00').toISOString();
+  const y0 = new Date(Date.parse(day0) - 86400000).toISOString();
+  const out = { success: true, at: Date.now(), attn: {}, today: {}, yesterday: {} };
+  const J = (f) => `json_extract(data, '$.${f}')`;
+  const jobs = [];
+  if (can('deposits.view')) {
+    jobs.push(d1Sum(env, 'wallet_deposits', [J('amount_usd')], `status = 'pending'`).then(r => { out.attn.deposits = r.n; out.attn.deposits_usd = r.s; }));
+    jobs.push(d1Count(env, 'crypto_unmatched', `status = 'open'`).then(n => { out.attn.unmatched = n; }));
+    jobs.push(d1Sum(env, 'wallet_deposits', [J('amount_usd')], `status = 'approved' AND created_at >= ?`, [day0]).then(r => { out.today.deposits = r.s; out.today.deposits_n = r.n; }));
+    jobs.push(d1Count(env, 'usdt_invoices', `status = 'paid' AND created_at >= ?`, [day0]).then(n => { out.today.invoices_paid = n; }));
+  }
+  if (can('withdraw.view')) jobs.push(d1Count(env, 'withdrawals', `status = 'pending'`).then(n => { out.attn.withdrawals = n; }));
+  if (can('sms.view')) jobs.push(d1Count(env, 'sms_transactions', `status = 'review'`).then(n => { out.attn.sms = n; }));
+  if (can('tickets.view')) jobs.push(d1Count(env, 'tickets', `status = 'open'`).then(n => { out.attn.tickets = n; }));
+  if (can('mcards.view')) jobs.push(d1Count(env, 'manual_card_orders', `status = 'pending'`).then(n => { out.attn.mcards = n; }));
+  if (can('orders.view')) {
+    jobs.push(d1Count(env, 'rsc_orders', `status = 'unknown' OR (status IN ('submitting','created','processing') AND created_at < ?)`, [new Date(Date.now() - 20 * 60000).toISOString()]).then(n => { out.attn.rsc = n; }));
+    jobs.push(d1Sum(env, 'rsc_orders', [J('total_usd'), J('cost_usd')], `status = 'completed' AND created_at >= ?`, [day0]).then(r => { out.today.sales = r.s; out.today.orders = r.n; out.today.profit = round2(r.s - r.s2); }));
+    jobs.push(d1Sum(env, 'rsc_orders', [J('total_usd')], `status = 'completed' AND created_at >= ? AND created_at < ?`, [y0, day0]).then(r => { out.yesterday.sales = r.s; }));
+    if (env.RSC_API_KEY) jobs.push((async () => {
+      if (_rscBalMem.exp > Date.now()) { out.rsc_balance = _rscBalMem.v; return; }
+      try { const me = await rscCall(env, 'GET', '/me'); const b = me && (me.balance_usd ?? me.balance ?? (me.account && me.account.balance)); _rscBalMem = { v: b == null ? null : num(b, 0), exp: Date.now() + 300000 }; out.rsc_balance = _rscBalMem.v; }
+      catch { _rscBalMem = { v: null, exp: Date.now() + 60000 }; }
+    })());
+  }
+  if (can('users.view')) jobs.push(d1All(env, `SELECT COUNT(*) AS n, SUM(CASE WHEN ${J('phone_verified')} IS NOT NULL AND ${J('phone_verified')} != '' THEN 1 ELSE 0 END) AS v FROM users WHERE created_at >= ?`, [day0])
+    .then(r => { out.today.users = num(r[0] && r[0].n, 0); out.today.users_verified = num(r[0] && r[0].v, 0); }).catch(() => {}));
+  await Promise.all(jobs.map(j => j.catch(e => console.error('OVERVIEW', e.message))));
+  _ovMem.set(ck, { v: out, exp: Date.now() + 30000 });
+  if (_ovMem.size > 50) _ovMem.clear();
+  return out;
+}
+
+// بحث العملاء من الخادم (30 نتيجة كحد أقصى) بدل تحميل 150 مستخدم كل دقيقة
+async function handleAdminUsersFind(user, body, env) {
+  await requirePermission(user, env, 'users.view');
+  if (!memAllowWin(`ufind_${user.uid}`, 300, 3600)) throw httpError(429, 'محاولات كثيرة');
+  const q = String(body.q || '').trim().toLowerCase().slice(0, 60);
+  const view = r => ({ id: r.id, name: r.name || '', email: r.email || '', phone_verified: r.phone_verified || '', wallet_balance: num(r.wallet_balance, 0), total_spent: num(r.total_spent, 0),
+    banned: r.banned === true, plan: r.plan || 'free', plan_expires_ms: num(r.plan_expires_ms, 0), created_at: r.created_at || '', email_verified: r.email_verified === true });
+  if (!env.DB || !(await d1Table(env, 'users'))) throw httpError(503, 'قاعدة البيانات غير متاحة');
+  const SEL = `SELECT id, json_extract(data, '$.name') AS name, email, json_extract(data, '$.phone_verified') AS phone_verified, json_extract(data, '$.wallet_balance') AS wallet_balance,
+    json_extract(data, '$.total_spent') AS total_spent, json_extract(data, '$.banned') AS banned, json_extract(data, '$.plan') AS plan, json_extract(data, '$.plan_expires_ms') AS plan_expires_ms,
+    created_at, json_extract(data, '$.email_verified') AS email_verified FROM users`;
+  let rows;
+  if (!q) rows = await d1All(env, `${SEL} ORDER BY created_at DESC LIMIT 30`);
+  else if (/^[a-z0-9_-]{20,40}$/i.test(q) && !q.includes('@')) rows = await d1All(env, `${SEL} WHERE id = ? LIMIT 1`, [String(body.q).trim()]);
+  else if (q.includes('@')) rows = await d1All(env, `${SEL} WHERE email = ? OR email LIKE ? LIMIT 30`, [q, q.replace(/[%_]/g, '') + '%']);
+  else {
+    const digits = q.replace(/\D/g, '');
+    if (digits.length >= 6) rows = await d1All(env, `${SEL} WHERE CAST(json_extract(data, '$.phone_verified') AS TEXT) LIKE ? LIMIT 30`, ['%' + digits.replace(/^0/, '').slice(-9) + '%']);
+    else rows = await d1All(env, `${SEL} WHERE json_extract(data, '$.name') LIKE ? OR email LIKE ? ORDER BY created_at DESC LIMIT 30`, ['%' + q.replace(/[%_]/g, '') + '%', q.replace(/[%_]/g, '') + '%']);
+  }
+  rows = rows.map(r => ({ ...r, banned: r.banned === 1 || r.banned === true, email_verified: r.email_verified === 1 || r.email_verified === true }));
+  return { success: true, users: rows.map(view) };
+}
+
+// ملف العميل: كل ما يحتاجه الأدمن بطلب واحد وبحدود صغيرة
+async function handleAdminUserFile(user, body, env) {
+  const staff = await requirePermission(user, env, 'users.view');
+  if (!memAllowWin(`ufile_${user.uid}`, 300, 3600)) throw httpError(429, 'محاولات كثيرة');
+  const uid = String(body.uid || '').trim();
+  if (!/^[A-Za-z0-9_-]{6,128}$/.test(uid)) throw httpError(400, 'معرّف غير صالح');
+  const u = await fsGet(env, `users/${uid}`);
+  if (!u) throw httpError(404, 'العميل غير موجود');
+  const L = async (coll, n, order = 'created_at') => {
+    if (!env.DB || !(await d1Table(env, coll))) return [];
+    const rows = await d1All(env, `SELECT id, data FROM "${coll}" WHERE uid = ? ORDER BY ${order} DESC LIMIT ?`, [uid, n]).catch(() => []);
+    return rows.map(r => { let d = {}; try { d = JSON.parse(r.data); } catch {} return { id: r.id, ...d }; });
+  };
+  const pick = (o, ks) => Object.fromEntries(ks.filter(k => o[k] !== undefined).map(k => [k, o[k]]));
+  const [led, deps, rsc, inv, tks, wds] = await Promise.all([
+    L('wallet_transactions', 25), staffCan(staff, 'deposits.view') ? L('wallet_deposits', 10) : null, staffCan(staff, 'orders.view') ? L('rsc_orders', 10) : null,
+    staffCan(staff, 'deposits.view') ? L('usdt_invoices', 10) : null, staffCan(staff, 'tickets.view') ? L('tickets', 5, 'updated_at') : null, staffCan(staff, 'withdraw.view') ? L('withdrawals', 5) : null]);
+  return { success: true,
+    user: { id: uid, ...pick(u, ['name', 'email', 'phone_verified', 'wallet_balance', 'total_spent', 'banned', 'ban_reason', 'plan', 'plan_expires_ms', 'created_at', 'email_verified', 'last_seen_at']) },
+    ledger: led.map(t => pick(t, ['id', 'type', 'amount', 'reason', 'reference', 'balance_after', 'created_at', 'note'])),
+    deposits: deps && deps.map(d => pick(d, ['id', 'method', 'amount_usd', 'amount_lyd', 'status', 'created_at'])),
+    orders: rsc && rsc.map(o => pick(o, ['id', 'cat_name', 'offer_name', 'qty', 'total_usd', 'status', 'created_at'])),
+    invoices: inv && inv.map(v => invView({ ...v, _id: v.id })),
+    tickets: tks && tks.map(t => pick(t, ['id', 'subject', 'status', 'updated_at', 'created_at'])),
+    withdrawals: wds && wds.map(w => pick(w, ['id', 'method', 'amount_usd', 'status', 'created_at'])) };
+}

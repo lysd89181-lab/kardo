@@ -102,16 +102,24 @@ async function setDoc(ref, data, opts) {
 }
 const _kdbSubs = new Map();
 let _kdbSeq = 0, _kdbBusy = false, _kdbSoon = null, _kdbAgain = false;
-function onSnapshot(ref, next, errCb) {
+function onSnapshot(ref, next, errCb, every = 60000) {
   if (!KDB) return _fsOnSnapshot(ref, next, errCb);
   const id = 's' + (++_kdbSeq);
-  _kdbSubs.set(id, { id, ref, next, err: errCb, h: null, due: 0, every: 60000 });
+  _kdbSubs.set(id, { id, ref, next, err: errCb, h: null, due: 0, every });
   kdbSoon(40);
   return () => { _kdbSubs.delete(id); };
 }
 function kdbSoon(ms = 500) { if (!KDB) return; clearTimeout(_kdbSoon); _kdbSoon = setTimeout(() => kdbTick(true), ms); }
+// v51: الصفحة المفتوحة بدون استعمال (5 دقائق) لا تسحب بيانات — تكمل أول ما يرجع المستخدم
+const K_IDLE = 5 * 60000;
+let _kLastAct = Date.now();
+const kIdle = () => Date.now() - _kLastAct > K_IDLE;
+['pointerdown', 'keydown', 'touchstart', 'wheel'].forEach(ev => addEventListener(ev, () => {
+  const was = kIdle(); _kLastAct = Date.now(); if (was && typeof kdbSoon === 'function') kdbSoon(150);
+}, { passive: true, capture: true }));
 async function kdbTick(force) {
   if (!KDB || document.visibilityState !== 'visible' || !auth.currentUser) return;
+  if (!force && kIdle()) return;
   if (_kdbBusy) { if (force) _kdbAgain = true; return; }
   const now = Date.now();
   const due = [..._kdbSubs.values()].filter(s => force || s.due <= now).slice(0, 25);
@@ -252,6 +260,8 @@ const I = {
   cart: '<circle cx="9" cy="20" r="1.4"/><circle cx="18" cy="20" r="1.4"/><path d="M2.5 3h2.3l2.5 12.2a1.6 1.6 0 0 0 1.6 1.3h8.6a1.6 1.6 0 0 0 1.6-1.3L21 7H6"/>',
   search: '<circle cx="11" cy="11" r="7"/><path d="M20.5 20.5 16.5 16.5"/>',
   eye: '<path d="M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7-10-7-10-7"/><circle cx="12" cy="12" r="3"/>',
+  download: '<path d="M12 4v11M7.5 10.5 12 15l4.5-4.5"/><path d="M5 20h14"/>',
+  zap: '<path d="M13 3 5 14h6l-1 7 8-11h-6z"/>',
   share: '<path d="M12 3v12"/><path d="m8 7 4-4 4 4"/><path d="M5 12v7a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-7"/>',
   copy: '<rect x="9" y="9" width="12" height="12" rx="2.5"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/>',
   up: '<path d="M12 19V5M5.5 11.5 12 5l6.5 6.5"/>',
@@ -470,7 +480,7 @@ function subscribe(uid) {
       S.manualCards = sortByDate(s.docs.map(d => ({ id: d.id, ...d.data() })));
       render();
     },
-    e => { S.dataErr.cards = e.code; render(); }));
+    e => { S.dataErr.cards = e.code; render(); }, 300000));   // v51: البطاقات تتغير نادرًا — كل 5 دقائق (وفورًا بعد أي عملية)
 
   S.unsub.push(onSnapshot(query(collection(db, 'service_orders'),
     where('uid', '==', uid), limit(60)),
@@ -478,7 +488,7 @@ function subscribe(uid) {
       S.svcOrders = sortByDate(s.docs.map(d => ({ id: d.id, ...d.data() })));
       render();
     },
-    e => { S.dataErr.svcOrders = e.code; render(); }));
+    e => { S.dataErr.svcOrders = e.code; render(); }, 600000));   // v51: المتجر القديم — كل 10 دقائق
 }
 
 /* ═══ v34 — بديل الاتصال المباشر عند تفعيل D1: طلبات للخادم مع تحديث خفيف ═══
@@ -489,6 +499,7 @@ function makePoll(fn, everyMs, opt = {}) {
   let stopped = false, busy = false, last = 0;
   const tick = async (minAge) => {
     if (stopped || busy || document.visibilityState !== 'visible') return;
+    if (minAge == null && typeof kIdle === 'function' && kIdle()) return;   // v51: لا سحب والصفحة مهملة
     if (opt.when && !opt.when()) return;
     if (Date.now() - last < (minAge == null ? everyMs - 1000 : minAge)) return;
     busy = true; last = Date.now();
@@ -1421,7 +1432,7 @@ function subscribeLedger() {
     S.ledger = s.docs.map(d => ({ id: d.id, ...d.data() }))
       .sort((a, b) => (b.seq || 0) - (a.seq || 0) || String(b.created_at).localeCompare(String(a.created_at)));
     render();
-  }, e => { S._ledgerSub = false; console.warn('ledger:', e.code); }));
+  }, e => { S._ledgerSub = false; console.warn('ledger:', e.code); }, 120000));   // v51: كل دقيقتين (والتحديث الفوري بعد أي عملية باقٍ)
 }
 function ledgerRow(t) {
   const inc = t.type === 'credit';
@@ -1653,6 +1664,7 @@ function vSettings() {
       ${row('data-nav="wallet"', I.wallet2, 'المحفظة', `<span class="kset-v tabular">${esc(lyd(n(S.profile.wallet_balance) * rate()))}</span>`)}
       ${row('data-nav="transactions"', I.list, 'المعاملات')}
       ${row('data-nav="invoices"', I.receipt, 'فواتيري')}
+      ${row('id="kInstall"', I.download || I.out, 'تثبيت التطبيق', isStandalone() ? '<span class="kset-v" style="color:var(--u-ok)">مثبّت ✓</span>' : '<span class="kset-v">أسرع وأخف</span>')}
       ${row('data-nav="plans"', I.star, 'الباقات', `<span class="kset-v">${esc(PLAN_AR[myPlan()])}</span>`)}
       ${row('data-nav="referral"', I.giftbox, 'ادعُ صديقًا واربح')}
     </div>
@@ -4856,3 +4868,45 @@ async function shareReceipt(inv) {
     toast('حُفظت صورة الإيصال', 'ok');
   } catch (e) { if (e && e.name !== 'AbortError') toast('تعذّرت مشاركة الإيصال', 'bad'); }
 }
+
+/* ═══ v51 — تثبيت كاردو كتطبيق (PWA) ═══ */
+function isStandalone() { try { return matchMedia('(display-mode: standalone)').matches || navigator.standalone === true; } catch { return false; } }
+function isIOS() { return /iphone|ipad|ipod/i.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1); }
+function openInstall(auto) {
+  if (isStandalone()) { toast('كاردو مثبّت على جهازك ✓', 'ok'); return; }
+  const ios = isIOS(), canPrompt = !!window.__bip;
+  modal(`<div class="kinst">
+      <img class="kinst-logo" src="./icon-192.png" alt="">
+      <div class="h3" style="margin:0 0 6px">ثبّت كاردو على جهازك</div>
+      <p class="body-sm text-2" style="margin:0 0 16px">تفتح بلمسة من الشاشة الرئيسية، بدون متصفح.</p>
+      <div class="kinst-pts">
+        <div>${svg(I.zap || I.check)}<span>فتح أسرع وتصفح أخف</span></div>
+        <div>${svg(I.bell)}<span>إشعار فوري لما ينضاف رصيدك أو يكتمل طلبك</span></div>
+        <div>${svg(I.lock)}<span>نفس حسابك ونفس الأمان</span></div>
+      </div>
+      ${canPrompt ? `<button class="btn btn-primary btn-block btn-lg" id="kInstGo" type="button">${svg(I.download || I.plus)} تثبيت التطبيق</button>` : ios ? `
+      <div class="kinst-steps"><div><b>1</b><span>اضغط زر المشاركة ${svg(I.share || I.up)} أسفل Safari</span></div><div><b>2</b><span>اختر «إضافة إلى الشاشة الرئيسية»</span></div><div><b>3</b><span>اضغط «إضافة» — وخلاص</span></div></div>` : `
+      <div class="kinst-steps"><div><b>1</b><span>افتح قائمة المتصفح ⋮ فوق</span></div><div><b>2</b><span>اختر «تثبيت التطبيق» أو «إضافة إلى الشاشة الرئيسية»</span></div></div>`}
+      <button class="btn btn-ghost btn-block" data-act="close-modal" type="button" style="margin-top:6px">${auto ? 'لاحقًا' : 'إغلاق'}</button>
+    </div>`);
+  onTap('#kInstGo', async () => {
+    const e = window.__bip; if (!e) return;
+    try { e.prompt(); const c = await e.userChoice; window.__bip = null; closeModal();
+      if (c && c.outcome === 'accepted') toast('تم التثبيت — تلقاه في الشاشة الرئيسية ✓', 'ok'); } catch { closeModal(); }
+  });
+}
+document.addEventListener('click', e => { if (e.target.closest && e.target.closest('#kInstall')) { e.preventDefault(); openInstall(false); } });
+// أول زيارة: نعرض اقتراح التثبيت مرة واحدة على الجهاز
+(function installNudge() {
+  const seen = () => { try { return localStorage.getItem('kardo_inst_seen') === '1'; } catch { return true; } };
+  if (isStandalone() || seen()) return;
+  const show = () => {
+    if (isStandalone() || seen()) return;
+    if (document.documentElement.classList.contains('mchk') || $('#overlay.open') || !document.body || document.querySelector('.kmaint')) { setTimeout(show, 4000); return; }
+    if (!window.__bip && !isIOS()) return;           // المتصفح ما يدعمش التثبيت أو مثبّت أصلًا — الزر في «حسابي» يكفي
+    try { localStorage.setItem('kardo_inst_seen', '1'); } catch {}
+    openInstall(true);
+  };
+  setTimeout(show, isIOS() ? 3500 : 2500);
+  document.addEventListener('kardo-bip', () => setTimeout(show, 1200), { once: true });
+})();
