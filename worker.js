@@ -7953,7 +7953,7 @@ async function saveSettingsPatch(env, ops) { await fsPatch(env, 'settings/main',
 /* ═══ v51 — لوحة الإدارة: ملخص بطلب واحد (بدل الاشتراك في 7 مجموعات كل دقيقة) ═══ */
 const _ovMem = new Map();
 let _rscBalMem = { v: null, exp: 0 };
-async function d1Count(env, coll, where, args) {
+async function d1CountW(env, coll, where, args) {
   if (!(await d1Table(env, coll))) return 0;
   const r = await d1All(env, `SELECT COUNT(*) AS n FROM "${coll}" WHERE ${where}`, args || []).catch(() => [{ n: 0 }]);
   return num(r[0] && r[0].n, 0);
@@ -7978,16 +7978,16 @@ async function handleAdminOverview(user, body, env) {
   const jobs = [];
   if (can('deposits.view')) {
     jobs.push(d1Sum(env, 'wallet_deposits', [J('amount_usd')], `status = 'pending'`).then(r => { out.attn.deposits = r.n; out.attn.deposits_usd = r.s; }));
-    jobs.push(d1Count(env, 'crypto_unmatched', `status = 'open'`).then(n => { out.attn.unmatched = n; }));
+    jobs.push(d1CountW(env, 'crypto_unmatched', `status = 'open'`).then(n => { out.attn.unmatched = n; }));
     jobs.push(d1Sum(env, 'wallet_deposits', [J('amount_usd')], `status = 'approved' AND created_at >= ?`, [day0]).then(r => { out.today.deposits = r.s; out.today.deposits_n = r.n; }));
-    jobs.push(d1Count(env, 'usdt_invoices', `status = 'paid' AND created_at >= ?`, [day0]).then(n => { out.today.invoices_paid = n; }));
+    jobs.push(d1CountW(env, 'usdt_invoices', `status = 'paid' AND created_at >= ?`, [day0]).then(n => { out.today.invoices_paid = n; }));
   }
-  if (can('withdraw.view')) jobs.push(d1Count(env, 'withdrawals', `status = 'pending'`).then(n => { out.attn.withdrawals = n; }));
-  if (can('sms.view')) jobs.push(d1Count(env, 'sms_transactions', `status = 'review'`).then(n => { out.attn.sms = n; }));
-  if (can('tickets.view')) jobs.push(d1Count(env, 'tickets', `status = 'open'`).then(n => { out.attn.tickets = n; }));
-  if (can('mcards.view')) jobs.push(d1Count(env, 'manual_card_orders', `status = 'pending'`).then(n => { out.attn.mcards = n; }));
+  if (can('withdraw.view')) jobs.push(d1CountW(env, 'withdrawals', `status = 'pending'`).then(n => { out.attn.withdrawals = n; }));
+  if (can('sms.view')) jobs.push(d1CountW(env, 'sms_transactions', `status = 'review'`).then(n => { out.attn.sms = n; }));
+  if (can('tickets.view')) jobs.push(d1CountW(env, 'tickets', `status = 'open'`).then(n => { out.attn.tickets = n; }));
+  if (can('mcards.view')) jobs.push(d1CountW(env, 'manual_card_orders', `status = 'pending'`).then(n => { out.attn.mcards = n; }));
   if (can('orders.view')) {
-    jobs.push(d1Count(env, 'rsc_orders', `status = 'unknown' OR (status IN ('submitting','created','processing') AND created_at < ?)`, [new Date(Date.now() - 20 * 60000).toISOString()]).then(n => { out.attn.rsc = n; }));
+    jobs.push(d1CountW(env, 'rsc_orders', `status = 'unknown' OR (status IN ('submitting','created','processing') AND created_at < ?)`, [new Date(Date.now() - 20 * 60000).toISOString()]).then(n => { out.attn.rsc = n; }));
     jobs.push(d1Sum(env, 'rsc_orders', [J('total_usd'), J('cost_usd')], `status = 'completed' AND created_at >= ?`, [day0]).then(r => { out.today.sales = r.s; out.today.orders = r.n; out.today.profit = round2(r.s - r.s2); }));
     jobs.push(d1Sum(env, 'rsc_orders', [J('total_usd')], `status = 'completed' AND created_at >= ? AND created_at < ?`, [y0, day0]).then(r => { out.yesterday.sales = r.s; }));
     if (env.RSC_API_KEY) jobs.push((async () => {
