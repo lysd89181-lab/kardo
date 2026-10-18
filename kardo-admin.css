@@ -226,3 +226,8 @@ html .sw.on::after { right: 21px !important; background: #fff !important; box-sh
 .rsc-bulk button.p { background: var(--u-gold-fill, #E8962E); }
 .rsc-bulk button:disabled { opacity: .5; }
 .rsc-prog { font: 400 11.5px var(--u-text, inherit); color: #BFC5C7; margin-top: 8px; }
+.rsc-bb2 { grid-template-columns: 1fr 1fr 1fr; }
+.rsc-opt { display: block; width: 100%; text-align: right; padding: 12px 14px; margin-bottom: 8px; border-radius: 14px; border: 1px solid var(--u-line, #DDE1E0); background: var(--u-s1, #fff); color: var(--u-ink, inherit); cursor: pointer; font-family: inherit; }
+.rsc-opt b { display: block; font-size: 15px; }
+.rsc-opt span { font-size: 12px; color: var(--u-ink-3, #8A9396); }
+.rsc-opt:active { transform: scale(.99); }

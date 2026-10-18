@@ -7262,6 +7262,21 @@ async function rscCall(env, method, path, body) {
   }
   return j || {};
 }
+const RSC_GRP = ['topup', 'gift', 'subs', 'apps', 'pay'];
+const RSC_KW = {
+  pay: /(@\s*cash|e-?cash|إيه-?كاش|razer|رايزر|paysafe|neosurf|flexepin|astropay|cashu|كاش يو|onecard|ون ?كارد|binance|payeer|perfect ?money|webmoney|skrill|neteller|\bmint\b|\btoss\b|jawwy|stc ?pay|vanilla|prepaid ?(visa|master)|visa|mastercard|ماستر|فيزا|wallet ?card|crypto|bitcoin|usdt)/i,
+  subs: /(netflix|نتفليكس|شاهد|shahid|spotify|سبوتي|anghami|أنغامي|انغامي|\bosn\b|disney|ديزني|youtube|يوتيوب|apple ?music|deezer|starz|tod\b|crunchyroll|hulu|prime ?video|amazon ?prime|twitch|discord|game ?pass|ps ?plus|playstation ?plus|بلايستيشن بلس|switch ?online|ea ?play|ubisoft\+|chatgpt|openai|tinder|bumble|linkedin|weyyak|وياك|yango ?play|watch ?it|mbc)/i,
+  apps: /(adobe|أدوبي|ادوبي|canva|كانفا|microsoft ?(365|office)|office|windows|ويندوز|norton|mcafee|kaspersky|كاسبر|avast|eset|bitdefender|vpn|nordvpn|express ?vpn|surfshark|autodesk|grammarly|zoom|dropbox|capcut|كاب ?كت|duolingo|notion|figma|icloud|google ?one)/i,
+  topup: /(pubg|ببجي|free ?fire|فري ?فاير|roblox|روبلوكس|valorant|فالورانت|fortnite|فورتنايت|league ?of|ليج|mobile ?legends|موبايل ليجند|genshin|جنشن|call ?of ?duty|كول ?اوف|cod\b|minecraft|ماين|clash|كلاش|fifa|ea ?fc|فيفا|apex|honkai|yalla ?ludo|يلا لودو|ludo|jawaker|جواكر|8 ?ball|candy|garena|\briot\b|blizzard|battle\.?net|overwatch|warzone|war ?thunder|world ?of|wow\b|lords ?mobile|rise ?of|state ?of|\bpes\b|efootball|بيس|stumble|brawl|sea ?of|delta ?force|arena ?breakout|identity ?v|tower ?of|age ?of|bigo|tiktok ?coins|likee|soulchill|poppo|mico|ahlan|yalla\b|يلا\b|hago|ميكو|بيجو|تيك ?توك|uc\b|diamonds|gems|coins|robux|v-?bucks)/i,
+};
+function rscGuessGroup(type, name) {
+  const t = String(name || '');
+  if (RSC_KW.pay.test(t)) return 'pay';
+  if (RSC_KW.subs.test(t)) return 'subs';
+  if (RSC_KW.apps.test(t)) return 'apps';
+  if (type === 'topup' || RSC_KW.topup.test(t)) return 'topup';
+  return 'gift';
+}
 const rscKey = (type, id) => (type === 'topup' ? 't' : 'g') + '~' + String(id);
 const rscKeyOk = k => /^[gt]~[A-Za-z0-9_.:-]{1,80}$/.test(String(k || ''));
 const rscSplit = k => ({ type: k[0] === 't' ? 'topup' : 'gift', id: k.slice(2) });
@@ -7356,14 +7371,16 @@ async function handleRscCatalog(env) {
     const rows = await d1All(env, `SELECT json_extract(data, '$.cat') AS c, COUNT(*) AS n FROM rsc_orders WHERE status = 'completed' AND created_at > ? GROUP BY c`, [new Date(Date.now() - 30 * 86400000).toISOString()]).catch(() => []);
     for (const r of rows) if (r.c) pop[r.c] = num(r.n, 0);
   }
-  for (const key of keys) {
-    const cat = byKey.get(key), c = cfg.cats[key];
-    const off = await rscKvGet(env, 'rsc:off:' + key);
+  const offs = [];                                                   // v56: قراءة العروض بالتوازي (دفعات 40) بدل واحد ورا واحد
+  for (let i = 0; i < keys.length; i += 40) offs.push(...await Promise.all(keys.slice(i, i + 40).map(k => rscKvGet(env, 'rsc:off:' + k))));
+  for (let ki = 0; ki < keys.length; ki++) {
+    const key = keys[ki], cat = byKey.get(key), c = cfg.cats[key];
+    const off = offs[ki];
     if (!off) continue;
     const m = rscMargin(s, cfg, key);
     categories.push({
       key, type: cat.type, name: c.name || cat.name, image: rscImg(env, key, cfg, cat), note: c.note || cat.note || '',
-      sort: num(c.sort, 99), fields: off.fields || [], featured: c.featured === true, promo: c.promo || '', group: c.group || '', pop: pop[key] || 0, maint: c.maint === true, pick: c.pick === true,
+      sort: num(c.sort, 99), fields: off.fields || [], featured: c.featured === true, promo: c.promo || '', group: RSC_GRP.includes(c.group) ? c.group : '', pop: pop[key] || 0, maint: c.maint === true, pick: c.pick === true,
       offers: (off.offers || []).filter(o => o.stock == null || o.stock > 0).map(o => ({ id: o.id, name: o.name, price: rscSell(o.cost, m), min: o.min, max: o.max })),
     });
   }
@@ -7580,9 +7597,10 @@ async function rscCron(env, hourly) {
   }
   const cfg = await rscCfg(env);
   const allOn = Object.keys(cfg.cats).filter(k => cfg.cats[k] && cfg.cats[k].on === true);
-  if (!hourly) {                                                     // v55: أقسام مفعّلة بلا عروض بعد (تفعيل جماعي) — 4 كل دورة
+  if (!hourly) {                                                     // v56: أقسام مفعّلة بلا عروض بعد — 15 كل دورة (5 دقائق)
     let got = 0;
-    for (const k of allOn) { if (got >= 4) break; if (await rscKvGet(env, 'rsc:off:' + k)) continue; got++; try { await rscFetchOffers(env, k); } catch {} }
+    const have = await Promise.all(allOn.map(k => rscKvGet(env, 'rsc:off:' + k).then(Boolean)));
+    for (let i = 0; i < allOn.length && got < 15; i++) { if (have[i]) continue; got++; try { await rscFetchOffers(env, allOn[i]); } catch {} await new Promise(r => setTimeout(r, 150)); }
     if (got) bustPublic();
     return;
   }
@@ -7631,7 +7649,9 @@ async function handleAdminRsc(user, body, env) {
     const keys = [...new Set((Array.isArray(body.keys) ? body.keys : []).map(String))].filter(rscKeyOk).slice(0, 200);
     if (!keys.length) throw httpError(400, 'ما فيش أقسام محددة');
     const to = String(body.set || '');
-    if (!['on', 'maint', 'off', 'pick', 'unpick'].includes(to)) throw httpError(400, 'إجراء غير معروف');
+    if (!['on', 'maint', 'off', 'pick', 'unpick', 'group'].includes(to)) throw httpError(400, 'إجراء غير معروف');
+    const grp = String(body.group || '');
+    if (to === 'group' && !RSC_GRP.includes(grp)) throw httpError(400, 'نوع غير صالح');
     const known = new Set((await rscCats(env)).map(c => c.key));
     const need = [];
     for (const key of keys) {
@@ -7640,6 +7660,7 @@ async function handleAdminRsc(user, body, env) {
       if (to === 'on') { cur.on = true; cur.maint = false; }
       else if (to === 'maint') { cur.on = true; cur.maint = true; }
       else if (to === 'off') { cur.on = false; cur.maint = false; }
+      else if (to === 'group') { cur.group = grp; cur.group_set = true; }
       else cur.pick = to === 'pick';
       cfg.cats[key] = cur;
       if (cur.on && !(await rscKvGet(env, 'rsc:off:' + key))) need.push(key);
@@ -7647,6 +7668,21 @@ async function handleAdminRsc(user, body, env) {
     await rscCfgSave(env, cfg);
     await logOp(env, staff.uid, 'rsc.bulk', { n: keys.length }, { set: to }, true);
     return { success: true, need };                                  // الأقسام اللي تحتاج جلب عروض
+  }
+  if (action === 'autogroup') {                                      // v56: تصنيف تلقائي حسب الاسم (ما يلمس اللي صنّفته يدويًا إلا لو force)
+    const force = body.force === true;
+    const cats = await rscCats(env);
+    const tally = { topup: 0, gift: 0, subs: 0, apps: 0, pay: 0 }; let changed = 0;
+    for (const c of cats) {
+      const cur = { ...(cfg.cats[c.key] || {}) };
+      if (cur.group_set && !force) continue;
+      const g = rscGuessGroup(c.type, (c.name || '') + ' ' + (cur.name || ''));
+      tally[g]++;
+      if ((cur.group || '') !== g) { cur.group = g; cur.group_set = false; cfg.cats[c.key] = cur; changed++; }
+    }
+    await rscCfgSave(env, cfg);
+    await logOp(env, staff.uid, 'rsc.autogroup', { n: changed }, { force }, true);
+    return { success: true, changed, tally };
   }
   if (action === 'fetch') {                                          // جلب عروض قسم واحد (اللوحة تناديه ورا بعض بفاصل)
     const key = String(body.key || '');
@@ -7668,7 +7704,7 @@ async function handleAdminRsc(user, body, env) {
     if ('pick' in body) cur.pick = body.pick === true;
     if ('featured' in body) cur.featured = body.featured === true;                                   // v53: يظهر في «عروض اليوم»
     if ('promo' in body) cur.promo = String(body.promo || '').replace(/[<>]/g, '').trim().slice(0, 70);
-    if ('group' in body) cur.group = ['subs', 'apps', ''].includes(String(body.group || '')) ? String(body.group || '') : '';
+    if ('group' in body) { const g = String(body.group || ''); cur.group = RSC_GRP.includes(g) ? g : ''; cur.group_set = !!g; }
     if ('image' in body) {
       const img = String(body.image || '');
       if (!img) { cur.img_v = 0; if (env.KV) await env.KV.delete('rsc:img:' + key).catch(() => {}); }

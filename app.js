@@ -282,6 +282,10 @@ const I = {
   x: '<path d="M18 6 6 18M6 6l12 12"/>',
   box: '<path d="M21 8 12 3 3 8v8l9 5 9-5z"/><path d="M3 8l9 5 9-5M12 13v8"/>',
   bolt: '<path d="M13 2 4.5 12.5H11l-1 9.5 8.5-11H12z"/>',
+  tv: '<rect x="3" y="6" width="18" height="12" rx="2.5"/><path d="M8 21h8M10.5 10v4l3.5-2z"/>',
+  apps: '<rect x="4" y="4" width="7" height="7" rx="2"/><rect x="13" y="4" width="7" height="7" rx="2"/><rect x="4" y="13" width="7" height="7" rx="2"/><path d="M16.5 13v7M13 16.5h7"/>',
+  paycard: '<rect x="3" y="6" width="18" height="13" rx="2.5"/><path d="M3 10h18M7 15h3"/>',
+  fire: '<path d="M12 3c1 3.5 5 5.2 5 10a5 5 0 0 1-10 0c0-2.2 1-3.6 2.2-4.6.2 1.6.9 2.6 1.8 3.1C11 8.6 11.3 5.7 12 3z"/>',
 };
 const svg = (d, w = 1.75) => `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round">${d}</svg>`;
 
@@ -724,6 +728,7 @@ function paint() {
   view.innerHTML = samePage ? html.replace('class="page-enter"', 'class=""') : html;   // لا حركة دخول عند التحديث
   _lastPage = S.page; _lastHtml = html;
   bind();
+  lazyBgs();
   runCountUps();
   if (S.page === 'dashboard') bindBanners();
   if (focusId) {
@@ -4434,14 +4439,18 @@ async function loadRscOrders() {
 }
 const rscCatBy = key => (S.rsc.cats || []).find(c => c.key === key);
 const rscFrom = c => Math.min(...(c.offers || []).map(o => o.price));
-const rscGroup = c => c.group || (c.type === 'topup' ? 'topup' : 'gift');
-const RSC_TABS = [['all', 'الكل', '✦'], ['topup', 'شحن ألعاب', '🎮'], ['gift', 'بطاقات هدايا', '🎁'], ['subs', 'اشتراكات', '📺'], ['apps', 'تطبيقات', '📱']];
+const RSC_GROUPS = ['topup', 'gift', 'subs', 'apps', 'pay'];
+const rscGroup = c => RSC_GROUPS.includes(c.group) ? c.group : (c.type === 'topup' ? 'topup' : 'gift');
+// v56: 5 أنواع بأيقونات مرسومة بدل الإيموجي
+const RSC_TABS = [['all', 'الكل', 'star'], ['topup', 'ألعاب', 'game'], ['gift', 'بطاقات هدايا', 'giftbox'], ['subs', 'اشتراكات وترفيه', 'tv'], ['apps', 'تطبيقات وبرامج', 'apps'], ['pay', 'بطاقات دفع', 'paycard']];
+const RSC_TT = Object.fromEntries(RSC_TABS.map(([k, t, i]) => [k, { t, i }]));
+const rscIc = g => svg(I[(RSC_TT[g] || RSC_TT.all).i] || I.star);
 const rscImgTag = (c, cls = '') => c.image ? `<img class="${cls}" src="${esc(rscImgUrl(c.image))}" alt="" loading="lazy" decoding="async">` : `<span class="rsc-ph ${cls}">${svg(c.type === 'topup' ? I.game : I.giftbox)}</span>`;
 const rscPop = c => c.pop >= 1000 ? (c.pop / 1000).toFixed(1).replace('.0', '') + ' ألف طلب' : c.pop >= 10 ? c.pop + ' طلب' : '';
 // بطاقة طويلة (ألعاب) — الصورة واضحة فوق خلفية ضبابية منها
 function rscTile(c) {
   return `<button class="ktall${c.maint ? ' kmaint' : ''}" data-rsccat="${esc(c.key)}" type="button">
-    <span class="ktall-cv">${c.image ? `<span class="ktall-bg" style="background-image:url('${esc(rscImgUrl(c.image))}')"></span>` : ''}${rscImgTag(c, 'ktall-img')}
+    <span class="ktall-cv">${c.image ? `<span class="ktall-bg" data-bg="${esc(rscImgUrl(c.image))}"></span>` : ''}${rscImgTag(c, 'ktall-img')}
       ${c.maint ? '<i class="kmb">قيد الصيانة</i>' : ''}${c.promo ? `<i class="ktag hot">${esc(c.promo.slice(0, 18))}</i>` : c.type === 'topup' ? '<i class="ktag">⚡ فوري</i>' : ''}</span>
     <span class="ktall-nm">${esc(c.name)}</span>
   </button>`;
@@ -4449,7 +4458,7 @@ function rscTile(c) {
 // بطاقة هدايا بشكل بطاقة حقيقية
 function rscGiftTile(c) {
   return `<button class="kgift${c.maint ? ' kmaint' : ''}" data-rsccat="${esc(c.key)}" type="button">
-    ${c.image ? `<span class="kgift-bg" style="background-image:url('${esc(rscImgUrl(c.image))}')"></span>` : '<span class="kgift-bg ph"></span>'}
+    ${c.image ? `<span class="kgift-bg" data-bg="${esc(rscImgUrl(c.image))}"></span>` : '<span class="kgift-bg ph"></span>'}
     <span class="kgift-top"><b>${esc(c.name)}</b><span class="kgift-chip"></span></span>
     <span class="kgift-from">${c.maint ? 'قيد الصيانة' : c.type === 'topup' ? '⚡ فوري' : 'كود فوري'}</span>
   </button>`;
@@ -4459,7 +4468,7 @@ function rscHero(list) {
   return `<div class="kheros" id="kHeros">${list.map(c => `<button class="khero" data-rsccat="${esc(c.key)}" type="button">
       ${c.image ? `<span class="khero-bg" style="background-image:url('${esc(rscImgUrl(c.image))}')"></span>` : '<span class="khero-bg ph"></span>'}
       <span class="khero-img">${rscImgTag(c)}</span>
-      <i class="khero-tag">${c.type === 'topup' ? '⚡ يوصل خلال دقيقة' : '🎁 الكود يوصلك فورًا'}</i>
+      <i class="khero-tag">${svg(I.bolt)}${c.type === 'topup' ? 'يوصل خلال دقيقة' : 'الكود يوصلك فورًا'}</i>
       <span class="khero-txt"><b>${esc(c.name)}</b>${c.promo ? `<span>${esc(c.promo)}</span>` : ''}</span>
     </button>`).join('')}</div>
     ${list.length > 1 ? `<div class="kdots" id="kDots">${list.map((_, i) => `<i class="${i ? '' : 'on'}"></i>`).join('')}</div>` : ''}`;
@@ -4482,7 +4491,7 @@ function rscAgain() {
 }
 function rscChips(tab, cats) {
   const has = g => g === 'all' || cats.some(c => rscGroup(c) === g);
-  return `<div class="kchipsx">${RSC_TABS.filter(([k]) => has(k)).map(([k, t, e]) => `<button class="${tab === k ? 'on' : ''}" data-rsctab="${k}" type="button"><em>${e}</em>${t}</button>`).join('')}</div>`;
+  return `<div class="kchipsx">${RSC_TABS.filter(([k]) => has(k)).map(([k, t, e]) => `<button class="${tab === k ? 'on' : ''}" data-rsctab="${k}" type="button"><em class="kci">${svg(I[e])}</em>${t}</button>`).join('')}</div>`;
 }
 function rscPopular(cats, n = 8) { return cats.filter(c => (c.pop || 0) > 0 && !c.maint).sort((a, b) => b.pop - a.pop || a.sort - b.sort).slice(0, n); }
 function rscPicks(cats, n = 8) { return cats.filter(c => c.pick).sort((a, b) => a.sort - b.sort).slice(0, n); }
@@ -4498,15 +4507,14 @@ function rscHome() {
   if (S.user && !S.rscOrders) { S.rscOrders = []; loadRscOrders(); }
   const tile = c => rscGroup(c) === 'topup' ? rscTile(c) : rscGiftTile(c).replace(/class="kgift/, 'class="kgift inrow');
   const top = rscPopular(cats), picks = top.length >= 3 ? [] : rscPicks(cats);
-  const row = (ic, t, list, tab) => list.length ? `<div class="ksh"><h2><i class="ksh-ic">${ic}</i>${t}</h2><button data-hometab="${tab}" type="button">عرض الكل</button></div><div class="krow mb-5">${list.map(tile).join('')}</div>` : '';
+  const row = (ic, t, list, tab, total) => list.length ? `<div class="ksh"><h2><i class="ksh-ic">${ic}</i>${t}</h2><button data-hometab="${tab}" type="button">عرض الكل${total > list.length ? ` (${total})` : ''}</button></div><div class="krow mb-5">${list.map(tile).join('')}</div>` : '';
   const ord = list => [...list].sort((a, b) => (a.maint ? 1 : 0) - (b.maint ? 1 : 0) || (b.pop || 0) - (a.pop || 0) || a.sort - b.sort).slice(0, 8);
+  const cnt = g => cats.filter(c => rscGroup(c) === g).length;
   const by = g => ord(cats.filter(c => rscGroup(c) === g));
   return `${feat.length ? `<div class="ksh"><h2>عروض اليوم</h2></div>${rscHero(feat)}` : ''}
     ${rscAgain()}
-    ${top.length >= 3 ? row('🔥', 'الأكثر شحنًا', top, 'all') : picks.length ? row('✦', 'مختارات كاردو', picks, 'all') : ''}
-    ${row('🎮', 'شحن ألعاب', by('topup'), 'topup')}
-    ${row('🎁', 'بطاقات هدايا', by('gift'), 'gift')}
-    ${row('📺', 'اشتراكات وتطبيقات', ord(cats.filter(c => ['subs', 'apps'].includes(rscGroup(c)))), 'subs')}`;
+    ${top.length >= 3 ? row(svg(I.fire), 'الأكثر شحنًا', top, 'all') : picks.length ? row(svg(I.star), 'مختارات كاردو', picks, 'all') : ''}
+    ${RSC_GROUPS.map(g => row(rscIc(g), RSC_TT[g].t, by(g), g, cnt(g))).join('')}`;
 }
 function vKStore() {
   if (!S.rsc.loaded) loadRsc();
@@ -4520,24 +4528,32 @@ function vKStore() {
   const feat = cats.filter(c => c.featured).slice(0, 5);
   const home = tab === 'all' && !q;
   if (home && S.user && !S.rscOrders) { S.rscOrders = []; loadRscOrders(); }
-  const games = shown.filter(c => rscGroup(c) === 'topup'), gifts = shown.filter(c => rscGroup(c) !== 'topup');
-  const grid = list => list.length ? `<div class="kgrid3">${list.map(rscTile).join('')}</div>` : '';
-  const ggrid = list => list.length ? `<div class="kgrid2">${list.map(rscGiftTile).join('')}</div>` : '';
+  const lim = S.rscLim && S.rscLim.k === tab + '|' + q ? S.rscLim.n : 24;
+  const tileG = (c, g) => g === 'topup' ? rscTile(c) : rscGiftTile(c);
+  const gridOf = (list, g) => g === 'topup' || g === 'mix' ? `<div class="kgrid3">${list.map(rscTile).join('')}</div>` : `<div class="kgrid2">${list.map(rscGiftTile).join('')}</div>`;
+  const ord = list => [...list].sort((a, b) => (a.maint ? 1 : 0) - (b.maint ? 1 : 0) || (b.pop || 0) - (a.pop || 0) || a.sort - b.sort);
+  const rowOf = g => { const all = ord(cats.filter(c => rscGroup(c) === g)); if (!all.length) return '';
+    return `<div class="ksh"><h2><i class="ksh-ic">${rscIc(g)}</i>${RSC_TT[g].t}</h2><button data-rsctab="${g}" type="button">عرض الكل (${all.length})</button></div>
+      <div class="krow mb-5">${all.slice(0, 10).map(c => g === 'topup' ? rscTile(c) : rscGiftTile(c).replace(/class="kgift/, 'class="kgift inrow')).join('')}</div>`; };
+  const top = rscPopular(cats);
+  const list = ord(shown), page = list.slice(0, lim), rest = list.length - page.length;
   return `<div class="page-enter">
     <h1 class="kpage-title">المتجر</h1>
-    <p class="kpage-sub">شحن ألعاب وبطاقات هدايا — يوصلك خلال ثوانٍ</p>
+    <p class="kpage-sub">شحن ألعاب وبطاقات واشتراكات — يوصلك خلال ثوانٍ</p>
     <label class="ksearch">${svg(I.search)}<input id="rscQ" placeholder="ابحث عن لعبة أو بطاقة…" value="${esc(S.rscQ || '')}" autocomplete="off" inputmode="search"></label>
     ${rscChips(tab, cats)}
     ${!S.rsc.loaded && !S.rsc.error ? `<div class="kgrid3">${'<div class="skeleton" style="height:190px;border-radius:18px"></div>'.repeat(6)}</div>` : ''}
-    ${S.rsc.error && !S.rsc.loaded ? `<div class="card" style="text-align:center;padding:28px 20px">${fennec('error')}<div class="h4 mb-3">تعذّر تحميل المتجر</div><button class="btn btn-secondary btn-sm" data-rscretry type="button">إعادة المحاولة</button></div>` : ''}
+    ${S.rsc.error && !S.rsc.loaded ? `<div class="card" style="text-align:center;padding:28px 20px">${fennec('error')}<div class="h4 mb-3">تعذّر تحميل المتجر</div><button class="btn btn-primary" data-rscretry type="button">إعادة المحاولة</button></div>` : ''}
     ${S.rsc.loaded && home ? `
       ${feat.length ? `<div class="ksh"><h2>عروض اليوم</h2></div>${rscHero(feat)}` : ''}
       ${rscAgain()}
-      ${games.length ? `<div class="ksh"><h2>الأكثر شحنًا</h2><button data-rsctab="topup" type="button">عرض الكل</button></div><div class="krow">${rscPopular(games).map(rscTile).join('')}</div>` : ''}
-      ${gifts.length ? `<div class="ksh"><h2>بطاقات الهدايا</h2><button data-rsctab="gift" type="button">${gifts.length} بطاقة</button></div>${ggrid(gifts.slice(0, 6))}` : ''}
-      ${games.length > 8 ? `<div class="ksh"><h2>كل الألعاب</h2></div>${grid(games)}` : ''}` : ''}
-    ${S.rsc.loaded && !home && shown.length ? (tab === 'topup' ? grid(shown) : tab === 'all' ? grid(games) + ggrid(gifts) : ggrid(shown)) : ''}
-    ${S.rsc.loaded && !shown.length ? `<div class="card" style="text-align:center;padding:32px 20px">${fennec('empty')}<div class="h4" style="margin-bottom:6px">${q ? 'لا نتائج' : 'نجهّز المتجر'}</div><p class="body-sm text-2">${q ? 'جرّب اسمًا آخر' : 'أقسام جديدة قريبًا'}</p></div>` : ''}
+      ${top.length >= 3 ? `<div class="ksh"><h2><i class="ksh-ic">${svg(I.fire)}</i>الأكثر شحنًا</h2></div><div class="krow mb-5">${top.map(c => rscGroup(c) === 'topup' ? rscTile(c) : rscGiftTile(c).replace(/class="kgift/, 'class="kgift inrow')).join('')}</div>` : ''}
+      ${RSC_GROUPS.map(rowOf).join('')}` : ''}
+    ${S.rsc.loaded && !home && page.length ? `
+      ${!q ? `<div class="ksh"><h2><i class="ksh-ic">${rscIc(tab)}</i>${RSC_TT[tab].t}</h2><span class="ksh-n">${list.length} قسم</span></div>` : `<div class="caption" style="margin:4px 2px 10px">${list.length} نتيجة</div>`}
+      ${gridOf(page, q ? 'mix' : tab)}
+      ${rest > 0 ? `<button class="kmore" data-rscmore="${esc(tab + '|' + q)}" data-n="${lim + 24}" type="button">عرض المزيد (${rest})</button>` : ''}` : ''}
+    ${S.rsc.loaded && !shown.length ? `<div class="card" style="text-align:center;padding:32px 20px">${fennec('empty')}<div class="h4" style="margin-bottom:6px">${q ? 'لا نتائج' : 'نجهّز الأقسام'}</div><div class="caption">${q ? 'جرّب اسم ثاني' : 'ترجع قريب'}</div></div>` : ''}
   </div>`;
 }
 // صفحة المنتج: الباقات كبطاقات + البيانات + شريط دفع ثابت
@@ -4551,8 +4567,9 @@ function vRscProduct(cur) {
   const bal = n(S.profile.wallet_balance), short = bal < total;
   const pop = rscPop(cur);
   return `<div class="page-enter kprod">
+    <div class="kp-bk"><button class="kp-back" data-rscback type="button" aria-label="رجوع">${svg(I.next)}<span>رجوع</span></button></div>
     <div class="kp-hero">${cur.image ? `<span class="kp-bg" style="background-image:url('${esc(rscImgUrl(cur.image))}')"></span>` : '<span class="kp-bg ph"></span>'}<span class="kp-fade"></span>
-      <button class="kp-back" data-rscback type="button" aria-label="رجوع">${svg(I.next)}</button></div>
+</div>
     <div class="kp-info"><span class="kp-ic">${rscImgTag(cur)}</span><div><h1>${esc(cur.name)}</h1><span>${isTop ? 'شحن مباشر على حسابك في اللعبة' : 'الكود يوصلك فورًا في «طلباتي»'}</span></div></div>
     <div class="kp-badges"><span class="g">⚡ ${isTop ? 'يوصل خلال دقائق' : 'تسليم فوري'}</span><span>🔒 دفع من محفظتك</span>${pop ? `<span>🔥 ${esc(pop)} هذا الشهر</span>` : ''}</div>
     ${cur.note ? `<div class="alert alert-info mb-3">${svg(I.help)}<div style="white-space:pre-line">${esc(cur.note)}</div></div>` : ''}
@@ -4565,7 +4582,8 @@ function vRscProduct(cur) {
       <div class="kp-lbl">الكمية</div>
       <div class="kqty"><button type="button" data-rscqty="-1" ${qty <= sel.min ? 'disabled' : ''}>−</button><b class="tabular">${qty}</b><button type="button" data-rscqty="1" ${qty >= sel.max ? 'disabled' : ''}>+</button></div>`}
     <div class="kbuy"><div class="kbuy-t"><span>${short ? `رصيدك ${esc(lyd(bal * rate()))}` : 'الإجمالي'}</span><b class="tabular">${esc(lyd(total * rate()))}</b></div>
-      <button class="kbuy-b" id="rpGo" type="button" data-total="${total}" data-short="${short ? 1 : ''}">${short ? `${svg(I.wallet2)} ادفع الفرق ${esc(usd(Math.ceil((total - bal) * 100) / 100))}` : `${svg(I.lock)} ادفع من محفظتي`}</button></div>
+      <button class="kbuy-b" id="rpGo" type="button" data-total="${total}" data-short="${short ? 1 : ''}">${short ? `${svg(I.wallet2)} ادفع الفرق ${esc(lyd(Math.ceil((total - bal) * 100) / 100 * rate()))}` : `${svg(I.lock)} ادفع من محفظتي`}</button>
+      ${short ? `<div class="kbuy-x"><i>؟</i>رصيدك ما يكفيش — تدفع الناقص بس، ويكتمل الشراء وحده أول ما توصل الشحنة</div>` : ''}</div>
   </div>`;
 }
 function openRscBuy(cat, off, pre) {
@@ -4599,7 +4617,7 @@ function openRscBuy(cat, off, pre) {
       <div class="tot"><span>الإجمالي</span><b class="tabular">${esc(lyd(total * rate()))}</b></div>
       ${!ok ? `<div style="color:var(--u-warn)">الكمية من ${sel.min} إلى ${sel.max}</div>` : ''}`;
     const b = $('#rGo');
-    b.innerHTML = short ? `${svg(I.wallet2)} ادفع الفرق ${esc(usd(Math.ceil((total - bal) * 100) / 100))} مباشرة` : `${svg(I.lock)} ادفع ${esc(lyd(total * rate()))} من محفظتي`;
+    b.innerHTML = short ? `${svg(I.wallet2)} ادفع الفرق ${esc(lyd(Math.ceil((total - bal) * 100) / 100 * rate()))}` : `${svg(I.lock)} ادفع ${esc(lyd(total * rate()))} من محفظتي`;
     b.dataset.short = short ? '1' : '';
     b.disabled = !ok;
   };
@@ -5445,4 +5463,31 @@ document.addEventListener('click', e => {
   const g = e.target.closest('[data-secgo]'); if (g) { window.closeModal(); go(g.dataset.secgo); return; }
   const t = e.target.closest('[data-hometab]'); if (!t) return;
   S.rscTab = t.dataset.hometab === 'all' ? 'all' : t.dataset.hometab; S.rscCat = null; go('kstore', true);
+});
+
+
+/* ═══ v56 — تحميل خلفيات المربعات لما توصلها (الخلفية الضبابية باقية) ═══ */
+let _bgIO = null; const _bgDone = new Set();
+function lazyBgs() {
+  const els = [...document.querySelectorAll('[data-bg]')].filter(el => {      // اللي تحمّل قبل يبان فورًا بلا رمشة
+    if (!_bgDone.has(el.dataset.bg)) return true;
+    el.style.backgroundImage = `url("${el.dataset.bg.replace(/"/g, '%22')}")`; el.classList.add('in', 'now'); el.removeAttribute('data-bg'); return false;
+  });
+  if (!els.length) return;
+  if (!('IntersectionObserver' in window)) { els.forEach(el => { el.style.backgroundImage = `url("${el.dataset.bg}")`; el.removeAttribute('data-bg'); }); return; }
+  if (!_bgIO) _bgIO = new IntersectionObserver(ents => {
+    for (const en of ents) {
+      if (!en.isIntersecting) continue;
+      const el = en.target, u = el.dataset.bg; _bgIO.unobserve(el);
+      if (!u) continue;
+      const im = new Image(); im.decoding = 'async';
+      im.onload = im.onerror = () => { _bgDone.add(u); el.style.backgroundImage = `url("${u.replace(/"/g, '%22')}")`; el.classList.add('in'); };
+      im.src = u; el.removeAttribute('data-bg');
+    }
+  }, { rootMargin: '300px 300px' });
+  els.forEach(el => _bgIO.observe(el));
+}
+document.addEventListener('click', e => {
+  const m = e.target.closest('[data-rscmore]'); if (!m) return;
+  S.rscLim = { k: m.dataset.rscmore, n: Number(m.dataset.n) || 48 }; render();
 });

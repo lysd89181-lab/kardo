@@ -4497,6 +4497,7 @@ function vRsc() {
       </div>
       <div style="display:flex;gap:8px;margin-top:10px;flex-wrap:wrap">
         <button class="btn btn-primary btn-sm" id="rscSaveMg" type="button">حفظ</button>
+        <button class="btn btn-secondary btn-sm" data-rscauto type="button">✨ تصنيف تلقائي</button>
         <button class="btn btn-secondary btn-sm" id="rscSync" type="button">↻ تحديث الكتالوج من المزود</button>
       </div>
     </div>
@@ -4515,7 +4516,7 @@ function vRsc() {
           <input type="checkbox" class="rsc-cb" data-rscsel="${esc(c.key)}" ${sel.has(c.key) ? 'checked' : ''} aria-label="تحديد">
           <div class="list-icon" style="overflow:hidden;padding:0">${c.image ? `<img src="${esc(imgU(c.image))}" alt="" loading="lazy" style="width:100%;height:100%;object-fit:cover">` : (c.type === 'topup' ? '🎮' : '🎁')}</div>
           <div class="list-content"><div class="list-title">${esc(c.alias || c.name)}${c.alias ? ` <span class="caption">(${esc(c.name)})</span>` : ''}</div>
-            <div class="list-meta">${c.type === 'topup' ? 'شحن ألعاب' : 'بطاقات هدايا'}${c.on ? ` · ${c.offers ?? 0} عرض` : ''}${c.margin !== '' ? ` · ربح ${esc(String(c.margin))}%` : ''}${c.custom_img ? ' · صورة مخصّصة' : ''}</div></div>
+            <div class="list-meta">${esc(RSC_GT[rscGA(c)])}${c.on ? ` · ${c.offers ?? 0} عرض` : ''}${c.margin !== '' ? ` · ربح ${esc(String(c.margin))}%` : ''}${c.custom_img ? ' · صورة مخصّصة' : ''}</div></div>
           <div class="list-end" style="display:flex;gap:6px">
             <button class="btn btn-ghost btn-sm" data-rscedit="${esc(c.key)}" type="button">تعديل</button>
             <button class="btn btn-sm ${c.on ? (c.maint ? 'btn-secondary' : 'btn-primary') : 'btn-secondary'}" data-rsctgl="${esc(c.key)}" type="button" style="min-width:68px${c.maint ? ';color:var(--warning,#A8650C)' : ''}">${!c.on ? 'مخفي' : c.maint ? 'صيانة' : 'مفعّل'}${c.pick ? ' ✦' : ''}</button>
@@ -4524,7 +4525,7 @@ function vRsc() {
       ${cats.length > 120 ? '<p class="caption" style="text-align:center;margin-top:8px">اكتب في البحث لتضييق النتائج</p>' : ''}
       ${sel.size ? `<div class="rsc-bulk"><b>${sel.size} ${sel.size > 10 ? 'قسم' : 'أقسام'} محددة</b>
         <div class="rsc-bb"><button type="button" class="p" data-rscbulk="on">تفعيل</button><button type="button" data-rscbulk="maint">صيانة</button><button type="button" data-rscbulk="off">إخفاء</button></div>
-        <div class="rsc-bb2"><button type="button" data-rscbulk="pick">✦ إضافة للمختارات</button><button type="button" data-rscbulk="unpick">شيل من المختارات</button></div>
+        <div class="rsc-bb2"><button type="button" data-rscmove>↪ نقل إلى…</button><button type="button" data-rscbulk="pick">✦ للمختارات</button><button type="button" data-rscbulk="unpick">شيل من المختارات</button></div>
         ${S.rscProg ? `<div class="rsc-prog">${esc(S.rscProg)}</div>` : ''}</div><div style="height:150px"></div>` : S.rscProg ? `<div class="caption" style="text-align:center;margin-top:10px">${esc(S.rscProg)}</div>` : ''}` : `
       ${R.orders == null ? '<div class="skeleton" style="height:120px;border-radius:14px"></div>' : (R.orders.length ? `<div class="list">${R.orders.map(o => `
         <div class="list-row" style="cursor:default;align-items:flex-start">
@@ -4559,8 +4560,7 @@ function openRscCatEdit(key) {
     <div class="arow static" style="padding:4px 0 12px"><span class="art"><b>قيد الصيانة</b><span>يبان للعميل باهت وما يقدرش يشتري</span></span><button class="asw ${c.maint ? 'on' : ''}" id="rcMaint" type="button"></button></div>
     <div class="field mb-3"><label class="field-label" for="rcP">نص العرض (اختياري)</label><input class="input" id="rcP" maxlength="70" value="${esc(c.promo || '')}" placeholder="مثال: 660 UC بـ 118 د.ل بدل 125"></div>
     <div class="field mb-3"><label class="field-label" for="rcG">التصنيف</label><select class="input" id="rcG">
-      <option value="" ${!c.group ? 'selected' : ''}>تلقائي (${c.type === 'topup' ? 'شحن ألعاب' : 'بطاقات هدايا'})</option>
-      <option value="subs" ${c.group === 'subs' ? 'selected' : ''}>اشتراكات</option><option value="apps" ${c.group === 'apps' ? 'selected' : ''}>تطبيقات</option></select></div>
+      ${RSC_GA.map(([k, t]) => `<option value="${k}" ${rscGA(c) === k ? 'selected' : ''}>${t}</option>`).join('')}</select></div>
     <div class="field mb-3"><label class="field-label">صورة القسم</label>
       <div style="display:flex;gap:10px;align-items:center">
         <span id="rcPrev" style="width:64px;height:64px;border-radius:14px;overflow:hidden;background:var(--surface-2);display:grid;place-items:center">${c.image ? `<img src="${esc(/^\//.test(c.image) ? API_BASE + c.image : c.image)}" style="width:100%;height:100%;object-fit:cover">` : '📷'}</span>
@@ -5501,4 +5501,44 @@ document.addEventListener('click', async e => {
   b.disabled = true;
   try { await api('/api/admin/settings', patch); S.settings = { ...S.settings, ...patch }; toast('حُفظ ✓ — يوصل للعملاء خلال دقيقة', 'ok'); render(true); }
   catch (er) { toast(er.message, 'bad'); b.disabled = false; }
+});
+
+
+/* ═══ v56 — الأنواع الخمسة: نقل ونصنيف تلقائي ═══ */
+const RSC_GA = [['topup', 'ألعاب', 'شحن مباشر وأكواد ألعاب'], ['gift', 'بطاقات هدايا', 'Steam، PlayStation، iTunes…'], ['subs', 'اشتراكات وترفيه', 'Netflix، شاهد، Spotify…'], ['apps', 'تطبيقات وبرامج', 'Adobe، Canva، Microsoft…'], ['pay', 'بطاقات دفع ومحافظ', 'إيه-كاش، Razer…']];
+const RSC_GT = Object.fromEntries(RSC_GA.map(([k, t]) => [k, t]));
+const rscGA = c => RSC_GT[c.group] ? c.group : (c.type === 'topup' ? 'topup' : 'gift');
+document.addEventListener('click', async e => {
+  const mv = e.target.closest('[data-rscmove]');
+  if (mv) {
+    const keys = [...(S.rscSel || [])]; if (!keys.length) return;
+    const names = keys.map(k => { const c = (S.rscA.cats || []).find(x => x.key === k); return c ? (c.alias || c.name) : k; });
+    modal(`<div class="modal-header" style="display:flex;justify-content:space-between;align-items:center;gap:10px;margin-bottom:8px"><h3 class="h3" style="margin:0">نقل ${keys.length} ${keys.length > 10 ? 'قسم' : 'أقسام'} إلى…</h3><button class="modal-close" onclick="closeModal()" type="button" aria-label="إغلاق">✕</button></div>
+      <p class="caption" style="margin:0 0 12px">${esc(names.slice(0, 4).join('، '))}${names.length > 4 ? ` و${names.length - 4} آخرين` : ''}</p>
+      ${RSC_GA.map(([k, t, d]) => `<button class="rsc-opt" data-rscgo="${k}" type="button"><b>${t}</b><span>${esc(d)}</span></button>`).join('')}`);
+    return;
+  }
+  const go = e.target.closest('[data-rscgo]');
+  if (go) {
+    const keys = [...(S.rscSel || [])]; if (!keys.length) return;
+    $$('[data-rscgo]').forEach(x => x.disabled = true);
+    try { await api('/api/admin/rsc', { action: 'bulk', keys, set: 'group', group: go.dataset.rscgo }); closeModal(); toast(`انتقلت إلى «${RSC_GT[go.dataset.rscgo]}» ✓`, 'ok'); S.rscSel.clear(); await loadRscA(); }
+    catch (er) { toast(er.message, 'bad'); $$('[data-rscgo]').forEach(x => x.disabled = false); }
+    return;
+  }
+  const au = e.target.closest('[data-rscauto]');
+  if (au) {
+    modal(`<div class="modal-header" style="display:flex;justify-content:space-between;align-items:center;gap:10px;margin-bottom:8px"><h3 class="h3" style="margin:0">تصنيف تلقائي</h3><button class="modal-close" onclick="closeModal()" type="button" aria-label="إغلاق">✕</button></div>
+      <p style="margin:0 0 14px;line-height:1.8">يوزّع كل الأقسام على الأنواع الخمسة حسب أسمائها (مثلاً Netflix ← اشتراكات، Adobe ← تطبيقات، إيه-كاش ← بطاقات دفع). الأقسام اللي نقلتها بيدك ما تتغيرش.</p>
+      <button class="btn btn-primary btn-block mb-2" data-rscautogo="0" type="button">صنّف</button>
+      <button class="btn btn-secondary btn-block" data-rscautogo="1" type="button">صنّف الكل حتى اللي نقلته بيدي</button>`);
+    return;
+  }
+  const ag = e.target.closest('[data-rscautogo]');
+  if (ag) {
+    $$('[data-rscautogo]').forEach(x => x.disabled = true);
+    try { const r = await api('/api/admin/rsc', { action: 'autogroup', force: ag.dataset.rscautogo === '1' }, 60000); closeModal();
+      const t = r.tally || {}; toast(`تم ✓ ألعاب ${t.topup || 0} · هدايا ${t.gift || 0} · اشتراكات ${t.subs || 0} · تطبيقات ${t.apps || 0} · دفع ${t.pay || 0}`, 'ok'); await loadRscA(); }
+    catch (er) { toast(er.message, 'bad'); $$('[data-rscautogo]').forEach(x => x.disabled = false); }
+  }
 });
