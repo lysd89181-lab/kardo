@@ -262,6 +262,7 @@ const I = {
   eye: '<path d="M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7-10-7-10-7"/><circle cx="12" cy="12" r="3"/>',
   download: '<path d="M12 4v11M7.5 10.5 12 15l4.5-4.5"/><path d="M5 20h14"/>',
   zap: '<path d="M13 3 5 14h6l-1 7 8-11h-6z"/>',
+  mail: '<rect x="3" y="5" width="18" height="14" rx="2.5"/><path d="m4 7 8 6 8-6"/>',
   share: '<path d="M12 3v12"/><path d="m8 7 4-4 4 4"/><path d="M5 12v7a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-7"/>',
   copy: '<rect x="9" y="9" width="12" height="12" rx="2.5"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/>',
   up: '<path d="M12 19V5M5.5 11.5 12 5l6.5 6.5"/>',
@@ -396,6 +397,7 @@ onAuthStateChanged(auth, async user => {
   try { localStorage.setItem('kardo_authed', '1'); } catch {}
   $('#public').style.display = 'none';
   $('#app').style.display = 'block';
+  setTimeout(() => anPage(S.page), 0);
   document.documentElement.classList.remove('boot-app');
   { const hm = /^#\/([a-z]+)(?:\/([A-Za-z0-9_-]{2,40}))?/.exec(location.hash);
     if (hm && hm[1] === 'store' && hm[2]) { S.curStore = hm[2]; S.page = 'store'; }
@@ -445,6 +447,7 @@ async function ensureProfile(user) {
         banned: false,
         created_at: new Date().toISOString(),
       }, { merge: true });
+      anEv('signup');
     }
   } catch (e) { console.warn('ensureProfile:', e.code); }
 }
@@ -616,6 +619,7 @@ window.go = (page, keepCat, fromPop) => {
     try { history.pushState({ page, store: S.curStore || null, sec: S.curSection || null }, '', '#/' + page + (page === 'store' && S.curStore ? '/' + encodeURIComponent(S.curStore) : '')); } catch {}
   }
   S.page = page;
+  anPage(page);
   if (!keepCat) S.cat = null;
   S.q = '';
   ensurePageData();
@@ -739,6 +743,8 @@ function vDashboard() {
   <div class="page-enter">
     ${S.config.site_maint ? `<div class="alert alert-warning mb-4">${svg(I.help)}<div><b>معاينة الإدارة</b> — الموقع في وضع الصيانة والزوار يرون شاشة الصيانة.</div></div>` : ''}
     ${verifyBannerHtml()}
+    ${(() => { const p = S.config.promo_first; if (!p || S.profile.promo_first_done) return '';
+      return `<button class="kpromo" data-act="dock-deposit" type="button"><span class="kpromo-ic">🎁</span><div><b>اشحن أول مرة بـ ${esc(String(p.min))}$ وخذ ${esc(String(p.bonus))}$ هدية</b><span>${S.profile.phone_verified ? 'تنضاف لمحفظتك تلقائيًا مع الشحنة' : 'وثّق رقم هاتفك أولًا باش تاخذ الهدية'}</span></div></button>`; })()}
     ${(() => { const v = pendingInvoice(); return v ? `<button class="kpend" data-pendinv type="button"><span class="kpulse"></span><div><b>فاتورة شحن بانتظار الدفع</b><span class="tabular">${esc(v.no)} · ${esc(Number(v.pay_amount).toFixed(2))} USDT</span></div><span class="kpend-go">ادفع الآن</span></button>` : ''; })()}
     <section class="kw" aria-label="المحفظة">
       <img class="kw-fox" src="./kardo-mark.png" alt="" aria-hidden="true">
@@ -1301,10 +1307,11 @@ function vCards() {
       ${renderCard(cur)}
       <div class="kstat">
         <div><small>رصيد البطاقة</small><b class="tabular">${esc(usd(cur.balance))}</b><span class="caption">${cur.balance_updated_at ? 'حُدّث ' + esc(dt(cur.balance_updated_at)) : 'عند الإصدار'}</span></div>
-        <div><small>الحالة</small><b style="color:${cur.status === 'active' ? 'var(--u-ok)' : 'var(--u-ink-3)'}">${cur.status === 'active' ? 'نشطة' : 'مجمدة'}</b></div>
+        <div><small>الحالة</small><b style="color:${cur.status === 'active' ? 'var(--u-ok)' : cur.status === 'frozen' ? '#4A7CA6' : 'var(--u-ink-3)'}">${cur.status === 'active' ? 'نشطة' : cur.status === 'frozen' ? '❄ مجمّدة' : 'موقوفة'}</b></div>
       </div>
+      ${cur.status === 'frozen' ? `<div class="alert alert-info mb-3">${svg(I.lock, 2)}<div><b>البطاقة مجمّدة مؤقتًا</b> — ما تقدرش تعرض بياناتها أو تشحنها حتى يُفك التجميد. تواصل مع الدعم.</div></div>` : ''}
       <div class="kacts">
-        <button data-card="${esc(cur.id)}" type="button" ${locked ? 'disabled' : ''}>${svg(I.lock)}عرض البيانات</button>
+        <button data-cardview="${esc(cur.id)}" type="button" ${locked || cur.status !== 'active' ? 'disabled' : ''}>${svg(I.lock)}عرض البيانات</button>
         <button data-cardtop="${esc(cur.id)}" type="button" ${canTop ? '' : 'disabled'}>${svg(I.plus)}${canTop ? 'تعبئة' : 'التعبئة متوقفة'}</button>
         <button data-cardotp type="button" ${locked || cur.status !== 'active' ? 'disabled' : ''}>${svg(I.shield)}رمز التحقق</button>
       </div>` : `
@@ -1424,6 +1431,7 @@ const REASON_AR = { deposit_approved: 'إيداع معتمد', deposit_claim: '�
   rsc_order: 'شراء من متجر كاردو', rsc_refund: 'استرداد طلب متجر', service_order: 'شراء خدمة', service_order_rejected: 'استرداد خدمة', store_order: 'شراء من المتجر', order_rejected: 'استرداد طلب',
   card_create: 'إصدار بطاقة', card_topup: 'شحن بطاقة', card_rejected_refund: 'استرداد طلب بطاقة', withdraw_request: 'سحب',
   withdraw_rejected: 'استرداد سحب', transfer_out: 'تحويل صادر', transfer_in: 'تحويل وارد', points_redeem: 'استبدال نقاط',
+  promo_first: 'هدية أول شحنة 🎁',
   referral_bonus_invitee: 'مكافأة دعوة', referral_bonus_inviter: 'مكافأة دعوة', plan_basic: 'باقة الأساسي', plan_vip: 'باقة VIP' };
 function subscribeLedger() {
   if (S._ledgerSub || !S.user) return;
@@ -1664,6 +1672,8 @@ function vSettings() {
       ${row('data-nav="wallet"', I.wallet2, 'المحفظة', `<span class="kset-v tabular">${esc(lyd(n(S.profile.wallet_balance) * rate()))}</span>`)}
       ${row('data-nav="transactions"', I.list, 'المعاملات')}
       ${row('data-nav="invoices"', I.receipt, 'فواتيري')}
+      ${(S.manualCards || []).length ? row('id="kPinReset"', I.lock, 'الرمز السري للبطاقات', '<span class="kset-v">تغيير</span>') : ''}
+      ${row('data-howto="all"', I.help, 'كيف أدفع؟', '<span class="kset-v">شرح بالصور</span>')}
       ${row('id="kInstall"', I.download || I.out, 'تثبيت التطبيق', isStandalone() ? '<span class="kset-v" style="color:var(--u-ok)">مثبّت ✓</span>' : '<span class="kset-v">أسرع وأخف</span>')}
       ${row('data-nav="plans"', I.star, 'الباقات', `<span class="kset-v">${esc(PLAN_AR[myPlan()])}</span>`)}
       ${row('data-nav="referral"', I.giftbox, 'ادعُ صديقًا واربح')}
@@ -1737,6 +1747,7 @@ function bind() {
   });
 
   $$('[data-card]').forEach(b => b.onclick = () => openCardDetails(b.dataset.card));
+  $$('[data-cardview]').forEach(b => b.onclick = () => { const c = (S.manualCards || []).find(x => x.id === b.dataset.cardview); if (c) openVault(c); });
   $$('[data-cardsel]').forEach(b => b.onclick = () => { S.cardSel = b.dataset.cardsel; render(); });
   $$('[data-cardtop]').forEach(b => b.onclick = () => { const c = (S.manualCards || []).find(x => x.id === b.dataset.cardtop); if (c) openCardTopup(c); });
   $$('[data-cardotp]').forEach(b => b.onclick = () => openOtp());
@@ -2079,7 +2090,9 @@ async function openDepositMethod(method, presetLyd) {
       <input class="input" id="dpPhone" dir="ltr" inputmode="numeric" maxlength="14" placeholder="0912345678" value="${esc(def)}">
       <span class="field-hint">${manualMode ? 'يُراجع الإيداع ويُضاف خلال وقت قصير' : 'حوّل أولًا، بعدين اضغط الزر — يُضاف تلقائيًا فور وصول الحوالة'}</span>
     </div>
-    <button class="btn btn-primary btn-block" id="dpSubmit" type="button">حوّلت الرصيد</button>`);
+    <button class="btn btn-primary btn-block" id="dpSubmit" type="button">حوّلت الرصيد</button>
+    <button class="kinv-how" data-howto="${esc(method)}" type="button" style="margin-top:10px">${svg(I.help)} كيف أحوّل الرصيد؟</button>`);
+  _htBack = () => openDepositMethod(method, presetLyd);
   $$('[data-ph]').forEach(b => b.onclick = () => { $('#dpPhone').value = b.dataset.ph; $$('[data-ph]').forEach(x => x.classList.toggle('on', x === b)); });
   if ($('#dpAmount')) $('#dpAmount').oninput = () => { const a = n($('#dpAmount').value); $('#dpQuote').textContent = a > 0 ? 'يُضاف ' + usd(a / rateVal) : ''; };
   onTap('#dpSubmit', async () => {
@@ -2092,6 +2105,7 @@ async function openDepositMethod(method, presetLyd) {
     try {
       const r = await api('/api/wallet/claim', { amount_lyd: amt, method, phone: phoneIn });
       if (/^0\d{9}$/.test(phoneIn)) rememberPhone(phoneIn);
+      if (r.matched) anEv('paid');
       if (r.matched && CHECKOUT) { toast('أُضيف ' + usd(r.credited_usd) + ' — نكمل الشراء…', 'ok'); return completeCheckout(); }
       if (r.matched) stickerModal('deposit', 'success', 'تم الإيداع ✓', 'أُضيف ' + usd(r.credited_usd) + ' إلى محفظتك.');
       else if (r.manual) stickerModal('wait', 'wait', 'وصل طلب الإيداع', 'يُضاف الرصيد بعد المراجعة خلال وقت قصير.');
@@ -2133,7 +2147,7 @@ async function openCardDetails(cardId) {
       </div>
       <div class="flex-between" style="padding:6px 0">
         <span class="body-sm text-2">الحالة</span>
-        <span class="badge ${c.status === 'active' ? 'badge-success' : 'badge-neutral'}">${c.status === 'active' ? 'نشطة' : 'مجمدة'}</span>
+        <span class="badge ${c.status === 'active' ? 'badge-success' : 'badge-neutral'}">${c.status === 'active' ? 'نشطة' : c.status === 'frozen' ? '❄ مجمّدة مؤقتًا' : 'موقوفة'}</span>
       </div>
     </div>
 
@@ -2151,11 +2165,13 @@ async function openCardDetails(cardId) {
       <button class="btn btn-primary btn-block mb-2" id="topupBtn" type="button">↻ إعادة تعبئة البطاقة</button>` : `
       <button class="btn btn-secondary btn-block mb-2" type="button" disabled style="opacity:.55;cursor:not-allowed">${cardsMaint() ? '🛠️ إعادة التعبئة متوقفة — قيد الصيانة' : '↻ إعادة التعبئة غير متاحة حاليًا'}</button>`) : ''}
 
-    ${lastOrder ? `
+    ${c.status === 'frozen' ? `<div class="alert alert-info mb-3">${svg(I.lock, 2)}<div><b>البطاقة مجمّدة مؤقتًا.</b> لا يمكن عرض بياناتها أو شحنها حتى يُفك التجميد — تواصل مع الدعم.</div></div>` : ''}
+    ${(c.vault || lastOrder) && c.status === 'active' ? `
       <button class="btn btn-primary btn-block mb-2" id="revealBtn">
-        ${svg(I.eye, 2)} عرض بيانات البطاقة
+        ${svg(I.lock, 2)} عرض بيانات البطاقة
       </button>
-    ` : `
+      <div class="caption mb-3" style="text-align:center">تحتاج رمزك السري (PIN) — تظهر 60 ثانية</div>
+    ` : c.status !== 'active' ? '' : `
       <div class="alert alert-warning mb-3">${svg(I.help, 2)}<div>لم تُسلَّم بيانات البطاقة بعد.</div></div>
     `}
 
@@ -2170,60 +2186,7 @@ async function openCardDetails(cardId) {
   onTap('#addrCopy', async () => {
     try { await navigator.clipboard.writeText(c.billing_address); toast('نُسخ العنوان', 'ok'); } catch { toast('تعذّر النسخ', 'bad'); }
   });
-  onTap('#revealBtn', async () => {
-    const btn = $('#revealBtn');
-    btn.disabled = true;
-    btn.classList.add('loading');
-    try {
-      const d = await api('/api/mcard/reveal', { order_id: lastOrder.id });
-      const grp = v => String(v).replace(/(.{4})/g, '$1 ').trim();
-      const hrs = Math.floor((new Date(d.expires_at) - Date.now()) / 3600000);
-
-      modal(`
-        <div class="modal-head">
-          <div class="modal-title">بيانات البطاقة</div>
-          <button class="modal-close" data-act="close-modal" aria-label="إغلاق">${svg(I.x, 2)}</button>
-        </div>
-
-        <div class="alert alert-warning mb-4">${svg(I.help, 2)}<div>${d.cvv ? 'رمز CVV يُعرض <b>مرة واحدة فقط</b> — احفظه الآن. ' : ''}يختفي رقم البطاقة خلال ${hrs} ساعة.</div></div>
-
-        <div class="field mb-3">
-          <div class="field-label">رقم البطاقة</div>
-          <div class="copy-box">
-            <div class="copy-value" style="font-size:15px">${esc(grp(d.card_number))}</div>
-            <button class="copy-btn" data-copy="${esc(d.card_number)}" aria-label="نسخ">${svg(I.copy, 2)}</button>
-          </div>
-        </div>
-        <div class="grid-2 mb-4">
-          <div>
-            <div class="field-label">الانتهاء</div>
-            <div class="copy-box">
-              <div class="copy-value">${esc(d.expiry)}</div>
-              <button class="copy-btn" data-copy="${esc(d.expiry)}" aria-label="نسخ">${svg(I.copy, 2)}</button>
-            </div>
-          </div>
-          <div>
-            <div class="field-label">CVV</div>
-            ${d.cvv ? `<div class="copy-box">
-              <div class="copy-value">${esc(d.cvv)}</div>
-              <button class="copy-btn" data-copy="${esc(d.cvv)}" aria-label="نسخ CVV">${svg(I.copy, 2)}</button>
-            </div>` : `<div class="copy-box"><div class="copy-value caption">لم يعد متاحًا</div></div>`}
-          </div>
-        </div>
-
-        <button class="btn btn-secondary btn-block" data-act="close-modal">إغلاق</button>
-      `);
-
-      $$('[data-copy]').forEach(b => b.onclick = async () => {
-        try { await navigator.clipboard.writeText(b.dataset.copy); toast('نُسخ', 'ok'); }
-        catch { toast('تعذّر النسخ', 'bad'); }
-      });
-    } catch (e) {
-      toast(e.message, 'bad');
-      btn.disabled = false;
-      btn.classList.remove('loading');
-    }
-  });
+  onTap('#revealBtn', () => openVault(c));
 }
 
 /* ═══ v41 — إعادة تعبئة البطاقة ═══ */
@@ -2839,6 +2802,7 @@ function moneyGateHtml() {
 }
 async function openDeposit(preset, checkout) {
   if (!checkout) CHECKOUT = null;
+  anEv(checkout ? 'buy_short' : 'dep_open');
   { const g = moneyGateHtml(); if (g) { modal(g); onTap('#gateGo', () => { closeModal(); go('settings'); }); return; } }
   const opts = depositOptions();
   if (!opts.length) { modal(`<div class="h4 mb-3">شحن المحفظة</div><p class="body-sm text-2">لا توجد طرق شحن مفعّلة حاليًا.</p>`); return; }
@@ -2852,6 +2816,7 @@ async function openDeposit(preset, checkout) {
       <div class="modal-head"><div class="modal-title">${CHECKOUT ? 'ادفع وأكمل الشراء' : 'شحن المحفظة'}</div>
         <button class="modal-close" data-act="close-modal" aria-label="إغلاق">${svg(I.x)}</button></div>
       ${CHECKOUT ? `<div class="kco">${svg(I.store)}<div><b>${esc(CHECKOUT.name)}</b><span>ينقصك ${esc(usd(preset))} — بعد ما يوصل الدفع نكمل الشراء تلقائيًا</span></div></div>` : ''}
+      ${!CHECKOUT && S.config.promo_first && !S.profile.promo_first_done ? `<div class="kco">🎁<div><b>${(cur === 'usd' ? amt : 0) >= S.config.promo_first.min ? `تاخذ ${esc(String(S.config.promo_first.bonus))}$ هدية مع هذي الشحنة` : `اشحن ${esc(String(S.config.promo_first.min))}$ أو أكثر وخذ ${esc(String(S.config.promo_first.bonus))}$ هدية`}</b><span>${S.profile.phone_verified ? 'أول شحنة فقط — تنضاف تلقائيًا' : 'لازم رقم هاتفك يكون موثّق'}</span></div></div>` : ''}
       <div class="kdep-amt">
         <div class="kdep-row"><label for="kdA">${cur === 'usd' ? 'المبلغ بالدولار' : 'المبلغ بالدينار'}</label>
           <div class="kseg"><button type="button" data-cur="usd" class="${cur === 'usd' ? 'on' : ''}">$</button><button type="button" data-cur="lyd" class="${cur === 'lyd' ? 'on' : ''}">د.ل</button></div></div>
@@ -2861,18 +2826,19 @@ async function openDeposit(preset, checkout) {
       ${['crypto', 'phone', 'bank'].map(g => { const list = opts.filter(o => o.group === g); if (!list.length) return '';
         return `<div class="kset-label" style="margin-top:4px">${{ crypto: 'عملات رقمية', phone: 'رصيد هاتف', bank: 'تحويل وإيصال' }[g]}</div>
         <div class="list mb-4">${list.map(o => { const u = usdOf(o), pay = cur === 'usd' ? (o.unit === 'USDT' ? amt : amt * o.rate) : amt, bad = !o.paused && amt > 0 && ((o.min && u < o.min) || (o.max && u > o.max));
-          return `<button type="button" class="list-row kpm ${sel === o.key ? 'sel' : ''}" data-pm="${esc(o.key)}" ${o.paused ? 'disabled' : ''}>
+          return `<div role="button" tabindex="0" class="list-row kpm ${sel === o.key ? 'sel' : ''} ${o.paused ? 'off' : ''}" data-pm="${esc(o.key)}" aria-disabled="${o.paused ? 'true' : 'false'}">
             <span class="list-icon kpm-logo">${o.logo ? `<img src="${esc(o.logo)}" alt="">` : esc(o.short)}</span>
-            <div class="list-content"><div class="list-title">${esc(o.label)} <span class="kpm-tag ${o.paused ? 'off' : o.speed}">${o.paused ? 'متوقفة مؤقتًا' : { auto: 'تلقائي', fast: 'فوري', review: 'مراجعة' }[o.speed]}</span></div>
+            <div class="list-content"><div class="list-title">${esc(o.label)} <span class="kpm-tag ${o.paused ? 'off' : o.speed}">${o.paused ? 'متوقفة مؤقتًا' : { auto: 'تلقائي', fast: 'فوري', review: 'مراجعة' }[o.speed]}</span>${o.paused ? '' : `<button type="button" class="kpm-how" data-howto="${esc(o.key)}" aria-label="كيف أدفع؟">؟ كيف</button>`}</div>
               <div class="list-meta">${o.paused ? 'غير متاحة الآن' : bad ? `<span style="color:var(--u-err)">${o.min && u < o.min ? `الحد الأدنى $${o.min}` : `الحد الأقصى $${o.max}`}</span>` : esc(o.note)}</div></div>
             ${!o.paused && amt > 0 ? `<div class="list-end kpm-pay"><b class="tabular">${o.unit === 'USDT' ? pay.toFixed(2) + ' USDT' : (o.unit === 'LYD' ? Math.ceil(pay) + ' د.ل' : pay.toFixed(2))}</b><small>${cur === 'usd' ? 'تدفع' : 'يُضاف ' + usd(u)}</small></div>` : ''}
-          </button>`; }).join('')}</div>`; }).join('')}
+          </div>`; }).join('')}</div>`; }).join('')}
       <button class="btn btn-primary btn-block btn-lg" id="kdGo" type="button">متابعة</button>`);
     const inp = $('#kdA');
     inp.oninput = () => { amt = n(inp.value); const pos = inp.selectionStart; draw(); const i2 = $('#kdA'); i2.focus(); try { i2.setSelectionRange(pos, pos); } catch {} };
     $$('[data-q]').forEach(b => b.onclick = () => { amt = n(b.dataset.q); draw(); });
     $$('[data-cur]').forEach(b => b.onclick = () => { if (cur !== b.dataset.cur) { cur = b.dataset.cur; amt = 0; draw(); } });
-    $$('[data-pm]').forEach(b => b.onclick = () => { sel = b.dataset.pm; draw(); });
+    $$('[data-pm]').forEach(b => b.onclick = () => { const o = opts.find(x => x.key === b.dataset.pm); if (!o || o.paused) return; sel = b.dataset.pm; draw(); });
+    _htBack = () => openDeposit(cur === 'usd' ? amt : 0, !!CHECKOUT);
     onTap('#kdGo', () => {
       const o = opts.find(x => x.key === sel);
       if (!o || o.paused) return toast('اختر طريقة دفع', 'bad');
@@ -4568,6 +4534,7 @@ function openRscBuy(cat, off) {
     btn.disabled = true; btn.classList.add('loading');
     try {
       const r = await api('/api/rsc/order', { cat: cat.key, offer: sel.id, qty: isTop ? 1 : Math.floor(n($('#rQty').value)), fields, expect: total, idempotency_key: key }, 60000);
+      anEv('buy');
       S.rscOrders = null; loadRscOrders();
       openRscResult(r.order);
     } catch (e) {
@@ -4680,6 +4647,7 @@ async function qrInto(el, text) {
 async function createInvoice(net, usdAmount) {
   try {
     const { invoice } = await api('/api/wallet/usdt/invoice', { amount_usd: usdAmount, network: net });
+    anEv('inv_create');
     S.invoices = null;
     openInvoice(invoice);
   } catch (e) { toast(e.message, 'bad'); }
@@ -4742,6 +4710,7 @@ function openInvoice(inv) {
       <button class="copy-btn" data-act="copy" data-copy-text="${esc(inv.address)}" aria-label="نسخ">${svg(I.copy)}</button></div>
     <div class="copy-box mb-3"><div class="copy-value tabular" dir="ltr">${esc(amtTxt)}</div>
       <button class="copy-btn" data-act="copy" data-copy-text="${esc(amtTxt)}" aria-label="نسخ المبلغ">${svg(I.copy)}</button></div>
+    <button class="kinv-how" data-howto="${esc(inv.network)}" type="button">${svg(I.help)} كيف أدفع؟ شرح بالصور</button>
     ${isPay ? `<a class="btn btn-block kbnb mb-3" href="https://app.binance.com/" target="_blank" rel="noopener">افتح تطبيق Binance</a>
       <p class="caption mb-3">في Binance: الدفع ← إرسال ← الصق الـ Pay ID والمبلغ ← تأكيد.</p>` : `
       <div class="alert alert-warning mb-3">${svg(I.help)}<div>لا تقرّب المبلغ. لو تحوّل من منصة (MEXC وغيرها) تأكد إن المبلغ اللي يوصل هو نفسه بعد الرسوم.</div></div>`}
@@ -4749,9 +4718,12 @@ function openInvoice(inv) {
     <div class="klive" id="kLive"><span class="kpulse"></span><div><b>${st === 'cancelled' ? 'الفاتورة ملغاة' : 'ننتظر وصول التحويل…'}</b><span>${timeUp || st === 'cancelled' ? 'لو حوّلت، يُضاف تلقائيًا خلال 24 ساعة من إنشاء الفاتورة' : 'يُضاف تلقائيًا — تقدر تقفل الصفحة'}</span></div></div>`}
     <div class="kinv-acts">
       ${timeUp || closed || st === 'cancelled' ? `<button class="btn btn-secondary" id="kRenew" type="button">فاتورة جديدة بنفس المبلغ</button>` : ''}
+      ${!timeUp ? `<button class="btn btn-secondary" id="kShareLink" type="button">${svg(I.share)} ${inv.shared ? 'رابط الدفع فعّال — مشاركة أو إيقاف' : 'خلّي حد يدفع عنك (رابط)'}</button>` : ''}
       ${st === 'awaiting' ? `<button class="btn btn-ghost" id="kCancel" type="button">إلغاء الفاتورة</button>` : ''}
     </div>`);
+  onTap('#kShareLink', () => openPayLink(inv));
   if (!isPay) qrInto($('#kQr'), inv.address);
+  _htBack = () => openInvoice(inv);
   onTap('#kRenew', () => { closeModal(); createInvoice(inv.network, inv.amount_usd); });
   onTap('#kCancel', async () => {
     if (!confirm('إلغاء الفاتورة؟ لو حوّلت بالخطأ سيُضاف المبلغ تلقائيًا رغم الإلغاء.')) return;
@@ -4769,7 +4741,7 @@ function openInvoice(inv) {
     if (!$('#kLive')) return;
     try {
       const r = await api('/api/wallet/usdt/verify', { invoice_id: inv.id });
-      if (r.invoice && r.invoice.status === 'paid') { stopInvoiceTimers(); S.invoices = null; kdbSoon(200);
+      if (r.invoice && r.invoice.status === 'paid') { stopInvoiceTimers(); S.invoices = null; kdbSoon(200); anEv('paid');
         if (CHECKOUT) { toast('وصل الدفع ✓ — نكمل الشراء…', 'ok'); completeCheckout(); return; }
         openInvoice(r.invoice); toast('أُضيف ' + usd(r.invoice.received) + ' لمحفظتك ✓', 'ok'); return; }
       if (r.invoice && r.invoice.status !== inv.status) { openInvoice(r.invoice); return; }
@@ -4823,6 +4795,7 @@ async function completeCheckout() {
   for (let i = 0; i < 3; i++) {
     try {
       const r = await api('/api/rsc/order', c.body, 60000);
+      anEv('buy');
       S.rscOrders = null; loadRscOrders(); openRscResult(r.order); return;
     } catch (e) {
       if (/رصيد|الرصيد/.test(e.message) && i < 2) { await new Promise(r => setTimeout(r, 2500)); continue; }   // الرصيد قد يتأخر لحظة
@@ -4892,7 +4865,7 @@ function openInstall(auto) {
   onTap('#kInstGo', async () => {
     const e = window.__bip; if (!e) return;
     try { e.prompt(); const c = await e.userChoice; window.__bip = null; closeModal();
-      if (c && c.outcome === 'accepted') toast('تم التثبيت — تلقاه في الشاشة الرئيسية ✓', 'ok'); } catch { closeModal(); }
+      if (c && c.outcome === 'accepted') { anEv('install'); toast('تم التثبيت — تلقاه في الشاشة الرئيسية ✓', 'ok'); } } catch { closeModal(); }
   });
 }
 document.addEventListener('click', e => { if (e.target.closest && e.target.closest('#kInstall')) { e.preventDefault(); openInstall(false); } });
@@ -4910,3 +4883,290 @@ document.addEventListener('click', e => { if (e.target.closest && e.target.close
   setTimeout(show, isIOS() ? 3500 : 2500);
   document.addEventListener('kardo-bip', () => setTimeout(show, 1200), { once: true });
 })();
+
+/* ═══ v52 — خزنة البطاقة: الرمز السري (PIN) + تأكيد الجهاز بالبريد + عرض 60 ثانية ═══ */
+const CDEV_KEY = 'kardo_cdev';
+const cdev = () => { try { return localStorage.getItem(CDEV_KEY) || ''; } catch { return ''; } };
+let _vaultTimer = null;
+function vaultClear() { clearInterval(_vaultTimer); _vaultTimer = null; }
+document.addEventListener('visibilitychange', () => { if (document.visibilityState !== 'visible' && $('#vShow')) { vaultClear(); closeModal(); } });
+async function openVault(c) {
+  let st;
+  try { st = await api('/api/card/sec/status', { device: cdev() }); } catch (e) { return toast(e.message, 'bad'); }
+  if (st.locked) return vaultCodeFlow(c, 'reset', st);
+  if (!st.has_pin || !st.device_ok) return vaultCodeFlow(c, st.has_pin ? 'device' : 'setup', st);
+  vaultPin(c);
+}
+// لوحة أرقام موحّدة: تُرجع الرمز عند اكتمال عدد الخانات
+function pinPad(len, onDone, opts = {}) {
+  let v = '';
+  const draw = () => {
+    const box = $('#pinDots'); if (!box) return;
+    box.innerHTML = Array.from({ length: len }, (_, i) => `<i class="${i < v.length ? 'f' : ''} ${i === v.length ? 'cur' : ''}">${i < v.length ? (opts.show ? esc(v[i]) : '•') : ''}</i>`).join('');
+  };
+  const press = k => {
+    if (k === 'del') v = v.slice(0, -1);
+    else if (/^\d$/.test(k) && v.length < len) v += k;
+    draw();
+    if (v.length === len) { const out = v; setTimeout(() => { v = ''; draw(); onDone(out); }, 120); }
+  };
+  draw();
+  $$('[data-pk]').forEach(b => b.onclick = () => { haptic.tap(); press(b.dataset.pk); });
+  const onKey = e => { if (!$('#pinDots')) return document.removeEventListener('keydown', onKey); if (/^\d$/.test(e.key)) press(e.key); else if (e.key === 'Backspace') press('del'); };
+  document.addEventListener('keydown', onKey);
+}
+const PAD_HTML = len => `<div class="kpin" id="pinDots" dir="ltr">${'<i></i>'.repeat(len)}</div>
+  <div class="kpad" dir="ltr">${['1', '2', '3', '4', '5', '6', '7', '8', '9', '', '0', 'del'].map(k => k === '' ? '<span></span>' : `<button type="button" data-pk="${k}" aria-label="${k === 'del' ? 'مسح' : k}">${k === 'del' ? '⌫' : k}</button>`).join('')}</div>`;
+function vaultPin(c) {
+  modal(`<div class="kvault">
+      <div class="kv-ic">${svg(I.lock)}</div>
+      <div class="h3" style="margin:0 0 4px">اكتب رمزك السري</div>
+      <p class="body-sm text-2" style="margin:0">لعرض بيانات ${esc(c.card_name || 'البطاقة')} ••${esc(c.last4 || '')} لمدة 60 ثانية</p>
+      <div id="pinErr" class="kv-err"></div>
+      ${PAD_HTML(4)}
+      <button class="btn btn-ghost btn-block" id="pinForgot" type="button" style="margin-top:10px">نسيت الرمز؟ نبعتلك كود على الإيميل</button>
+    </div>`);
+  onTap('#pinForgot', () => vaultCodeFlow(c, 'reset'));
+  pinPad(4, async pin => {
+    $('#pinErr').textContent = '';
+    $$('[data-pk]').forEach(b => b.disabled = true);
+    try {
+      const d = await api('/api/card/vault/reveal', { card_id: c.id, pin, device: cdev() });
+      anEv('card_view');
+      vaultShow(c, d);
+    } catch (e) {
+      $$('[data-pk]').forEach(b => b.disabled = false);
+      haptic.bad();
+      if (/أكّد جهازك/.test(e.message)) { try { localStorage.removeItem(CDEV_KEY); } catch {} return vaultCodeFlow(c, 'device'); }
+      if (/قُفل|مقفول/.test(e.message)) { toast(e.message, 'bad'); return vaultCodeFlow(c, 'reset'); }
+      const el = $('#pinErr'); if (el) { el.textContent = e.message; el.classList.remove('shake'); void el.offsetWidth; el.classList.add('shake'); }
+    }
+  });
+}
+function vaultShow(c, d) {
+  vaultClear();
+  const grp = v => String(v || '').replace(/(\d{4})(?=\d)/g, '$1 ');
+  const rows = [['رقم البطاقة', grp(d.card_number), d.card_number], ['تاريخ الانتهاء', d.expiry, d.expiry], ['CVV', d.cvv || '—', d.cvv],
+    ...(d.name_on_card ? [['الاسم على البطاقة', d.name_on_card, d.name_on_card]] : []), ...(d.billing_address ? [['عنوان الفوترة', d.billing_address, d.billing_address]] : [])];
+  let left = Math.max(10, n(d.ttl) || 60);
+  modal(`<div id="vShow">
+      <div class="modal-head"><div class="modal-title">بيانات البطاقة</div><button class="modal-close" data-act="close-modal" aria-label="إغلاق">${svg(I.x, 2)}</button></div>
+      <div class="kvc"><img src="./kardo-mark.png" alt="" class="kvc-fox"><div class="kvc-top"><span>${esc(c.card_name || 'بطاقتي')}</span><span>KARDO</span></div><div class="kvc-chip"></div>
+        <div class="kvc-num" dir="ltr">${esc(grp(d.card_number))}</div>
+        <div class="kvc-b" dir="ltr"><div><small>EXP</small><b>${esc(d.expiry)}</b></div><div><small>CVV</small><b>${esc(d.cvv || '—')}</b></div></div></div>
+      <div class="kv-timer">${svg(I.clock || I.help)}<span>تختفي بعد <b id="vLeft">${left}</b> ثانية</span><div class="kv-bar"><i id="vBar"></i></div></div>
+      <div class="list mb-3">${rows.map(([k, v, raw]) => `<div class="list-row"><div class="list-content"><div class="list-meta">${k}</div><div class="list-title tabular" dir="ltr" style="text-align:right;white-space:pre-line">${esc(v)}</div></div>
+        ${raw ? `<button class="copy-btn" data-vcopy="${esc(raw)}" type="button" aria-label="نسخ">${svg(I.copy, 2)}</button>` : ''}</div>`).join('')}</div>
+      <p class="caption" style="text-align:center">${svg(I.shield || I.lock)} يوصلك إيميل بكل عرض. لو مش أنت، تواصل معنا فورًا لتجميد البطاقة.</p>
+    </div>`);
+  $$('[data-vcopy]').forEach(b => b.onclick = async () => { try { await navigator.clipboard.writeText(b.dataset.vcopy); toast('نُسخ ✓', 'ok'); } catch { toast('تعذّر النسخ', 'bad'); } });
+  const total = left;
+  _vaultTimer = setInterval(() => {
+    left--;
+    const el = $('#vLeft'), bar = $('#vBar');
+    if (!el) return vaultClear();
+    el.textContent = left; if (bar) bar.style.width = Math.max(0, left / total * 100) + '%';
+    if (left <= 0) { vaultClear(); closeModal(); toast('تغطّت بيانات البطاقة 🔒', 'ok'); }
+  }, 1000);
+}
+// تأكيد الجهاز / إنشاء الرمز / نسيان الرمز — كلها بكود على البريد
+async function vaultCodeFlow(c, mode, st) {
+  const purpose = mode === 'reset' ? 'reset' : 'device';
+  const needPin = mode !== 'device';
+  const title = mode === 'setup' ? 'أنشئ رمزك السري' : mode === 'reset' ? 'تغيير الرمز السري' : 'تأكيد جهازك';
+  const sub = mode === 'setup' ? 'أول مرة: نبعتلك كود على الإيميل، وبعدها تختار رمز من 4 أرقام تفتح بيه بطاقاتك.'
+    : mode === 'reset' ? 'نبعتلك كود على الإيميل، وبعدها تختار رمز جديد.' : 'جهاز جديد: نبعتلك كود على الإيميل مرة وحدة لهذا الجهاز.';
+  modal(`<div class="kvault">
+      <div class="kv-ic">${svg(I.mail || I.bell)}</div>
+      <div class="h3" style="margin:0 0 4px">${title}</div>
+      <p class="body-sm text-2" style="margin:0 0 16px">${sub}</p>
+      <div id="vcBody"><button class="btn btn-primary btn-block btn-lg" id="vcSend" type="button">أرسل الكود${st && st.email ? ` إلى <bdi dir="ltr">${esc(st.email)}</bdi>` : ''}</button></div>
+    </div>`);
+  onTap('#vcSend', async () => {
+    const b = $('#vcSend'); b.disabled = true; b.classList.add('loading');
+    try {
+      const r = await api('/api/card/sec/code', { purpose });
+      $('#vcBody').innerHTML = `
+        <div class="field mb-3"><label class="field-label" for="vcCode">الكود اللي وصلك على <bdi dir="ltr">${esc(r.sent_to || '')}</bdi></label>
+          <input class="input tabular" id="vcCode" inputmode="numeric" maxlength="6" dir="ltr" autocomplete="one-time-code" placeholder="••••••" style="text-align:center;letter-spacing:8px;font-size:22px"></div>
+        ${needPin ? `<div class="field mb-2"><label class="field-label" for="vcPin">${mode === 'reset' ? 'الرمز الجديد' : 'اختر رمزك السري'} (4 أرقام)</label>
+          <input class="input tabular" id="vcPin" type="password" inputmode="numeric" maxlength="4" dir="ltr" autocomplete="new-password" style="text-align:center;letter-spacing:10px;font-size:22px"></div>
+          <div class="field mb-3"><label class="field-label" for="vcPin2">أعد كتابة الرمز</label>
+          <input class="input tabular" id="vcPin2" type="password" inputmode="numeric" maxlength="4" dir="ltr" autocomplete="new-password" style="text-align:center;letter-spacing:10px;font-size:22px"></div>
+          <p class="caption mb-3">لا تستعمل أرقام متكررة أو متتالية (مثل 1111 أو 1234)، ولا تشاركه مع أي أحد.</p>` : ''}
+        <button class="btn btn-primary btn-block btn-lg" id="vcGo" type="button">تأكيد</button>`;
+      $('#vcCode').focus();
+      onTap('#vcGo', async () => {
+        const code = $('#vcCode').value.replace(/\D/g, '');
+        if (code.length !== 6) return toast('الكود 6 أرقام', 'bad');
+        let pin = '';
+        if (needPin) {
+          pin = $('#vcPin').value.replace(/\D/g, '');
+          if (pin.length !== 4) return toast('الرمز 4 أرقام', 'bad');
+          if (pin !== $('#vcPin2').value.replace(/\D/g, '')) return toast('الرمزين مش متطابقين', 'bad');
+        }
+        const g = $('#vcGo'); g.disabled = true; g.classList.add('loading');
+        try {
+          const v = await api('/api/card/sec/verify', { code, pin });
+          try { localStorage.setItem(CDEV_KEY, v.device); } catch {}
+          haptic.ok();
+          if (c) { toast(v.pin_set ? 'تم حفظ رمزك السري ✓' : 'تم تأكيد الجهاز ✓', 'ok'); vaultPin(c); }
+          else { closeModal(); toast(v.pin_set ? 'تم حفظ رمزك السري ✓' : 'تم تأكيد الجهاز ✓', 'ok'); }
+        } catch (e) { toast(e.message, 'bad'); g.disabled = false; g.classList.remove('loading'); }
+      });
+    } catch (e) { toast(e.message, 'bad'); b.disabled = false; b.classList.remove('loading'); }
+  });
+}
+document.addEventListener('click', e => { if (e.target.closest && e.target.closest('#kPinReset')) { e.preventDefault(); vaultCodeFlow(null, 'reset'); } });
+
+/* ═══ v52 — تحليل الزوار: يُجمع في المتصفح ويُرسل مرة كل دقيقة (بدون بيانات شخصية) ═══ */
+var AN = { pv: {}, dur: {}, ev: {}, cur: '', since: Date.now(), dirty: false };
+function anId() {
+  try { let a = localStorage.getItem('kardo_aid'); if (!a) { a = Array.from(crypto.getRandomValues(new Uint8Array(12)), b => (b % 36).toString(36)).join(''); localStorage.setItem('kardo_aid', a); } return a; } catch { return ''; }
+}
+function anTick() { if (!AN) return; if (AN.cur && document.visibilityState === 'visible') { const sec = Math.round((Date.now() - AN.since) / 1000); if (sec > 0 && sec < 1800) { AN.dur[AN.cur] = (AN.dur[AN.cur] || 0) + sec; AN.dirty = true; } } AN.since = Date.now(); }
+function anPage(p) { if (!p || !AN) return; anTick(); AN.cur = p; AN.pv[p] = (AN.pv[p] || 0) + 1; AN.dirty = true; }
+function anEv(e) { if (!AN) return; AN.ev[e] = (AN.ev[e] || 0) + 1; AN.dirty = true; }
+function anFlush(beat) {
+  anTick();
+  let nv = 0;
+  try { const d = new Date().toISOString().slice(0, 10); if (localStorage.getItem('kardo_an_day') !== d) { localStorage.setItem('kardo_an_day', d); nv = 1; } } catch {}
+  if (!AN.dirty && !nv && !beat) return;
+  const body = JSON.stringify({ a: anId(), pv: AN.pv, dur: AN.dur, ev: AN.ev, nv, dev: matchMedia('(max-width: 760px)').matches ? 'm' : 'd', pwa: isStandalone() ? 1 : 0 });
+  AN.pv = {}; AN.dur = {}; AN.ev = {}; AN.dirty = false;
+  try { if (!(navigator.sendBeacon && navigator.sendBeacon(API_BASE + '/api/t', new Blob([body], { type: 'text/plain' })))) fetch(API_BASE + '/api/t', { method: 'POST', body, keepalive: true, headers: { 'content-type': 'text/plain' } }).catch(() => {}); } catch {}
+}
+setInterval(() => { if (document.visibilityState === 'visible' && !kIdle()) anFlush(true); }, 60000);
+document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'hidden') anFlush(); else AN.since = Date.now(); });
+addEventListener('pagehide', () => anFlush());
+addEventListener('appinstalled', () => anEv('install'));
+setTimeout(() => { if (!AN.cur && document.getElementById('public') && getComputedStyle(document.getElementById('public')).display !== 'none') anPage('landing'); anFlush(true); }, 4000);
+
+/* ═══ v52 — «كيف أدفع؟»: خطوات مصوّرة لكل طريقة (الأدمن يقدر يبدّل النص والصور) ═══ */
+const HT_DEF = {
+  binance_pay: { title: 'Binance Pay', color: '#F0B90B', steps: [
+    ['افتح تطبيق Binance، ومن الرئيسية اضغط «Pay» (الدفع).', { k: 'tiles', hi: 'Pay', items: ['إيداع', 'Pay', 'سحب', 'تحويل'] }],
+    ['اختر «إرسال» (Send).', { k: 'tiles', hi: 'إرسال', items: ['إرسال', 'استلام', 'سجل', 'المزيد'] }],
+    ['اختر «Pay ID» والصق الرقم اللي في فاتورتك.', { k: 'field', hi: 'Pay ID', val: '123 456 789' }],
+    ['اختر العملة USDT واكتب المبلغ بالضبط زي الفاتورة (بالكسور).', { k: 'amount', hi: 'USDT', val: '10.0347' }],
+    ['راجع البيانات واضغط «تأكيد» — الرصيد ينضاف لمحفظتك تلقائيًا خلال دقائق.', { k: 'confirm', hi: 'تأكيد' }]] },
+  binance_withdraw: { title: 'سحب من Binance', color: '#F0B90B', steps: [
+    ['من Binance افتح «المحفظة» واضغط «سحب» (Withdraw).', { k: 'tiles', hi: 'سحب', items: ['إيداع', 'سحب', 'تحويل', 'سجل'] }],
+    ['اختر عملة USDT.', { k: 'list', hi: 'USDT', items: ['BTC', 'USDT', 'BNB', 'ETH'] }],
+    ['الصق العنوان من الفاتورة، واختر نفس الشبكة المكتوبة فيها (TRC20 أو BEP20).', { k: 'field', hi: 'الشبكة: TRC20', val: 'TQn9Y2…KcbLSE' }],
+    ['اكتب المبلغ بحيث «المبلغ المستلَم» يساوي مبلغ الفاتورة بالضبط — الرسوم تنزاد عليك.', { k: 'amount', hi: 'المستلَم', val: '10.0347' }],
+    ['اضغط «سحب» وأكّد — ينضاف تلقائيًا بعد ما توصل المعاملة.', { k: 'confirm', hi: 'سحب' }]] },
+  mexc: { title: 'سحب من MEXC', color: '#2E6BE6', steps: [
+    ['من MEXC افتح «الأصول» (Assets) واضغط «سحب».', { k: 'tiles', hi: 'سحب', items: ['إيداع', 'سحب', 'تحويل', 'سجل'] }],
+    ['اختر USDT ثم «سحب على الشبكة» (On-chain).', { k: 'list', hi: 'USDT', items: ['USDT', 'BTC', 'MX', 'ETH'] }],
+    ['الصق العنوان واختر نفس شبكة الفاتورة (TRC20 أو BEP20).', { k: 'field', hi: 'الشبكة: BEP20', val: '0x4f2a…9e0' }],
+    ['انتبه للرسوم: لازم «المبلغ اللي يوصل» يساوي مبلغ الفاتورة بالضبط.', { k: 'amount', hi: 'يوصل', val: '10.0347' }],
+    ['أكّد السحب بالكود — ينضاف تلقائيًا بعد وصول المعاملة.', { k: 'confirm', hi: 'تأكيد' }]] },
+  libyana: { title: 'ليبيانا', color: '#00A6E1', steps: [
+    ['في كاردو اختر ليبيانا والمبلغ، وانسخ الرقم اللي نعطيهولك.', { k: 'field', hi: 'حوّل إلى', val: '0925 551 234' }],
+    ['من خدمة «تحويل الرصيد» في ليبيانا حوّل نفس المبلغ بالضبط لهذا الرقم.', { k: 'sms', hi: 'تم التحويل' }],
+    ['ارجع لكاردو، اكتب رقمك اللي حوّلت منه واضغط «حوّلت الرصيد» — ينضاف تلقائيًا أول ما توصل رسالة التحويل.', { k: 'confirm', hi: 'حوّلت الرصيد' }]] },
+  almadar: { title: 'المدار', color: '#E2231A', steps: [
+    ['في كاردو اختر المدار والمبلغ، وانسخ الرقم اللي نعطيهولك.', { k: 'field', hi: 'حوّل إلى', val: '0915 551 234' }],
+    ['من خدمة «تحويل الرصيد» في المدار حوّل نفس المبلغ بالضبط لهذا الرقم.', { k: 'sms', hi: 'تم التحويل' }],
+    ['ارجع لكاردو، اكتب رقمك اللي حوّلت منه واضغط «حوّلت الرصيد» — ينضاف تلقائيًا أول ما توصل رسالة التحويل.', { k: 'confirm', hi: 'حوّلت الرصيد' }]] },
+  bank: { title: 'تحويل مصرفي', color: '#566064', steps: [
+    ['في كاردو اختر التحويل المصرفي، وانسخ رقم الحساب واسم المستفيد.', { k: 'field', hi: 'رقم الحساب', val: '•••• 1234' }],
+    ['حوّل المبلغ من تطبيق مصرفك أو من الفرع، واحتفظ بالإيصال.', { k: 'confirm', hi: 'تحويل' }],
+    ['ارجع لكاردو، اكتب المبلغ وارفع صورة الإيصال — ينضاف بعد المراجعة.', { k: 'upload', hi: 'إرفاق الإيصال' }]] },
+};
+const HT_FOR = { all: ['binance_pay', 'binance_withdraw', 'mexc', 'libyana', 'almadar', 'bank'], binance_pay: ['binance_pay'], trc20: ['binance_withdraw', 'mexc'], bep20: ['binance_withdraw', 'mexc'], polygon: ['binance_withdraw', 'mexc'], libyana: ['libyana'], almadar: ['almadar'] };
+const htKeysFor = k => HT_FOR[k] || ['bank'];
+// رسم شاشة هاتف مبسطة (بدون شعارات) — تظهر لين يرفع الأدمن صورة حقيقية
+function htArt(a, color) {
+  const W = 220, H = 300, x0 = 26, w = W - 52;
+  const e = t => String(t).replace(/[&<>"]/g, '');
+  let body = '';
+  const tap = (cx, cy) => `<circle cx="${cx}" cy="${cy}" r="16" fill="${color}" opacity=".18"><animate attributeName="r" values="10;20;10" dur="1.6s" repeatCount="indefinite"/></circle><circle cx="${cx}" cy="${cy}" r="6" fill="${color}"/>`;
+  if (a.k === 'tiles') {
+    a.items.forEach((t, i) => { const cx = x0 + 22 + i * ((w - 44) / 3), on = t === a.hi;
+      body += `<rect x="${cx - 18}" y="92" width="36" height="36" rx="11" fill="${on ? color : 'var(--u-s3)'}"/><text x="${cx}" y="146" font-size="10" text-anchor="middle" fill="var(--u-ink)" font-weight="${on ? 700 : 400}">${e(t)}</text>`;
+      if (on) body += tap(cx + 10, 118); });
+    body += `<rect x="${x0}" y="170" width="${w}" height="44" rx="10" fill="var(--u-s2)"/><rect x="${x0}" y="222" width="${w}" height="44" rx="10" fill="var(--u-s2)"/>`;
+  } else if (a.k === 'list') {
+    a.items.forEach((t, i) => { const y = 84 + i * 46, on = t === a.hi;
+      body += `<rect x="${x0}" y="${y}" width="${w}" height="38" rx="10" fill="${on ? 'var(--u-gold-soft)' : 'var(--u-s2)'}" ${on ? `stroke="${color}" stroke-width="1.5"` : ''}/><circle cx="${x0 + w - 18}" cy="${y + 19}" r="9" fill="${on ? color : 'var(--u-s3)'}"/><text x="${x0 + w - 34}" y="${y + 23}" font-size="11" text-anchor="end" fill="var(--u-ink)" font-weight="${on ? 700 : 400}">${e(t)}</text>`;
+      if (on) body += tap(x0 + 40, y + 19); });
+  } else if (a.k === 'field' || a.k === 'amount') {
+    body += `<text x="${x0 + w}" y="100" font-size="10.5" text-anchor="end" fill="var(--u-ink-3)">${e(a.hi)}</text>
+      <rect x="${x0}" y="108" width="${w}" height="44" rx="11" fill="var(--u-s1)" stroke="${color}" stroke-width="1.8"/>
+      <text x="${a.k === 'amount' ? x0 + w / 2 : x0 + 12}" y="136" font-size="${a.k === 'amount' ? 17 : 12}" text-anchor="${a.k === 'amount' ? 'middle' : 'start'}" fill="var(--u-ink)" font-weight="700" direction="ltr">${e(a.val)}</text>
+      <rect x="${x0}" y="168" width="${w}" height="30" rx="9" fill="var(--u-s2)"/><rect x="${x0}" y="206" width="${w * .6}" height="12" rx="6" fill="var(--u-s2)"/>
+      <rect x="${x0}" y="236" width="${w}" height="34" rx="10" fill="var(--u-s3)"/>` + tap(x0 + w - 24, 130);
+  } else if (a.k === 'sms') {
+    body += `<rect x="${x0}" y="96" width="${w}" height="74" rx="14" fill="var(--u-s2)"/><text x="${x0 + w - 12}" y="122" font-size="11" text-anchor="end" fill="var(--u-ink)" font-weight="700">${e(a.hi)} ✓</text>
+      <rect x="${x0 + 14}" y="134" width="${w - 28}" height="8" rx="4" fill="var(--u-s3)"/><rect x="${x0 + 40}" y="150" width="${w - 54}" height="8" rx="4" fill="var(--u-s3)"/>
+      <rect x="${x0}" y="186" width="${w}" height="34" rx="10" fill="var(--u-s2)"/><rect x="${x0}" y="228" width="${w}" height="34" rx="10" fill="${color}" opacity=".9"/>`;
+  } else {
+    body += `<rect x="${x0}" y="86" width="${w}" height="26" rx="8" fill="var(--u-s2)"/><rect x="${x0}" y="120" width="${w}" height="26" rx="8" fill="var(--u-s2)"/><rect x="${x0}" y="154" width="${w * .7}" height="26" rx="8" fill="var(--u-s2)"/>
+      ${a.k === 'upload' ? `<rect x="${x0}" y="190" width="${w}" height="36" rx="10" fill="none" stroke="var(--u-line-2)" stroke-dasharray="4 4"/>` : ''}
+      <rect x="${x0}" y="236" width="${w}" height="38" rx="12" fill="${color}"/><text x="${x0 + w / 2}" y="260" font-size="12.5" text-anchor="middle" fill="#fff" font-weight="700">${e(a.hi)}</text>` + tap(x0 + w / 2 + 34, 255);
+  }
+  return `<svg viewBox="0 0 ${W} ${H}" class="ht-art" role="img" aria-hidden="true" font-family="IBM Plex Sans Arabic, sans-serif">
+    <rect x="12" y="6" width="${W - 24}" height="${H - 12}" rx="26" fill="var(--u-s1)" stroke="var(--u-line)" stroke-width="2"/>
+    <rect x="${W / 2 - 22}" y="14" width="44" height="6" rx="3" fill="var(--u-line)"/>
+    <rect x="${x0}" y="34" width="${w}" height="34" rx="10" fill="${color}" opacity=".16"/><rect x="${x0 + w - 70}" y="46" width="58" height="10" rx="5" fill="${color}" opacity=".7"/>${body}</svg>`;
+}
+let _htSrv = null;
+async function htGuides() {
+  if (_htSrv) return _htSrv;
+  try { const r = await apiGet('/api/howto'); _htSrv = r.guides || {}; } catch { _htSrv = {}; }
+  return _htSrv;
+}
+let _htBack = null;
+async function openHowto(methodKey, which, back) {
+  const keys = htKeysFor(methodKey);
+  let cur = which && keys.includes(which) ? which : keys[0];
+  anPage('howto');
+  const srv = await htGuides();
+  const draw = () => {
+    const d = HT_DEF[cur], o = srv[cur];
+    const steps = o && o.steps && o.steps.length ? o.steps.map((s, i) => [s.t, s.img ? null : (d.steps[i] || d.steps[d.steps.length - 1])[1], s.img]) : d.steps.map(([t, a]) => [t, a, '']);
+    modal(`<div class="modal-head"><div class="modal-title">كيف أدفع؟ — ${esc(d.title)}</div><button class="modal-close" data-act="close-modal" aria-label="إغلاق">${svg(I.x, 2)}</button></div>
+      ${keys.length > 1 ? `<div class="pills mb-4">${keys.map(k => `<button class="pill ${k === cur ? 'active' : ''}" data-htk="${k}" type="button">${esc(HT_DEF[k].title)}</button>`).join('')}</div>` : ''}
+      <div class="ht-steps">${steps.map(([t, a, img], i) => `<div class="ht-step"><div class="ht-pic">${img ? `<img src="${esc(API_BASE + img)}" alt="" loading="lazy">` : htArt(a, d.color)}</div>
+        <div class="ht-txt"><b>${i + 1}</b><span>${esc(t)}</span></div></div>`).join('')}</div>
+      ${o && o.note ? `<div class="alert alert-info mb-3">${svg(I.help, 2)}<div>${esc(o.note)}</div></div>` : ''}
+      <button class="btn btn-primary btn-block" id="htDone" type="button">${back ? 'فهمت — رجوع' : 'فهمت'}</button>`);
+    $$('[data-htk]').forEach(b => b.onclick = () => { cur = b.dataset.htk; draw(); });
+    onTap('#htDone', () => { if (back) back(); else closeModal(); });
+  };
+  draw();
+}
+document.addEventListener('click', e => {
+  const b = e.target.closest && e.target.closest('[data-howto]');
+  if (!b) return;
+  e.preventDefault(); e.stopPropagation();
+  const inModal = !!b.closest('#modal');
+  openHowto(b.dataset.howto, null, inModal ? _htBack : null);
+}, true);
+
+/* ═══ v52 — رابط دفع الفاتورة: يبعته لحد يدفع عنه بدون ما يدخل حسابه ═══ */
+async function openPayLink(inv) {
+  stopInvoiceTimers();
+  modal(`<div class="kvault"><div class="kv-ic">${svg(I.share)}</div><div class="h3" style="margin:0 0 4px">خلّي حد يدفع عنك</div>
+    <p class="body-sm text-2" style="margin:0 0 14px">ابعت الرابط لصاحبك: يشوف المبلغ وطريقة الدفع بس، بدون ما يدخل حسابك ولا يشوف رصيدك. أول ما يدفع ينضاف لمحفظتك.</p>
+    <div id="plBody"><div class="skeleton" style="height:52px;border-radius:14px"></div></div></div>`);
+  try {
+    const r = await api('/api/wallet/invoice/share', { id: inv.id });
+    anEv('share_inv');
+    inv.shared = true;
+    $('#plBody').innerHTML = `<div class="copy-box mb-3"><div class="copy-value" dir="ltr" style="font-size:12px;word-break:break-all;white-space:normal">${esc(r.url)}</div>
+        <button class="copy-btn" data-act="copy" data-copy-text="${esc(r.url)}" aria-label="نسخ الرابط">${svg(I.copy, 2)}</button></div>
+      <button class="btn btn-primary btn-block mb-2" id="plShare" type="button">${svg(I.share)} مشاركة الرابط</button>
+      <button class="btn btn-ghost btn-block" id="plOff" type="button" style="color:var(--u-err)">إيقاف الرابط</button>
+      <button class="btn btn-secondary btn-block" id="plBack" type="button" style="margin-top:6px">رجوع للفاتورة</button>
+      <p class="caption" style="margin-top:10px">كل مرة تضغط هنا يطلع رابط جديد ويتوقف القديم.</p>`;
+    onTap('#plShare', async () => {
+      const text = `ادفع فاتورتي في كاردو (${Number(inv.pay_amount).toFixed(4)} USDT):`;
+      try { if (navigator.share) await navigator.share({ title: 'فاتورة كاردو ' + inv.no, text, url: r.url }); else { await navigator.clipboard.writeText(r.url); toast('نُسخ الرابط ✓', 'ok'); } } catch {}
+    });
+    onTap('#plOff', async () => { try { await api('/api/wallet/invoice/share', { id: inv.id, on: false }); inv.shared = false; toast('أُوقف الرابط', 'ok'); openInvoice(inv); } catch (e) { toast(e.message, 'bad'); } });
+    onTap('#plBack', () => openInvoice(inv));
+  } catch (e) { toast(e.message, 'bad'); openInvoice(inv); }
+}

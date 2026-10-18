@@ -424,7 +424,7 @@ const QUERY_SEC = { users: ['users'], manualCards: ['cards', 'mcards', 'users'],
 // v14 — اشتراكات حسب الصفحة المفتوحة فقط (توفير قراءات Firestore)
 const PAGE_KEYS = {
   home: [],   // v51: الرئيسية من ملخص الخادم — بلا اشتراكات
-  deposits: ['deposits'], withdraw: ['withdrawals'], sms: ['sms'], mcards: ['manualOrders', 'manualCards'], cards: ['manualCards'],
+  deposits: ['deposits'], withdraw: ['withdrawals'], sms: ['sms'], mcards: ['manualOrders', 'manualCards'], cards: [],
   orders: ['orders'], services: ['services', 'serviceOrders'], tickets: ['tickets'], coupons: ['coupons'],
   users: [], merchants: [], system: [],   // v51: العملاء بحث من الخادم
 };
@@ -488,7 +488,9 @@ const PAGES = [
   { k: 'coupons',   t: 'الكوبونات',  i: I.coupon, g: 'المتجر والعملاء' },
   { k: 'mcards',    t: 'طلبات البطاقات', i: I.card, g: 'البطاقات', badge: 'pendMc' },
   { k: 'cards',     t: 'البطاقات المُصدرة', i: I.card, g: 'البطاقات' },
+  { k: 'analytics', t: 'تحليل الزوار', i: I.chart, g: 'المتجر والعملاء' },
   { k: 'methods',   t: 'طرق الدفع',  i: I.cash,   g: 'الإعدادات' },
+  { k: 'howto',     t: 'كيف أدفع؟',  i: I.help,   g: 'الإعدادات' },
   { k: 'settings',  t: 'الإعدادات',  i: I.gear,   g: 'الإعدادات' },
   { k: 'system',    t: 'الموظفين والنظام', i: I.users, g: 'الإعدادات' },
   { k: 'orders',    t: 'طلبات المتجر القديم', i: I.orders, g: 'أرشيف', hide: true },
@@ -527,7 +529,7 @@ const ROLE_DEFAULT_PERMS = {
   ops: { mcards: ['view', 'approve'], cards: ['view', 'edit'], orders: ['view', 'approve'], store: ['view', 'add', 'edit', 'delete'], services: ['view', 'add', 'edit', 'delete', 'approve'], users: ['view'] },
 };
 const PAGE_SEC = { rsc: 'store', platforms: 'stickers', mview: 'merchants', mcards: 'mcards', cards: 'cards', orders: 'orders', services: 'services', store: 'store', deposits: 'deposits',
-  withdraw: 'withdraw', sms: 'sms', tickets: 'tickets', coupons: 'coupons', users: 'users', stickers: 'stickers', merchants: 'merchants', settings: '__super', system: '__super', methods: '__super' };
+  withdraw: 'withdraw', sms: 'sms', tickets: 'tickets', coupons: 'coupons', users: 'users', stickers: 'stickers', merchants: 'merchants', settings: '__super', system: '__super', methods: '__super', analytics: 'users', howto: '__super' };
 function isSuperAdmin() { return S.admin && S.admin.role === 'super_admin'; }
 function myPerms() { const a = S.admin || {}; return (a.perms && typeof a.perms === 'object') ? a.perms : (ROLE_DEFAULT_PERMS[a.role] || {}); }
 function can(sec, act) { if (isSuperAdmin()) return true; if (sec === '__super') return false; return (myPerms()[sec] || []).includes(act); }
@@ -650,9 +652,11 @@ function render(force = false) {
     money: vMoney,
     more: vMore,
     methods: vMethods,
+    analytics: vAnalytics,
+    howto: vHowtoA,
     rsc: vRsc,
     mcards: vMcardOrders,
-    cards: vCards,
+    cards: vCards2,
     orders: vShopOrders,
     services: vServices,
     store: vStore,
@@ -4881,7 +4885,7 @@ function vMoney() {
         <div class="achips">${d.claim_phone ? `<span class="achip" dir="ltr">0${esc(String(d.claim_phone).replace(/^0/, ''))}</span>` : ''}${d.reference ? `<span class="achip" dir="ltr">${esc(String(d.reference).slice(0, 24))}</span>` : ''}${d.proof_url ? '<span class="achip ok">إيصال مرفق</span>' : ''}${d.note ? `<span class="achip">${esc(String(d.note).slice(0, 40))}</span>` : ''}</div>
         <button class="abtn p block" data-dep="${esc(d.id)}" type="button">${svg(I.eye)}مراجعة واعتماد</button></div>`).join('') : `<div class="acard"><div class="aempty">${svg(I.check)}<b>ما فيش إيداعات تنتظر</b></div></div>`}
       <details class="ahist"><summary>سجل كل الإيداعات</summary><div class="mtab">${vDeposits()}</div></details>`;
-  } else if (S.monTab === 'invoices') body = invAdminHtml(0) + ufCard();
+  } else if (S.monTab === 'invoices') body = invAdminHtml(0) + ufCard() + exportCard();
   else if (S.monTab === 'withdraw') body = `<div class="mtab">${vWithdraw()}</div>`;
   else if (S.monTab === 'sms') body = `<div class="mtab">${vSms()}</div>`;
   return `<div class="page-enter astag">
@@ -4911,7 +4915,7 @@ function vUsers2() {
       end: `<span class="aamt sm"><b>${esc(usd(u.wallet_balance))}</b></span>`, attrs: `data-ufile2="${esc(u.id)}"` })).join('') : `<div class="aempty">${svg(I.users)}<b>ما لقينا حد</b><span>جرّب جزء من البريد أو آخر أرقام الهاتف</span></div>`}</div>
   </div>`;
 }
-const REASON_AR2 = { usdt_deposit: 'شحن USDT', deposit: 'شحن', sms_deposit: 'شحن رصيد هاتف', manual_deposit: 'إيداع معتمد', rsc_order: 'شراء من المتجر', rsc_refund: 'استرجاع طلب', admin_adjust: 'تعديل إداري', transfer_in: 'تحويل وارد', transfer_out: 'تحويل صادر', withdraw: 'سحب', card_create: 'إصدار بطاقة', card_topup: 'شحن بطاقة', referral: 'مكافأة دعوة' };
+const REASON_AR2 = { promo_first: 'هدية أول شحنة', usdt_deposit: 'شحن USDT', deposit: 'شحن', sms_deposit: 'شحن رصيد هاتف', manual_deposit: 'إيداع معتمد', rsc_order: 'شراء من المتجر', rsc_refund: 'استرجاع طلب', admin_adjust: 'تعديل إداري', transfer_in: 'تحويل وارد', transfer_out: 'تحويل صادر', withdraw: 'سحب', card_create: 'إصدار بطاقة', card_topup: 'شحن بطاقة', referral: 'مكافأة دعوة' };
 function vUserFile() {
   const F = S.uFile;
   if (F.loading) return `<div class="page-enter">${aHead('ملف العميل', '')}<div class="acard"><div class="arow"><i class="ask" style="width:60%"></i></div></div></div>`;
@@ -4925,8 +4929,9 @@ function vUserFile() {
   else if (tab === 'orders') list = (F.orders || []).map(o => row('', I.bag, esc(o.cat_name || '') + ' — ' + esc(o.offer_name || ''), esc(dt(o.created_at)) + ' · ' + esc(ST[o.status] || o.status), esc(usd(o.total_usd)))).join('');
   else if (tab === 'deposits') list = [...(F.invoices || []).map(v => row(v.status === 'paid' ? 'o' : '', I.receipt, esc(v.no) + ' · ' + esc(v.network_label), esc(dt(new Date(v.created_ms).toISOString())) + ' · ' + esc(ST[v.status] || v.status), esc(usd(v.amount_usd)))),
     ...(F.deposits || []).map(d => row(d.status === 'approved' ? 'o' : '', I.cash, esc(d.method || '—'), esc(dt(d.created_at)) + ' · ' + esc(ST[d.status] || d.status), esc(usd(d.amount_usd))))].join('');
+  else if (tab === 'cards') list = F.cards === undefined ? '<div class="arow"><i class="ask" style="width:60%"></i></div>' : '';
   else if (tab === 'tickets') list = (F.tickets || []).map(t => row('', I.chat, esc(t.subject || '—'), esc(dt(t.updated_at || t.created_at)) + ' · ' + esc(ST[t.status] || t.status), '')).join('');
-  const tabs = [['ledger', 'الحركات'], F.orders ? ['orders', 'الطلبات'] : null, F.deposits ? ['deposits', 'الشحن'] : null, F.tickets ? ['tickets', 'التذاكر'] : null].filter(Boolean);
+  const tabs = [['ledger', 'الحركات'], F.orders ? ['orders', 'الطلبات'] : null, can('cards', 'view') ? ['cards', 'البطاقات'] : null, F.deposits ? ['deposits', 'الشحن'] : null, F.tickets ? ['tickets', 'التذاكر'] : null].filter(Boolean);
   return `<div class="page-enter astag">
     <div class="ah"><button class="aib" data-ufback type="button" aria-label="رجوع">${svg(I.back)}</button><div style="flex:1;text-align:center"><h1 style="font-size:18px">ملف العميل</h1></div><span style="width:40px"></span></div>
     <div class="acard aprof"><div class="aav">${esc((u.name || u.email || '?').trim().charAt(0))}</div>
@@ -4941,7 +4946,7 @@ function vUserFile() {
         ${can('users', 'ban') ? `<button class="d" data-umanage="${esc(u.id)}" type="button"><span>${svg(I.ban)}</span>${u.banned ? 'رفع الإيقاف' : 'إيقاف'}</button>` : ''}
       </div></div>
     <div class="aseg">${tabs.map(([k, t]) => `<button class="${tab === k ? 'on' : ''}" data-utab="${k}" type="button">${t}</button>`).join('')}</div>
-    <div class="acard">${list || `<div class="aempty"><b>لا شيء هنا</b></div>`}</div>
+    ${tab === 'cards' && F.cards ? (F.cards.length ? F.cards.map(c => cardRowHtml(c, true)).join('') : `<div class="acard"><div class="aempty"><b>ما عندهش بطاقات</b></div></div>`) : `<div class="acard">${list || `<div class="aempty"><b>لا شيء هنا</b></div>`}</div>`}
   </div>`;
 }
 async function openUserFile2(uid) {
@@ -4958,6 +4963,7 @@ function vMore() {
   const st = S.settings || {};
   const set = [
     isSuperAdmin() ? { i: I.cash, c: 'g', t: 'طرق الدفع', s: 'التشغيل، الإيقاف المؤقت، الأسعار، QR', attrs: 'data-nav="methods"' } : null,
+    isSuperAdmin() ? { i: I.help, c: 'g', t: 'كيف أدفع؟', s: 'شرح الدفع بالصور لكل طريقة', attrs: 'data-nav="howto"' } : null,
     isSuperAdmin() ? { i: I.shield, c: 'g', t: 'الحماية والحدود', s: 'السقف اليومي، الحسابات الجديدة', attrs: 'data-setgo="limits"' } : null,
     isSuperAdmin() ? { i: I.tool, c: 'g', t: 'تشغيل الموقع', s: 'الصيانة، الإيقاف، الرسائل', attrs: 'data-setgo="ops"' } : null,
     isSuperAdmin() ? { i: I.users, c: 'g', t: 'الموظفين والنظام', s: 'الصلاحيات، سجل العمليات، النسخ الاحتياطي', attrs: 'data-nav="system"' } : null,
@@ -4966,8 +4972,8 @@ function vMore() {
   return `<div class="page-enter astag">
     ${aHead('المزيد', 'كل أقسام الإدارة')}
     <div class="alabel"><span>المتجر والعملاء</span></div>
-    <div class="atiles">${tile('rsc', I.bag, 'الأقسام والأسعار')}${tile('tickets', I.chat, 'الدعم', ovA('tickets'))}${tile('coupons', I.tag, 'الكوبونات')}</div>
-    ${cardsOn ? `<div class="alabel"><span>البطاقات</span></div><div class="atiles">${tile('mcards', I.card, 'طلبات البطاقات', ovA('mcards'))}${tile('cards', I.card, 'البطاقات المُصدرة')}</div>` : ''}
+    <div class="atiles">${tile('rsc', I.bag, 'الأقسام والأسعار')}${tile('tickets', I.chat, 'الدعم', ovA('tickets'))}${tile('coupons', I.tag, 'الكوبونات')}${tile('analytics', I.chart, 'تحليل الزوار')}${tile('cards', I.card, 'البطاقات')}</div>
+    ${cardsOn ? `<div class="alabel"><span>البطاقات</span></div><div class="atiles">${tile('mcards', I.card, 'طلبات البطاقات', ovA('mcards'))}</div>` : ''}
     ${set.length ? `<div class="alabel"><span>الإعدادات</span></div><div class="acard">${set.map(aRow).join('')}</div>` : ''}
     ${isSuperAdmin() ? `<div class="alabel"><span>أرشيف</span></div><div class="acard">${[
       { i: I.box, t: 'طلبات المتجر القديم', attrs: 'data-nav="orders"' }, { i: I.grid, t: 'الخدمات القديمة', attrs: 'data-nav="services"' }, { i: I.box, t: 'منتجات المتجر القديم', attrs: 'data-nav="store"' }].map(aRow).join('')}</div>` : ''}
@@ -5007,6 +5013,15 @@ function vMethods() {
       ${(Array.isArray(s.custom_methods) ? s.custom_methods : []).map((m, i) => m && m.label ? M(String(m.key || `custom${i}`).replace(/[^a-z0-9_]/gi, '').slice(0, 20) || `custom${i}`, '#566064', '＋', esc(m.label), 'طريقة مخصّصة', '', [`<span class="achip">${m.on === false ? 'مطفأة' : 'مفعّلة'}</span>`]) : '').join('')}
     </div>
     <button class="abtn block" data-setgo="pay" type="button" style="margin-top:12px">${svg(I.edit)}تعديل الأسعار والأرقام وبيانات التحويل</button>
+    <div class="alabel"><span>عرض أول شحنة 🎁</span></div>
+    <div class="acard" style="padding:14px">
+      <div class="arow static" style="padding:0 0 10px"><span class="art"><b>هدية أول شحنة</b><span>مرة وحدة لكل رقم هاتف موثّق — تنضاف تلقائيًا</span></span>${aSw('promo_first_on', s.promo_first_on !== false)}</div>
+      <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px">
+        <label class="field"><span class="field-label">أقل شحنة $</span><input class="input" id="pfMin" type="number" min="1" step="1" value="${esc(String(s.promo_first_min ?? 20))}"></label>
+        <label class="field"><span class="field-label">الهدية $</span><input class="input" id="pfBonus" type="number" min="0" step="0.1" value="${esc(String(s.promo_first_bonus ?? 0.5))}"></label>
+        <label class="field"><span class="field-label">ينتهي في</span><input class="input" id="pfUntil" type="date" value="${esc(s.promo_first_until || '')}"></label>
+      </div>
+      <button class="abtn block" id="pfSave" type="button" style="margin-top:8px">حفظ العرض</button></div>
     ${invAdminHtml(2)}
   </div>`;
 }
@@ -5019,7 +5034,9 @@ document.addEventListener('click', async e => {
   const sg = t.closest('[data-setgo]'); if (sg) { S.setTab = sg.dataset.setgo; go('settings'); return; }
   const uf = t.closest('[data-ufile2]'); if (uf) { openUserFile2(uf.dataset.ufile2); return; }
   if (t.closest('[data-ufback]')) { S.uFile = null; render(true); return; }
-  const ut = t.closest('[data-utab]'); if (ut) { S.uTab = ut.dataset.utab; render(true); return; }
+  const ut = t.closest('[data-utab]'); if (ut) { S.uTab = ut.dataset.utab; render(true);
+    if (S.uTab === 'cards' && S.uFile && S.uFile.cards === undefined) { const uid = S.uFile.user.id; api('/api/admin/cards', { uid }).then(r => { if (S.uFile && S.uFile.user.id === uid) { S.uFile.cards = r.cards || []; mergeCards(S.uFile.cards); render(true); } }).catch(er => toast(er.message, 'bad')); }
+    return; }
   const um = t.closest('[data-umanage]'); if (um) { openUserManage(um.dataset.umanage); return; }
   const ul = t.closest('[data-uledger]'); if (ul) {
     ul.disabled = true;
@@ -5044,4 +5061,260 @@ document.addEventListener('input', e => {
   S.uQ = e.target.value.trim();
   clearTimeout(_uFindT);
   _uFindT = setTimeout(() => findUsers(S.uQ), 400);
+});
+
+/* ═══ v52 — البطاقات: بحث من الخادم، بدون أي بيانات حساسة، مع التجميد ═══ */
+S.cList = null; S.cQ = ''; S.cTab = 'all';
+let _cFindT = null;
+const CST = { active: ['ok', 'نشطة'], frozen: ['fz', '❄ مجمّدة'], terminated: ['r', 'موقوفة'], deleted: ['r', 'محذوفة'] };
+const maskPan = c => (c.first6 ? `${c.first6.slice(0, 4)} ${c.first6.slice(4)}•• •••• ${c.last4 || '••••'}` : `•••• •••• •••• ${c.last4 || '••••'}`);
+function mergeCards(list) {
+  S.manualCards = S.manualCards || [];
+  for (const c of list) { const i = S.manualCards.findIndex(x => x.id === c.id); if (i >= 0) S.manualCards[i] = { ...S.manualCards[i], ...c }; else S.manualCards.push(c); S.names[c.uid] = c.user || c.email || S.names[c.uid]; }
+}
+async function findCards(q) {
+  try { const r = await api('/api/admin/cards', { q: q || '' }); S.cList = r.cards || []; mergeCards(S.cList); render(true); }
+  catch (e) { toast(e.message, 'bad'); S.cList = S.cList || []; render(true); }
+}
+function cardRowHtml(c, big) {
+  const st = CST[c.status] || ['', c.status || '—'];
+  return `<div class="acard acrd ${c.status === 'frozen' ? 'fz' : ''}" style="margin-bottom:10px">
+    <div class="arv-h"><span class="amini ${c.status === 'frozen' ? 'fz' : c.status !== 'active' ? 'off' : ''}"></span>
+      <span class="art"><b dir="ltr" style="text-align:right">${esc(maskPan(c))}</b><span>${esc(c.card_name || 'بطاقة')} · ${esc(c.id.slice(-6))}${c.provider_ref ? ' · ' + esc(c.provider_ref) : ''}${!big && c.user ? ' · ' + esc(c.user) : ''}</span></span>
+      <span class="aamt"><b>${esc(usd(c.balance))}</b></span></div>
+    <div class="achips"><span class="achip ${st[0] === 'ok' ? 'ok' : st[0] === 'r' ? 'r' : st[0] === 'fz' ? 'fz' : ''}">${st[1]}</span>${c.provider ? `<span class="achip">${esc(c.provider)}</span>` : ''}
+      ${c.status === 'frozen' && c.frozen_at ? `<span class="achip">جُمّدت ${esc(dt(c.frozen_at))}</span>` : ''}${c.last_view_at ? `<span class="achip">آخر عرض للبيانات: ${esc(dt(c.last_view_at))}</span>` : ''}
+      ${c.vault === false ? '<span class="achip w">بيانات قديمة — حدّثها بـ«استبدال»</span>' : ''}${c.state_reason ? `<span class="achip">${esc(c.state_reason)}</span>` : ''}</div>
+    ${can('cards', 'edit') ? `<div class="acts3">
+      ${c.status === 'active' ? `<button class="abtn fz" data-cstate="freeze" data-cid="${esc(c.id)}" type="button">❄ تجميد</button>` : c.status === 'frozen' ? `<button class="abtn okb" data-cstate="unfreeze" data-cid="${esc(c.id)}" type="button">فك التجميد</button>` : '<span></span>'}
+      <button class="abtn" data-cbal2="${esc(c.id)}" type="button">الرصيد والعنوان</button>
+      ${c.status !== 'terminated' ? `<button class="abtn" data-cmore="${esc(c.id)}" type="button">${svg(I.grid)}</button>` : ''}
+    </div>` : ''}
+  </div>`;
+}
+function vCards2() {
+  if (S.cList === null) { S.cList = undefined; setTimeout(() => findCards(''), 0); }
+  const list = (S.cList || []).filter(c => S.cTab === 'all' || c.status === S.cTab);
+  return `<div class="page-enter astag">
+    ${aHead('البطاقات', 'ابحث بآخر 4 أرقام، أو اسم العميل، أو مرجع المزوّد')}
+    <label class="asearch">${svg(I.search)}<input id="cFind" placeholder="4821 أو اسم العميل أو المرجع…" value="${esc(S.cQ)}" autocomplete="off" inputmode="search"></label>
+    <div class="aseg">${[['all', 'الكل'], ['active', 'نشطة'], ['frozen', 'مجمّدة'], ['terminated', 'موقوفة']].map(([k, t]) => `<button class="${S.cTab === k ? 'on' : ''}" data-ctab="${k}" type="button">${t}</button>`).join('')}</div>
+    ${S.cList === undefined ? '<div class="acard"><div class="arow"><i class="ask" style="width:70%"></i></div></div>' : list.length ? list.map(c => cardRowHtml(c)).join('') : `<div class="acard"><div class="aempty">${svg(I.card)}<b>ما فيش بطاقات</b></div></div>`}
+    <p class="caption" style="text-align:center;margin-top:10px">${svg(I.shield)} لوحة الإدارة ما تعرضش رقم البطاقة كامل ولا CVV — البيانات تُفتح للعميل فقط برمزه السري.</p>
+  </div>`;
+}
+async function cardStateAct(cid, action) {
+  const c = (S.manualCards || []).find(x => x.id === cid) || {};
+  let reason = '';
+  if (action === 'freeze') { reason = (prompt(`تجميد البطاقة ••${c.last4 || ''}؟ اكتب السبب (اختياري):`) ?? null); if (reason === null) return; }
+  if (action === 'unfreeze' && !confirm(`فك تجميد البطاقة ••${c.last4 || ''}؟`)) return;
+  if (action === 'terminate') { reason = prompt('إيقاف نهائي — البيانات تنمسح ولا ترجع. اكتب السبب:') || ''; if (reason.trim().length < 3) return toast('السبب مطلوب', 'bad'); if (!confirm('متأكد؟ الإيقاف النهائي ما يرجعش.')) return; }
+  try {
+    const r = await api('/api/admin/card/state', { card_id: cid, action, reason });
+    const upd = x => x.id === cid ? { ...x, status: r.status, frozen_at: r.status === 'frozen' ? new Date().toISOString() : x.frozen_at, state_reason: reason } : x;
+    S.cList = (S.cList || []).map(upd); S.manualCards = (S.manualCards || []).map(upd);
+    if (S.uFile && S.uFile.cards) S.uFile.cards = S.uFile.cards.map(upd);
+    toast(r.status === 'frozen' ? 'جُمّدت البطاقة ❄ — وصل العميل إشعار' : r.status === 'active' ? 'فُك التجميد ✓' : 'أُوقفت البطاقة', 'ok'); render(true);
+  } catch (e) { toast(e.message, 'bad'); }
+}
+document.addEventListener('click', e => {
+  const t = e.target.closest ? e.target : null; if (!t) return;
+  const cs = t.closest('[data-cstate]'); if (cs) { cardStateAct(cs.dataset.cid, cs.dataset.cstate); return; }
+  const cb = t.closest('[data-cbal2]'); if (cb) { openCardBalance(cb.dataset.cbal2); return; }
+  const ct = t.closest('[data-ctab]'); if (ct) { S.cTab = ct.dataset.ctab; render(true); return; }
+  const cm = t.closest('[data-cmore]');
+  if (cm) {
+    const c = (S.manualCards || []).find(x => x.id === cm.dataset.cmore) || {};
+    modal(`<div class="modal-head"><div class="modal-title">البطاقة ••${esc(c.last4 || '')}</div><button class="modal-close" data-act="close-modal" aria-label="إغلاق">${svg(I.x)}</button></div>
+      <div class="acard">
+        ${can('mcards', 'approve') ? aRow({ i: I.card, c: 'g', t: 'استبدال بيانات البطاقة', s: 'لما المزوّد يصدرلها بطاقة جديدة', attrs: `data-crep2="${esc(c.id)}"` }) : ''}
+        ${c.uid ? aRow({ i: I.user, t: 'ملف العميل', s: esc(c.user || ''), attrs: `data-ufile3="${esc(c.uid)}"` }) : ''}
+        ${aRow({ i: I.ban, c: 'r', t: 'إيقاف نهائي', s: 'تنمسح البيانات ولا ترجع', attrs: `data-cstate="terminate" data-cid="${esc(c.id)}"` })}
+      </div>`);
+    return;
+  }
+  const cr = t.closest('[data-crep2]'); if (cr) { closeModal(); openCardReplace(cr.dataset.crep2); return; }
+  const uf = t.closest('[data-ufile3]'); if (uf) { closeModal(); S.page = 'users'; go('users'); openUserFile2(uf.dataset.ufile3); return; }
+});
+document.addEventListener('input', e => {
+  if (!e.target || e.target.id !== 'cFind') return;
+  S.cQ = e.target.value.trim();
+  clearTimeout(_cFindT);
+  _cFindT = setTimeout(() => findCards(S.cQ), 400);
+});
+
+/* ═══ v52 — تحليل الزوار ═══ */
+S.an = null; S.anDays = 7;
+const AN_AR = { dashboard: 'الرئيسية', kstore: 'المتجر', cards: 'بطاقاتي', orders: 'طلباتي', settings: 'حسابي', wallet: 'المحفظة', transactions: 'المعاملات', plans: 'الباقات', referral: 'ادعُ صديقًا', support: 'الدعم', trust: 'كيف نحمي أموالك', invoices: 'فواتيري', landing: 'صفحة التعريف', howto: 'كيف أدفع', deposit: 'شحن المحفظة' };
+async function loadAn() {
+  try { S.an = await api('/api/admin/analytics', { days: S.anDays }); } catch (e) { toast(e.message, 'bad'); S.an = { totals: {}, per_day: [], live: 0, err: 1 }; }
+  render(true);
+}
+function vAnalytics() {
+  if (!S.an) { S.an = { loading: 1 }; setTimeout(loadAn, 0); }
+  const A = S.an, T = A.totals || {}, ld = A.loading;
+  const fmtN = v => Number(v || 0).toLocaleString('en-US');
+  const pages = Object.keys(T).filter(k => k.startsWith('dur:')).map(k => [k.slice(4), T[k]]);
+  const pvs = Object.keys(T).filter(k => k.startsWith('pv:')).map(k => [k.slice(3), T[k]]);
+  const src = pages.length ? pages : pvs, tot = src.reduce((a, [, v]) => a + v, 0) || 1;
+  const top = src.sort((a, b) => b[1] - a[1]).slice(0, 8), mx = top.length ? top[0][1] : 1;
+  const fun = [['دخلوا الموقع', T.vis], ['سجّلوا حساب', T['ev:signup']], ['فتحوا الشحن', T['ev:dep_open']], ['دفعوا', T['ev:paid']], ['اشتروا', T['ev:buy']]].map(([t, v]) => [t, n(v)]);
+  const f0 = Math.max(1, fun[0][1]);
+  const hm = Array.from({ length: 7 }, (_, d) => Array.from({ length: 12 }, (_, h2) => n(T[`hr:${d}:${h2 * 2}`]) + n(T[`hr:${d}:${h2 * 2 + 1}`])));
+  const hmx = Math.max(1, ...hm.flat());
+  const DAYS = ['ح', 'ن', 'ث', 'ر', 'خ', 'ج', 'س'];
+  const devT = n(T['dev:m']) + n(T['dev:d']) || 1;
+  return `<div class="page-enter astag">
+    <div class="ah"><div><h1>تحليل الزوار</h1><p>أعداد مجمّعة بدون أي بيانات شخصية</p></div><span class="alive"><i></i>${ld ? '…' : fmtN(A.live)} متصل الآن</span></div>
+    <div class="aseg">${[[1, 'اليوم'], [7, '7 أيام'], [30, '30 يوم'], [90, '3 شهور']].map(([d, t]) => `<button class="${S.anDays === d ? 'on' : ''}" data-andays="${d}" type="button">${t}</button>`).join('')}</div>
+    <div class="astrip">${[['زوار', T.vis], ['سجّلوا', T['ev:signup']], ['دفعوا', T['ev:paid']], ['اشتروا', T['ev:buy']]].map(([t, v]) => `<div><span>${t}</span><b>${ld ? '…' : fmtN(v)}</b></div>`).join('')}</div>
+    <div class="alabel"><span>${pages.length ? 'وين يقضّوا وقتهم' : 'أكثر الصفحات زيارة'}</span></div>
+    <div class="acard abars">${top.length ? top.map(([k, v]) => `<div class="abr"><span>${esc(AN_AR[k] || k)}</span><div class="t"><i style="width:${Math.max(3, Math.round(v / mx * 100))}%"></i></div><b>${Math.round(v / tot * 100)}%</b></div>`).join('') : `<div class="aempty"><b>${ld ? 'جارٍ التحميل…' : 'ما فيش بيانات بعد'}</b><span>تبدأ الأرقام تظهر بعد ما الزوار يدخلوا</span></div>`}</div>
+    <div class="alabel"><span>رحلة العميل — وين يوقفوا</span></div>
+    <div class="acard afun">${fun.map(([t, v], i) => { const prev = i ? fun[i - 1][1] : 0, drop = i && prev ? Math.round((1 - v / prev) * 100) : null;
+      return `<div class="afr"><div class="h"><span>${t}${drop != null && drop > 0 ? ` <em>−${drop}%</em>` : ''}</span><b>${fmtN(v)}</b></div><div class="t"><i style="width:${Math.max(2, Math.round(v / f0 * 100))}%"></i></div></div>`; }).join('')}
+      <p class="caption" style="margin:4px 0 0">أكبر نسبة نزول بين خطوتين = وين يضيعوا زبائنك.</p></div>
+    <div class="alabel"><span>أوقات الذروة (بتوقيت ليبيا)</span><span class="caption">الأغمق = أكثر زوار</span></div>
+    <div class="acard ahm" dir="ltr">${hm.map((row, d) => `<span>${DAYS[d]}</span>${row.map(v => `<i style="opacity:${v ? Math.max(.12, v / hmx).toFixed(2) : .06}"></i>`).join('')}`).join('')}<span></span>${Array.from({ length: 12 }, (_, i) => `<span>${i % 2 ? '' : i * 2}</span>`).join('')}</div>
+    <div class="alabel"><span>الأجهزة</span></div>
+    <div class="acard abars">${[['هاتف', n(T['dev:m'])], ['كمبيوتر', n(T['dev:d'])], ['التطبيق المثبّت', n(T['dev:pwa'])]].map(([t, v]) => `<div class="abr"><span>${t}</span><div class="t"><i style="width:${Math.round(v / devT * 100)}%"></i></div><b>${Math.round(v / devT * 100)}%</b></div>`).join('')}</div>
+  </div>`;
+}
+document.addEventListener('click', e => { const b = e.target.closest && e.target.closest('[data-andays]'); if (b) { S.anDays = Number(b.dataset.andays); S.an = null; render(true); } });
+
+/* ═══ v52 — محرّر «كيف أدفع؟» ═══ */
+const HT_ADEF = {"binance_pay": {"title": "Binance Pay", "steps": ["افتح تطبيق Binance، ومن الرئيسية اضغط «Pay» (الدفع).", "اختر «إرسال» (Send).", "اختر «Pay ID» والصق الرقم اللي في فاتورتك.", "اختر العملة USDT واكتب المبلغ بالضبط زي الفاتورة (بالكسور).", "راجع البيانات واضغط «تأكيد» — الرصيد ينضاف لمحفظتك تلقائيًا خلال دقائق."]}, "binance_withdraw": {"title": "سحب من Binance", "steps": ["من Binance افتح «المحفظة» واضغط «سحب» (Withdraw).", "اختر عملة USDT.", "الصق العنوان من الفاتورة، واختر نفس الشبكة المكتوبة فيها (TRC20 أو BEP20).", "اكتب المبلغ بحيث «المبلغ المستلَم» يساوي مبلغ الفاتورة بالضبط — الرسوم تنزاد عليك.", "اضغط «سحب» وأكّد — ينضاف تلقائيًا بعد ما توصل المعاملة."]}, "mexc": {"title": "سحب من MEXC", "steps": ["من MEXC افتح «الأصول» (Assets) واضغط «سحب».", "اختر USDT ثم «سحب على الشبكة» (On-chain).", "الصق العنوان واختر نفس شبكة الفاتورة (TRC20 أو BEP20).", "انتبه للرسوم: لازم «المبلغ اللي يوصل» يساوي مبلغ الفاتورة بالضبط.", "أكّد السحب بالكود — ينضاف تلقائيًا بعد وصول المعاملة."]}, "libyana": {"title": "ليبيانا", "steps": ["في كاردو اختر ليبيانا والمبلغ، وانسخ الرقم اللي نعطيهولك.", "من خدمة «تحويل الرصيد» في ليبيانا حوّل نفس المبلغ بالضبط لهذا الرقم.", "ارجع لكاردو، اكتب رقمك اللي حوّلت منه واضغط «حوّلت الرصيد» — ينضاف تلقائيًا أول ما توصل رسالة التحويل."]}, "almadar": {"title": "المدار", "steps": ["في كاردو اختر المدار والمبلغ، وانسخ الرقم اللي نعطيهولك.", "من خدمة «تحويل الرصيد» في المدار حوّل نفس المبلغ بالضبط لهذا الرقم.", "ارجع لكاردو، اكتب رقمك اللي حوّلت منه واضغط «حوّلت الرصيد» — ينضاف تلقائيًا أول ما توصل رسالة التحويل."]}, "bank": {"title": "تحويل مصرفي", "steps": ["في كاردو اختر التحويل المصرفي، وانسخ رقم الحساب واسم المستفيد.", "حوّل المبلغ من تطبيق مصرفك أو من الفرع، واحتفظ بالإيصال.", "ارجع لكاردو، اكتب المبلغ وارفع صورة الإيصال — ينضاف بعد المراجعة."]}};
+S.ht = null; S.htTab = 'binance_pay';
+async function loadHt() {
+  try { const r = await fetch(API_BASE + '/api/howto', { cache: 'no-store' }).then(x => x.json()); S.ht = r.guides || {}; } catch { S.ht = {}; }
+  render(true);
+}
+function htCur() {
+  const g = S.ht[S.htTab];
+  if (g && g.steps && g.steps.length) return g;
+  return { steps: HT_ADEF[S.htTab].steps.map(t => ({ t, img: '' })), _def: true };
+}
+function vHowtoA() {
+  if (!S.ht) { S.ht = undefined; setTimeout(loadHt, 0); return `<div class="page-enter">${aHead('كيف أدفع؟', '')}<div class="acard"><div class="arow"><i class="ask"></i></div></div></div>`; }
+  if (S.ht === undefined) return `<div class="page-enter">${aHead('كيف أدفع؟', '')}<div class="acard"><div class="arow"><i class="ask"></i></div></div></div>`;
+  const g = S.htEdit && S.htEdit.k === S.htTab ? S.htEdit.g : htCur();
+  return `<div class="page-enter astag">
+    <div class="ah"><button class="aib" data-nav="more" type="button" aria-label="رجوع">${svg(I.back)}</button><div style="flex:1"><h1>كيف أدفع؟</h1><p>الشرح اللي يشوفه العميل جنب كل طريقة دفع</p></div></div>
+    <div class="aseg">${Object.keys(HT_ADEF).map(k => `<button class="${S.htTab === k ? 'on' : ''}" data-httab="${k}" type="button">${esc(HT_ADEF[k].title)}</button>`).join('')}</div>
+    ${g._def ? `<div class="aalert w">${svg(I.help)}<div>هذا الشرح الافتراضي بالرسومات. عدّل النص أو ارفع صورة حقيقية لأي خطوة، وبعدها اضغط «حفظ».</div></div>` : ''}
+    ${g.steps.map((st, i) => `<div class="acard" style="padding:12px;margin-bottom:10px">
+      <div style="display:grid;grid-template-columns:84px 1fr;gap:12px;align-items:start">
+        <div class="htthumb">${st.img ? `<img src="${esc(API_BASE + st.img)}" alt="">` : `<span>رسم<br>افتراضي</span>`}</div>
+        <div><div class="caption" style="margin-bottom:4px">الخطوة ${i + 1}</div>
+          <textarea class="input" data-htt="${i}" rows="3" maxlength="240" style="height:auto;padding-top:10px;font-size:14px">${esc(st.t)}</textarea></div></div>
+      <div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:8px">
+        <label class="abtn sm" style="cursor:pointer">${svg(I.upload)}${st.img ? 'تبديل الصورة' : 'رفع صورة'}<input type="file" accept="image/png,image/jpeg,image/webp" data-htimg="${i}" hidden></label>
+        ${st.img ? `<button class="abtn sm" data-htnoimg="${i}" type="button">رجوع للرسم</button>` : ''}
+        ${i > 0 ? `<button class="abtn sm" data-htup="${i}" type="button">↑</button>` : ''}
+        <button class="abtn sm" data-htdel="${i}" type="button" style="color:var(--u-err)">حذف</button>
+      </div></div>`).join('')}
+    ${g.steps.length < 8 ? `<button class="abtn block" data-htadd type="button">+ إضافة خطوة</button>` : ''}
+    <div class="field" style="margin-top:12px"><label class="field-label" for="htNote">ملاحظة أسفل الشرح (اختياري)</label><input class="input" id="htNote" maxlength="300" value="${esc(g.note || '')}"></div>
+    <div style="display:grid;grid-template-columns:1fr auto;gap:8px;margin-top:12px">
+      <button class="abtn p" data-htsave type="button">حفظ الشرح</button>
+      ${!g._def ? `<button class="abtn" data-htreset type="button">رجوع للافتراضي</button>` : ''}
+    </div>
+  </div>`;
+}
+function htEditState() {
+  if (!S.htEdit || S.htEdit.k !== S.htTab) { const c = htCur(); S.htEdit = { k: S.htTab, g: { steps: c.steps.map(x => ({ ...x })), note: c.note || '', _def: c._def } }; }
+  $$('[data-htt]').forEach(t => { const i = Number(t.dataset.htt); if (S.htEdit.g.steps[i]) S.htEdit.g.steps[i].t = t.value; });
+  if ($('#htNote')) S.htEdit.g.note = $('#htNote').value;
+  return S.htEdit.g;
+}
+async function htSave(guides) {
+  const r = await api('/api/admin/howto', { guides });
+  S.ht = r.guides || {}; S.htEdit = null; toast('حُفظ الشرح ✓ — يظهر للعملاء خلال دقائق', 'ok'); render(true);
+}
+document.addEventListener('click', async e => {
+  const t = e.target.closest ? e.target : null; if (!t) return;
+  const tb = t.closest('[data-httab]'); if (tb) { htEditState(); S.htTab = tb.dataset.httab; render(true); return; }
+  if (t.closest('[data-htadd]')) { const g = htEditState(); g.steps.push({ t: '', img: '' }); render(true); return; }
+  const d = t.closest('[data-htdel]'); if (d) { const g = htEditState(); g.steps.splice(Number(d.dataset.htdel), 1); render(true); return; }
+  const u = t.closest('[data-htup]'); if (u) { const g = htEditState(), i = Number(u.dataset.htup); [g.steps[i - 1], g.steps[i]] = [g.steps[i], g.steps[i - 1]]; render(true); return; }
+  const ni = t.closest('[data-htnoimg]'); if (ni) { const g = htEditState(); g.steps[Number(ni.dataset.htnoimg)].img = ''; render(true); return; }
+  if (t.closest('[data-htsave]')) {
+    const g = htEditState(); const steps = g.steps.map(x => ({ t: x.t.trim(), img: x.img || '' })).filter(x => x.t);
+    if (!steps.length) return toast('اكتب خطوة واحدة على الأقل', 'bad');
+    const all = { ...(S.ht || {}) }; all[S.htTab] = { steps, note: g.note || '' };
+    try { await htSave(all); } catch (er) { toast(er.message, 'bad'); }
+    return;
+  }
+  if (t.closest('[data-htreset]')) {
+    if (!confirm('ترجع للشرح الافتراضي بالرسومات؟')) return;
+    const all = { ...(S.ht || {}) }; delete all[S.htTab];
+    try { await htSave(all); } catch (er) { toast(er.message, 'bad'); }
+  }
+});
+document.addEventListener('change', async e => {
+  const inp = e.target; if (!inp || !inp.dataset || inp.dataset.htimg == null) return;
+  const i = Number(inp.dataset.htimg);
+  try {
+    const img = await compressImg(inp.files[0], 720, 0.82, 360000);
+    const r = await api('/api/admin/howto', { action: 'img', guide: S.htTab, image: img });
+    const g = htEditState(); g.steps[i].img = r.url; render(true); toast('رُفعت الصورة — لا تنسَ «حفظ الشرح»', 'ok');
+  } catch (er) { toast(er.message, 'bad'); }
+});
+
+/* ═══ v52 — تصدير Excel للمحاسبة ═══ */
+const INV_ST_AR = { awaiting: 'بانتظار', cancelled: 'ملغاة', paid: 'مدفوعة', expired: 'منتهية', cancelled_closed: 'ملغاة' };
+const DEP_ST_AR = { pending: 'معلّق', approved: 'مقبول', rejected: 'مرفوض' };
+const lyT = v => { if (!v) return ''; const d = new Date(Date.parse(v) + 2 * 3600000); return isNaN(d) ? '' : d.toISOString().slice(0, 16).replace('T', ' '); };
+function exportCard() {
+  const today = new Date(Date.now() + 2 * 3600000).toISOString().slice(0, 10);
+  return `<div class="acard" style="padding:14px;margin-top:12px"><div class="art"><b>تصدير Excel للمحاسبة</b><span>الفواتير + كل الإيداعات + ملخص لكل طريقة ولكل يوم</span></div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:10px">
+      <label class="field"><span class="field-label">من</span><input class="input" id="exFrom" type="date" value="${today.slice(0, 8)}01" max="${today}"></label>
+      <label class="field"><span class="field-label">إلى</span><input class="input" id="exTo" type="date" value="${today}" max="${today}"></label></div>
+    <button class="abtn p block" id="exGo" type="button" style="margin-top:8px">${svg(I.upload)} تنزيل ملف Excel</button></div>`;
+}
+let _xlsxLib = null;
+function loadXlsx() { if (window.kardoXlsx) return Promise.resolve(); if (_xlsxLib) return _xlsxLib; _xlsxLib = new Promise((res, rej) => { const sc = document.createElement('script'); sc.src = './kardo-xlsx.js?v=52'; sc.onload = res; sc.onerror = () => { _xlsxLib = null; rej(new Error('تعذّر تحميل أداة Excel')); }; document.head.appendChild(sc); }); return _xlsxLib; }
+document.addEventListener('click', async e => {
+  const b = e.target.closest && e.target.closest('#exGo'); if (!b) return;
+  const from = $('#exFrom').value, to = $('#exTo').value;
+  if (!from || !to || from > to) return toast('اختر تاريخ صحيح', 'bad');
+  b.disabled = true; const old = b.innerHTML; b.textContent = 'جارٍ التجهيز…';
+  try {
+    const [r] = await Promise.all([api('/api/admin/export', { from, to }), loadXlsx()]);
+    const inv = r.invoices || [], dep = r.deposits || [];
+    const s1 = [['رقم الفاتورة', 'التاريخ', 'العميل', 'البريد', 'الطريقة', 'المبلغ $', 'المطلوب USDT', 'المستلم USDT', 'الحالة', 'وقت الدفع', 'رقم المعاملة', 'متأخرة', 'أُضيفت بواسطة'],
+      ...inv.map(v => [v.no, lyT(v.created_at), v.name, v.email, v.network, v.amount_usd, v.pay_amount, v.received || '', INV_ST_AR[v.status] || v.status, lyT(v.paid_at), v.txid, v.late ? 'نعم' : '', v.by === 'cron' || v.by === 'user' || v.by === 'link' ? 'تلقائي' : v.by ? 'يدوي' : ''])];
+    const s2 = [['التاريخ', 'العميل', 'البريد', 'الطريقة', 'المبلغ $', 'المبلغ د.ل', 'الحالة', 'تلقائي', 'هاتف المرسل', 'مرجع / ملاحظة'],
+      ...dep.map(d => [lyT(d.created_at), d.name, d.email, d.method, d.amount_usd, d.amount_lyd || '', DEP_ST_AR[d.status] || d.status, d.auto ? 'نعم' : 'لا', d.phone, d.reference])];
+    const ok = dep.filter(d => d.status === 'approved');
+    const byM = {}, byD = {};
+    ok.forEach(d => { const m = String(d.method || '—').split(' — ')[0]; const x = byM[m] = byM[m] || [0, 0, 0]; x[0]++; x[1] += d.amount_usd; x[2] += d.amount_lyd || 0;
+      const day = lyT(d.created_at).slice(0, 10); const y = byD[day] = byD[day] || [0, 0]; y[0]++; y[1] += d.amount_usd; });
+    const r2 = v => Math.round(v * 100) / 100;
+    const s3 = [['الطريقة', 'عدد الإيداعات المقبولة', 'المجموع $', 'المجموع د.ل'], ...Object.entries(byM).sort((a, b) => b[1][1] - a[1][1]).map(([m, x]) => [m, x[0], r2(x[1]), r2(x[2]) || '']),
+      ['الإجمالي', ok.length, r2(ok.reduce((a, d) => a + d.amount_usd, 0)), r2(ok.reduce((a, d) => a + (d.amount_lyd || 0), 0))], [], ['اليوم', 'عدد', 'المجموع $'],
+      ...Object.keys(byD).sort().map(k => [k, byD[k][0], r2(byD[k][1])]), [],
+      ['الفواتير', 'العدد'], ['أُنشئت', inv.length], ['مدفوعة', inv.filter(v => v.status === 'paid').length], ['متأخرة وأُضيفت', inv.filter(v => v.late).length]];
+    const blob = window.kardoXlsx([{ name: 'الملخص', rows: s3, widths: [26, 20, 16, 16] }, { name: 'الإيداعات', rows: s2, widths: [17, 20, 26, 26, 11, 11, 10, 8, 14, 26] }, { name: 'الفواتير', rows: s1, widths: [14, 17, 20, 26, 14, 10, 13, 13, 10, 17, 30, 8, 12] }]);
+    const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = `kardo-${from}_${to}.xlsx`; document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(() => URL.revokeObjectURL(a.href), 5000);
+    toast(`تم ✓ — ${dep.length} إيداع و${inv.length} فاتورة`, 'ok');
+  } catch (er) { toast(er.message, 'bad'); }
+  b.disabled = false; b.innerHTML = old;
+});
+
+document.addEventListener('click', async e => {
+  if (!(e.target.closest && e.target.closest('#pfSave'))) return;
+  const patch = { promo_first_min: Math.max(1, Number($('#pfMin').value) || 20), promo_first_bonus: Math.min(50, Math.max(0, Number($('#pfBonus').value) || 0)), promo_first_until: $('#pfUntil').value || '' };
+  try { await api('/api/admin/settings', patch); S.settings = { ...S.settings, ...patch }; toast('حُفظ العرض ✓', 'ok'); } catch (er) { toast(er.message, 'bad'); }
+});
+
+// v52: كل أزرار [data-nav] داخل الصفحات والنوافذ (الشريطين مربوطين في buildNav)
+document.addEventListener('click', e => {
+  const b = e.target.closest && e.target.closest('[data-nav]');
+  if (!b || b.closest('#navDesk') || b.closest('#navDock')) return;
+  e.preventDefault();
+  if (b.closest('#modal')) closeModal();
+  go(b.dataset.nav);
 });
