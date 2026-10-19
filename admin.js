@@ -4442,6 +4442,15 @@ async function loadRscA(withOrders) {
   if (withOrders || S.rscA.tab === 'orders') await loadRscOrdersA(true);
   if (S.page === 'rsc') render(true);
 }
+function rscSyncNote(sy) {                                          // v59: هل الجلب كامل؟
+  if (!sy || !sy.stats) return '';
+  const T = { topup: 'شحن مباشر', gift: 'بطاقات وأكواد' };
+  const rows = ['topup', 'gift'].filter(t => sy.stats[t]).map(t => {
+    const x = sy.stats[t], short = x.total != null && x.from_cats < x.total;
+    return `<div class="caption">${T[t]}: <b class="tabular">${x.n}</b> قسم${x.total != null ? ` · المزود يقول ${x.total}` : ''}${x.from_brands ? ` · ${x.from_brands} منهم انلقوا من البراندات` : ''}${short ? ' <b style="color:var(--error)">⚠ ناقص</b>' : ''}${x.brand_err ? ` · البراندات: ${esc(x.brand_err)}` : ''}</div>`;
+  }).join('');
+  return `<div class="card card-sm mb-3"><div class="caption mb-1">آخر مزامنة${sy.at ? ' — ' + esc(new Date(sy.at).toLocaleString('ar-LY')) : ''}</div>${rows}</div>`;
+}
 async function loadRscOrdersA(silent) {
   try { const r = await api('/api/admin/rsc', { action: 'orders' }); S.rscA.orders = r.orders || []; }
   catch (e) { if (!silent) toast(e.message, 'bad'); }
@@ -4489,6 +4498,7 @@ function vRsc() {
       <div class="card card-sm"><div class="caption">الأقسام المفعّلة</div><div class="h3 tabular" style="margin:4px 0">${onCount}</div>
         <div class="caption">من ${(R.cats || []).length} قسم لدى المزود</div></div>
     </div>
+    ${rscSyncNote(R.sync)}
     <div class="card mb-3">
       <div class="flex-between mb-2" style="gap:8px;flex-wrap:wrap">
         <div><div class="h4" style="margin:0">المتجر ظاهر للعملاء</div><div class="caption">إيقافه يخفي المتجر ويمنع الشراء</div></div>
@@ -4511,7 +4521,10 @@ function vRsc() {
     ${R.tab === 'cats' ? `
       <div style="display:flex;gap:8px;margin-bottom:10px">
         <input class="input" id="rscQ" placeholder="ابحث في أقسام المزود…" value="${esc(R.q || '')}" style="flex:1">
+        <button class="btn btn-secondary btn-sm" id="rscRemote" type="button" style="white-space:nowrap">🔎 ابحث عند المزود</button>
       </div>
+      ${R.remote ? `<div class="card card-sm mb-2"><div class="caption mb-1">نتيجة البحث عند المزود عن «${esc(R.remote.q)}»: ${R.remote.results.length ? `${R.remote.results.length} قسم${R.remote.added ? ` — انضاف منهم ${R.remote.added} جديد للقائمة` : ' (كلهم موجودين عندك)'}` : '<b style="color:var(--error)">ما فيه شي — غير متوفر عند المزود</b>'}</div>
+        ${R.remote.results.slice(0, 20).map(c => `<div class="caption" dir="auto">• ${esc(c.name)} <span class="mono" dir="ltr">(${esc(c.key)})</span>${c.is_new ? ' <b style="color:var(--brand)">جديد</b>' : ''}${c.on ? ' · مفعّل' : ''}</div>`).join('')}</div>` : ''}
       <div class="pills mb-2" style="flex-wrap:wrap">${[['all', 'الكل', (R.cats || []).length], ['on', 'مفعّل', cnt('on')], ['maint', 'صيانة', cnt('maint')], ['off', 'مخفي', cnt('off')], ['pick', 'مختارات', (R.cats || []).filter(c => c.pick).length]].map(([k, t, nn]) => `<button class="pill ${flt === k ? 'active' : ''}" data-rscflt="${k}" type="button">${t} (${nn})</button>`).join('')}</div>
       <div class="pills mb-2" style="flex-wrap:wrap">${[['all', 'كل الأنواع'], ...RSC_GA.map(([k, t]) => [k, t])].map(([k, t]) => { const nn = k === 'all' ? (R.cats || []).length : (R.cats || []).filter(c => rscGA(c) === k).length; return nn || k === 'all' ? `<button class="pill ${tf === k ? 'active' : ''}" data-rsctf="${k}" type="button">${t} (${nn})</button>` : ''; }).join('')}</div>
       ${q ? `<div class="caption" style="margin:0 2px 6px">${cats.length} نتيجة لـ «${esc(R.q)}»</div>` : ''}
@@ -4630,9 +4643,16 @@ function bindRscA() {
   onTap('#rscSaveMg', async () => {
     try { await api('/api/admin/settings', { rsc_margin_pct: n($('#rscMg').value), rsc_low_usd: n($('#rscLow').value) }); toast('حُفظ ✓ — الأسعار تتحدث خلال دقيقتين', 'ok'); loadRscA(); } catch (e) { toast(e.message, 'bad'); }
   });
+  onTap('#rscRemote', async () => {
+    const q = (S.rscA.q || '').trim();
+    if (q.length < 2) return toast('اكتب اسم القسم في خانة البحث أول (مثلاً PUBG)', 'bad');
+    const b = $('#rscRemote'); b.disabled = true; b.textContent = 'جارٍ البحث…';
+    try { const r = await api('/api/admin/rsc', { action: 'search', q }, 30000); S.rscA.remote = r; if (r.added) await loadRscA(); else render(true); }
+    catch (e) { toast(e.message, 'bad'); b.disabled = false; b.textContent = '🔎 ابحث عند المزود'; }
+  });
   onTap('#rscSync', async () => {
     const b = $('#rscSync'); b.disabled = true; b.textContent = 'جارٍ التحديث…';
-    try { const r = await api('/api/admin/rsc', { action: 'sync' }, 60000); toast(`تم: ${r.cats} قسم، وحُدّثت عروض ${r.refreshed} قسم مفعّل`, 'ok'); await loadRscA(); }
+    try { const r = await api('/api/admin/rsc', { action: 'sync' }, 60000); S.rscA.sync = r.sync; toast(`تم: ${r.cats} قسم، وحُدّثت عروض ${r.refreshed} قسم مفعّل`, 'ok'); await loadRscA(); }
     catch (e) { toast(e.message, 'bad'); b.disabled = false; b.textContent = '↻ تحديث الكتالوج من المزود'; }
   });
 }

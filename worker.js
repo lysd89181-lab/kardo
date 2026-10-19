@@ -7308,26 +7308,50 @@ async function rscCfgSave(env, v) {
 async function rscKvGet(env, k) { return env.KV ? env.KV.get(k, 'json').catch(() => null) : null; }
 async function rscKvPut(env, k, v, ttl) { if (env.KV) await env.KV.put(k, JSON.stringify(v), { expirationTtl: ttl || 86400 * 7 }).catch(() => {}); }
 
-/* ─── مزامنة قائمة الأقسام (طلبان أو أكثر) ─── */
-async function rscSyncCategories(env) {
-  const out = [];
-  for (const [type, path] of [['gift', '/gift-cards/categories'], ['topup', '/top-ups/categories']]) {
-    let cursor = null;
-    for (let page = 0; page < 10; page++) {
-      const j = await rscCall(env, 'GET', `${path}?limit=100${cursor ? '&cursor=' + encodeURIComponent(cursor) : ''}`);
-      for (const c of (j.data || [])) {
-        if (!c || !c.category_id) continue;
-        out.push({ key: rscKey(type, c.category_id), type, id: String(c.category_id), name: String(c.name || c.category_id).slice(0, 80),
-          image: typeof c.image === 'string' ? c.image.slice(0, 300) : '', note: String(c.note || '').slice(0, 300) });
-      }
-      if (!j.has_more || !j.next_cursor) break;
-      cursor = j.next_cursor;
-    }
+/* ─── مزامنة قائمة الأقسام ─── 
+   v59: قوائم الأقسام عند المزود ما فيهاش صفحات (ترجّع total + data)، فنقارن العدد بـ total
+   ونكمّل الناقص من /brands (أقسام فرعية تحت كل براند) ونشيل التكرار. */
+function rscCatRow(type, c, brand) {
+  const id = String(c.category_id);
+  let name = String(c.name || '').trim();
+  if (!name) name = [brand, c.region, c.variant].filter(Boolean).join(' — ') || id;
+  return { key: rscKey(type, id), type, id, name: name.slice(0, 80),
+    image: typeof c.image === 'string' ? c.image.slice(0, 300) : '', note: String(c.note || '').slice(0, 300) };
+}
+async function rscListCats(env, type, q) {
+  const base = type === 'topup' ? '/top-ups' : '/gift-cards';
+  const qs = q ? '&q=' + encodeURIComponent(q) : '';
+  const rows = new Map(); let total = null, pages = 0, cursor = null;
+  for (; pages < 30; pages++) {                                     // لو المزود صار يدعم الصفحات، نكمّلها
+    const j = await rscCall(env, 'GET', `${base}/categories?limit=100${qs}${cursor ? '&cursor=' + encodeURIComponent(cursor) : ''}`);
+    if (total == null && Number.isFinite(Number(j.total))) total = Number(j.total);
+    for (const c of (j.data || [])) if (c && c.category_id) { const r = rscCatRow(type, c); if (!rows.has(r.key)) rows.set(r.key, r); }
+    if (!j.has_more || !j.next_cursor || j.next_cursor === cursor) break;
+    cursor = j.next_cursor;
   }
-  if (out.length) await rscKvPut(env, 'rsc:cats', { at: Date.now(), list: out }, 86400 * 30);
+  const fromCats = rows.size;
+  let brandErr = '';
+  try {                                                              // التكملة من البراندات (أفضل جهد)
+    const j = await rscCall(env, 'GET', `${base}/brands?limit=100${qs}`);
+    for (const b of (j.data || [])) for (const c of ((b && b.subcategories) || [])) {
+      if (!c || !c.category_id) continue;
+      const r = rscCatRow(type, c, b.brand || b.name);
+      if (!rows.has(r.key)) rows.set(r.key, r);
+    }
+  } catch (e) { brandErr = String(e.message || '').slice(0, 120); }
+  return { list: [...rows.values()], stat: { total, from_cats: fromCats, from_brands: rows.size - fromCats, n: rows.size, brand_err: brandErr } };
+}
+async function rscSyncCategories(env) {
+  const out = [], stats = {};
+  for (const type of ['gift', 'topup']) {
+    const r = await rscListCats(env, type);
+    out.push(...r.list); stats[type] = r.stat;
+  }
+  if (out.length) await rscKvPut(env, 'rsc:cats', { at: Date.now(), list: out, stats }, 86400 * 30);
   return out;
 }
 async function rscCats(env) { const v = await rscKvGet(env, 'rsc:cats'); return (v && v.list) || []; }
+async function rscCatsMeta(env) { const v = await rscKvGet(env, 'rsc:cats'); return v ? { at: v.at || null, stats: v.stats || null } : null; }
 
 /* ─── عروض قسم واحد (طلب واحد) ─── */
 async function rscFetchOffers(env, key) {
@@ -7650,7 +7674,20 @@ async function handleAdminRsc(user, body, env) {
     }
     const bal = me && (me.balance_usd ?? me.balance ?? (me.account && me.account.balance));
     return { success: true, key_set: !!env.RSC_API_KEY, error: err, balance: bal == null ? null : num(bal, 0), me: me ? { email: me.email || '', limits: me.limits || me.rate_limits || null } : null,
-      margin: num(s.rsc_margin_pct, 10), low: num(s.rsc_low_usd, 20), on: s.rsc_on !== false, cats: list };
+      margin: num(s.rsc_margin_pct, 10), low: num(s.rsc_low_usd, 20), on: s.rsc_on !== false, cats: list, sync: await rscCatsMeta(env) };
+  }
+  if (action === 'search') {                                         // v59: بحث مباشر عند المزود (q=) — اللي ينلقى وما عندناش نضيفه للقائمة
+    const q = String(body.q || '').trim().slice(0, 60);
+    if (q.length < 2) throw httpError(400, 'اكتب حرفين على الأقل');
+    const found = [];
+    let fails = 0, lastErr = null;
+    for (const type of ['topup', 'gift']) { try { found.push(...(await rscListCats(env, type, q)).list); } catch (e) { fails++; lastErr = e; } }
+    if (fails === 2) throw lastErr;
+    const v = (await rscKvGet(env, 'rsc:cats')) || { at: Date.now(), list: [] };
+    const known = new Set((v.list || []).map(c => c.key));
+    const added = found.filter(c => !known.has(c.key));
+    if (added.length) { v.list = [...(v.list || []), ...added]; await rscKvPut(env, 'rsc:cats', v, 86400 * 30); }
+    return { success: true, q, results: found.map(c => ({ key: c.key, type: c.type, name: c.name, is_new: !known.has(c.key), on: (cfg.cats[c.key] || {}).on === true })), added: added.length };
   }
   if (action === 'sync') {
     const cats = await rscSyncCategories(env);
@@ -7658,7 +7695,7 @@ async function handleAdminRsc(user, body, env) {
     for (const k of Object.keys(cfg.cats).filter(k => cfg.cats[k].on === true).slice(0, 20)) { try { await rscFetchOffers(env, k); n++; } catch {} }
     bustPublic();
     await logOp(env, staff.uid, 'rsc.sync', {}, { cats: cats.length, offers: n }, true);
-    return { success: true, cats: cats.length, refreshed: n };
+    return { success: true, cats: cats.length, refreshed: n, sync: await rscCatsMeta(env) };
   }
   if (action === 'bulk') {                                          // v55: تحديد جماعي — حفظ واحد، والعروض تنجاب على مهل
     const keys = [...new Set((Array.isArray(body.keys) ? body.keys : []).map(String))].filter(rscKeyOk).slice(0, 200);
