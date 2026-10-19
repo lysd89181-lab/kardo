@@ -4521,7 +4521,10 @@ function vRsc() {
           <input type="checkbox" class="rsc-cb" data-rscsel="${esc(c.key)}" ${sel.has(c.key) ? 'checked' : ''} aria-label="تحديد">
           <div class="list-icon" style="overflow:hidden;padding:0">${c.image ? `<img src="${esc(imgU(c.image))}" alt="" loading="lazy" style="width:100%;height:100%;object-fit:cover">` : (c.type === 'topup' ? '🎮' : '🎁')}</div>
           <div class="list-content"><div class="list-title">${esc(c.alias || c.name)}${c.alias ? ` <span class="caption">(${esc(c.name)})</span>` : ''}</div>
-            <div class="list-meta">${esc(RSC_GT[rscGA(c)])}${c.on ? ` · ${c.offers ?? 0} عرض` : ''}${c.margin !== '' ? ` · ربح ${esc(String(c.margin))}%` : ''}${c.custom_img ? ' · صورة مخصّصة' : ''}</div></div>
+            <div class="list-meta">${esc(RSC_GT[rscGA(c)])}${c.margin !== '' ? ` · ربح ${esc(String(c.margin))}%` : ''}${c.custom_img ? ' · صورة مخصّصة' : ''}</div>
+            ${c.on ? (c.offers > 0 ? `<div class="rsc-vis ${c.maint ? 'w' : 'ok'}">${c.maint ? 'قيد الصيانة' : 'ظاهر للعملاء'} · ${c.offers} باقة</div>`
+              : `<div class="rsc-vis bad">${c.offers == null && !c.err ? '⏳ مفعّل لكن أسعاره ما انجابت بعد — ما يبانش للعملاء' : `⚠ ما يبانش للعملاء: ${esc(c.err || 'ما فيه باقات')}`}
+                <button type="button" data-rscfetch="${esc(c.key)}">جلب الأسعار الآن</button></div>`) : ''}</div>
           <div class="list-end" style="display:flex;gap:6px">
             <button class="btn btn-ghost btn-sm" data-rscedit="${esc(c.key)}" type="button">تعديل</button>
             <button class="btn btn-sm ${c.on ? (c.maint ? 'btn-secondary' : 'btn-primary') : 'btn-secondary'}" data-rsctgl="${esc(c.key)}" type="button" style="min-width:68px${c.maint ? ';color:var(--warning,#A8650C)' : ''}">${!c.on ? 'مخفي' : c.maint ? 'صيانة' : 'مفعّل'}${c.pick ? ' ✦' : ''}</button>
@@ -5569,4 +5572,15 @@ function srchMatch(text, q) {
 document.addEventListener('click', e => {
   const t = e.target.closest('[data-rsctf]'); if (t) { S.rscA.tf = t.dataset.rsctf; S.rscA.lim = 60; render(true); return; }
   if (e.target.closest('[data-rscmore]')) { S.rscA.lim = (S.rscA.lim || 60) + 60; render(true); }
+});
+
+document.addEventListener('click', async e => {
+  const b = e.target.closest('[data-rscfetch]'); if (!b) return;
+  b.disabled = true; b.textContent = 'جاري الجلب…';
+  try {
+    const r = await api('/api/admin/rsc', { action: 'fetch', key: b.dataset.rscfetch });
+    if (r.success) toast(r.offers ? `انجابت ${r.offers} باقة ✓ — يظهر للعملاء خلال دقيقتين` : 'المزود ما عنده باقات لهذا القسم حاليًا', r.offers ? 'ok' : 'bad');
+    else toast('المزود رد بخطأ: ' + (r.error || 'غير معروف'), 'bad');
+  } catch (er) { toast(er.message, 'bad'); }
+  await loadRscA();
 });

@@ -4541,7 +4541,7 @@ function vKStore() {
     <h1 class="kpage-title">المتجر</h1>
     <p class="kpage-sub">شحن ألعاب وبطاقات واشتراكات — يوصلك خلال ثوانٍ</p>
     <label class="ksearch">${svg(I.search)}<input id="rscQ" placeholder="ابحث عن لعبة أو بطاقة…" value="${esc(S.rscQ || '')}" autocomplete="off" inputmode="search"></label>
-    ${rscChips(tab, cats)}
+    <div id="kChips">${rscChips(tab, cats)}</div><div id="kRes">
     ${!S.rsc.loaded && !S.rsc.error ? `<div class="kgrid3">${'<div class="skeleton" style="height:190px;border-radius:18px"></div>'.repeat(6)}</div>` : ''}
     ${S.rsc.error && !S.rsc.loaded ? `<div class="card" style="text-align:center;padding:28px 20px">${fennec('error')}<div class="h4 mb-3">تعذّر تحميل المتجر</div><button class="btn btn-primary" data-rscretry type="button">إعادة المحاولة</button></div>` : ''}
     ${S.rsc.loaded && home ? `
@@ -4554,6 +4554,7 @@ function vKStore() {
       ${gridOf(page, q ? 'mix' : tab)}
       ${rest > 0 ? `<button class="kmore" data-rscmore="${esc(tab + '|' + q)}" data-n="${lim + 24}" type="button">عرض المزيد (${rest})</button>` : ''}` : ''}
     ${S.rsc.loaded && !shown.length ? `<div class="card" style="text-align:center;padding:32px 20px">${fennec('empty')}<div class="h4" style="margin-bottom:6px">${q ? 'لا نتائج' : 'نجهّز الأقسام'}</div><div class="caption">${q ? 'جرّب اسم ثاني' : 'ترجع قريب'}</div></div>` : ''}
+    </div>
   </div>`;
 }
 // صفحة المنتج: الباقات كبطاقات + البيانات + شريط دفع ثابت
@@ -4695,13 +4696,25 @@ function bindRsc() {
   $$('[data-rscagain]').forEach(b => b.onclick = () => { const o = (S.rscOrders || []).find(x => x.id === b.dataset.rscagain); const c = o && rscCatBy(o.cat), off = c && c.offers.find(x => x.id === o.offer_id); if (off) openRscBuy(c, off, o.fields); });
   onTap('#rpGo', () => rscProductPay());
   rscHeroAuto();
-  $$('[data-rsctab]').forEach(b => b.onclick = () => { S.rscTab = b.dataset.rsctab; render(); });
+  $$('[data-rsctab]').forEach(b => b.onclick = () => { S.rscTab = b.dataset.rsctab; S.rscQ = ''; render(); });
   $$('[data-rscretry]').forEach(b => b.onclick = () => { S.rsc.error = false; loadRsc(true); render(); });
   $$('[data-rscoffer]').forEach(b => b.onclick = () => { const c = rscCatBy(S.rscCat); const o = c && c.offers.find(x => x.id === b.dataset.rscoffer); if (o) openRscBuy(c, o); });
   $$('[data-rscorder]').forEach(b => b.onclick = () => { const o = (S.rscOrders || []).find(x => x.id === b.dataset.rscorder); if (o) openRscResult(o); });
   $$('[data-rscgo]').forEach(b => b.onclick = () => { S.rscTab = b.dataset.rscgo; S.rscCat = null; go('kstore', true); });
   const q = $('#rscQ');
-  if (q) q.oninput = () => { S.rscQ = q.value; render(); };
+  if (q) q.oninput = () => {                                         // v58: نحدّث النتائج بس (بلا رمشة للصفحة كلها)
+    S.rscQ = q.value; S.rscLim = null; clearTimeout(window._kqT);
+    window._kqT = setTimeout(() => {
+      if (S.page !== 'kstore' || S.rscCat || !$('#kRes')) return render();
+      const full = vKStore(), tpl = document.createElement('template'); tpl.innerHTML = full;
+      const r2 = tpl.content.querySelector('#kRes'), c2 = tpl.content.querySelector('#kChips');
+      if (r2) $('#kRes').innerHTML = r2.innerHTML;
+      if (c2 && $('#kChips').innerHTML !== c2.innerHTML) $('#kChips').innerHTML = c2.innerHTML;
+      _lastHtml = full + siteFooter();
+      $$('#kRes [data-rsccat], #kChips [data-rsctab]').length && bindStoreBits();
+      lazyBgs();
+    }, 160);
+  };
 }
 
 function themePref() { try { return localStorage.getItem('kardo_theme') || 'auto'; } catch { return 'auto'; } }
@@ -5505,4 +5518,9 @@ function srchMatch(text, q) {
     if ((e.startsWith(nq) || nq.startsWith(e)) && nq.length >= 2 && t.includes(a)) return true;      // كتب بالإنجليزي والاسم عربي
   }
   return false;
+}
+
+function bindStoreBits() {
+  $$('#kRes [data-rsccat]').forEach(b => b.onclick = () => { const _c = rscCatBy(b.dataset.rsccat); if (_c && _c.maint) return toast('هذا القسم قيد الصيانة حاليًا — جرّب بعد شوية', 'bad'); S.rscCat = b.dataset.rsccat; render(); window.scrollTo({ top: 0, behavior: 'instant' }); });
+  $$('#kChips [data-rsctab], #kRes [data-rsctab]').forEach(b => b.onclick = () => { S.rscTab = b.dataset.rsctab; S.rscQ = ''; render(); });
 }

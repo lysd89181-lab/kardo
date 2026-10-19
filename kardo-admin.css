@@ -233,3 +233,8 @@ html .sw.on::after { right: 21px !important; background: #fff !important; box-sh
 .rsc-opt:active { transform: scale(.99); }
 .rsc-cb ~ .list-content { min-width: 0; }
 .rsc-cb ~ .list-content .list-title { white-space: normal; overflow-wrap: anywhere; line-height: 1.4; }
+.rsc-vis { margin-top: 4px; font-size: 11.5px; line-height: 1.6; display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+.rsc-vis.ok { color: var(--u-ok, #1F8A57); }
+.rsc-vis.w { color: var(--u-warn, #A8650C); }
+.rsc-vis.bad { color: var(--u-err, #C8432F); }
+.rsc-vis button { border: 1px solid currentColor; background: none; color: inherit; border-radius: 8px; padding: 2px 8px; font: 600 11px inherit; cursor: pointer; }

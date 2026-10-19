@@ -7332,9 +7332,15 @@ async function rscCats(env) { const v = await rscKvGet(env, 'rsc:cats'); return 
 /* ─── عروض قسم واحد (طلب واحد) ─── */
 async function rscFetchOffers(env, key) {
   const { type, id } = rscSplit(key);
-  const j = await rscCall(env, 'GET', type === 'topup'
-    ? `/top-ups/categories/${encodeURIComponent(id)}/offers`
-    : `/gift-cards/categories/${encodeURIComponent(id)}/cards`);
+  let j;
+  try {
+    j = await rscCall(env, 'GET', type === 'topup'
+      ? `/top-ups/categories/${encodeURIComponent(id)}/offers`
+      : `/gift-cards/categories/${encodeURIComponent(id)}/cards`);
+  } catch (e) {                                                      // v58: نسجّل سبب الفشل باش يبان في الإدارة
+    await rscKvPut(env, 'rsc:err:' + key, { at: Date.now(), msg: String(e.message || 'خطأ').slice(0, 200), st: e.rscStatus || 0 }, 86400 * 7).catch(() => {});
+    throw e;
+  }
   const offers = (j.offers || []).map(o => ({
     id: String(type === 'topup' ? o.offer_id : o.card_id), name: String(o.name || '').slice(0, 120),
     cost: num(o.price_usd, 0), stock: o.stock == null ? null : num(o.stock, 0),
@@ -7343,6 +7349,7 @@ async function rscFetchOffers(env, key) {
   const fields = type === 'topup' ? (j.fields || []).slice(0, 6).map(f => ({ key: String(f.key || '').slice(0, 40), label: String(f.label || f.key || '').slice(0, 60), type: f.type === 'number' ? 'number' : 'text' })).filter(f => f.key) : [];
   const v = { at: Date.now(), offers, fields };
   await rscKvPut(env, 'rsc:off:' + key, v, 86400 * 7);
+  if (env.KV) { if (offers.length) await env.KV.delete('rsc:err:' + key).catch(() => {}); else await rscKvPut(env, 'rsc:err:' + key, { at: Date.now(), msg: 'المزود ما عنده باقات متوفرة لهذا القسم حاليًا', empty: true }, 86400 * 7).catch(() => {}); }
   return v;
 }
 async function rscOffers(env, key, maxAgeMs) {
@@ -7627,11 +7634,19 @@ async function handleAdminRsc(user, body, env) {
     let cats = await rscCats(env);
     if (!cats.length && env.RSC_API_KEY) { try { cats = await rscSyncCategories(env); } catch (e) { err = err || e.message; } }
     const list = [];
+    const onKeys = cats.filter(c => (cfg.cats[c.key] || {}).on === true).map(c => c.key);
+    const offM = new Map(), errM = new Map();                         // v58: قراءة بالتوازي + سبب عدم الظهور
+    for (let i = 0; i < onKeys.length; i += 40) {
+      const ch = onKeys.slice(i, i + 40);
+      const [o, e] = await Promise.all([Promise.all(ch.map(k => rscKvGet(env, 'rsc:off:' + k))), Promise.all(ch.map(k => rscKvGet(env, 'rsc:err:' + k)))]);
+      ch.forEach((k, j) => { offM.set(k, o[j]); if (e[j]) errM.set(k, e[j]); });
+    }
     for (const c of cats) {
       const cc = cfg.cats[c.key] || {};
-      const off = cc.on ? await rscKvGet(env, 'rsc:off:' + c.key) : null;
+      const off = cc.on ? offM.get(c.key) : null;
+      const er = cc.on ? errM.get(c.key) : null;
       list.push({ key: c.key, type: c.type, name: c.name, alias: cc.name || '', on: cc.on === true, margin: cc.margin ?? '', sort: cc.sort ?? '', featured: cc.featured === true, maint: cc.maint === true, pick: cc.pick === true, promo: cc.promo || '', group: cc.group || '',
-        image: rscImg(env, c.key, cfg, c), custom_img: !!cc.img_v, offers: off ? off.offers.length : null, synced_at: off ? off.at : null });
+        image: rscImg(env, c.key, cfg, c), custom_img: !!cc.img_v, offers: off ? off.offers.filter(o => o.stock == null || o.stock > 0).length : null, synced_at: off ? off.at : null, err: er && (!off || !off.offers.length) ? er.msg : '' });
     }
     const bal = me && (me.balance_usd ?? me.balance ?? (me.account && me.account.balance));
     return { success: true, key_set: !!env.RSC_API_KEY, error: err, balance: bal == null ? null : num(bal, 0), me: me ? { email: me.email || '', limits: me.limits || me.rate_limits || null } : null,
