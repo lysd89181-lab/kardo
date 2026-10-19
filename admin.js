@@ -684,7 +684,7 @@ function render(force = false) {
   if (same && !force && html === _lastHtml) return;                     // لا تغيير → لا رمشة
   const view = $('#view'), ae = document.activeElement;
   if (same && !force && view && ae && view.contains(ae) && /^(INPUT|TEXTAREA|SELECT)$/.test(ae.tagName)) {
-    if (!_deferred) { _deferred = true; ae.addEventListener('blur', () => { _deferred = false; render(); }, { once: true }); }
+    if (!_deferred) { _deferred = true; ae.addEventListener('blur', () => { _deferred = false; setTimeout(() => render(), 0); }, { once: true }); }
     return;                                                             // لا نمسح ما يكتبه الأدمن
   }
   if (same && !force && S.page === 'settings' && S._dirty) return;     // تعديلات إعدادات غير محفوظة
@@ -4468,9 +4468,12 @@ function vRsc() {
   const q = (R.q || '').trim().toLowerCase();
   const stOf = c => !c.on ? 'off' : c.maint ? 'maint' : 'on';
   const flt = R.flt || 'all';
-  const cats = (R.cats || []).filter(c => (flt === 'all' || stOf(c) === flt || (flt === 'pick' && c.pick)) && (!q || (c.name + ' ' + c.alias).toLowerCase().includes(q)));
+  const tf = R.tf || 'all';
+  const cats = (R.cats || []).filter(c => (flt === 'all' || stOf(c) === flt || (flt === 'pick' && c.pick)) && (tf === 'all' || rscGA(c) === tf) && (!q || srchMatch(c.name + ' ' + c.alias + ' ' + c.key, q)))
+    .sort((a, b) => (b.on ? 1 : 0) - (a.on ? 1 : 0) || (a.type === 'topup' ? 0 : 1) - (b.type === 'topup' ? 0 : 1) || String(a.alias || a.name).localeCompare(String(b.alias || b.name)));
+  const lim = R.lim || 60;
   const sel = S.rscSel || (S.rscSel = new Set());
-  const vis = cats.slice(0, 120), allSel = vis.length && vis.every(c => sel.has(c.key));
+  const vis = cats.slice(0, lim), allSel = vis.length && vis.every(c => sel.has(c.key));
   const cnt = k => (R.cats || []).filter(c => stOf(c) === k).length;
   const onCount = (R.cats || []).filter(c => c.on).length;
   const imgU = u => !u ? '' : /^\//.test(u) ? API_BASE + u : u;
@@ -4510,6 +4513,8 @@ function vRsc() {
         <input class="input" id="rscQ" placeholder="ابحث في أقسام المزود…" value="${esc(R.q || '')}" style="flex:1">
       </div>
       <div class="pills mb-2" style="flex-wrap:wrap">${[['all', 'الكل', (R.cats || []).length], ['on', 'مفعّل', cnt('on')], ['maint', 'صيانة', cnt('maint')], ['off', 'مخفي', cnt('off')], ['pick', 'مختارات', (R.cats || []).filter(c => c.pick).length]].map(([k, t, nn]) => `<button class="pill ${flt === k ? 'active' : ''}" data-rscflt="${k}" type="button">${t} (${nn})</button>`).join('')}</div>
+      <div class="pills mb-2" style="flex-wrap:wrap">${[['all', 'كل الأنواع'], ...RSC_GA.map(([k, t]) => [k, t])].map(([k, t]) => { const nn = k === 'all' ? (R.cats || []).length : (R.cats || []).filter(c => rscGA(c) === k).length; return nn || k === 'all' ? `<button class="pill ${tf === k ? 'active' : ''}" data-rsctf="${k}" type="button">${t} (${nn})</button>` : ''; }).join('')}</div>
+      ${q ? `<div class="caption" style="margin:0 2px 6px">${cats.length} نتيجة لـ «${esc(R.q)}»</div>` : ''}
       <label class="rsc-all"><input type="checkbox" data-rscall ${allSel ? 'checked' : ''}><span>تحديد الكل${sel.size ? ` — ${sel.size} محدد` : ''}</span>${sel.size ? '<button type="button" data-rscclr>إلغاء التحديد</button>' : ''}</label>
       <div class="list">${vis.map(c => `
         <div class="list-row" style="cursor:default">
@@ -4522,7 +4527,7 @@ function vRsc() {
             <button class="btn btn-sm ${c.on ? (c.maint ? 'btn-secondary' : 'btn-primary') : 'btn-secondary'}" data-rsctgl="${esc(c.key)}" type="button" style="min-width:68px${c.maint ? ';color:var(--warning,#A8650C)' : ''}">${!c.on ? 'مخفي' : c.maint ? 'صيانة' : 'مفعّل'}${c.pick ? ' ✦' : ''}</button>
           </div>
         </div>`).join('') || '<div class="caption" style="padding:16px;text-align:center">لا أقسام — اضغط «تحديث الكتالوج»</div>'}</div>
-      ${cats.length > 120 ? '<p class="caption" style="text-align:center;margin-top:8px">اكتب في البحث لتضييق النتائج</p>' : ''}
+      ${cats.length > lim ? `<button class="btn btn-secondary btn-block" data-rscmore type="button" style="margin-top:10px">عرض المزيد (${cats.length - lim})</button>` : ''}
       ${sel.size ? `<div class="rsc-bulk"><b>${sel.size} ${sel.size > 10 ? 'قسم' : 'أقسام'} محددة</b>
         <div class="rsc-bb"><button type="button" class="p" data-rscbulk="on">تفعيل</button><button type="button" data-rscbulk="maint">صيانة</button><button type="button" data-rscbulk="off">إخفاء</button></div>
         <div class="rsc-bb2"><button type="button" data-rscmove>↪ نقل إلى…</button><button type="button" data-rscbulk="pick">✦ للمختارات</button><button type="button" data-rscbulk="unpick">شيل من المختارات</button></div>
@@ -4612,7 +4617,10 @@ function bindRscA() {
     try { await api('/api/admin/rsc', { action: 'order', id: b.dataset.rscref, op: 'refund' }); toast('أُعيد المبلغ للعميل ✓', 'ok'); loadRscOrdersA(); }
     catch (e) { toast(e.message, 'bad'); }
   });
-  const q = $('#rscQ'); if (q) q.oninput = () => { S.rscA.q = q.value; render(); };
+  const q = $('#rscQ'); if (q) q.oninput = () => {                // v57: البحث يشتغل وأنت تكتب (كان يستنى لين تطلع من الخانة)
+    S.rscA.q = q.value; S.rscA.lim = 60; clearTimeout(window._rscQT);
+    window._rscQT = setTimeout(() => { const pos = q.selectionStart; render(true); const n2 = $('#rscQ'); if (n2) { n2.focus(); try { n2.setSelectionRange(pos, pos); } catch {} } }, 180);
+  };
   onTap('#rscOn', async () => {
     try { await api('/api/admin/settings', { rsc_on: !S.rscA.on }); S.rscA.on = !S.rscA.on; toast('حُفظ ✓', 'ok'); render(true); } catch (e) { toast(e.message, 'bad'); }
   });
@@ -5541,4 +5549,24 @@ document.addEventListener('click', async e => {
       const t = r.tally || {}; toast(`تم ✓ ألعاب ${t.topup || 0} · هدايا ${t.gift || 0} · اشتراكات ${t.subs || 0} · تطبيقات ${t.apps || 0} · دفع ${t.pay || 0}`, 'ok'); await loadRscA(); }
     catch (er) { toast(er.message, 'bad'); $$('[data-rscautogo]').forEach(x => x.disabled = false); }
   }
+});
+
+/* ═══ v57 — بحث ذكي: عربي/إنجليزي، بدون حساسية للهمزات والمسافات ═══ */
+const SRCH_AL = [['ببجي', 'pubg'], ['بوبجي', 'pubg'], ['فري فاير', 'free fire'], ['فري فاير', 'freefire'], ['روبلوكس', 'roblox'], ['فورتنايت', 'fortnite'], ['فالورانت', 'valorant'], ['ستيم', 'steam'], ['بلايستيشن', 'playstation'], ['بلاستيشن', 'playstation'], ['سوني', 'psn'], ['ايتونز', 'itunes'], ['آيتونز', 'itunes'], ['ابل', 'apple'], ['جوجل', 'google'], ['قوقل', 'google'], ['اكس بوكس', 'xbox'], ['نتفليكس', 'netflix'], ['شاهد', 'shahid'], ['سبوتيفاي', 'spotify'], ['ادوبي', 'adobe'], ['كانفا', 'canva'], ['مايكروسوفت', 'microsoft'], ['رايزر', 'razer'], ['كاش', 'cash'], ['امازون', 'amazon'], ['نينتندو', 'nintendo'], ['ماين كرافت', 'minecraft'], ['كول اوف ديوتي', 'call of duty'], ['ليج', 'league'], ['موبايل ليجند', 'mobile legends'], ['جنشن', 'genshin'], ['فيفا', 'fifa'], ['يلا لودو', 'yalla ludo'], ['جواكر', 'jawaker'], ['تيك توك', 'tiktok'], ['ديسكورد', 'discord'], ['يوتيوب', 'youtube'], ['انغامي', 'anghami'], ['ديزني', 'disney']];
+const srchNorm = s => String(s || '').toLowerCase().replace(/[ً-ْـ]/g, '').replace(/[أإآ]/g, 'ا').replace(/ة/g, 'ه').replace(/ى/g, 'ي').replace(/[\s\-_.()·:]+/g, '');
+function srchMatch(text, q) {
+  const t = srchNorm(text), nq = srchNorm(q);
+  if (!nq) return true;
+  if (t.includes(nq)) return true;
+  for (const [ar, en] of SRCH_AL) {
+    const a = srchNorm(ar), e = srchNorm(en);
+    if ((a.startsWith(nq) || nq.startsWith(a)) && nq.length >= 2 && t.includes(e)) return true;      // كتب بالعربي والاسم إنجليزي
+    if ((e.startsWith(nq) || nq.startsWith(e)) && nq.length >= 2 && t.includes(a)) return true;      // كتب بالإنجليزي والاسم عربي
+  }
+  return false;
+}
+
+document.addEventListener('click', e => {
+  const t = e.target.closest('[data-rsctf]'); if (t) { S.rscA.tf = t.dataset.rsctf; S.rscA.lim = 60; render(true); return; }
+  if (e.target.closest('[data-rscmore]')) { S.rscA.lim = (S.rscA.lim || 60) + 60; render(true); }
 });

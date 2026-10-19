@@ -4524,7 +4524,7 @@ function vKStore() {
   const q = (S.rscQ || '').trim().toLowerCase();
   const tab = S.rscTab || 'all';
   const cats = S.rsc.cats || [];
-  const shown = cats.filter(c => (!q || c.name.toLowerCase().includes(q)) && (tab === 'all' || rscGroup(c) === tab));
+  const shown = cats.filter(c => (!q || srchMatch(c.name, q)) && (q || tab === 'all' || rscGroup(c) === tab));
   const feat = cats.filter(c => c.featured).slice(0, 5);
   const home = tab === 'all' && !q;
   if (home && S.user && !S.rscOrders) { S.rscOrders = []; loadRscOrders(); }
@@ -5491,3 +5491,18 @@ document.addEventListener('click', e => {
   const m = e.target.closest('[data-rscmore]'); if (!m) return;
   S.rscLim = { k: m.dataset.rscmore, n: Number(m.dataset.n) || 48 }; render();
 });
+
+/* ═══ v57 — بحث ذكي: عربي/إنجليزي، بدون حساسية للهمزات والمسافات ═══ */
+const SRCH_AL = [['ببجي', 'pubg'], ['بوبجي', 'pubg'], ['فري فاير', 'free fire'], ['فري فاير', 'freefire'], ['روبلوكس', 'roblox'], ['فورتنايت', 'fortnite'], ['فالورانت', 'valorant'], ['ستيم', 'steam'], ['بلايستيشن', 'playstation'], ['بلاستيشن', 'playstation'], ['سوني', 'psn'], ['ايتونز', 'itunes'], ['آيتونز', 'itunes'], ['ابل', 'apple'], ['جوجل', 'google'], ['قوقل', 'google'], ['اكس بوكس', 'xbox'], ['نتفليكس', 'netflix'], ['شاهد', 'shahid'], ['سبوتيفاي', 'spotify'], ['ادوبي', 'adobe'], ['كانفا', 'canva'], ['مايكروسوفت', 'microsoft'], ['رايزر', 'razer'], ['كاش', 'cash'], ['امازون', 'amazon'], ['نينتندو', 'nintendo'], ['ماين كرافت', 'minecraft'], ['كول اوف ديوتي', 'call of duty'], ['ليج', 'league'], ['موبايل ليجند', 'mobile legends'], ['جنشن', 'genshin'], ['فيفا', 'fifa'], ['يلا لودو', 'yalla ludo'], ['جواكر', 'jawaker'], ['تيك توك', 'tiktok'], ['ديسكورد', 'discord'], ['يوتيوب', 'youtube'], ['انغامي', 'anghami'], ['ديزني', 'disney']];
+const srchNorm = s => String(s || '').toLowerCase().replace(/[ً-ْـ]/g, '').replace(/[أإآ]/g, 'ا').replace(/ة/g, 'ه').replace(/ى/g, 'ي').replace(/[\s\-_.()·:]+/g, '');
+function srchMatch(text, q) {
+  const t = srchNorm(text), nq = srchNorm(q);
+  if (!nq) return true;
+  if (t.includes(nq)) return true;
+  for (const [ar, en] of SRCH_AL) {
+    const a = srchNorm(ar), e = srchNorm(en);
+    if ((a.startsWith(nq) || nq.startsWith(a)) && nq.length >= 2 && t.includes(e)) return true;      // كتب بالعربي والاسم إنجليزي
+    if ((e.startsWith(nq) || nq.startsWith(e)) && nq.length >= 2 && t.includes(a)) return true;      // كتب بالإنجليزي والاسم عربي
+  }
+  return false;
+}
