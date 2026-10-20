@@ -69,6 +69,14 @@ const DEFAULT_SETTINGS = {
   plans_enabled: true, plan_free_cards: 1, plan_basic_cards: 3, plan_premium_cards: 6, plan_vip_cards: 0,
   plan_premium_price: 10, plan_premium_days: 30, card_warning: '', card_points: '', otp_fee_usd: 0.03, kardo_store_on: false, merchants_on: false, referral_cards_enabled: true, usdt_bep20_on: false, usdt_bep20_address: '', usdt_polygon_on: false, usdt_polygon_address: '', binance_pay_on: false, binance_pay_id: '', require_phone_verified: false, sms_sender_exact: true, sms_auto_max_lyd: 100, admin_reauth_hours: 12, quota_save_at: 25000, merchant_free_days: 30, merchant_default_pct: 5, pv_amount_lyd: 1, require_verified_money: true, card_types: [], referral_card_inviter: 1, referral_card_invitee: 0.2, referral_store_enabled: false,
   plan_basic_price: 5, plan_basic_days: 30, plan_vip_price: 15, plan_vip_days: 30,
+  // v62 — محافظ منفصلة لكل طريقة دفع: نسبة ربح ولون لكل محفظة، وحدود لكل طريقة (بعملتها)، وصورة لكل شبكة
+  wallets_on: true,
+  w_margin_usd: 0, w_margin_ly: 0, w_margin_md: 0, w_margin_bk: 0,
+  w_color_usd: '#26A17B', w_color_ly: '#00A6E1', w_color_md: '#E2231A', w_color_bk: '#566064',
+  lim_libyana_min: 0, lim_libyana_max: 0, lim_almadar_min: 0, lim_almadar_max: 0, lim_bank_min: 0, lim_bank_max: 0,
+  lim_trc20_min: 0, lim_trc20_max: 0, lim_bep20_min: 0, lim_bep20_max: 0, lim_polygon_min: 0, lim_polygon_max: 0,
+  lim_binance_pay_min: 0, lim_binance_pay_max: 0, lim_binance_min: 0, lim_binance_max: 0,
+  m_trc20_logo: '', m_bep20_logo: '', m_polygon_logo: '', m_binance_pay_logo: '',
 };
 
 const ADMIN_SETTINGS_KEYS = Object.keys(DEFAULT_SETTINGS);
@@ -226,6 +234,7 @@ async function route(path, request, url, env) {
     case '/api/wallet/claim':          return handleWalletClaim(user, body, env);
     case '/api/wallet/withdraw':       return handleWithdrawRequest(user, body, env);
     case '/api/wallet/transfer':       return handleTransfer(user, body, env);
+    case '/api/wallet/default':        return handleWalletDefault(user, body, env);
     case '/api/wallet/usdt/invoice':   return handleUsdtInvoice(user, body, env);
     case '/api/wallet/usdt/verify':    return handleUsdtVerify(user, body, env);
     case '/api/phone/verify/start':    return handlePhoneVerifyStart(user, body, env);
@@ -287,6 +296,7 @@ async function route(path, request, url, env) {
     case '/api/admin/report/resolve':  return handleAdminReportResolve(user, body, env);
     case '/api/admin/card/balance':    return handleAdminCardBalance(user, body, env);
     case '/api/admin/push/test':       return handleAdminPushTest(user, body, env);
+    case '/api/admin/wallets/split':   return handleAdminWalletSplit(user, body, env);
     case '/api/admin/card/replace':    return handleAdminCardReplace(user, body, env);
     case '/api/admin/sticker/save':    return handleAdminStickerSave(user, body, env);
 
@@ -501,13 +511,16 @@ async function handleStatus(env) {
     site_maint: s.site_maint_on === true,
     site_maint_msg: String(s.site_maint_msg || '').slice(0, 300),
     rsc_on: s.rsc_on !== false,
+    wallets: s.wallets_on === false ? null : WALLETS.map(w => ({ k: w, label: W_AR[w], cur: wCur(w), rate: wRate(s, w), margin: wMargin(s, w), color: String(s['w_color_' + w] || '#566064'),
+      logo: imgRef(env, 'm', { usd: 'usdt', ly: 'libyana', md: 'almadar', bk: 'bank' }[w], s['m_' + { usd: 'usdt', ly: 'libyana', md: 'almadar', bk: 'bank' }[w] + '_logo']) })),   // v62
+    limits: Object.fromEntries(['libyana', 'almadar', 'bank', 'binance', 'trc20', 'bep20', 'polygon', 'binance_pay'].map(k => [k, { min: num(s[`lim_${k}_min`], 0), max: num(s[`lim_${k}_max`], 0) }])),
     paused_methods: String(s.paused_methods || '').split(',').map(x => x.trim()).filter(Boolean),
     promo_first: promoFirstActive(s) ? { min: num(s.promo_first_min, 20), bonus: num(s.promo_first_bonus, 0.5), until: s.promo_first_until || '' } : null,
     binance_pay_qr: num(s.binance_pay_qr_v, 0) ? `/bpq?v=${num(s.binance_pay_qr_v, 0)}` : '',
     new_acct: { days: num(s.new_acct_days, 7), max: num(s.new_acct_crypto_max, 50) },
     d1: await d1PublicFlags(env),
     d1p: await d1IsPrimary(env).catch(() => false),
-    crypto_nets: s.m_usdt_on === true ? Object.entries(CRYPTO_NETS).filter(([k, n]) => k === 'trc20' ? /^T/.test(String(s.usdt_address || '')) : s[n.onKey] === true && n.addrRe.test(String(s[n.addrKey] || ''))).map(([k, n]) => ({ id: k, label: n.label })) : [],
+    crypto_nets: s.m_usdt_on === true ? Object.entries(CRYPTO_NETS).filter(([k, n]) => k === 'trc20' ? /^T/.test(String(s.usdt_address || '')) : s[n.onKey] === true && n.addrRe.test(String(s[n.addrKey] || ''))).map(([k, n]) => ({ id: k, label: n.label, logo: imgRef(env, 'm', k, s[`m_${k}_logo`]), min: num(s[`lim_${k}_min`], 0), max: num(s[`lim_${k}_max`], 0) })) : [],
     card_types: cardTypesOf(s).map(({ provider, ...t }) => t),
     require_verified_money: s.require_verified_money !== false,
     require_phone_verified: s.require_phone_verified === true,
@@ -1722,11 +1735,122 @@ function money(v, { min = 0.01, max = 1e6 } = {}) {
    كل تغيير على wallet_balance يمر من هنا فقط:
    ledgerOpen → ledgerPost (مرة أو أكثر) → ledgerClose            */
 
-async function ledgerOpen(tx, uid) {
+/* ═══ v62 — المحافظ: usd (USDT/الدولار — هي wallet_balance القديمة) + ly ليبيانا + md المدار + bk مصرف (بالدينار) ═══ */
+const WALLETS = ['usd', 'ly', 'md', 'bk'];
+const W_AR = { usd: 'USDT', ly: 'ليبيانا', md: 'المدار', bk: 'مصرف' };
+const wOk = w => WALLETS.includes(w);
+const wCur = w => (w === 'usd' ? 'USD' : 'LYD');
+function wRate(s, w) { return w === 'ly' ? num(s.rate_libyana, 11.8) : w === 'md' ? num(s.rate_almadar, 12.5) : w === 'bk' ? num(s.rate_bank, 9.5) : 1; }
+function wMargin(s, w) { return Math.max(0, Math.min(100, num(s['w_margin_' + w], 0))); }
+// سعر الشراء بعملة المحفظة: السعر بالدولار × (1 + ربح المحفظة) × صرفها — الدينار يتقرّب لأعلى نص دينار
+function wPrice(s, w, usd) { const x = num(usd, 0) * (1 + wMargin(s, w) / 100) * wRate(s, w); return w === 'usd' ? Math.ceil(x * 100 - 1e-6) / 100 : Math.ceil(x * 2 - 1e-6) / 2; }
+// مبلغ بدون ربح (سحب/حدود/إحصاءات): دولار ↔ عملة المحفظة
+function wFromUsd(s, w, usd) { return round2(num(usd, 0) * wRate(s, w)); }
+function wToUsd(s, w, amt) { return round2(num(amt, 0) / wRate(s, w)); }
+function wFmt(w, x) { return w === 'usd' ? '$' + num(x, 0).toFixed(2) : num(x, 0).toFixed(2) + ' د.ل'; }
+function userWallet(u) { return u && wOk(u.default_wallet) ? u.default_wallet : 'usd'; }
+function wBalOf(u, w) { return w === 'usd' ? round2(num(u && u.wallet_balance, 0)) : round2(num(u && u.wallets && u.wallets[w], 0)); }
+// محفظة طريقة الدفع
+function methodWallet(method) {
+  const m = String(method || '').toLowerCase();
+  if (/libyana|ليبيانا/.test(m)) return 'ly';
+  if (/almadar|المدار|مدار/.test(m)) return 'md';
+  if (/^bank$|مصرف|بنك|bank/.test(m)) return 'bk';
+  return 'usd';
+}
+
+// v62: الصرف من المحفظة الافتراضية — يرجّع المحفظة والمبلغ بعملتها (مع ربحها)
+async function spendPlan(tx, s, uid, usd, noMargin) {
+  const u = await tx.get(`users/${uid}`);
+  const w = s.wallets_on === false ? 'usd' : userWallet(u);
+  return { w, amt: noMargin ? (w === 'usd' ? round2(usd) : wFromUsd(s, w, usd)) : wPrice(s, w, usd) };
+}
+async function spendPost(L, sp, e) {
+  if (L.bal < sp.amt - 1e-9) throw httpError(402, `رصيد محفظة ${W_AR[sp.w]} غير كافٍ — المطلوب ${wFmt(sp.w, sp.amt)} والمتاح ${wFmt(sp.w, L.bal)}`);
+  return ledgerPost(L, { ...e, type: 'debit', amount: sp.amt });
+}
+function depWallet(s, key) { return s.wallets_on === false ? 'usd' : methodWallet(key); }   // v62: محفظة الإيداع حسب الطريقة
+/* v62 — تقسيم الرصيد القديم (دولار) على المحافظ حسب مصدر إيداعات كل زبون — معاينة ثم اعتماد على دفعات */
+async function splitPlanFor(env, s, uid, u) {
+  const bal = round2(num(u.wallet_balance, 0));
+  const tot = { usd: 0, ly: 0, md: 0, bk: 0 };
+  const rows = env.DB && await d1Table(env, 'wallet_deposits') ? await d1All(env, `SELECT data FROM wallet_deposits WHERE uid = ? AND status = 'approved' LIMIT 500`, [uid]).catch(() => []) : [];
+  for (const r of rows) { const d = _jp(r.data); const w = wOk(d.wallet) ? d.wallet : methodWallet(d.method_key || d.method || ''); tot[w] += Math.max(0, num(d.amount_usd, 0)); }
+  const sum = tot.usd + tot.ly + tot.md + tot.bk;
+  const moves = [];
+  if (bal > 0 && sum > 0) for (const w of ['ly', 'md', 'bk']) {
+    if (!(tot[w] > 0)) continue;
+    const usd = Math.floor(bal * tot[w] / sum * 100) / 100;
+    if (usd >= 0.01) moves.push({ w, usd, lyd: wFromUsd(s, w, usd) });
+  }
+  const moved = round2(moves.reduce((t, m) => t + m.usd, 0));
+  const shares = { usd: round2(bal - moved), ...Object.fromEntries(moves.map(m => [m.w, m.usd])) };
+  const def = Object.entries(shares).sort((a, b) => b[1] - a[1])[0][0];
+  return { uid, name: u.name || '', email: u.email || '', bal, moves, keep_usd: round2(bal - moved), default_wallet: def, pct: sum ? Object.fromEntries(Object.entries(tot).map(([k, v]) => [k, Math.round(v / sum * 100)])) : null };
+}
+async function handleAdminWalletSplit(user, body, env) {
+  const staff = await requirePermission(user, env, 'settings.manage');
+  const s = await getSettings(env);
+  if (!env.DB || !(await d1Table(env, 'users'))) throw httpError(503, 'قاعدة D1 غير جاهزة');
+  const lim = Math.min(body.action === 'apply' ? 15 : 300, Math.max(1, Math.floor(num(body.limit, 300))));
+  const rows = await d1All(env, `SELECT id, data FROM users WHERE json_extract(data, '$.wallet_balance') > 0 AND json_extract(data, '$.wallets_split') IS NULL ORDER BY json_extract(data, '$.wallet_balance') DESC LIMIT ?`, [lim]).catch(() => []);
+  const left = num(((await d1All(env, `SELECT COUNT(*) AS n FROM users WHERE json_extract(data, '$.wallet_balance') > 0 AND json_extract(data, '$.wallets_split') IS NULL`).catch(() => [{ n: 0 }]))[0] || {}).n, 0);
+  if (body.action !== 'apply') {
+    const plans = [];
+    for (const r of rows) plans.push(await splitPlanFor(env, s, r.id, _jp(r.data)));
+    return { success: true, left, plans };
+  }
+  requireFreshAuth(user);
+  let done = 0, failed = [];
+  for (const r of rows) {
+    const uid = r.id;
+    try {
+      const u = await fsGet(env, `users/${uid}`);
+      if (!u || u.wallets_split) continue;
+      const pl = await splitPlanFor(env, s, uid, u);
+      for (const m of pl.moves) {                                    // معاملة لكل محفظة (حقول مختلفة — بلا تعارض)
+        await fsRunTransaction(env, async (tx) => {
+          const A = await ledgerOpen(tx, uid, 'usd'), B = await ledgerOpen(tx, uid, m.w);
+          if (A.bal < m.usd) throw httpError(409, 'تغيّر الرصيد');
+          await ledgerPost(A, { type: 'debit', amount: m.usd, reason: 'wallet_split_out', reference: 'SPLIT_' + m.w, entryId: `txn_split_${uid}_${m.w}_o`, created_by: staff.uid, note: `نقل لمحفظة ${W_AR[m.w]}` });
+          await ledgerPost(B, { type: 'credit', amount: m.lyd, reason: 'wallet_split_in', reference: 'SPLIT_' + m.w, entryId: `txn_split_${uid}_${m.w}_i`, created_by: staff.uid, note: `من رصيد الدولار (${m.usd}$)` });
+          ledgerClose(tx, A); ledgerClose(tx, B);
+        });
+      }
+      await fsPatch(env, `users/${uid}`, { wallets_split: nowIso(), ...(u.default_wallet ? {} : { default_wallet: pl.default_wallet }) });
+      done++;
+    } catch (e) {
+      failed.push({ uid, err: String(e.message || '').slice(0, 120) });
+      await fsPatch(env, `users/${uid}`, { wallets_split: 'failed:' + nowIso() }).catch(() => {});   // ما نعاودوش عليه تلقائيًا
+    }
+  }
+  await logOp(env, staff.uid, 'wallets.split', { n: rows.length }, { done, failed: failed.length }, true);
+  return { success: true, done, failed, left: Math.max(0, left - rows.length) };
+}
+
+async function handleWalletDefault(user, body, env) {
+  const w = String(body.w || '');
+  if (!wOk(w)) throw httpError(400, 'محفظة غير صالحة');
+  await fsPatch(env, `users/${user.uid}`, { default_wallet: w });
+  return { success: true, default_wallet: w };
+}
+// حدود الإيداع لكل طريقة — بعملة الطريقة (0 = بلا حد)
+function depLimitCheck(s, key, amt) {
+  const mn = num(s[`lim_${key}_min`], 0), mx = num(s[`lim_${key}_max`], 0);
+  const unit = ['trc20', 'bep20', 'polygon', 'binance_pay', 'binance'].includes(key) ? '$' : ' د.ل';
+  if (mn > 0 && amt < mn) throw httpError(400, `الحد الأدنى لهذي الطريقة ${mn}${unit}`);
+  if (mx > 0 && amt > mx) throw httpError(400, `الحد الأقصى لهذي الطريقة ${mx}${unit}`);
+}
+
+async function ledgerOpen(tx, uid, w = 'usd') {
+  if (!wOk(w)) throw httpError(400, 'محفظة غير صالحة');
   const doc = await tx.get(`users/${uid}`);
   if (!doc) throw httpError(404, 'الحساب غير موجود');
+  if (w !== 'usd') {                                                 // محفظة بالدينار: سلسلة قيود خاصة بيها
+    return { uid, doc, w, bal: wBalOf(doc, w), seq: Number.isInteger(doc['lseq_' + w]) ? doc['lseq_' + w] : 0, head: doc['lhead_' + w] || 'GENESIS_' + w, entries: [] };
+  }
   const L = {
-    uid, doc,
+    uid, doc, w: 'usd',
     bal: round2(num(doc.wallet_balance, 0)),
     seq: Number.isInteger(doc.ledger_seq) ? doc.ledger_seq : null,
     head: doc.ledger_head || 'GENESIS',
@@ -1756,6 +1880,7 @@ async function pushEntry(L, id, e) {
     prev_hash: L.head, created_at,
   };
   if (e.note) entry.note = String(e.note).slice(0, 200);
+  if (L.w && L.w !== 'usd') { entry.wallet = L.w; entry.currency = 'LYD'; }
   entry.hash = await ledgerHash(entry);
   L.entries.push({ id, entry });
   L.seq = seq;
@@ -1767,6 +1892,7 @@ function ledgerHash(e) {
     e.prev_hash, e.uid, e.seq, e.type, e.amount.toFixed(2),
     e.balance_before.toFixed(2), e.balance_after.toFixed(2),
     e.reason, e.reference, e.created_by, e.created_at,
+    ...(e.wallet && e.wallet !== 'usd' ? [e.wallet] : []),           // v62: قيود المحافظ الدينارية (القديمة بنفس الصيغة)
   ].join('|'));
 }
 
@@ -1784,7 +1910,9 @@ async function ledgerPost(L, { type, amount, reason, reference, entryId, created
 
 function ledgerClose(tx, L, extraUserFields = {}) {
   if (!L.entries.length && !Object.keys(extraUserFields).length) return;
-  tx.update(`users/${L.uid}`, {
+  if (L.w && L.w !== 'usd') {
+    tx.update(`users/${L.uid}`, { ...extraUserFields, wallets: { ...((L.doc && L.doc.wallets) || {}), [L.w]: L.bal }, ['lseq_' + L.w]: L.seq, ['lhead_' + L.w]: L.head });
+  } else tx.update(`users/${L.uid}`, {
     ...extraUserFields,
     wallet_balance: L.bal, ledger_seq: L.seq, ledger_head: L.head,
   });
@@ -1803,30 +1931,43 @@ async function handleAdminLedgerVerify(user, body, env) {
     where: { fieldFilter: { field: { fieldPath: 'uid' }, op: 'EQUAL', value: { stringValue: uid } } },
     limit: 5000,
   });
-  const chain = rows.map(r => withId(r, 'wallet_transactions'))
-    .filter(e => Number.isInteger(e.seq)).sort((a, b) => a.seq - b.seq);
-
-  const problems = [];
-  let head = 'GENESIS', sum = 0;
-  for (let i = 0; i < chain.length; i++) {
-    const e = chain[i];
-    if (e.seq !== i + 1) problems.push(`فجوة في التسلسل عند ${i + 1}`);
-    if (e.prev_hash !== head) problems.push(`prev_hash لا يطابق عند ${e.seq}`);
-    const h = await ledgerHash({ ...e, amount: num(e.amount, 0), balance_before: num(e.balance_before, 0), balance_after: num(e.balance_after, 0) });
-    if (h !== e.hash) problems.push(`hash تالف عند ${e.seq}`);
-    sum = round2(sum + (e.type === 'credit' ? num(e.amount, 0) : -num(e.amount, 0)));
-    if (round2(num(e.balance_after, 0)) !== sum) problems.push(`balance_after غير متّسق عند ${e.seq}`);
-    head = e.hash;
+  const all = rows.map(r => withId(r, 'wallet_transactions')).filter(e => Number.isInteger(e.seq));
+  const problems = [], per = {};
+  let usdSum = 0, usdN = 0;
+  for (const w of WALLETS) {                                          // v62: كل محفظة سلسلة مستقلة
+    const chain = all.filter(e => (e.wallet || 'usd') === w).sort((a, b) => a.seq - b.seq);
+    if (w !== 'usd' && !chain.length) continue;
+    const tag = w === 'usd' ? '' : ` [${W_AR[w]}]`;
+    let head = w === 'usd' ? 'GENESIS' : 'GENESIS_' + w, sum = 0;
+    for (let i = 0; i < chain.length; i++) {
+      const e = chain[i];
+      if (e.seq !== i + 1) problems.push(`فجوة في التسلسل عند ${i + 1}${tag}`);
+      if (e.prev_hash !== head) problems.push(`prev_hash لا يطابق عند ${e.seq}${tag}`);
+      const h = await ledgerHash({ ...e, amount: num(e.amount, 0), balance_before: num(e.balance_before, 0), balance_after: num(e.balance_after, 0) });
+      if (h !== e.hash) problems.push(`hash تالف عند ${e.seq}${tag}`);
+      sum = round2(sum + (e.type === 'credit' ? num(e.amount, 0) : -num(e.amount, 0)));
+      if (round2(num(e.balance_after, 0)) !== sum) problems.push(`balance_after غير متّسق عند ${e.seq}${tag}`);
+      head = e.hash;
+    }
+    const bal = wBalOf(u, w);
+    if (w === 'usd') {
+      usdSum = sum; usdN = chain.length;
+      if (Number.isInteger(u.ledger_seq)) {
+        if (u.ledger_seq !== chain.length) problems.push('ledger_seq لا يطابق عدد القيود');
+        if (u.ledger_head !== head) problems.push('ledger_head لا يطابق آخر قيد');
+        if (sum !== bal) problems.push(`المجموع ${sum} ≠ الرصيد ${bal}`);
+      }
+    } else {
+      if (num(u['lseq_' + w], 0) !== chain.length) problems.push(`عدد القيود لا يطابق${tag}`);
+      if (u['lhead_' + w] !== head) problems.push(`آخر قيد لا يطابق${tag}`);
+      if (sum !== bal) problems.push(`المجموع ${sum} ≠ الرصيد ${bal}${tag}`);
+    }
+    per[w] = { entries: chain.length, sum, balance: bal };
   }
   const balance = round2(num(u.wallet_balance, 0));
   const migrated = Number.isInteger(u.ledger_seq);
-  if (migrated) {
-    if (u.ledger_seq !== chain.length) problems.push('ledger_seq لا يطابق عدد القيود');
-    if (u.ledger_head !== head) problems.push('ledger_head لا يطابق آخر قيد');
-    if (sum !== balance) problems.push(`المجموع ${sum} ≠ الرصيد ${balance}`);
-  }
   await logOp(env, staff.uid, 'ledger.verify', { uid }, { ok: !problems.length }, true);
-  return { success: true, uid, migrated, entries: chain.length, ledger_sum: sum, balance, ok: problems.length === 0, problems: problems.slice(0, 50) };
+  return { success: true, uid, migrated, entries: usdN, ledger_sum: usdSum, balance, wallets: per, ok: problems.length === 0, problems: problems.slice(0, 50) };
 }
 
 /* ─── Card crypto v2 — HKDF per-record key ─── */
@@ -1922,6 +2063,8 @@ function sanitizeSettingsPatch(body) {
     }
     if (/^sec_(cards|store|deposit|transfer|withdraw|support)$/.test(k) && !['on', 'maint', 'off'].includes(v)) throw httpError(400, `حالة غير صالحة: ${k}`);
     if (/^sec_msg_/.test(k)) v = v.replace(/[<>]/g, '').slice(0, 300);
+    if (/^w_color_/.test(k) && !/^#[0-9a-fA-F]{6}$/.test(v)) throw httpError(400, 'لون غير صالح');
+    if (/^w_margin_/.test(k) && v > 100) throw httpError(400, 'نسبة ربح غير منطقية');
     out[k] = v;
   }
   for (const k of ['rate_libyana', 'rate_almadar', 'rate_bank', 'rate_usdt', 'usd_to_lyd']) {
@@ -1998,7 +2141,9 @@ async function handleWalletClaim(user, body, env) {
   const rate = method === 'almadar' ? num(st.rate_almadar, 12.5) : num(st.rate_libyana, 11.8);
   await assertDailyLimit(env, st, user.uid, 'deposit', round2(amountLyd / rate));
 
+  depLimitCheck(st, method, amountLyd);                              // v62: حدود الطريقة بالدينار
   const sms = !ownedByOther && !manualMode ? await findUnclaimedSms(env, phone, amountLyd) : null;
+  let claimW = null;
   if (sms) {
     const credited = await fsRunTransaction(env, async (tx) => {
       const smsDoc = await tx.get(`sms_transactions/${sms._id}`);
@@ -2007,15 +2152,17 @@ async function handleWalletClaim(user, body, env) {
       const own = await tx.get(`phone_owners/${phone}`);
       if (own && own.uid && own.uid !== user.uid) throw httpError(409, 'هذا الرقم مرتبط بحساب آخر — أُرسل طلبك للمراجعة');
       const amt = round2(num(smsDoc.amount_usd, 0));
-      const L = await ledgerOpen(tx, user.uid);
-      await ledgerPost(L, { type: 'credit', amount: amt, reason: 'deposit_claim', reference: sms._id, entryId: `txn_dep_${sms._id}` });
+      const w = depWallet(st, smsDoc.method || method), amtW = w === 'usd' ? amt : round2(num(smsDoc.amount_lyd, amountLyd));   // v62
+      const L = await ledgerOpen(tx, user.uid, w);
+      await ledgerPost(L, { type: 'credit', amount: amtW, reason: 'deposit_claim', reference: sms._id, entryId: `txn_dep_${sms._id}` });
       ledgerClose(tx, L);
       await dailyCheckTx(tx, st, user.uid, 'deposit', amt);
+      claimW = { w, amtW };
       tx.update(`sms_transactions/${sms._id}`, { status: 'claimed', uid: user.uid, claimed_at: nowIso(), matched_by: 'claim' });
       if (!own) tx.create('phone_owners', phone, { uid: user.uid, network: smsDoc.method || method, at: nowIso() });
       if (!verifiedPhone) tx.update(`users/${user.uid}`, { phone_verified: phone, phone_network: smsDoc.method || method, phone_verified_at: nowIso() });
       tx.create('wallet_deposits', sms._id, {
-        uid: user.uid, amount_usd: amt, amount_lyd: num(smsDoc.amount_lyd, amountLyd),
+        uid: user.uid, amount_usd: amt, amount_lyd: num(smsDoc.amount_lyd, amountLyd), wallet: w, amount_w: amtW,
         method: (smsDoc.method === 'almadar' ? 'المدار' : 'ليبيانا') + ' — تلقائي',
         claim_phone: phone, proof_url: '', note: 'حوالة من 0' + phone,
         status: 'approved', auto: true, created_at: nowIso(),
@@ -2023,10 +2170,10 @@ async function handleWalletClaim(user, body, env) {
       return amt;
     });
     await logOp(env, user.uid, 'deposit.claim_matched', { amountLyd }, { credited }, true);
-    notify(env, user.uid, 'deposit_ok', { amount: credited.toFixed(2) });
-    staffAlert(env, 'adm_deposit', { uid: user.uid, amount: '$' + credited.toFixed(2), method: 'رصيد هاتف (مطابقة تلقائية)', auto: true, page: 'money' }, 'deposits.view');
+    notify(env, user.uid, 'deposit_ok', { amount: credited.toFixed(2), fmt: claimW ? wFmt(claimW.w, claimW.amtW) : '' });
+    staffAlert(env, 'adm_deposit', { uid: user.uid, amount: claimW ? wFmt(claimW.w, claimW.amtW) : '$' + credited.toFixed(2), method: 'رصيد هاتف (مطابقة تلقائية)', auto: true, page: 'money' }, 'deposits.view');
     background(promoFirstDeposit(env, user.uid, credited, 'claim'));
-    return { success: true, matched: true, credited_usd: credited };
+    return { success: true, matched: true, credited_usd: credited, ...(claimW ? { wallet: claimW.w, credited_w: claimW.amtW } : {}) };
   }
 
   const pendingRows = await fsQueryRaw(env, {
@@ -2100,6 +2247,7 @@ async function handleUsdtInvoice(user, body, env) {
   const minU = num(s.usdt_min, 5), maxU = num(s.usdt_max, 1000);
   if (amount < minU) throw httpError(400, `الحد الأدنى ${minU} USDT`);
   if (amount > maxU) throw httpError(400, `الحد الأقصى ${maxU} USDT`);
+  depLimitCheck(s, network, amount);                                 // v62: حد كل شبكة
   await assertDailyLimit(env, s, user.uid, 'deposit', amount);
   if (methodPaused(s, network)) throw httpError(503, `${net.label} متوقفة مؤقتًا — اختر طريقة أخرى`);
   if (!(await checkRateLimit(env, `usdt_inv_${user.uid}`, 15, 3600))) throw httpError(429, 'محاولات كثيرة — حاول بعد ساعة');
@@ -2265,7 +2413,11 @@ async function handleWithdrawRequest(user, body, env) {
   if (s.withdraw_enabled !== true) throw httpError(503, 'السحب غير متاح حاليًا');
   const key = idemKeyOf(body, false);
 
-  const amount = money(body.amount_usd);
+  // v62: السحب من المحفظة الافتراضية — المبلغ بعملتها، والحدود والرسوم الثابتة بالدولار تتحوّل بصرفها
+  const _me = await fsGet(env, `users/${user.uid}`);
+  const ww = s.wallets_on === false ? 'usd' : userWallet(_me);
+  const amountW = ww === 'usd' ? money(body.amount_w != null ? body.amount_w : body.amount_usd) : money(body.amount_w);
+  const amount = Number.isFinite(amountW) ? (ww === 'usd' ? amountW : wToUsd(s, ww, amountW)) : NaN;
   const method = String(body.method || '').trim().slice(0, 40);
   let dest = String(body.destination || '').trim().slice(0, 120);
   if (!Number.isFinite(amount)) throw httpError(400, 'أدخل مبلغًا صحيحًا');
@@ -2285,25 +2437,27 @@ async function handleWithdrawRequest(user, body, env) {
   const fee = round2(num(s.withdraw_fee_fixed, 0) + amount * num(s.withdraw_fee_pct, 0) / 100);
   const net = round2(amount - fee);
   if (net <= 0) throw httpError(400, 'المبلغ لا يغطي الرسوم');
+  const feeW = ww === 'usd' ? fee : round2(wFromUsd(s, ww, num(s.withdraw_fee_fixed, 0)) + amountW * num(s.withdraw_fee_pct, 0) / 100);
+  const netW = round2(amountW - feeW);
   if (!(await checkRateLimit(env, `wd_${user.uid}`, 3, 3600))) throw httpError(429, 'محاولات كثيرة — حاول بعد ساعة');
 
   const id = `WD${Date.now()}${randomSuffix(4)}`;
   const resp = await fsRunTransaction(env, async (tx) => {
     const hit = await idemRead(tx, user.uid, key); if (hit) return hit;
-    const L = await ledgerOpen(tx, user.uid);
+    const L = await ledgerOpen(tx, user.uid, ww);
     if (L.doc.banned === true) throw httpError(403, 'الحساب موقوف');
     assertEmailVerified(env, s, L.doc);
-    await ledgerPost(L, { type: 'debit', amount, reason: 'withdraw_request', reference: id, entryId: `txn_wd_${id}` });
+    await spendPost(L, { w: ww, amt: amountW }, { reason: 'withdraw_request', reference: id, entryId: `txn_wd_${id}` });
     ledgerClose(tx, L);
     tx.create('withdrawals', id, {
-      uid: user.uid, amount_usd: amount, fee, net, method, destination: dest,
+      uid: user.uid, amount_usd: amount, fee, net, wallet: ww, amount_w: amountW, fee_w: feeW, net_w: netW, currency: wCur(ww), method, destination: dest,
       status: 'pending', created_at: nowIso(), updated_at: nowIso(),
     });
     const r = { success: true, id, fee, net };
     idemWrite(tx, user.uid, key, r);
     return r;
   });
-  if (!resp.replayed) { await logOp(env, user.uid, 'withdraw.request', { amount, method }, { id }, true); staffAlert(env, 'adm_withdraw', { uid: user.uid, amount: amount.toFixed(2), method, page: 'withdraw', ref: id }, 'withdraw.view'); }
+  if (!resp.replayed) { await logOp(env, user.uid, 'withdraw.request', { amount, method }, { id }, true); staffAlert(env, 'adm_withdraw', { uid: user.uid, amount: amount.toFixed(2), fmt: wFmt(ww, amountW), method, page: 'withdraw', ref: id }, 'withdraw.view'); }
   return resp;
 }
 
@@ -2320,8 +2474,9 @@ async function handleAdminWithdraw(user, body, env) {
     if (w.status !== 'pending') throw httpError(409, 'الطلب مُغلق');
     wInfo = w;
     if (action === 'reject') {
-      const L = await ledgerOpen(tx, w.uid);
-      await ledgerPost(L, { type: 'credit', amount: num(w.amount_usd, 0), reason: 'withdraw_rejected', reference: id, entryId: `txn_wd_refund_${id}`, created_by: staff.uid });
+      const ww = wOk(w.wallet) ? w.wallet : 'usd';                   // v62: يرجع لنفس المحفظة
+      const L = await ledgerOpen(tx, w.uid, ww);
+      await ledgerPost(L, { type: 'credit', amount: w.amount_w != null ? num(w.amount_w, 0) : num(w.amount_usd, 0), reason: 'withdraw_rejected', reference: id, entryId: `txn_wd_refund_${id}`, created_by: staff.uid });
       ledgerClose(tx, L);
       tx.update(`withdrawals/${id}`, { status: 'rejected', reject_reason: String(body.reason || '').slice(0, 160), reviewed_by: staff.uid, updated_at: nowIso() });
     } else {
@@ -2330,7 +2485,7 @@ async function handleAdminWithdraw(user, body, env) {
   });
   await logOp(env, staff.uid, 'withdraw.' + action, { id }, {}, true);
   if (wInfo) notify(env, wInfo.uid, action === 'reject' ? 'withdraw_no' : 'withdraw_ok',
-    { amount: num(action === 'reject' ? wInfo.amount_usd : wInfo.net, 0).toFixed(2), dest: String(wInfo.destination || '').replace(/.(?=.{4})/g, '•'), reason: String(body.reason || '').slice(0, 160) });
+    { amount: num(action === 'reject' ? wInfo.amount_usd : wInfo.net, 0).toFixed(2), fmt: wOk(wInfo.wallet) && wInfo.amount_w != null ? wFmt(wInfo.wallet, action === 'reject' ? wInfo.amount_w : wInfo.net_w) : '', dest: String(wInfo.destination || '').replace(/.(?=.{4})/g, '•'), reason: String(body.reason || '').slice(0, 160) });
   return { success: true, refunded: action === 'reject' };
 }
 
@@ -2341,7 +2496,10 @@ async function handleTransfer(user, body, env) {
   if (s.transfer_enabled !== true) throw httpError(503, 'التحويل غير متاح');
   const key = idemKeyOf(body);
 
-  const amount = money(body.amount_usd);
+  // v62: من المحفظة الافتراضية للمرسل → لنفس المحفظة عند المستلم
+  const tw = s.wallets_on === false ? 'usd' : userWallet(await fsGet(env, `users/${user.uid}`));
+  const amountW = tw === 'usd' ? money(body.amount_w != null ? body.amount_w : body.amount_usd) : money(body.amount_w);
+  const amount = Number.isFinite(amountW) ? (tw === 'usd' ? amountW : wToUsd(s, tw, amountW)) : NaN;
   const to = String(body.to || '').trim().toLowerCase().slice(0, 120);
   if (!Number.isFinite(amount)) throw httpError(400, 'أدخل مبلغًا صحيحًا');
   if (!to) throw httpError(400, 'أدخل بيانات المستلم');
@@ -2352,6 +2510,7 @@ async function handleTransfer(user, body, env) {
 
   const fee = round2(amount * num(s.transfer_fee_pct, 0) / 100);
   const total = round2(amount + fee);
+  const feeW = round2(amountW * num(s.transfer_fee_pct, 0) / 100), totalW = round2(amountW + feeW);
 
   if (to.includes('@')) throw httpError(400, 'التحويل برقم الهاتف الموثّق فقط');
   const k = normalizePhone(to);
@@ -2369,22 +2528,22 @@ async function handleTransfer(user, body, env) {
   const id = `TR${Date.now()}${randomSuffix(4)}`;
   const resp = await fsRunTransaction(env, async (tx) => {
     const hit = await idemRead(tx, user.uid, key); if (hit) return hit;
-    const A = await ledgerOpen(tx, user.uid);
-    const B = await ledgerOpen(tx, toUid);
+    const A = await ledgerOpen(tx, user.uid, tw);
+    const B = await ledgerOpen(tx, toUid, tw);
     if (A.doc.banned === true) throw httpError(403, 'الحساب موقوف');
     if (!A.doc.phone_verified) throw httpError(403, 'وثّق رقمك أولًا لتتمكن من التحويل');
     assertEmailVerified(env, s, A.doc);
     if (B.doc.banned === true) throw httpError(400, 'حساب المستلم موقوف');
-    await ledgerPost(A, { type: 'debit', amount: total, reason: 'transfer_out', reference: id, entryId: `txn_tr_out_${id}` });
-    await ledgerPost(B, { type: 'credit', amount, reason: 'transfer_in', reference: id, entryId: `txn_tr_in_${id}` });
+    await spendPost(A, { w: tw, amt: totalW }, { reason: 'transfer_out', reference: id, entryId: `txn_tr_out_${id}` });
+    await ledgerPost(B, { type: 'credit', amount: amountW, reason: 'transfer_in', reference: id, entryId: `txn_tr_in_${id}` });
     ledgerClose(tx, A);
     ledgerClose(tx, B);
-    tx.create('transfers', id, { from_uid: user.uid, to_uid: toUid, amount_usd: amount, fee, status: 'completed', created_at: nowIso() });
-    const r = { success: true, id, amount, fee };
+    tx.create('transfers', id, { from_uid: user.uid, to_uid: toUid, amount_usd: amount, fee, wallet: tw, amount_w: amountW, fee_w: feeW, status: 'completed', created_at: nowIso() });
+    const r = { success: true, id, amount, fee, wallet: tw, amount_w: amountW, fee_w: feeW };
     idemWrite(tx, user.uid, key, r);
     return r;
   });
-  if (!resp.replayed) { await logOp(env, user.uid, 'transfer', { to: toUid, amount }, { id }, true); notify(env, toUid, 'transfer_in', { amount: amount.toFixed(2) }); staffAlert(env, 'adm_transfer', { uid: user.uid, to_uid: toUid, amount: amount.toFixed(2), page: 'users', ref: id }, 'users.view'); }
+  if (!resp.replayed) { await logOp(env, user.uid, 'transfer', { to: toUid, amount }, { id }, true); notify(env, toUid, 'transfer_in', { amount: amount.toFixed(2), fmt: wFmt(tw, amountW) + (tw === 'usd' ? '' : ` في محفظة ${W_AR[tw]}`) }); staffAlert(env, 'adm_transfer', { uid: user.uid, to_uid: toUid, amount: amount.toFixed(2), fmt: wFmt(tw, amountW), page: 'users', ref: id }, 'users.view'); }
   return resp;
 }
 
@@ -2395,7 +2554,7 @@ async function handleAdminDeposit(user, body, env) {
   if (!depositId) throw httpError(400, 'معرّف الإيداع مفقود');
 
   const s = await getSettings(env);
-  let depInfo = null;
+  let depInfo = null, depW = null;
   await fsRunTransaction(env, async (tx) => {
     const dep = await tx.get(`wallet_deposits/${depositId}`);
     depInfo = dep;
@@ -2413,16 +2572,22 @@ async function handleAdminDeposit(user, body, env) {
       amountUsd = ap;
     }
     if (!(amountUsd > 0)) throw httpError(400, 'مبلغ غير صحيح');
-    const L = await ledgerOpen(tx, dep.uid);
-    await ledgerPost(L, { type: 'credit', amount: amountUsd, reason: 'deposit_approved', reference: depositId, entryId: `txn_dep_manual_${depositId}`, created_by: staff.uid });
+    // v62: المحفظة حسب الطريقة — ليبيانا/المدار/المصرف بالدينار (المبلغ الأصلي، أو المعتمد × نفس الصرف)
+    const w = dep.wallet && wOk(dep.wallet) ? dep.wallet : depWallet(s, dep.method_key || dep.method || '');
+    const reqUsd = round2(num(dep.requested_usd || dep.amount_usd, 0)), lyd = num(dep.amount_lyd, 0) || num(dep.amount_input, 0);
+    const amtW = w === 'usd' ? amountUsd : round2(lyd > 0 && reqUsd > 0 ? lyd * (amountUsd / reqUsd) : wFromUsd(s, w, amountUsd));
+    if (!(amtW > 0)) throw httpError(400, 'مبلغ غير صحيح');
+    depW = { w, amtW };
+    const L = await ledgerOpen(tx, dep.uid, w);
+    await ledgerPost(L, { type: 'credit', amount: amtW, reason: 'deposit_approved', reference: depositId, entryId: `txn_dep_manual_${depositId}`, created_by: staff.uid });
     ledgerClose(tx, L);
     await dailyCheckTx(tx, s, dep.uid, 'deposit', amountUsd);
-    tx.update(`wallet_deposits/${depositId}`, { status: 'approved', reviewed_by: staff.uid, reviewed_at: nowIso() });
+    tx.update(`wallet_deposits/${depositId}`, { status: 'approved', wallet: w, amount_w: amtW, reviewed_by: staff.uid, reviewed_at: nowIso() });
   });
   await logOp(env, staff.uid, 'deposit.' + action, { depositId }, {}, true);
   if (depInfo && action !== 'reject') background(promoFirstDeposit(env, depInfo.uid, num(depInfo.amount_usd, 0), depositId));
   if (depInfo) notify(env, depInfo.uid, action === 'reject' ? 'deposit_no' : 'deposit_ok',
-    { amount: num(depInfo.amount_usd, 0).toFixed(2), method: depInfo.method || '', reason: String(body.reason || '').slice(0, 200) });
+    { amount: num(depInfo.amount_usd, 0).toFixed(2), fmt: depW ? wFmt(depW.w, depW.amtW) : '', method: depInfo.method || '', reason: String(body.reason || '').slice(0, 200) });
   return { success: true, status: action === 'reject' ? 'rejected' : 'approved' };
 }
 
@@ -2436,7 +2601,9 @@ async function handleAdminWalletAdjust(user, body, env) {
   if (!uid) throw httpError(400, 'معرّف المستخدم مفقود');
   if (!Number.isFinite(delta) || delta === 0 || Math.abs(delta) > 100000) throw httpError(400, 'المبلغ غير صحيح');
   if (reason.length < 5) throw httpError(400, 'اكتب سببًا واضحًا (5 أحرف على الأقل)');
-  if (staff.role !== 'super_admin' && Math.abs(delta) > FINANCE_ADJUST_CAP) {
+  const aw = wOk(String(body.wallet || '')) ? String(body.wallet) : 'usd';   // v62: أي محفظة
+  const capUsd = aw === 'usd' ? Math.abs(delta) : wToUsd(await getSettings(env), aw, Math.abs(delta));
+  if (staff.role !== 'super_admin' && capUsd > FINANCE_ADJUST_CAP) {
     throw httpError(403, `الحد الأقصى لتعديلك ${FINANCE_ADJUST_CAP}$ — يتطلب super_admin`);
   }
   if (uid === staff.uid) throw httpError(403, 'لا يمكنك تعديل رصيدك بنفسك');
@@ -2444,14 +2611,14 @@ async function handleAdminWalletAdjust(user, body, env) {
   const id = `ADJ${Date.now()}${randomSuffix(4)}`;
   const resp = await fsRunTransaction(env, async (tx) => {
     const hit = await idemRead(tx, staff.uid, key); if (hit) return hit;
-    const L = await ledgerOpen(tx, uid);
+    const L = await ledgerOpen(tx, uid, aw);
     const before = L.bal;
     await ledgerPost(L, {
       type: delta > 0 ? 'credit' : 'debit', amount: Math.abs(delta),
       reason: 'admin_adjust', note: reason, reference: id, entryId: id, created_by: staff.uid,
     });
     ledgerClose(tx, L);
-    const r = { success: true, delta, before, after: L.bal };
+    const r = { success: true, delta, before, after: L.bal, wallet: aw };
     idemWrite(tx, staff.uid, key, r);
     return r;
   });
@@ -2495,7 +2662,8 @@ async function handleManualCardRequest(user, body, env) {
 
   const resp = await fsRunTransaction(env, async (tx) => {
     const hit = await idemRead(tx, user.uid, key); if (hit) return hit;
-    const L = await ledgerOpen(tx, user.uid);
+    const sp = await spendPlan(tx, s, user.uid, total);                // v62
+    const L = await ledgerOpen(tx, user.uid, sp.w);
     if (L.doc.banned === true) throw httpError(403, 'الحساب موقوف');
     assertEmailVerified(env, s, L.doc);
     const plan = userPlan(L.doc);
@@ -2521,15 +2689,15 @@ async function handleManualCardRequest(user, body, env) {
       if (used >= limit) throw httpError(403, `وصلت لحد باقتك (${limit} بطاقات إضافية في الشهر) — رقِّ باقتك أو انتظر التجديد`);
     }
     await dailyCheckTx(tx, s, user.uid, 'card', total);
-    await ledgerPost(L, { type: 'debit', amount: total, reason: 'card_create', reference: id, entryId: `txn_mc_create_${id}` });
+    await spendPost(L, sp, { reason: 'card_create', reference: id, entryId: `txn_mc_create_${id}` });
     ledgerClose(tx, L);
     tx.create('manual_card_orders', id, {
-      uid: user.uid, kind: 'create', amount, fee, total, card_name: cardName, name_on_card: nameOnCard,
+      uid: user.uid, kind: 'create', amount, fee, total, wallet: sp.w, paid_w: sp.amt, card_name: cardName, name_on_card: nameOnCard,
       type_id: ctype ? ctype.id : '', type_name: ctype ? ctype.name : '', provider: ctype ? ctype.provider : '',
       terms_accepted: true, terms_version: termsVersion, terms_accepted_at: nowIso(),
       status: 'pending', created_at: nowIso(), updated_at: nowIso(),
     });
-    const r = { success: true, id, amount, fee, total };
+    const r = { success: true, id, amount, fee, total, wallet: sp.w, paid: sp.amt };
     idemWrite(tx, user.uid, key, r);
     return r;
   });
@@ -2561,7 +2729,8 @@ async function handleManualCardTopup(user, body, env) {
 
   const resp = await fsRunTransaction(env, async (tx) => {
     const hit = await idemRead(tx, user.uid, key); if (hit) return hit;
-    const L = await ledgerOpen(tx, user.uid);
+    const sp = await spendPlan(tx, s, user.uid, total);                // v62
+    const L = await ledgerOpen(tx, user.uid, sp.w);
     if (L.doc.banned === true) throw httpError(403, 'الحساب موقوف');
     assertEmailVerified(env, s, L.doc);
     const card = await tx.get(`manual_cards/${cardId}`);
@@ -2569,10 +2738,10 @@ async function handleManualCardTopup(user, body, env) {
     await assertCardVisible(env, s, L.doc, user.uid, cardId);
     if (card.status !== 'active') throw httpError(400, 'هذه البطاقة غير نشطة');
     await dailyCheckTx(tx, s, user.uid, 'card', total);
-    await ledgerPost(L, { type: 'debit', amount: total, reason: 'card_topup', reference: id, entryId: `txn_mc_topup_${id}` });
+    await spendPost(L, sp, { reason: 'card_topup', reference: id, entryId: `txn_mc_topup_${id}` });
     ledgerClose(tx, L);
     tx.create('manual_card_orders', id, {
-      uid: user.uid, kind: 'topup', card_id: cardId, amount, fee, total,
+      uid: user.uid, kind: 'topup', card_id: cardId, amount, fee, total, wallet: sp.w, paid_w: sp.amt,
       card_name: card.card_name || '', status: 'pending', created_at: nowIso(), updated_at: nowIso(),
     });
     const r = { success: true, id, amount, fee, total };
@@ -2634,20 +2803,22 @@ async function handleRevealCard(user, body, env, request) {
 }
 
 async function cardRejectTx(env, staff, id, reason) {
-  let rejUid = '', rejAmt = 0;
+  let rejUid = '', rejAmt = 0, rejFmt = '';
   let rewardOut = { inviter: null, invitee: 0, inviterAmt: 0 };
   await fsRunTransaction(env, async (tx) => {
     const o = await tx.get(`manual_card_orders/${id}`);
     if (!o) throw httpError(404, 'الطلب غير موجود');
     if (o.status !== 'pending') throw httpError(409, 'الطلب مُغلق بالفعل');
     rejUid = o.uid; rejAmt = num(o.total, 0);
-    const L = await ledgerOpen(tx, o.uid);
-    await ledgerPost(L, { type: 'credit', amount: num(o.total, 0), reason: 'card_rejected_refund', reference: id, entryId: `txn_mc_refund_${id}`, created_by: staff.uid });
+    const w = wOk(o.wallet) ? o.wallet : 'usd', back = o.paid_w == null ? num(o.total, 0) : num(o.paid_w, 0);   // v62: نفس المحفظة
+    rejFmt = wFmt(w, back);
+    const L = await ledgerOpen(tx, o.uid, w);
+    await ledgerPost(L, { type: 'credit', amount: back, reason: 'card_rejected_refund', reference: id, entryId: `txn_mc_refund_${id}`, created_by: staff.uid });
     ledgerClose(tx, L);
     tx.update(`manual_card_orders/${id}`, { status: 'rejected', reject_reason: reason, rejected_at: nowIso(), rejected_by: staff.uid, updated_at: nowIso() });
   });
   await logOp(env, staff.uid, 'card.reject', { id, reason }, { refunded: true }, true);
-  if (rejUid) notify(env, rejUid, 'card_rejected', { amount: rejAmt.toFixed(2), reason });
+  if (rejUid) notify(env, rejUid, 'card_rejected', { amount: rejAmt.toFixed(2), fmt: rejFmt, reason });
   return { success: true, refunded: true };
 }
 
@@ -3512,25 +3683,28 @@ async function handleAdminSmsAssign(user, body, env) {
   const reason = String(body.reason || 'ربط يدوي').slice(0, 200);
   if (!smsId || !uid) throw httpError(400, 'بيانات ناقصة');
 
+  let asgW = null;
   const credited = await fsRunTransaction(env, async (tx) => {
     const sms = await tx.get(`sms_transactions/${smsId}`);
     if (!sms) throw httpError(404, 'الحوالة غير موجودة');
     if (sms.status === 'claimed') throw httpError(409, 'مربوطة بالفعل');
     const amt = round2(num(sms.amount_usd, 0));
+    const w = depWallet(await getSettings(env), sms.method || ''), amtW = w === 'usd' ? amt : round2(num(sms.amount_lyd, 0));   // v62
+    asgW = { w, amtW };
     if (!(amt > 0)) throw httpError(400, 'مبلغ غير صالح');
-    const L = await ledgerOpen(tx, uid);
-    await ledgerPost(L, { type: 'credit', amount: amt, reason: 'sms_manual', note: reason, reference: smsId, entryId: `txn_sms_manual_${smsId}`, created_by: staff.uid });
+    const L = await ledgerOpen(tx, uid, w);
+    await ledgerPost(L, { type: 'credit', amount: amtW, reason: 'sms_manual', note: reason, reference: smsId, entryId: `txn_sms_manual_${smsId}`, created_by: staff.uid });
     ledgerClose(tx, L);
     tx.update(`sms_transactions/${smsId}`, { status: 'claimed', uid, claimed_at: nowIso(), claimed_by: staff.uid });
     tx.create('wallet_deposits', `SMSM_${smsId.slice(0, 40)}`, {
-      uid, amount_usd: amt, amount_lyd: num(sms.amount_lyd, 0),
+      uid, amount_usd: amt, amount_lyd: num(sms.amount_lyd, 0), wallet: w, amount_w: amtW,
       method: (sms.method === 'almadar' ? 'المدار' : 'ليبيانا') + ' — ربط يدوي', proof_url: '',
       note: 'حوالة من 0' + (sms.sender || '—'), status: 'approved', auto: false, created_at: nowIso(),
     });
     return amt;
   });
-  await logOp(env, staff.uid, 'sms.assign', { smsId, uid, reason }, { credited }, true);
-  notify(env, uid, 'deposit_ok', { amount: credited.toFixed(2) });
+  await logOp(env, staff.uid, 'sms.assign', { smsId, uid, reason }, { credited, wallet: asgW && asgW.w }, true);
+  notify(env, uid, 'deposit_ok', { amount: credited.toFixed(2), fmt: asgW ? wFmt(asgW.w, asgW.amtW) : '' });
   background(promoFirstDeposit(env, uid, credited, smsId));
   return { success: true, credited };
 }
@@ -3620,14 +3794,15 @@ async function tryPhoneVerification(env, parsed, network, record, fingerprint, r
     if (!cur || cur.status !== 'pending' || cur.uid !== pv.uid) throw httpError(409, 'DUPLICATE');
     const bind = await tx.get(`phone_bindings/${parsed.sender}`);
     if (bind && bind.uid !== pv.uid) throw httpError(409, 'BOUND_ELSEWHERE');
-    const L = await ledgerOpen(tx, pv.uid);
-    await ledgerPost(L, { type: 'credit', amount: credited, reason: 'phone_verification_deposit', reference: fingerprint, entryId: `txn_pv_${fingerprint}` });
+    const w = depWallet(await getSettings(env), network), amtW = w === 'usd' ? credited : round2(parsed.amount_lyd);   // v62
+    const L = await ledgerOpen(tx, pv.uid, w);
+    await ledgerPost(L, { type: 'credit', amount: amtW, reason: 'phone_verification_deposit', reference: fingerprint, entryId: `txn_pv_${fingerprint}` });
     ledgerClose(tx, L, { phone_verified: parsed.sender, phone_verified_at: nowIso(), phone: '0' + parsed.sender });
     if (!bind) tx.create('phone_bindings', parsed.sender, { uid: pv.uid, network, created_at: nowIso() });
     tx.update(`phone_verifications/${parsed.sender}`, { status: 'done', done_at: nowIso() });
     tx.create('sms_transactions', fingerprint, { ...record, status: 'claimed', uid: pv.uid, claimed_at: nowIso(), matched_by: 'phone_verification' });
     tx.create('wallet_deposits', `PV_${fingerprint.slice(0, 24)}`, {
-      uid: pv.uid, amount_usd: credited, amount_lyd: parsed.amount_lyd, method: 'توثيق رقم الهاتف',
+      uid: pv.uid, amount_usd: credited, amount_lyd: parsed.amount_lyd, wallet: w, amount_w: amtW, method: 'توثيق رقم الهاتف',
       claim_phone: parsed.sender, proof_url: '', note: 'حوالة توثيق', status: 'approved', auto: true, created_at: nowIso(),
     });
   });
@@ -3709,6 +3884,7 @@ async function handleSmsWebhook(request, env) {
   }
 
   let claim = null;
+  let smsW = null;
   try { claim = await findPendingClaim(env, parsed.sender, parsed.amount_lyd); }
   catch (e) { console.error('CLAIM_LOOKUP_FAILED', e.message); }
 
@@ -3720,18 +3896,20 @@ async function handleSmsWebhook(request, env) {
         const u = await tx.get(`users/${claim.uid}`);
         const own = await tx.get(`phone_owners/${parsed.sender}`);
         if (!u || (own && own.uid && own.uid !== claim.uid)) throw httpError(409, 'PHONE_OWNED');
-        const L = await ledgerOpen(tx, claim.uid);
-        await ledgerPost(L, { type: 'credit', amount: amountUsd, reason: 'sms_deposit', reference: fingerprint, entryId: `txn_sms_${fingerprint}` });
+        const w = depWallet(s0, network), amtW = w === 'usd' ? amountUsd : round2(parsed.amount_lyd);   // v62
+        smsW = { w, amtW };
+        const L = await ledgerOpen(tx, claim.uid, w);
+        await ledgerPost(L, { type: 'credit', amount: amtW, reason: 'sms_deposit', reference: fingerprint, entryId: `txn_sms_${fingerprint}` });
         ledgerClose(tx, L);
         await dailyCheckTx(tx, s0, claim.uid, 'deposit', amountUsd);
-        tx.update(`wallet_deposits/${claim._id}`, { status: 'approved', auto: true, awaiting_sms: false, amount_usd: amountUsd, approved_at: nowIso() });
+        tx.update(`wallet_deposits/${claim._id}`, { status: 'approved', auto: true, awaiting_sms: false, amount_usd: amountUsd, wallet: w, amount_w: amtW, approved_at: nowIso() });
         if (!own) tx.create('phone_owners', parsed.sender, { uid: claim.uid, network, at: nowIso() });
         if (!u.phone_verified) tx.update(`users/${claim.uid}`, { phone_verified: parsed.sender, phone_network: network, phone_verified_at: nowIso() });
         tx.create('sms_transactions', fingerprint, { ...record, status: 'claimed', uid: claim.uid, claimed_at: nowIso(), matched_by: 'pending_claim' });
       });
       await logOp(env, claim.uid, 'deposit.sms_matched', { amount_lyd: parsed.amount_lyd }, { credited: amountUsd }, true);
-      notify(env, claim.uid, 'deposit_ok', { amount: amountUsd.toFixed(2) });
-      staffAlert(env, 'adm_deposit', { uid: claim.uid, amount: '$' + amountUsd.toFixed(2), method: network === 'almadar' ? 'المدار' : 'ليبيانا', auto: true, page: 'money', ref: fingerprint }, 'deposits.view');
+      notify(env, claim.uid, 'deposit_ok', { amount: amountUsd.toFixed(2), fmt: smsW ? wFmt(smsW.w, smsW.amtW) : '' });
+      staffAlert(env, 'adm_deposit', { uid: claim.uid, amount: smsW ? wFmt(smsW.w, smsW.amtW) : '$' + amountUsd.toFixed(2), method: network === 'almadar' ? 'المدار' : 'ليبيانا', auto: true, page: 'money', ref: fingerprint }, 'deposits.view');
       background(promoFirstDeposit(env, claim.uid, amountUsd, fingerprint));
       return { success: true, parsed: true, matched: true, via: 'claim', credited_usd: amountUsd };
     } catch (e) {
@@ -3919,7 +4097,8 @@ async function handlePlanSubscribe(user, body, env) {
 
   const resp = await fsRunTransaction(env, async (tx) => {
     const hit = await idemRead(tx, user.uid, key); if (hit) return hit;
-    const L = await ledgerOpen(tx, user.uid);
+    const pw = s.wallets_on === false ? 'usd' : userWallet(await tx.get(`users/${user.uid}`));   // v62
+    const L = await ledgerOpen(tx, user.uid, pw);
     if (L.doc.banned === true) throw httpError(403, 'الحساب موقوف');
     const now = Date.now();
     const cur = userPlan(L.doc, now);
@@ -3935,7 +4114,7 @@ async function handlePlanSubscribe(user, body, env) {
     }
     const expires = base + days * 86400000;
     if (charge > 0) {
-      await ledgerPost(L, { type: 'debit', amount: charge, reason: 'plan_' + plan, reference: id, entryId: `txn_plan_${id}` });
+      await spendPost(L, { w: pw, amt: wPrice(s, pw, charge) }, { reason: 'plan_' + plan, reference: id, entryId: `txn_plan_${id}` });
     }
     ledgerClose(tx, L, { plan, plan_expires_ms: expires, plan_started_ms: started, plan_updated_at: nowIso() });
     tx.create('plan_orders', id, { uid: user.uid, plan, price, charge, credit, days, from_plan: cur, expires_ms: expires, created_at: nowIso() });
@@ -3993,6 +4172,8 @@ async function handleManualDeposit(user, body, env) {
   if (!Number.isFinite(amount)) throw httpError(400, 'أدخل مبلغًا صحيحًا');
   const rate = num(m.rate, 1);
   const amountUsd = round2(amount / rate);
+  if (['bank', 'binance'].includes(method)) depLimitCheck(s, method, amount);   // v62
+  const depW = method === 'bank' ? depWallet(s, 'bank') : 'usd';
   const needProof = m.receipt !== false;
   const proof = cleanProofImage(body.proof);
   const reference = String(body.reference || '').trim().slice(0, 100);
@@ -4013,7 +4194,7 @@ async function handleManualDeposit(user, body, env) {
 
   const id = `MDP${Date.now()}${randomSuffix(4)}`;
   await fsSet(env, `wallet_deposits/${id}`, {
-    uid: user.uid, amount_usd: amountUsd, amount_lyd: method === 'binance' ? 0 : amount, amount_input: amount, rate,
+    uid: user.uid, amount_usd: amountUsd, amount_lyd: method === 'binance' ? 0 : amount, amount_input: amount, rate, wallet: depW, amount_w: depW === 'usd' ? amountUsd : amount,
     method: String(m.label || method).slice(0, 40), method_key: method, proof_url: proof, reference, note,
     status: 'pending', manual: true, created_at: nowIso(),
   });
@@ -4035,11 +4216,13 @@ async function handleAdminPhoneApprove(user, body, env) {
     const bind = await tx.get(`phone_bindings/${phone}`);
     if (bind && bind.uid !== pv.uid) throw httpError(409, 'الرقم مرتبط بحساب آخر');
     uid = pv.uid;
-    const L = await ledgerOpen(tx, uid);
+    const w = depWallet(s, pv.network || '');                          // v62
+    const L = await ledgerOpen(tx, uid, w);
     if (credit) {
       const rate = pv.network === 'almadar' ? num(s.rate_almadar, 12.5) : num(s.rate_libyana, 11.8);
       credited = round2(num(pv.amount_lyd, 0) / rate);
-      if (credited > 0) await ledgerPost(L, { type: 'credit', amount: credited, reason: 'phone_verification_deposit', reference: 'manual_' + phone, entryId: `txn_pvm_${phone}_${Date.now()}`, created_by: staff.uid });
+      const amtW = w === 'usd' ? credited : round2(num(pv.amount_lyd, 0));
+      if (amtW > 0) await ledgerPost(L, { type: 'credit', amount: amtW, reason: 'phone_verification_deposit', reference: 'manual_' + phone, entryId: `txn_pvm_${phone}_${Date.now()}`, created_by: staff.uid });
     }
     ledgerClose(tx, L, { phone_verified: phone, phone_verified_at: nowIso(), phone: '0' + phone });
     if (!bind) tx.create('phone_bindings', phone, { uid, network: pv.network || '', created_at: nowIso(), by: staff.uid });
@@ -4305,11 +4488,11 @@ const MAIL = {
     'اعرض البيانات الجديدة من حسابك برمزك السري (PIN).',
     'البيانات القديمة لم تعد صالحة.'], 'عرض البطاقة الآن'],
   card_topup: (v) => ['تم شحن بطاقتك', [`أُضيف <b>$${escHtml(v.amount)}</b> إلى بطاقتك <b>${escHtml(v.card_name)}</b>.`], 'فتح كاردو'],
-  card_rejected: (v) => ['تعذّر تنفيذ طلب البطاقة', [`أُعيد المبلغ <b>$${escHtml(v.amount)}</b> إلى محفظتك.`, v.reason ? `السبب: ${escHtml(v.reason)}` : ''], 'فتح كاردو'],
-  deposit_ok: (v) => ['أُضيف رصيد لمحفظتك', [`أُضيف <b>$${escHtml(v.amount)}</b> إلى محفظتك${v.method ? ` عبر ${escHtml(v.method)}` : ''}.`], 'فتح المحفظة'],
+  card_rejected: (v) => ['تعذّر تنفيذ طلب البطاقة', [`أُعيد المبلغ <b>${escHtml(v.fmt || '$' + v.amount)}</b> إلى محفظتك.`, v.reason ? `السبب: ${escHtml(v.reason)}` : ''], 'فتح كاردو'],
+  deposit_ok: (v) => ['أُضيف رصيد لمحفظتك', [`أُضيف <b>${escHtml(v.fmt || '$' + v.amount)}</b> إلى محفظتك${v.method ? ` عبر ${escHtml(v.method)}` : ''}.`], 'فتح المحفظة'],
   deposit_no: (v) => ['لم يُقبل طلب الإيداع', [v.reason ? `السبب: ${escHtml(v.reason)}` : 'تواصل مع الدعم لمزيد من التفاصيل.'], 'فتح كاردو'],
-  withdraw_ok: (v) => ['تم تنفيذ السحب', [`نُفّذ سحب <b>$${escHtml(v.amount)}</b> إلى ${escHtml(v.dest)}.`], 'فتح كاردو'],
-  withdraw_no: (v) => ['لم يُنفَّذ السحب', [`أُعيد <b>$${escHtml(v.amount)}</b> إلى محفظتك.`, v.reason ? `السبب: ${escHtml(v.reason)}` : ''], 'فتح كاردو'],
+  withdraw_ok: (v) => ['تم تنفيذ السحب', [`نُفّذ سحب <b>${escHtml(v.fmt || '$' + v.amount)}</b> إلى ${escHtml(v.dest)}.`], 'فتح كاردو'],
+  withdraw_no: (v) => ['لم يُنفَّذ السحب', [`أُعيد <b>${escHtml(v.fmt || '$' + v.amount)}</b> إلى محفظتك.`, v.reason ? `السبب: ${escHtml(v.reason)}` : ''], 'فتح كاردو'],
   order_ok: (v) => ['طلبك جاهز ✓', [`طلبك رقم <b>${escHtml(v.id)}</b> اكتمل. ادخل إلى «طلباتي» لعرض التفاصيل.`], 'عرض الطلب'],
   order_no: (v) => ['أُلغي طلبك', [`أُعيد <b>$${escHtml(v.amount)}</b> إلى محفظتك.`, v.reason ? `السبب: ${escHtml(v.reason)}` : ''], 'فتح كاردو'],
   phone_ok: () => ['تم توثيق رقمك', ['رقم هاتفك موثّق الآن، وإيداعاتك منه تُضاف تلقائيًا.'], 'فتح كاردو'],
@@ -4322,7 +4505,7 @@ const MAIL = {
   verify_code: (v) => ['رمز تأكيد بريدك', [`رمزك هو:`, `<div style="font-size:30px;letter-spacing:8px;font-weight:bold;color:#e8b64c;font-family:monospace;direction:ltr;text-align:center;padding:10px 0">${escHtml(v.code)}</div>`, 'صالح لمدة 10 دقائق. إذا لم تطلبه، تجاهل هذه الرسالة.'], ''],
   crypto_unmatched: (v) => ['تحويل يحتاج مراجعة', [`وصل <b>${escHtml(v.amount)} USDT</b> عبر ${escHtml(v.network)} ولم يرتبط بأي فاتورة بالضبط.`, 'افتح الإيداعات ← تحويلات تحتاج مراجعة.'], 'لوحة الإدارة'],
   rsc_done: (v) => ['تم تنفيذ طلبك ✓', [`اكتمل طلبك <b>${escHtml(v.name)}</b>.`, v.codes ? 'الكود جاهز في «طلباتي».' : 'وصل الشحن إلى حسابك.'], 'عرض طلباتي'],
-  rsc_failed: (v) => ['تعذّر تنفيذ طلبك', [`طلبك <b>${escHtml(v.name)}</b> لم يكتمل: ${escHtml(v.reason || '')}.`, `أُعيد <b>$${escHtml(v.amount)}</b> إلى محفظتك.`], 'فتح كاردو'],
+  rsc_failed: (v) => ['تعذّر تنفيذ طلبك', [`طلبك <b>${escHtml(v.name)}</b> لم يكتمل: ${escHtml(v.reason || '')}.`, `أُعيد <b>${escHtml(v.fmt || '$' + v.amount)}</b> إلى محفظتك.`], 'فتح كاردو'],
   rsc_admin: (v) => ['طلب متجر يحتاج مراجعة', [`الطلب <b>${escHtml(v.oid)}</b>: ${escHtml(v.why)}.`, 'افتح «متجر كاردو» في لوحة الإدارة.'], 'لوحة الإدارة'],
   order_placed: (v) => ['تم الشراء ✓', [`تم شراء <b>${escHtml(v.name)}</b> بقيمة <b>${escHtml(v.amount)}</b>.`, v.instant ? 'الكود جاهز في «طلباتي».' : 'سيُنفَّذ طلبك يدويًا ونُعلمك فور اكتماله.'], 'عرض طلباتي'],
   card_requested: (v) => ['وصل طلب البطاقة', [`طلبك لإصدار بطاقة بقيمة <b>$${escHtml(v.amount)}</b> قيد التنفيذ. سنُعلمك فور إصدارها.`], 'فتح كاردو'],
@@ -4353,13 +4536,13 @@ const MAIL = {
   m_suspended: (v) => ['تم إيقاف متجرك', [`أُوقف متجر <b>${escHtml(v.store)}</b> مؤقتًا.`, 'تواصل مع إدارة كاردو لمعرفة السبب.'], 'فتح كاردو'],
   m_renewed: (v) => ['تم تجديد اشتراك متجرك ✓', [`متجر <b>${escHtml(v.store)}</b> فعّال حتى ${escHtml(v.until)}.`], 'لوحة متجري'],
   ticket_reply: (v) => ['ردّ فريق الدعم على تذكرتك 💬', [`تذكرتك «<b>${escHtml(v.subject)}</b>» وصلها رد جديد:`, `<i>${escHtml(v.preview)}</i>`, 'افتح كاردو ← الدعم لقراءة الرد كاملًا والرد عليه.'], 'عرض الرد'],
-  transfer_in: (v) => ['وصلك تحويل', [`استلمت <b>$${escHtml(v.amount)}</b> من مستخدم في كاردو.`], 'فتح المحفظة'],
+  transfer_in: (v) => ['وصلك تحويل', [`استلمت <b>${escHtml(v.fmt || '$' + v.amount)}</b> من مستخدم في كاردو.`], 'فتح المحفظة'],
   // v60 — إشعارات الإدارة (هاتف + داخل اللوحة، بدون بريد)
   adm_ticket: (v) => ['🎫 تذكرة جديدة', [`${escHtml(v.who)}: «${escHtml(v.subject)}»`, escHtml(v.preview || '')], 'الدعم'],
   adm_ticket_msg: (v) => ['💬 رد جديد على تذكرة', [`${escHtml(v.who)} في «${escHtml(v.subject)}»: ${escHtml(v.preview || '')}`], 'الدعم'],
   adm_deposit: (v) => [v.auto ? '💰 إيداع تلقائي انضاف' : '💰 إيداع جديد يحتاج مراجعة', [`${escHtml(v.who)} — <b>${escHtml(v.amount)}</b> عبر ${escHtml(v.method || '')}`], 'المال'],
-  adm_withdraw: (v) => ['🏧 طلب سحب جديد', [`${escHtml(v.who)} — <b>$${escHtml(v.amount)}</b> (${escHtml(v.method || '')})`], 'المال'],
-  adm_transfer: (v) => ['🔁 تحويل بين مستخدمين', [`${escHtml(v.who)} حوّل <b>$${escHtml(v.amount)}</b> إلى ${escHtml(v.to)}`], 'العملاء'],
+  adm_withdraw: (v) => ['🏧 طلب سحب جديد', [`${escHtml(v.who)} — <b>${escHtml(v.fmt || '$' + v.amount)}</b> (${escHtml(v.method || '')})`], 'المال'],
+  adm_transfer: (v) => ['🔁 تحويل بين مستخدمين', [`${escHtml(v.who)} حوّل <b>${escHtml(v.fmt || '$' + v.amount)}</b> إلى ${escHtml(v.to)}`], 'العملاء'],
   adm_rsc: (v) => [v.ok ? '🛒 طلب متجر اكتمل' : '⚠️ طلب متجر فشل', [`${escHtml(v.who)} — ${escHtml(v.name)} ($${escHtml(v.amount)})`, v.reason ? escHtml(v.reason) : ''], 'طلبات المتجر'],
   adm_card: (v) => ['💳 طلب بطاقة جديد', [`${escHtml(v.who)} — <b>$${escHtml(v.amount)}</b>`], 'طلبات البطاقات'],
   adm_order: (v) => ['🛍 طلب خدمة جديد', [`${escHtml(v.who)} — ${escHtml(v.name)} (${escHtml(v.amount)})`], 'الطلبات'],
@@ -4602,7 +4785,7 @@ async function loadImageData(env, kind, id) {
   if (kind === 'm' || kind === 'b') {
     const s = await getSettings(env);
     if (kind === 'b') { const b = (s.banners || [])[Number(id)]; return b && (b.img || b.image); }
-    if (/^[a-z]+$/.test(id) && s[`m_${id}_logo`]) return s[`m_${id}_logo`];
+    if (/^[a-z0-9_]+$/.test(id) && s[`m_${id}_logo`]) return s[`m_${id}_logo`];
     const cm = cleanCustomMethods(s.custom_methods)[id];
     return cm && cm.logo;
   }
@@ -7674,16 +7857,17 @@ async function handleRscOrder(user, body, env) {
 
   const resp = await fsRunTransaction(env, async (tx) => {
     const hit = await idemRead(tx, user.uid, key); if (hit) return hit;
-    const L = await ledgerOpen(tx, user.uid);
+    const sp = await spendPlan(tx, s, user.uid, total);                // v62: من المحفظة الافتراضية
+    const L = await ledgerOpen(tx, user.uid, sp.w);
     if (L.doc.banned === true) throw httpError(403, 'الحساب موقوف');
     assertEmailVerified(env, s, L.doc);
-    await ledgerPost(L, { type: 'debit', amount: total, reason: 'rsc_order', reference: oid, entryId: `txn_rsc_${oid}` });
+    await spendPost(L, sp, { reason: 'rsc_order', reference: oid, entryId: `txn_rsc_${oid}` });
     ledgerClose(tx, L, { total_spent: round2(num(L.doc.total_spent, 0) + total) });
     tx.create('rsc_orders', oid, {
       uid: user.uid, kind: type, cat: ckey, cat_name: catName, offer_id: off.id, offer_name: off.name, qty, fields,
-      cost_usd: round2(off.cost * qty), total_usd: total, status: 'submitting', created_at: nowIso(), updated_at: nowIso(),
+      cost_usd: round2(off.cost * qty), total_usd: total, wallet: sp.w, paid_w: sp.amt, status: 'submitting', created_at: nowIso(), updated_at: nowIso(),
     });
-    const r = { success: true, id: oid, total };
+    const r = { success: true, id: oid, total, wallet: sp.w, paid: sp.amt };
     idemWrite(tx, user.uid, key, r);
     return r;
   });
@@ -7744,12 +7928,13 @@ async function rscRefund(env, oid, reason, by, code) {
     const o = await tx.get(`rsc_orders/${oid}`);
     if (!o || ['refunded', 'completed'].includes(o.status)) return;
     o0 = o;
-    const L = await ledgerOpen(tx, o.uid);
-    await ledgerPost(L, { type: 'credit', amount: num(o.total_usd, 0), reason: 'rsc_refund', reference: oid, entryId: `txn_rsc_refund_${oid}`, created_by: by || 'system' });
+    const w = wOk(o.wallet) ? o.wallet : 'usd', back = w === 'usd' && o.paid_w == null ? num(o.total_usd, 0) : num(o.paid_w, 0);   // v62: يرجع لنفس المحفظة
+    const L = await ledgerOpen(tx, o.uid, w);
+    await ledgerPost(L, { type: 'credit', amount: back, reason: 'rsc_refund', reference: oid, entryId: `txn_rsc_refund_${oid}`, created_by: by || 'system' });
     ledgerClose(tx, L, { total_spent: Math.max(0, round2(num(L.doc.total_spent, 0) - num(o.total_usd, 0))) });
     tx.update(`rsc_orders/${oid}`, { status: 'refunded', fail_reason: String(reason || '').slice(0, 160), fail_code: String(code || '').slice(0, 60), refunded_by: by || 'system', updated_at: nowIso() });
   });
-  if (o0) { notify(env, o0.uid, 'rsc_failed', { name: `${o0.cat_name} — ${o0.offer_name}`, amount: num(o0.total_usd, 0).toFixed(2), reason }); staffAlert(env, 'adm_rsc', { uid: o0.uid, ok: false, name: `${o0.cat_name} — ${o0.offer_name}`, amount: num(o0.total_usd, 0).toFixed(2), reason, page: 'sorders' }, 'orders.view'); }
+  if (o0) { notify(env, o0.uid, 'rsc_failed', { name: `${o0.cat_name} — ${o0.offer_name}`, amount: num(o0.total_usd, 0).toFixed(2), fmt: wOk(o0.wallet) && o0.paid_w != null ? wFmt(o0.wallet, o0.paid_w) : '', reason }); staffAlert(env, 'adm_rsc', { uid: o0.uid, ok: false, name: `${o0.cat_name} — ${o0.offer_name}`, amount: num(o0.total_usd, 0).toFixed(2), reason, page: 'sorders' }, 'orders.view'); }
 }
 
 async function rscOrderView(env, oid, uid) {
@@ -7759,7 +7944,7 @@ async function rscOrderView(env, oid, uid) {
 }
 async function rscPublic(env, o) {
   return { id: o._id, status: o.status, kind: o.kind, cat: o.cat || '', offer_id: o.offer_id || '', reviewed: o.reviewed === true, cat_name: o.cat_name, offer_name: o.offer_name, qty: o.qty, fields: o.fields || {},
-    total_usd: num(o.total_usd, 0), created_at: o.created_at, fail_reason: o.fail_reason || '',
+    total_usd: num(o.total_usd, 0), wallet: o.wallet || 'usd', paid_w: o.paid_w == null ? num(o.total_usd, 0) : num(o.paid_w, 0), created_at: o.created_at, fail_reason: o.fail_reason || '',
     codes: o.status === 'completed' && o.codes_enc ? (await decCodes(env, `rsc:${o._id}`, o.codes_enc)) || [] : [] };
 }
 
@@ -8520,7 +8705,7 @@ async function handleAdminUserFile(user, body, env) {
     L('wallet_transactions', 25), staffCan(staff, 'deposits.view') ? L('wallet_deposits', 10) : null, staffCan(staff, 'orders.view') ? L('rsc_orders', 10) : null,
     staffCan(staff, 'deposits.view') ? L('usdt_invoices', 10) : null, staffCan(staff, 'tickets.view') ? L('tickets', 5, 'updated_at') : null, staffCan(staff, 'withdraw.view') ? L('withdrawals', 5) : null]);
   return { success: true,
-    user: { id: uid, ...pick(u, ['name', 'email', 'phone_verified', 'wallet_balance', 'total_spent', 'banned', 'ban_reason', 'plan', 'plan_expires_ms', 'created_at', 'email_verified', 'last_seen_at']) },
+    user: { id: uid, ...pick(u, ['name', 'email', 'phone_verified', 'wallet_balance', 'wallets', 'default_wallet', 'total_spent', 'banned', 'ban_reason', 'plan', 'plan_expires_ms', 'created_at', 'email_verified', 'last_seen_at']) },
     ledger: led.map(t => pick(t, ['id', 'type', 'amount', 'reason', 'reference', 'balance_after', 'created_at', 'note'])),
     deposits: deps && deps.map(d => pick(d, ['id', 'method', 'amount_usd', 'amount_lyd', 'status', 'created_at'])),
     orders: rsc && rsc.map(o => pick(o, ['id', 'cat_name', 'offer_name', 'qty', 'total_usd', 'status', 'created_at'])),

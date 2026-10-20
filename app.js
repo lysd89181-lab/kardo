@@ -181,6 +181,20 @@ const $$ = s => [...document.querySelectorAll(s)];
 const n = v => { const x = parseFloat(v); return Number.isFinite(x) ? x : 0; };
 const usd = v => '$' + Number(v || 0).toFixed(2);
 const rate = () => n(S.config.usd_to_lyd) || 11.8;
+/* v62 — المحافظ: usd (USDT) + ly ليبيانا + md المدار + bk مصرف (بالدينار). نفس معادلة السيرفر بالضبط */
+const W_KEYS = ['usd', 'ly', 'md', 'bk'];
+const W_DEF = { usd: { label: 'USDT', cur: 'USD', rate: 1, margin: 0, color: '#26A17B' }, ly: { label: 'ليبيانا', cur: 'LYD', rate: 11.8, margin: 0, color: '#00A6E1' }, md: { label: 'المدار', cur: 'LYD', rate: 12.5, margin: 0, color: '#E2231A' }, bk: { label: 'مصرف', cur: 'LYD', rate: 9.5, margin: 0, color: '#566064' } };
+const wOn = () => Array.isArray(S.config.wallets) && S.config.wallets.length > 0;
+const wInfo = w => ({ k: w, ...W_DEF[w], ...((S.config.wallets || []).find(x => x.k === w) || {}) });
+const wDef = () => { const w = (S.profile || {}).default_wallet; return wOn() && W_KEYS.includes(w) ? w : 'usd'; };
+const wBalOf = w => w === 'usd' ? n((S.profile || {}).wallet_balance) : n(((S.profile || {}).wallets || {})[w]);
+const wBal = () => wBalOf(wDef());
+const wPrice = (u, w = wDef()) => { const i = wInfo(w), x = n(u) * (1 + n(i.margin) / 100) * (w === 'usd' ? 1 : n(i.rate)); return w === 'usd' ? Math.ceil(x * 100 - 1e-6) / 100 : Math.ceil(x * 2 - 1e-6) / 2; };
+const wFmt = (x, w = wDef()) => w === 'usd' ? usd(x) : lyd(x);
+const wP = u => wFmt(wPrice(u));                                      // سعر منتج بعملة المحفظة الافتراضية
+const wIsShort = u => wBal() < wPrice(u) - 1e-9;
+const wShortUsd = u => { const w = wDef(), i = wInfo(w), d = Math.max(0, wPrice(u) - wBal()); return Math.ceil(d / ((1 + n(i.margin) / 100) * (w === 'usd' ? 1 : n(i.rate))) * 100) / 100; };
+const methodW = k => /libyana/.test(k) ? 'ly' : /almadar/.test(k) ? 'md' : k === 'bank' ? 'bk' : 'usd';
 const lyd = v => Number(v || 0).toLocaleString('en-US',
   { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + ' د.ل';
 const esc = s => String(s ?? '').replace(/[&<>"']/g, c =>
@@ -759,9 +773,13 @@ function vDashboard() {
     ${(() => { const v = pendingInvoice(); return v ? `<button class="kpend" data-pendinv type="button"><span class="kpulse"></span><div><b>فاتورة شحن بانتظار الدفع</b><span class="tabular">${esc(v.no)} · ${esc(Number(v.pay_amount).toFixed(2))} USDT</span></div><span class="kpend-go">ادفع الآن</span></button>` : ''; })()}
     <section class="kw" aria-label="المحفظة">
       <img class="kw-fox" src="./kardo-mark.png" alt="" aria-hidden="true">
+      ${wOn() ? (() => { const w = wDef(), i = wInfo(w), b = wBal();                // v62: المحفظة الافتراضية
+        return `<div class="kw-row"><span class="kw-label"><i class="kw-dot" style="background:${esc(i.color)}"></i>محفظة ${esc(i.label)}</span>${name ? `<span class="kw-chip">مرحبًا، ${esc(name)}</span>` : ''}</div>
+      <div class="kw-amount tabular"><span>${esc(Number(b).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }))}</span><small>${w === 'usd' ? '$' : 'د.ل'}</small></div>
+      <div class="kw-sub"><button type="button" class="kw-switch" data-nav="wallet">كل المحافظ (${W_KEYS.filter(k => wBalOf(k) > 0).length || 1}) ←</button></div>`; })() : `
       <div class="kw-row"><span class="kw-label">رصيد محفظتك</span>${name ? `<span class="kw-chip">مرحبًا، ${esc(name)}</span>` : ''}</div>
       <div class="kw-amount tabular"><span data-cu="wal_lyd" data-to="${bal * rate()}" data-fmt="num">${esc(Number(bal * rate()).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }))}</span><small>د.ل</small></div>
-      <div class="kw-sub">تقريبًا <bdi>${esc(usd(bal))}</bdi></div>
+      <div class="kw-sub">تقريبًا <bdi>${esc(usd(bal))}</bdi></div>`}
       <div class="kw-actions">
         <button class="kw-btn p" data-act="dock-deposit" type="button">${svg(I.plus)}شحن المحفظة</button>
         <button class="kw-btn s" data-nav="wallet" type="button">${S.config.withdraw && S.config.withdraw.on ? svg(I.withdraw) + 'سحب' : svg(I.wallet2) + 'المحفظة'}</button>
@@ -1352,6 +1370,25 @@ function renderCard(c) {
    Wallet
    ═══════════════════════════════════════════════════════════ */
 
+/* v62 — شبكة المحافظ: لون وصورة لكل محفظة + تعيين كافتراضي */
+function walletsGrid() {
+  const d = wDef();
+  return `<div class="kwal-grid">${W_KEYS.map(w => { const i = wInfo(w), b = wBalOf(w);
+    return `<div class="kwal ${w === d ? 'on' : ''}" style="--wc:${esc(i.color)}">
+      ${w === d ? '<span class="kwal-def">الافتراضية ✓</span>' : ''}
+      <div class="kwal-n"><span class="kwal-lg">${i.logo ? `<img src="${esc(i.logo)}" alt="">` : esc({ usd: '₮', ly: 'LY', md: 'MD', bk: '🏦' }[w])}</span>${esc(i.label)}</div>
+      <div class="kwal-b tabular" dir="ltr">${w === 'usd' ? '<small>$</small>' : ''}${esc(Number(b).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }))}${w === 'usd' ? '' : '<small> د.ل</small>'}</div>
+      ${w === d ? '' : `<button type="button" class="kwal-set" data-wdef="${w}">تعيين كافتراضي</button>`}
+    </div>`; }).join('')}</div>
+  <p class="caption mb-4" style="text-align:center">🔒 كل محفظة تتصرّف بعملتها. الشراء والسحب والتحويل من المحفظة الافتراضية.</p>`;
+}
+document.addEventListener('click', async e => {
+  const b = e.target.closest && e.target.closest('[data-wdef]'); if (!b) return;
+  const w = b.dataset.wdef; b.disabled = true;
+  try { await api('/api/wallet/default', { w }); S.profile = { ...S.profile, default_wallet: w }; haptic.tap && haptic.tap(); toast(`محفظة ${wInfo(w).label} توا هي الافتراضية ✓`, 'ok'); render(); }
+  catch (er) { b.disabled = false; toast(er.message, 'bad'); }
+});
+
 function vWallet() {
   return `
   <div class="page-enter">
@@ -1359,10 +1396,11 @@ function vWallet() {
       <h1 class="h2" style="margin-bottom:6px">المحفظة</h1>
     </div>
 
-    <div class="balance-card" style="margin-bottom:24px">
-      <div class="balance-label">الرصيد المتاح</div>
+    ${wOn() ? walletsGrid() : ''}
+    <div class="balance-card" style="margin-bottom:24px${wOn() ? ';padding-top:14px' : ''}">
+      ${wOn() ? '' : `<div class="balance-label">الرصيد المتاح</div>
       <div class="balance-value tabular" data-cu="wal_lyd" data-to="${n(S.profile.wallet_balance) * rate()}" data-fmt="lyd">${lyd(S.profile.wallet_balance * rate())}</div>
-      <div class="balance-secondary tabular" data-cu="wal_usd" data-to="${n(S.profile.wallet_balance)}" data-fmt="usd">${usd(S.profile.wallet_balance)}</div>
+      <div class="balance-secondary tabular" data-cu="wal_usd" data-to="${n(S.profile.wallet_balance)}" data-fmt="usd">${usd(S.profile.wallet_balance)}</div>`}
 
       <div class="balance-actions">
         <button class="balance-action" data-action="deposit">
@@ -1380,11 +1418,11 @@ function vWallet() {
       </div>
     </div>
 
-    <div class="mb-4">
+    ${wOn() ? '' : `<div class="mb-4">
       <div class="h4">طرق الإيداع</div>
-    </div>
+    </div>`}
 
-    <div class="list mb-6">
+    <div class="list mb-6" ${wOn() ? 'style="display:none"' : ''}>
       <div class="list-row" data-method="libyana">
         <div class="list-icon brand">${svg(I.up, 2)}</div>
         <div class="list-content">
@@ -1413,8 +1451,8 @@ function vWallet() {
           <div class="list-row" style="cursor:default">
             <div class="list-icon ${d.status === 'approved' ? 'success' : ''}">${svg(I.up, 2)}</div>
             <div class="list-content">
-              <div class="list-title">${esc(usd(d.amount_usd))}</div>
-              <div class="list-meta">${esc(d.method || '—')} · ${esc(dt(d.created_at))}</div>
+              <div class="list-title">${esc(d.wallet && d.amount_w != null ? wFmt(d.amount_w, d.wallet) : usd(d.amount_usd))}</div>
+              <div class="list-meta">${esc(d.method || '—')}${d.wallet && wOn() ? ' · محفظة ' + esc(wInfo(d.wallet).label) : ''} · ${esc(dt(d.created_at))}</div>
             </div>
             <div class="list-end">
               <span class="badge ${d.status === 'approved' ? 'badge-success' : d.status === 'pending' ? 'badge-warning' : 'badge-error'}">
@@ -1445,14 +1483,14 @@ const REASON_AR = { deposit_approved: 'إيداع معتمد', deposit_claim: '�
   rsc_order: 'شراء من متجر كاردو', rsc_refund: 'استرداد طلب متجر', service_order: 'شراء خدمة', service_order_rejected: 'استرداد خدمة', store_order: 'شراء من المتجر', order_rejected: 'استرداد طلب',
   card_create: 'إصدار بطاقة', card_topup: 'شحن بطاقة', card_rejected_refund: 'استرداد طلب بطاقة', withdraw_request: 'سحب',
   withdraw_rejected: 'استرداد سحب', transfer_out: 'تحويل صادر', transfer_in: 'تحويل وارد', points_redeem: 'استبدال نقاط',
-  promo_first: 'هدية أول شحنة 🎁',
+  promo_first: 'هدية أول شحنة 🎁', wallet_split_out: 'نقل لمحفظة', wallet_split_in: 'نقل من رصيد الدولار', usdt_reassign_in: 'تصحيح إيداع', usdt_reassign_out: 'تصحيح إيداع',
   referral_bonus_invitee: 'مكافأة دعوة', referral_bonus_inviter: 'مكافأة دعوة', plan_basic: 'باقة الأساسي', plan_vip: 'باقة VIP' };
 function subscribeLedger() {
   if (S._ledgerSub || !S.user) return;
   S._ledgerSub = true;
   S.unsub.push(onSnapshot(query(collection(db, 'wallet_transactions'), where('uid', '==', S.user.uid), limit(80)), s => {
     S.ledger = s.docs.map(d => ({ id: d.id, ...d.data() }))
-      .sort((a, b) => (b.seq || 0) - (a.seq || 0) || String(b.created_at).localeCompare(String(a.created_at)));
+      .sort((a, b) => String(b.created_at).localeCompare(String(a.created_at)) || (b.seq || 0) - (a.seq || 0));   // v62: محافظ متعددة — بالوقت
     render();
   }, e => { S._ledgerSub = false; console.warn('ledger:', e.code); }, 120000));   // v51: كل دقيقتين (والتحديث الفوري بعد أي عملية باقٍ)
 }
@@ -1463,11 +1501,11 @@ function ledgerRow(t) {
       <div class="list-icon ${inc ? 'success' : 'error'}">${svg(inc ? I.down : I.up, 2)}</div>
       <div class="list-content">
         <div class="list-title">${esc(REASON_AR[t.reason] || 'عملية')}</div>
-        <div class="list-meta">${esc(dt(t.created_at))} · <span dir="ltr">${esc(krdRef(t.reference || t.id))}</span>${t.note ? ' · ' + esc(t.note) : ''}</div>
+        <div class="list-meta">${wOn() ? `<i class="kw-dot" style="background:${esc(wInfo(t.wallet || 'usd').color)};box-shadow:none"></i>${esc(wInfo(t.wallet || 'usd').label)} · ` : ''}${esc(dt(t.created_at))} · <span dir="ltr">${esc(krdRef(t.reference || t.id))}</span>${t.note ? ' · ' + esc(t.note) : ''}</div>
       </div>
       <div class="list-end">
-        <div class="list-amount ${inc ? 'success' : 'error'}" dir="ltr">${inc ? '+' : '−'}${esc(usd(t.amount))}</div>
-        <div class="caption tabular" style="margin-top:2px">الرصيد ${esc(usd(t.balance_after))}</div>
+        <div class="list-amount ${inc ? 'success' : 'error'}" dir="ltr">${inc ? '+' : '−'}${esc(wFmt(t.amount, t.wallet || 'usd'))}</div>
+        <div class="caption tabular" style="margin-top:2px">الرصيد ${esc(wFmt(t.balance_after, t.wallet || 'usd'))}</div>
       </div>
     </div>`;
 }
@@ -1683,7 +1721,7 @@ function vSettings() {
     <div class="kset-label">حسابي</div>
     <div class="kset">
       ${row('data-nav="orders"', I.receipt, 'طلباتي')}
-      ${row('data-nav="wallet"', I.wallet2, 'المحفظة', `<span class="kset-v tabular">${esc(lyd(n(S.profile.wallet_balance) * rate()))}</span>`)}
+      ${row('data-nav="wallet"', I.wallet2, 'المحفظة', `<span class="kset-v tabular">${esc(wOn() ? wFmt(wBal()) : lyd(n(S.profile.wallet_balance) * rate()))}</span>`)}
       ${row('data-nav="transactions"', I.list, 'المعاملات')}
       ${row('data-nav="invoices"', I.receipt, 'فواتيري')}
       ${(S.manualCards || []).length ? row('id="kPinReset"', I.lock, 'الرمز السري للبطاقات', '<span class="kset-v">تغيير</span>') : ''}
@@ -1979,11 +2017,12 @@ async function openNewCard() {
         <div class="flex-between" style="padding:6px 0"><span class="body-sm text-2">رسوم الإصدار</span><span class="tabular" style="font-weight:600">${usd(fee)}</span></div>
         <div class="divider" style="margin:8px 0"></div>
         <div class="flex-between"><span style="font-weight:600">الإجمالي</span><span class="tabular" style="font-weight:700;color:var(--brand)">${usd(total)}</span></div>
+        ${wOn() && wDef() !== 'usd' || (wOn() && n(wInfo('usd').margin)) ? `<div class="flex-between" style="padding-top:6px"><span class="body-sm text-2">يُخصم من محفظة ${esc(wInfo(wDef()).label)}</span><span class="tabular" style="font-weight:700">${esc(wP(total))}</span></div>` : ''}
       </div>
     `;
-    const short = (S.profile.wallet_balance || 0) < total;
+    const short = wIsShort(total);
     btn.disabled = short || !$('#ncAccept').checked;
-    if (short) box.innerHTML += `<div class="alert alert-warning" style="margin-top:12px">${svg(I.help, 2)}<div>رصيدك غير كافٍ — المتاح ${usd(S.profile.wallet_balance)}</div></div>`;
+    if (short) box.innerHTML += `<div class="alert alert-warning" style="margin-top:12px">${svg(I.help, 2)}<div>رصيد محفظة ${esc(wInfo(wDef()).label)} غير كافٍ — المتاح ${esc(wFmt(wBal()))}</div></div>`;
   };
 
   $('#ncAmount').oninput = calc;
@@ -2121,8 +2160,8 @@ async function openDepositMethod(method, presetLyd) {
       const r = await api('/api/wallet/claim', { amount_lyd: amt, method, phone: phoneIn });
       if (/^0\d{9}$/.test(phoneIn)) rememberPhone(phoneIn);
       if (r.matched) anEv('paid');
-      if (r.matched && CHECKOUT) { toast('أُضيف ' + usd(r.credited_usd) + ' — نكمل الشراء…', 'ok'); return completeCheckout(); }
-      if (r.matched) stickerModal('deposit', 'success', 'تم الإيداع ✓', 'أُضيف ' + usd(r.credited_usd) + ' إلى محفظتك.');
+      if (r.matched && CHECKOUT) { toast('أُضيف ' + (r.wallet ? wFmt(r.credited_w, r.wallet) : usd(r.credited_usd)) + ' — نكمل الشراء…', 'ok'); return completeCheckout(); }
+      if (r.matched) stickerModal('deposit', 'success', 'تم الإيداع ✓', 'أُضيف ' + (r.wallet ? wFmt(r.credited_w, r.wallet) + ' إلى محفظة ' + wInfo(r.wallet).label : usd(r.credited_usd) + ' إلى محفظتك') + '.');
       else if (r.manual) stickerModal('wait', 'wait', 'وصل طلب الإيداع', 'يُضاف الرصيد بعد المراجعة خلال وقت قصير.');
       else stickerModal('wait', 'wait', 'في انتظار الحوالة', CHECKOUT ? 'يُضاف الرصيد فور وصول الحوالة، وبعدها كمّل شراء «' + CHECKOUT.name + '» من المتجر.' : 'سيُضاف الرصيد تلقائيًا فور وصول الحوالة.');
       if (!r.matched) CHECKOUT = null;
@@ -2215,7 +2254,7 @@ function openCardTopup(c) {
       <div class="modal-title">إعادة تعبئة ${esc(c.card_name || 'البطاقة')} ••${esc(c.last4 || '')}</div>
       <button class="modal-close" data-act="close-modal" aria-label="إغلاق">${svg(I.x, 2)}</button>
     </div>
-    <p class="caption mb-3">رصيد البطاقة الحالي ${esc(usd(c.balance))} · رصيد محفظتك ${esc(usd(S.profile.wallet_balance))}</p>
+    <p class="caption mb-3">رصيد البطاقة الحالي ${esc(usd(c.balance))} · رصيد محفظة ${esc(wInfo(wDef()).label)} ${esc(wFmt(wBal()))}</p>
     <div class="field mb-3">
       <label class="field-label" for="tuAmount">المبلغ (من ${mn} إلى ${mx} دولار)</label>
       <input class="input tabular" id="tuAmount" type="number" inputmode="decimal" min="${mn}" max="${mx}" step="1" dir="ltr" placeholder="${mn}">
@@ -2236,9 +2275,9 @@ function openCardTopup(c) {
         <div class="flex-between" style="padding:6px 0"><span class="body-sm text-2">يُضاف للبطاقة</span><span class="tabular" style="font-weight:600">${usd(a)}</span></div>
         <div class="flex-between" style="padding:6px 0"><span class="body-sm text-2">رسوم التعبئة</span><span class="tabular" style="font-weight:600">${usd(fee)}</span></div>
         <div class="divider" style="margin:8px 0"></div>
-        <div class="flex-between"><span style="font-weight:600">يُخصم من محفظتك</span><span class="tabular" style="font-weight:700;color:var(--brand)">${usd(total)}</span></div>
+        <div class="flex-between"><span style="font-weight:600">يُخصم من محفظة ${esc(wInfo(wDef()).label)}</span><span class="tabular" style="font-weight:700;color:var(--brand)">${esc(wP(total))}</span></div>
       </div>`;
-    const short = n(S.profile.wallet_balance) < total;
+    const short = wIsShort(total);
     btn.disabled = short;
     if (short) box.innerHTML += `<div class="alert alert-warning" style="margin-top:12px">${svg(I.help, 2)}<div>رصيدك غير كافٍ — اشحن محفظتك أولًا</div></div>`;
   };
@@ -2763,7 +2802,7 @@ function openPlanBuy(plan) {
     <div class="card card-sm mb-4" style="background:var(--surface-2);border:none">
       <div class="flex-between" style="padding:4px 0"><span class="body-sm text-2">المدة</span><span>${esc(String(info.days))} يومًا</span></div>
       <div class="flex-between" style="padding:4px 0"><span class="body-sm text-2">البطاقات</span><span>${esc(planCardsText(plan))}</span></div>
-      <div class="flex-between" style="padding:4px 0"><span style="font-weight:600">السعر</span><span class="tabular" style="font-weight:700">${esc(lyd(n(info.price) * r))}</span></div>
+      <div class="flex-between" style="padding:4px 0"><span style="font-weight:600">السعر</span><span class="tabular" style="font-weight:700">${esc(wOn() ? wP(n(info.price)) : lyd(n(info.price) * r))}</span></div>
     </div>
     ${cur !== 'free' && cur !== plan ? `<p class="caption mb-3">يُخصم من السعر قيمة الأيام المتبقية من باقتك الحالية.</p>` : ''}
     ${cur === plan ? `<p class="caption mb-3">تُضاف المدة الجديدة إلى المتبقي من باقتك.</p>` : ''}
@@ -2820,48 +2859,68 @@ async function openDeposit(preset, checkout) {
   if (!checkout) CHECKOUT = null;
   anEv(checkout ? 'buy_short' : 'dep_open');
   { const g = moneyGateHtml(); if (g) { modal(g); onTap('#gateGo', () => { closeModal(); go('settings'); }); return; } }
-  const opts = depositOptions();
+  let opts = depositOptions();
+  // v62: في الشراء المعلّق نعرض بس الطرق اللي تشحن المحفظة الافتراضية (باش يكمل الشراء)
+  if (CHECKOUT && wOn()) { const f = opts.filter(o => methodW(o.key) === wDef()); if (f.length) opts = f; }
   if (!opts.length) { modal(`<div class="h4 mb-3">شحن المحفظة</div><p class="body-sm text-2">لا توجد طرق شحن مفعّلة حاليًا.</p>`); return; }
-  let cur = 'usd';
+  let cur = CHECKOUT && wOn() && wDef() !== 'usd' ? 'lyd' : 'usd';
   let amt = n(preset) || 0;
+  if (cur === 'lyd' && amt) amt = Math.ceil(wPrice(amt));
   let sel = (() => { try { return localStorage.getItem('kardo_last_pm') || ''; } catch { return ''; } })();
   if (!opts.find(o => o.key === sel && !o.paused)) sel = (opts.find(o => !o.paused) || opts[0]).key;
+  const usdOf = o => cur === 'usd' ? amt : (o.unit === 'USDT' ? amt / (n(S.config.usd_to_lyd) || 11.8) : amt / (o.rate || 1));
+  const payOf = o => cur === 'usd' ? (o.unit === 'USDT' ? amt : amt * o.rate) : (o.unit === 'USDT' ? usdOf(o) : amt);   // بعملة الطريقة
+  const unitTxt = o => o.unit === 'USDT' ? '$' : ' د.ل';
+  const limBad = o => { const p = payOf(o); return !o.paused && amt > 0 && ((o.min && p < o.min - 1e-9) ? 'min' : (o.max && p > o.max + 1e-9) ? 'max' : ''); };
+  const gain = o => { const w = methodW(o.key); if (!wOn()) return usd(usdOf(o)); return w === 'usd' ? usd(usdOf(o)) : lyd(Math.floor(payOf(o) * 100) / 100); };
+  const promoHtml = () => !CHECKOUT && S.config.promo_first && !S.profile.promo_first_done ? `<div class="kco">🎁<div><b>${(cur === 'usd' ? amt : 0) >= S.config.promo_first.min ? `تاخذ ${esc(String(S.config.promo_first.bonus))}$ هدية مع هذي الشحنة` : `اشحن ${esc(String(S.config.promo_first.min))}$ أو أكثر وخذ ${esc(String(S.config.promo_first.bonus))}$ هدية`}</b><span>${S.profile.phone_verified ? 'أول شحنة فقط — تنضاف تلقائيًا' : 'لازم رقم هاتفك يكون موثّق'}</span></div></div>` : '';
+  const chipsHtml = () => (cur === 'usd' ? [5, 10, 20, 50] : [50, 100, 200, 500]).map(v => `<button type="button" data-q="${v}" class="${amt === v ? 'on' : ''}">${cur === 'usd' ? '$' + v : v}</button>`).join('');
+  const listHtml = () => ['crypto', 'phone', 'bank'].map(g => { const list = opts.filter(o => o.group === g); if (!list.length) return '';
+    return `<div class="kset-label" style="margin-top:4px">${{ crypto: 'عملات رقمية', phone: 'رصيد هاتف', bank: 'تحويل وإيصال' }[g]}</div>
+    <div class="list mb-4">${list.map(o => { const pay = payOf(o), bad = limBad(o), w = methodW(o.key);
+      const lim = o.min || o.max ? `${o.min ? 'من ' + o.min + unitTxt(o) : ''}${o.min && o.max ? ' ' : ''}${o.max ? 'لين ' + o.max + unitTxt(o) : ''}` : '';
+      return `<div role="button" tabindex="0" class="list-row kpm ${sel === o.key ? 'sel' : ''} ${o.paused ? 'off' : ''}" data-pm="${esc(o.key)}" aria-disabled="${o.paused ? 'true' : 'false'}">
+        <span class="list-icon kpm-logo">${o.logo ? `<img src="${esc(o.logo)}" alt="">` : esc(o.short)}</span>
+        <div class="list-content"><div class="list-title">${esc(o.label)} <span class="kpm-tag ${o.paused ? 'off' : o.speed}">${o.paused ? 'متوقفة مؤقتًا' : { auto: 'تلقائي', fast: 'فوري', review: 'مراجعة' }[o.speed]}</span>${o.paused ? '' : `<button type="button" class="kpm-how" data-howto="${esc(o.key)}" aria-label="كيف أدفع؟">؟ كيف</button>`}</div>
+          <div class="list-meta">${o.paused ? 'غير متاحة الآن' : bad ? `<span style="color:var(--u-err)">${bad === 'min' ? `الحد الأدنى ${o.min}${unitTxt(o)}` : `الحد الأقصى ${o.max}${unitTxt(o)}`}</span>` : esc(o.note) + (lim ? ' · ' + esc(lim) : '')}</div></div>
+        ${!o.paused && amt > 0 ? `<div class="list-end kpm-pay"><b class="tabular">${o.unit === 'USDT' ? pay.toFixed(2) + ' USDT' : (o.unit === 'LYD' ? Math.ceil(pay) + ' د.ل' : pay.toFixed(2))}</b><small>${wOn() ? 'يُضاف ' + esc(gain(o)) + ' لمحفظة ' + esc(wInfo(w).label) : (cur === 'usd' ? 'تدفع' : 'يُضاف ' + usd(usdOf(o)))}</small></div>` : ''}
+      </div>`; }).join('')}</div>`; }).join('');
+  const bindParts = () => {
+    $$('[data-q]').forEach(b => b.onclick = () => { amt = n(b.dataset.q); const i = $('#kdA'); if (i) i.value = amt; update(); });
+    $$('[data-pm]').forEach(b => b.onclick = e => { if (e.target.closest('[data-howto]')) return; const o = opts.find(x => x.key === b.dataset.pm); if (!o || o.paused) return; sel = b.dataset.pm; update(); });
+  };
+  // v62: الكتابة في الخانة تحدّث الأجزاء اللي تحتها بس — الخانة ما تنرسمش من جديد (كان الكيبورد يتسكّر)
+  const update = () => {
+    const p = $('#kdPromo'), c = $('#kdChips'), l = $('#kdList');
+    if (p) p.innerHTML = promoHtml(); if (c) c.innerHTML = chipsHtml(); if (l) l.innerHTML = listHtml();
+    bindParts();
+  };
   const draw = () => {
-    const usdOf = o => cur === 'usd' ? amt : (o.unit === 'USDT' ? amt / (n(S.config.usd_to_lyd) || 11.8) : amt / (o.rate || 1));
     modal(`
       <div class="modal-head"><div class="modal-title">${CHECKOUT ? 'ادفع وأكمل الشراء' : 'شحن المحفظة'}</div>
         <button class="modal-close" data-act="close-modal" aria-label="إغلاق">${svg(I.x)}</button></div>
-      ${CHECKOUT ? `<div class="kco">${svg(I.store)}<div><b>${esc(CHECKOUT.name)}</b><span>ينقصك ${esc(usd(preset))} — بعد ما يوصل الدفع نكمل الشراء تلقائيًا</span></div></div>` : ''}
-      ${!CHECKOUT && S.config.promo_first && !S.profile.promo_first_done ? `<div class="kco">🎁<div><b>${(cur === 'usd' ? amt : 0) >= S.config.promo_first.min ? `تاخذ ${esc(String(S.config.promo_first.bonus))}$ هدية مع هذي الشحنة` : `اشحن ${esc(String(S.config.promo_first.min))}$ أو أكثر وخذ ${esc(String(S.config.promo_first.bonus))}$ هدية`}</b><span>${S.profile.phone_verified ? 'أول شحنة فقط — تنضاف تلقائيًا' : 'لازم رقم هاتفك يكون موثّق'}</span></div></div>` : ''}
+      ${CHECKOUT ? `<div class="kco">${svg(I.store)}<div><b>${esc(CHECKOUT.name)}</b><span>ينقصك ${esc(wFmt(Math.max(0, wPrice(CHECKOUT.total) - wBal())))} — بعد ما يوصل الدفع نكمل الشراء تلقائيًا</span></div></div>` : ''}
+      <div id="kdPromo">${promoHtml()}</div>
       <div class="kdep-amt">
         <div class="kdep-row"><label for="kdA">${cur === 'usd' ? 'المبلغ بالدولار' : 'المبلغ بالدينار'}</label>
           <div class="kseg"><button type="button" data-cur="usd" class="${cur === 'usd' ? 'on' : ''}">$</button><button type="button" data-cur="lyd" class="${cur === 'lyd' ? 'on' : ''}">د.ل</button></div></div>
-        <div class="kdep-in"><input id="kdA" type="number" inputmode="decimal" step="0.01" min="0" placeholder="0" value="${amt || ''}" class="tabular"><span>${cur === 'usd' ? '$' : 'د.ل'}</span></div>
+        <div class="kdep-in"><input id="kdA" type="text" inputmode="decimal" autocomplete="off" placeholder="0" value="${amt || ''}" class="tabular" dir="ltr"><span>${cur === 'usd' ? '$' : 'د.ل'}</span></div>
       </div>
-      <div class="kchips">${(cur === 'usd' ? [5, 10, 20, 50] : [50, 100, 200, 500]).map(v => `<button type="button" data-q="${v}" class="${amt === v ? 'on' : ''}">${cur === 'usd' ? '$' + v : v}</button>`).join('')}</div>
-      ${['crypto', 'phone', 'bank'].map(g => { const list = opts.filter(o => o.group === g); if (!list.length) return '';
-        return `<div class="kset-label" style="margin-top:4px">${{ crypto: 'عملات رقمية', phone: 'رصيد هاتف', bank: 'تحويل وإيصال' }[g]}</div>
-        <div class="list mb-4">${list.map(o => { const u = usdOf(o), pay = cur === 'usd' ? (o.unit === 'USDT' ? amt : amt * o.rate) : amt, bad = !o.paused && amt > 0 && ((o.min && u < o.min) || (o.max && u > o.max));
-          return `<div role="button" tabindex="0" class="list-row kpm ${sel === o.key ? 'sel' : ''} ${o.paused ? 'off' : ''}" data-pm="${esc(o.key)}" aria-disabled="${o.paused ? 'true' : 'false'}">
-            <span class="list-icon kpm-logo">${o.logo ? `<img src="${esc(o.logo)}" alt="">` : esc(o.short)}</span>
-            <div class="list-content"><div class="list-title">${esc(o.label)} <span class="kpm-tag ${o.paused ? 'off' : o.speed}">${o.paused ? 'متوقفة مؤقتًا' : { auto: 'تلقائي', fast: 'فوري', review: 'مراجعة' }[o.speed]}</span>${o.paused ? '' : `<button type="button" class="kpm-how" data-howto="${esc(o.key)}" aria-label="كيف أدفع؟">؟ كيف</button>`}</div>
-              <div class="list-meta">${o.paused ? 'غير متاحة الآن' : bad ? `<span style="color:var(--u-err)">${o.min && u < o.min ? `الحد الأدنى $${o.min}` : `الحد الأقصى $${o.max}`}</span>` : esc(o.note)}</div></div>
-            ${!o.paused && amt > 0 ? `<div class="list-end kpm-pay"><b class="tabular">${o.unit === 'USDT' ? pay.toFixed(2) + ' USDT' : (o.unit === 'LYD' ? Math.ceil(pay) + ' د.ل' : pay.toFixed(2))}</b><small>${cur === 'usd' ? 'تدفع' : 'يُضاف ' + usd(u)}</small></div>` : ''}
-          </div>`; }).join('')}</div>`; }).join('')}
+      <div class="kchips" id="kdChips">${chipsHtml()}</div>
+      <div id="kdList">${listHtml()}</div>
       <button class="btn btn-primary btn-block btn-lg" id="kdGo" type="button">متابعة</button>`);
     const inp = $('#kdA');
-    inp.oninput = () => { amt = n(inp.value); const pos = inp.selectionStart; draw(); const i2 = $('#kdA'); i2.focus(); try { i2.setSelectionRange(pos, pos); } catch {} };
-    $$('[data-q]').forEach(b => b.onclick = () => { amt = n(b.dataset.q); draw(); });
+    inp.oninput = () => { const v = String(inp.value).replace(/[٠-٩]/g, d => '٠١٢٣٤٥٦٧٨٩'.indexOf(d)).replace(/[۰-۹]/g, d => '۰۱۲۳۴۵۶۷۸۹'.indexOf(d)).replace(/,/g, '.').replace(/[^\d.]/g, '').replace(/(\..*)\./g, '$1'); if (v !== inp.value) inp.value = v; amt = n(v); update(); };
     $$('[data-cur]').forEach(b => b.onclick = () => { if (cur !== b.dataset.cur) { cur = b.dataset.cur; amt = 0; draw(); } });
-    $$('[data-pm]').forEach(b => b.onclick = () => { const o = opts.find(x => x.key === b.dataset.pm); if (!o || o.paused) return; sel = b.dataset.pm; draw(); });
+    bindParts();
     _htBack = () => openDeposit(cur === 'usd' ? amt : 0, !!CHECKOUT);
     onTap('#kdGo', () => {
       const o = opts.find(x => x.key === sel);
       if (!o || o.paused) return toast('اختر طريقة دفع', 'bad');
       if (!(amt > 0)) { toast('اكتب المبلغ', 'bad'); $('#kdA').focus(); return; }
-      const u = Math.round(usdOf(o) * 100) / 100;
-      if (o.min && u < o.min) return toast(`الحد الأدنى لهذه الطريقة $${o.min}${CHECKOUT ? ' — اكتب $' + o.min + ' والباقي يتبقى في محفظتك' : ''}`, 'bad');
-      if (o.max && u > o.max) return toast(`الحد الأقصى لهذه الطريقة $${o.max}`, 'bad');
+      const u = Math.round(usdOf(o) * 100) / 100, bad = limBad(o);
+      if (bad === 'min') return toast(`الحد الأدنى لهذه الطريقة ${o.min}${unitTxt(o)}`, 'bad');
+      if (bad === 'max') return toast(`الحد الأقصى لهذه الطريقة ${o.max}${unitTxt(o)}`, 'bad');
       try { localStorage.setItem('kardo_last_pm', o.key); } catch {}
       if (o.kind === 'crypto') return createInvoice(o.net, u);
       if (o.kind === 'phone') return openDepositMethod(o.key, Math.ceil(cur === 'usd' ? amt * o.rate : amt));
@@ -2974,21 +3033,22 @@ function openWithdraw() {
       <input class="input" id="wdDest" dir="ltr" maxlength="120">
     </div>
     <div class="field mb-3">
-      <label class="field-label" for="wdAmt">المبلغ بالدولار (${esc(String(w.min))}–${esc(String(w.max))})</label>
+      <label class="field-label" for="wdAmt">${wOn() && wDef() !== 'usd' ? `المبلغ بالدينار من محفظة ${esc(wInfo(wDef()).label)} (${esc(String(Math.ceil(n(w.min) * wInfo(wDef()).rate)))}–${esc(String(Math.floor(n(w.max) * wInfo(wDef()).rate)))})` : `المبلغ بالدولار (${esc(String(w.min))}–${esc(String(w.max))})`}</label>
       <input class="input" id="wdAmt" type="number" inputmode="decimal" step="0.01">
+      ${wOn() ? `<span class="field-hint">المتاح: ${esc(wFmt(wBal()))}</span>` : ''}
       <span class="field-hint" id="wdQ"></span>
     </div>
     <button class="btn btn-primary btn-block" id="wdGo" type="button">طلب السحب</button>
   `);
   $('#wdAmt').oninput = () => {
-    const a = n($('#wdAmt').value);
-    const fee = Math.round(((w.fee_fixed || 0) + a * (w.fee_pct || 0) / 100) * 100) / 100;
-    $('#wdQ').textContent = a > 0 ? `الرسوم ${usd(fee)} — تستلم ${usd(Math.max(0, a - fee))}` : '';
+    const a = n($('#wdAmt').value), ww = wOn() ? wDef() : 'usd', r = ww === 'usd' ? 1 : wInfo(ww).rate;   // v62
+    const fee = Math.round(((w.fee_fixed || 0) * r + a * (w.fee_pct || 0) / 100) * 100) / 100;
+    $('#wdQ').textContent = a > 0 ? `الرسوم ${wFmt(fee, ww)} — تستلم ${wFmt(Math.max(0, a - fee), ww)}` : '';
   };
   onTap('#wdGo', async () => {
     const btn = $('#wdGo'); btn.disabled = true; btn.classList.add('loading');
     try {
-      await api('/api/wallet/withdraw', { method: $('#wdM').value, destination: $('#wdDest').value.trim(), amount_usd: n($('#wdAmt').value), idempotency_key: key });
+      await api('/api/wallet/withdraw', { method: $('#wdM').value, destination: $('#wdDest').value.trim(), amount_usd: n($('#wdAmt').value), amount_w: n($('#wdAmt').value), idempotency_key: key });
       closeModal(); toast('وصل طلب السحب — يُنفَّذ بعد المراجعة', 'ok');
     } catch (e) { toast(e.message, 'bad'); btn.disabled = false; btn.classList.remove('loading'); }
   });
@@ -3010,7 +3070,7 @@ function openTransfer() {
       <input class="input" id="trTo" dir="ltr" inputmode="numeric" maxlength="14" placeholder="0912345678">
     </div>
     <div class="field mb-4">
-      <label class="field-label" for="trAmt">المبلغ بالدولار</label>
+      <label class="field-label" for="trAmt">${wOn() && wDef() !== 'usd' ? `المبلغ بالدينار — من محفظة ${esc(wInfo(wDef()).label)} لنفس المحفظة عند المستلم` : 'المبلغ بالدولار'}</label>
       <input class="input" id="trAmt" type="number" inputmode="decimal" step="0.01">
       ${t.fee_pct ? `<span class="field-hint">رسوم ${esc(String(t.fee_pct))}%</span>` : ''}
     </div>
@@ -3022,7 +3082,7 @@ function openTransfer() {
     if (!(amt > 0)) return toast('أدخل المبلغ', 'bad');
     const btn = $('#trGo'); btn.disabled = true; btn.classList.add('loading');
     try {
-      await api('/api/wallet/transfer', { to, amount_usd: amt, idempotency_key: key });
+      await api('/api/wallet/transfer', { to, amount_usd: amt, amount_w: amt, idempotency_key: key });
       closeModal(); toast('تم التحويل', 'ok');
     } catch (e) { toast(e.message, 'bad'); btn.disabled = false; btn.classList.remove('loading'); }
   });
@@ -3076,6 +3136,7 @@ function paintDock() {
   if (!dock) return;
   dock.hidden = !S.user;
   const v = n(S.profile.wallet_balance);
+  if (wOn()) { const w = wDef(); countUp($('#dockVal'), wBal(), x => wFmt(x, w)); $('#dockUsd').textContent = 'محفظة ' + wInfo(w).label; return; }   // v62
   countUp($('#dockVal'), v * rate(), x => lyd(x));
   $('#dockUsd').textContent = usd(v);
 }
@@ -4491,7 +4552,7 @@ function rscAgain() {
   return `<div class="ksh"><h2>اشتري مرة ثانية</h2></div>
     <div class="krow">${out.map(({ o, c, off }) => { const f = Object.values(o.fields || {})[0];
       return `<button class="kagain" data-rscagain="${esc(o.id)}" type="button"><span class="kagain-ic">${rscImgTag(c)}</span>
-        <span class="kagain-t"><b dir="auto">${esc(off.name)}</b><span>${f ? `<bdi dir="ltr">${esc(mask(f))}</bdi> · ` : ''}${esc(lyd(off.price * rate()))}</span></span><span class="kagain-go">↺</span></button>`; }).join('')}</div>`;
+        <span class="kagain-t"><b dir="auto">${esc(off.name)}</b><span>${f ? `<bdi dir="ltr">${esc(mask(f))}</bdi> · ` : ''}${esc(wP(off.price))}</span></span><span class="kagain-go">↺</span></button>`; }).join('')}</div>`;
 }
 function rscChips(tab, cats) {
   const has = g => g === 'all' || cats.some(c => rscGroup(c) === g);
@@ -4569,7 +4630,7 @@ function vRscProduct(cur) {
   const sel = cur.offers.find(o => o.id === S.rscSel) || cur.offers[0];
   const qty = isTop ? 1 : Math.min(sel.max, Math.max(sel.min, Math.floor(n(S.rscQty) || sel.min)));
   const total = Math.round(sel.price * qty * 100) / 100;
-  const bal = n(S.profile.wallet_balance), short = bal < total;
+  const bal = wBal(), short = wIsShort(total);
   const pop = rscPop(cur);
   return `<div class="page-enter kprod">
     <div class="kp-bk"><button class="kp-back" data-rscback type="button" aria-label="رجوع">${svg(I.next)}<span>رجوع</span></button></div>
@@ -4580,14 +4641,14 @@ function vRscProduct(cur) {
     ${cur.note ? `<div class="alert alert-info mb-3">${svg(I.help)}<div style="white-space:pre-line">${esc(cur.note)}</div></div>` : ''}
     <div class="kp-lbl">اختر الباقة</div>
     <div class="kpk">${cur.offers.map(o => `<button class="kpkc ${o.id === sel.id ? 'on' : ''}" data-rscpick="${esc(o.id)}" type="button">
-      <b dir="auto">${esc(o.name)}</b><span class="p">${esc(lyd(o.price * rate()))}</span><span class="u">≈ ${esc(usd(o.price))}</span></button>`).join('')}</div>
+      <b dir="auto">${esc(o.name)}</b><span class="p">${esc(wP(o.price))}</span><span class="u">${wDef() === 'usd' ? '' : 'محفظة ' + esc(wInfo(wDef()).label)}</span></button>`).join('')}</div>
     ${isTop ? (cur.fields || []).map((f, i) => `<div class="kp-lbl">${esc(f.label)}</div>
       <input class="input kp-in" id="rpf${i}" data-rpf="${esc(f.key)}" ${f.type === 'number' ? 'inputmode="numeric"' : ''} dir="ltr" maxlength="120" autocomplete="off" value="${esc((S.rscF[cur.key] || {})[f.key] || '')}">`).join('') +
       `<div class="caption" style="margin-top:8px;display:flex;gap:6px;align-items:center">${svg(I.help)}تأكد من الرقم — الشحن يمشي مباشرة ولا يُسترجع</div>` : `
       <div class="kp-lbl">الكمية</div>
       <div class="kqty"><button type="button" data-rscqty="-1" ${qty <= sel.min ? 'disabled' : ''}>−</button><b class="tabular">${qty}</b><button type="button" data-rscqty="1" ${qty >= sel.max ? 'disabled' : ''}>+</button></div>`}
-    <div class="kbuy"><div class="kbuy-t"><span>${short ? `رصيدك ${esc(lyd(bal * rate()))}` : 'الإجمالي'}</span><b class="tabular">${esc(lyd(total * rate()))}</b></div>
-      <button class="kbuy-b" id="rpGo" type="button" data-total="${total}" data-short="${short ? 1 : ''}">${short ? `${svg(I.wallet2)} ادفع الفرق ${esc(lyd(Math.ceil((total - bal) * 100) / 100 * rate()))}` : `${svg(I.lock)} ادفع من محفظتي`}</button>
+    <div class="kbuy"><div class="kbuy-t"><span>${short ? `رصيد ${esc(wInfo(wDef()).label)} ${esc(wFmt(bal))}` : 'الإجمالي'}</span><b class="tabular">${esc(wP(total))}</b></div>
+      <button class="kbuy-b" id="rpGo" type="button" data-total="${total}" data-short="${short ? 1 : ''}">${short ? `${svg(I.wallet2)} ادفع الفرق ${esc(wFmt(Math.max(0, wPrice(total) - bal)))}` : `${svg(I.lock)} ادفع من محفظة ${esc(wInfo(wDef()).label)}`}</button>
       ${short ? `<div class="kbuy-x"><i>؟</i>رصيدك ما يكفيش — تدفع الناقص بس، ويكتمل الشراء وحده أول ما توصل الشحنة</div>` : ''}</div>
   </div>`;
 }
@@ -4601,7 +4662,7 @@ function openRscBuy(cat, off, pre) {
       ${cat.image ? `<img src="${esc(rscImgUrl(cat.image))}" alt="">` : `<span class="kstate" style="margin:0;width:64px;height:64px">${svg(isTop ? I.game : I.giftbox)}</span>`}
       <div><div class="h4" style="margin:0">${esc(cat.name)}</div><div class="caption">${isTop ? 'شحن مباشر — يصل خلال دقائق' : 'كود رقمي — يصلك فورًا'}</div></div>
     </div>
-    ${chips ? `<div class="field-label">اختر الباقة</div><div class="kopts">${chips.map(o => `<button class="kopt ${o.id === off.id ? 'on' : ''}" data-kopt="${esc(o.id)}" type="button"><b dir="auto">${esc(o.name)}</b><small>${esc(lyd(o.price * rate()))}</small></button>`).join('')}</div>`
+    ${chips ? `<div class="field-label">اختر الباقة</div><div class="kopts">${chips.map(o => `<button class="kopt ${o.id === off.id ? 'on' : ''}" data-kopt="${esc(o.id)}" type="button"><b dir="auto">${esc(o.name)}</b><small>${esc(wP(o.price))}</small></button>`).join('')}</div>`
       : `<div class="field-label">الباقة</div><div class="copy-box mb-4"><div class="copy-value" dir="auto">${esc(off.name)}</div></div>`}
     ${isTop ? (cat.fields || []).map((f, i) => `
       <div class="field mb-2"><label class="field-label" for="rf${i}">${esc(f.label)}</label>
@@ -4616,13 +4677,13 @@ function openRscBuy(cat, off, pre) {
     const q = isTop ? 1 : Math.floor(n(($('#rQty') || {}).value));
     const ok = isTop || (q >= sel.min && q <= sel.max);
     total = Math.round(sel.price * (ok ? q : sel.min) * 100) / 100;
-    const bal = n(S.profile.wallet_balance), short = bal < total;
+    const bal = wBal(), short = wIsShort(total);
     $('#rSum').innerHTML = `
-      <div><span>رصيد محفظتك</span><b class="tabular" style="${short ? 'color:var(--u-err)' : ''}">${esc(lyd(bal * rate()))}</b></div>
-      <div class="tot"><span>الإجمالي</span><b class="tabular">${esc(lyd(total * rate()))}</b></div>
+      <div><span>رصيد محفظة ${esc(wInfo(wDef()).label)}</span><b class="tabular" style="${short ? 'color:var(--u-err)' : ''}">${esc(wFmt(bal))}</b></div>
+      <div class="tot"><span>الإجمالي</span><b class="tabular">${esc(wP(total))}</b></div>
       ${!ok ? `<div style="color:var(--u-warn)">الكمية من ${sel.min} إلى ${sel.max}</div>` : ''}`;
     const b = $('#rGo');
-    b.innerHTML = short ? `${svg(I.wallet2)} ادفع الفرق ${esc(lyd(Math.ceil((total - bal) * 100) / 100 * rate()))}` : `${svg(I.lock)} ادفع ${esc(lyd(total * rate()))} من محفظتي`;
+    b.innerHTML = short ? `${svg(I.wallet2)} ادفع الفرق ${esc(wFmt(Math.max(0, wPrice(total) - bal)))}` : `${svg(I.lock)} ادفع ${esc(wP(total))} من محفظتي`;
     b.dataset.short = short ? '1' : '';
     b.disabled = !ok;
   };
@@ -4643,7 +4704,7 @@ function openRscBuy(cat, off, pre) {
       fields[cat.fields[i].key] = v;
     }
     if (btn.dataset.short) {
-      const short = Math.ceil((total - n(S.profile.wallet_balance)) * 100) / 100;
+      const short = wShortUsd(total);
       CHECKOUT = { name: `${cat.name} — ${sel.name}`, total, body: { cat: cat.key, offer: sel.id, qty: isTop ? 1 : Math.floor(n($('#rQty').value)), fields, expect: total, idempotency_key: key } };
       closeModal(); openDeposit(short, true); return;
     }
@@ -4677,7 +4738,7 @@ function rscOrderBody(o) {
       <div class="copy-box mb-2"><div class="copy-value" dir="ltr" style="font-size:14px;word-break:break-all">${esc(c)}</div>
         <button class="copy-btn" data-act="copy" data-copy-text="${esc(c)}" aria-label="نسخ">${svg(I.copy, 2)}</button></div>`).join('')}` :
     `<div class="alert alert-success mb-3">${svg(I.check || I.help, 2)}<div>تم الشحن مباشرة إلى حسابك${Object.values(o.fields || {}).length ? ` (${esc(Object.values(o.fields).join(' · '))})` : ''}.</div></div>`;
-  if (o.status === 'refunded') return `<div class="alert alert-error mb-3">${svg(I.x, 2)}<div>${esc(o.fail_reason || 'تعذّر التنفيذ')} — أُعيد ${esc(usd(o.total_usd))} إلى محفظتك.</div></div>`;
+  if (o.status === 'refunded') return `<div class="alert alert-error mb-3">${svg(I.x, 2)}<div>${esc(o.fail_reason || 'تعذّر التنفيذ')} — أُعيد ${esc(o.wallet ? wFmt(o.paid_w, o.wallet) : usd(o.total_usd))} إلى محفظتك.</div></div>`;
   if (o.status === 'unknown') return `<div class="alert alert-warning mb-3">${svg(I.help, 2)}<div>نراجع طلبك مع المزود الآن. إن لم يكتمل يُعاد المبلغ لمحفظتك كاملًا.</div></div>`;
   return `<div class="alert alert-info mb-3">${svg(I.help, 2)}<div>يُنفَّذ خلال دقائق عادةً، ويصلك إشعار فور الاكتمال. تجده في «طلباتي».</div></div>`;
 }
@@ -4687,7 +4748,7 @@ function rscOrderRows() {
     <div class="list-row" data-rscorder="${esc(o.id)}" role="button" tabindex="0">
       <div class="list-icon brand">${o.kind === 'topup' ? '🎮' : '🎁'}</div>
       <div class="list-content"><div class="list-title">${esc(o.cat_name)} — ${esc(o.offer_name)}</div><div class="list-meta">${esc(dt(o.created_at))}</div></div>
-      <div class="list-end"><div class="list-amount">${esc(usd(o.total_usd))}</div>
+      <div class="list-end"><div class="list-amount">${esc(o.wallet ? wFmt(o.paid_w, o.wallet) : usd(o.total_usd))}</div>
         <span class="badge ${(RSC_ST[o.status] || ['badge'])[0]}" style="margin-top:4px;font-size:10px">${esc((RSC_ST[o.status] || ['', o.status])[1])}</span></div>
     </div>` }));
 }
@@ -4740,14 +4801,14 @@ function depositOptions() {
   for (const nt of nets) {
     const isPay = nt.id === 'binance_pay';
     out.push({ key: nt.id, kind: 'crypto', net: nt.id, group: 'crypto', label: isPay ? 'Binance Pay' : nt.label, short: isPay ? 'B' : '₮', unit: 'USDT', rate: 1,
-      logo: isPay ? ((m.binance || {}).logo || '') : (usdt.logo || ''), speed: 'auto', min: n(usdt.min) || 5, max: n(usdt.max) || 1000, paused: paused.has(nt.id),
+      logo: nt.logo || (isPay ? ((m.binance || {}).logo || '') : (usdt.logo || '')), speed: 'auto', min: Math.max(n(usdt.min) || 5, n(nt.min)), max: Math.min(n(usdt.max) || 1000, n(nt.max) || 1e9), paused: paused.has(nt.id),
       note: isPay ? 'من تطبيق Binance · بدون رسوم' : nt.id === 'bep20' ? 'شبكة BSC · رسوم أقل' : nt.id === 'trc20' ? 'شبكة TRON' : 'شبكة ' + nt.label.replace('USDT ', '') });
   }
   for (const k of ['libyana', 'almadar']) {
     const x = m[k]; if (!x || x.on === false) continue;
     const manual = (x.mode || S.config.deposit_mode) === 'manual';
     out.push({ key: k, kind: 'phone', group: 'phone', label: x.label || (k === 'libyana' ? 'ليبيانا' : 'المدار'), short: k === 'libyana' ? 'LY' : 'MD', unit: 'LYD', rate: n(x.rate) || 11.8,
-      logo: x.logo || '', speed: manual ? 'review' : 'fast', min: 0, max: 0, paused: paused.has(k),
+      logo: x.logo || '', speed: manual ? 'review' : 'fast', min: n(((S.config.limits || {})[k] || {}).min), max: n(((S.config.limits || {})[k] || {}).max), paused: paused.has(k),
       note: `1$ = ${n(x.rate) || 11.8} د.ل` });
   }
   const hasPay = nets.some(nt => nt.id === 'binance_pay');
@@ -4756,7 +4817,7 @@ function depositOptions() {
     if (k === 'binance' && hasPay) continue;
     const isUsdt = k === 'binance';
     out.push({ key: k, kind: 'manual', group: 'bank', label: x.label || k, short: '🏦', unit: isUsdt ? 'USDT' : 'LYD', rate: n(x.rate) || 1, logo: x.logo || '', speed: 'review',
-      min: 0, max: 0, paused: paused.has(k), note: isUsdt ? 'بإيصال · يُراجع يدويًا' : `1$ = ${n(x.rate) || 1} د.ل · بإيصال` });
+      min: n(((S.config.limits || {})[k] || {}).min), max: n(((S.config.limits || {})[k] || {}).max), paused: paused.has(k), note: isUsdt ? 'بإيصال · يُراجع يدويًا' : `1$ = ${n(x.rate) || 1} د.ل · بإيصال` });
   }
   return out;
 }
@@ -5320,12 +5381,12 @@ async function rscProductPay() {
     fields[cat.fields[i].key] = v;
   }
   const body = { cat: cat.key, offer: sel.id, qty, fields, expect: total, idempotency_key: S.rscKey };
-  if (n(S.profile.wallet_balance) < total) {
-    const short = Math.ceil((total - n(S.profile.wallet_balance)) * 100) / 100;
+  if (wIsShort(total)) {
+    const short = wShortUsd(total);
     CHECKOUT = { name: `${cat.name} — ${sel.name}`, total, body };
     return openDeposit(short, true);
   }
-  if (!confirm(`تأكيد شراء ${sel.name}${qty > 1 ? ' × ' + qty : ''} بـ ${lyd(total * rate())}؟`)) return;
+  if (!confirm(`تأكيد شراء ${sel.name}${qty > 1 ? ' × ' + qty : ''} بـ ${wP(total)} من محفظة ${wInfo(wDef()).label}؟`)) return;
   const btn = $('#rpGo'); if (btn) { btn.disabled = true; btn.classList.add('loading'); }
   try {
     const r = await api('/api/rsc/order', body, 60000);

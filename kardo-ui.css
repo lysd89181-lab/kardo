@@ -731,3 +731,21 @@ label.kset-row.static { cursor: pointer; }
 /* v58: خانة البحث — خط واحد بس عند الضغط */
 .ksearch input:focus, .ksearch input:focus-visible { outline: none !important; box-shadow: none !important; border: 0 !important; background: none !important; }
 .ksearch:focus-within { border-color: var(--u-gold-fill); box-shadow: 0 0 0 3px rgba(232, 150, 46, .18); }
+
+/* ═══ v62 — المحافظ ═══ */
+.kwal-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 10px; }
+.kwal { position: relative; overflow: hidden; border-radius: var(--u-r, 20px); padding: 14px; min-height: 124px; display: flex; flex-direction: column; justify-content: space-between; gap: 8px; color: #fff;
+  background: linear-gradient(135deg, var(--wc, #566064), color-mix(in srgb, var(--wc, #566064) 62%, #000)); box-shadow: var(--u-shadow); }
+.kwal::after { content: ''; position: absolute; inset: auto -34px -44px auto; width: 112px; height: 112px; border-radius: 50%; background: rgba(255, 255, 255, .12); pointer-events: none; }
+.kwal.on { outline: 3px solid var(--u-gold-fill, #E8962E); outline-offset: 2px; }
+.kwal-n { display: flex; align-items: center; gap: 7px; font-size: 13px; font-weight: 600; }
+.kwal-lg { width: 28px; height: 28px; border-radius: 9px; background: rgba(255, 255, 255, .22); display: grid; place-items: center; font-size: 11px; font-weight: 800; overflow: hidden; flex: none; }
+.kwal-lg img { width: 100%; height: 100%; object-fit: cover; }
+.kwal-b { font-family: var(--u-display); font-size: 23px; font-weight: 700; text-align: right; line-height: 1.1; }
+.kwal-b small { font-size: 12px; opacity: .85; font-weight: 600; }
+.kwal-def { position: absolute; top: 9px; left: 9px; background: #fff; color: #1B1206; font-size: 10px; font-weight: 800; padding: 3px 8px; border-radius: 20px; z-index: 1; }
+.kwal-set { position: relative; z-index: 1; align-self: flex-start; font-size: 11px; font-weight: 600; background: rgba(255, 255, 255, .2); color: #fff; border: 0; border-radius: 10px; padding: 6px 9px; cursor: pointer; }
+.kwal-set:active { transform: scale(.97); }
+.kw-dot { display: inline-block; width: 9px; height: 9px; border-radius: 50%; margin-inline-end: 6px; vertical-align: middle; box-shadow: 0 0 0 2px rgba(255, 255, 255, .5); }
+.kw-switch { background: none; border: 0; color: inherit; font: inherit; opacity: .85; padding: 0; cursor: pointer; text-decoration: underline; text-underline-offset: 3px; }
+@media (max-width: 360px) { .kwal-b { font-size: 19px; } .kwal { min-height: 112px; padding: 12px; } }

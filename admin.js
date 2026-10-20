@@ -167,6 +167,11 @@ const S = {
 const $ = s => document.querySelector(s);
 const $$ = s => [...document.querySelectorAll(s)];
 const usd = v => '$' + Number(v || 0).toFixed(2);
+const W_AR_A = { usd: 'USDT', ly: 'ليبيانا', md: 'المدار', bk: 'مصرف' };          // v62
+const wFA = (x, w) => w && w !== 'usd' ? Number(x || 0).toFixed(2) + ' د.ل' : '$' + Number(x || 0).toFixed(2);
+const wdAmt = w => w.amount_w != null ? wFA(w.amount_w, w.wallet) : usd(w.amount_usd);
+const wdNet = w => w.net_w != null ? wFA(w.net_w, w.wallet) : usd(w.net);
+const depAmt = d => d.amount_w != null && d.wallet && d.wallet !== 'usd' ? wFA(d.amount_w, d.wallet) : usd(d.amount_usd);
 const lyd = v => Number(v || 0).toLocaleString('en-US',
   { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + ' د.ل';
 const esc = s => String(s ?? '').replace(/[&<>"']/g, c =>
@@ -1962,7 +1967,7 @@ function vDeposits() {
             ${rows.map(d => `
               <tr>
                 <td>${esc(userName(d.uid))}</td>
-                <td class="tabular" style="font-weight:700;color:var(--sand)">${esc(usd(d.amount_usd))}</td>
+                <td class="tabular" style="font-weight:700;color:var(--sand)">${esc(depAmt(d))}</td>
                 <td class="tabular">${esc(lyd(d.amount_lyd))}</td>
                 <td>${esc(d.method || '—')}</td>
                 <td><span class="badge ${d.status === 'approved' ? 'badge-success' : d.status === 'pending' ? 'badge-warning' : 'badge-error'}">
@@ -2084,7 +2089,7 @@ function vWithdraw() {
           <div class="card">
             <div class="flex-between mb-2">
               <div>
-                <div class="tabular h4" style="font-size:14px;color:var(--sand)">${esc(usd(w.amount_usd))}</div>
+                <div class="tabular h4" style="font-size:14px;color:var(--sand)">${esc(wdAmt(w))}${w.wallet && w.wallet !== 'usd' ? ` <span class="caption">محفظة ${esc(W_AR_A[w.wallet])}</span>` : ''}</div>
                 <div class="mono caption" style="font-size:10px">${esc(w.id)}</div>
               </div>
               <span class="badge ${w.status === 'completed' ? 'badge-success' : w.status === 'pending' ? 'badge-warning' : 'badge-error'}">
@@ -2121,12 +2126,12 @@ function openWithdrawAction(id, action) {
     </div>
 
     ${rej
-      ? `<div class="alert alert-warning mb-3" style="font-size:11.5px">${svg(I.warn)}<div>سيُعاد ${esc(usd(w.amount_usd))} إلى محفظة العميل.</div></div>
+      ? `<div class="alert alert-warning mb-3" style="font-size:11.5px">${svg(I.warn)}<div>سيُعاد ${esc(wdAmt(w))} إلى محفظة العميل${w.wallet && w.wallet !== 'usd' ? ' (' + esc(W_AR_A[w.wallet]) + ')' : ''}.</div></div>
         <div class="field mb-3">
           <label class="field-label">سبب الرفض</label>
           <input class="input" id="wReason" placeholder="بيانات غير صحيحة">
         </div>`
-      : `<div class="alert alert-info mb-3" style="font-size:11.5px">${svg(I.help)}<div>حوّل ${esc(usd(w.net))} إلى الوجهة أدناه، ثم أكّد.</div></div>
+      : `<div class="alert alert-info mb-3" style="font-size:11.5px">${svg(I.help)}<div>حوّل ${esc(wdNet(w))} إلى الوجهة أدناه، ثم أكّد.</div></div>
         <div class="copy-box mb-3">
           <div class="copy-value" dir="ltr">${esc(w.destination)}</div>
         </div>
@@ -2477,13 +2482,17 @@ function openUserManage(uid) {
     </div>
 
     <div class="card card-sm mb-3" style="background:var(--surface-2);border:none">
-      <div class="flex-between" style="padding:3px 0"><span class="caption">الرصيد</span><span class="tabular" style="font-weight:700;color:var(--sand)">${esc(usd(u.wallet_balance))}</span></div>
+      ${['usd', 'ly', 'md', 'bk'].map(w => { const b = w === 'usd' ? u.wallet_balance : (u.wallets || {})[w]; return w === 'usd' || n(b) ? `<div class="flex-between" style="padding:3px 0"><span class="caption">محفظة ${esc(W_AR_A[w])}${(u.default_wallet || 'usd') === w ? ' ✓' : ''}</span><span class="tabular" style="font-weight:700;color:var(--sand)">${esc(wFA(b, w))}</span></div>` : ''; }).join('')}
       <div class="flex-between" style="padding:3px 0"><span class="caption">الإنفاق</span><span class="tabular">${esc(usd(u.total_spent))}</span></div>
       <div class="flex-between" style="padding:3px 0"><span class="caption">البريد</span><span class="caption mono" dir="ltr" style="font-size:10px">${esc(u.email || '—')}</span></div>
     </div>
 
     <div class="field mb-2">
-      <label class="field-label">تعديل الرصيد (± دولار)</label>
+      <label class="field-label">المحفظة</label>
+      <select class="input" id="uW">${['usd', 'ly', 'md', 'bk'].map(w => `<option value="${w}">${esc(W_AR_A[w])} (${w === 'usd' ? 'دولار' : 'دينار'})</option>`).join('')}</select>
+    </div>
+    <div class="field mb-2">
+      <label class="field-label">تعديل الرصيد (± بعملة المحفظة)</label>
       <input class="input" id="uAmt" type="number" step="0.5" placeholder="10">
     </div>
     <div class="field mb-3">
@@ -2508,7 +2517,7 @@ function openUserManage(uid) {
     $('#uAdj').disabled = true;
     $('#uAdj').classList.add('loading');
     try {
-      await api('/api/admin/wallet-adjust', { uid, delta: amt, reason: why, idempotency_key: adjIdemKey });
+      await api('/api/admin/wallet-adjust', { uid, delta: amt, wallet: $('#uW').value, reason: why, idempotency_key: adjIdemKey });
       closeModal();
       toast('تم التعديل', 'ok');
     } catch (e) {
@@ -3267,12 +3276,12 @@ async function openUserFile(uid) {
     </div>
     ${sec('حركة المحفظة', led, t => row(esc(REASON_AR[t.reason] || t.reason || t.type), esc(dt(t.created_at)) + (t.note ? ' · ' + esc(t.note) : ''),
         `<b class="tabular" style="color:${t.type === 'credit' ? 'var(--success)' : 'var(--error)'}">${t.type === 'credit' ? '+' : '−'}${esc(usd(t.amount))}</b><div class="caption tabular">${esc(usd(t.balance_after))}</div>`))}
-    ${sec('الإيداعات', deps, d => row(esc(d.method || '—'), esc(dt(d.created_at)) + (d.claim_phone ? ' · 0' + esc(d.claim_phone) : ''), `<b class="tabular">${esc(usd(d.amount_usd))}</b><div>${badge(d.status)}</div>`))}
+    ${sec('الإيداعات', deps, d => row(esc(d.method || '—'), esc(dt(d.created_at)) + (d.claim_phone ? ' · 0' + esc(d.claim_phone) : ''), `<b class="tabular">${esc(depAmt(d))}</b><div>${badge(d.status)}</div>`))}
     ${sec('البطاقات', cards, c => row(esc(c.card_name || 'بطاقة') + ' •••• ' + esc(c.last4 || ''), esc(dt(c.created_at)), `<b class="tabular">${esc(usd(c.balance))}</b><div>${badge(c.status)}</div>`))}
     ${sec('طلبات البطاقات', mco, o => row(o.kind === 'topup' ? 'شحن بطاقة' : 'إصدار بطاقة', esc(dt(o.created_at)), `<b class="tabular">${esc(usd(o.total))}</b><div>${badge(o.status)}</div>`))}
     ${sec('طلبات المتجر', ords, o => row((o.items || []).map(i => esc(i.name) + ' ×' + i.qty).join('، ') || '—', esc(dt(o.created_at)), `<b class="tabular">${esc(lyd(o.total_lyd))}</b><div>${badge(o.status)}</div>`))}
     ${sec('الخدمات الرقمية', svc, o => row(esc(o.service_name || '—'), esc(dt(o.created_at)), `<b class="tabular">${esc(usd(o.price_usd))}</b><div>${badge(o.status)}</div>`))}
-    ${sec('السحوبات', wds, w => row(esc(w.method || '—') + ' → ' + esc(w.destination || ''), esc(dt(w.created_at)), `<b class="tabular">${esc(usd(w.amount_usd))}</b><div>${badge(w.status)}</div>`))}
+    ${sec('السحوبات', wds, w => row(esc(w.method || '—') + ' → ' + esc(w.destination || ''), esc(dt(w.created_at)), `<b class="tabular">${esc(wdAmt(w))}</b><div>${badge(w.status)}</div>`))}
     ${sec('التذاكر', tks, t => row(esc(t.subject || '—'), esc(dt(t.created_at)), badge(t.status)))}
   `);
   onTap('#ufManage', () => openUserManage(uid));
@@ -5004,7 +5013,7 @@ function vUserFile() {
   if (tab === 'ledger') list = (F.ledger || []).map(t => row(t.type === 'credit' ? 'o' : '', t.type === 'credit' ? I.down : I.bag, esc(REASON_AR2[t.reason] || t.reason || t.type), esc(dt(t.created_at)) + (t.reference ? ' · <span dir="ltr">' + esc(String(t.reference).slice(0, 18)) + '</span>' : ''), (t.type === 'credit' ? '+' : '−') + esc(usd(t.amount)), t.type === 'credit' ? 'var(--u-ok)' : '')).join('');
   else if (tab === 'orders') list = (F.orders || []).map(o => row('', I.bag, esc(o.cat_name || '') + ' — ' + esc(o.offer_name || ''), esc(dt(o.created_at)) + ' · ' + esc(ST[o.status] || o.status), esc(usd(o.total_usd)))).join('');
   else if (tab === 'deposits') list = [...(F.invoices || []).map(v => row(v.status === 'paid' ? 'o' : '', I.receipt, esc(v.no) + ' · ' + esc(v.network_label), esc(dt(new Date(v.created_ms).toISOString())) + ' · ' + esc(ST[v.status] || v.status), esc(usd(v.amount_usd)))),
-    ...(F.deposits || []).map(d => row(d.status === 'approved' ? 'o' : '', I.cash, esc(d.method || '—'), esc(dt(d.created_at)) + ' · ' + esc(ST[d.status] || d.status), esc(usd(d.amount_usd))))].join('');
+    ...(F.deposits || []).map(d => row(d.status === 'approved' ? 'o' : '', I.cash, esc(d.method || '—'), esc(dt(d.created_at)) + ' · ' + esc(ST[d.status] || d.status), esc(depAmt(d))))].join('');
   else if (tab === 'cards') list = F.cards === undefined ? '<div class="arow"><i class="ask" style="width:60%"></i></div>' : '';
   else if (tab === 'tickets') list = (F.tickets || []).map(t => row('', I.chat, esc(t.subject || '—'), esc(dt(t.updated_at || t.created_at)) + ' · ' + esc(ST[t.status] || t.status), '')).join('');
   else if (tab === 'ident') list = identHtml(F.ident || {});
@@ -5014,6 +5023,7 @@ function vUserFile() {
     <div class="acard aprof"><div class="aav">${esc((u.name || u.email || '?').trim().charAt(0))}</div>
       <b class="aname">${esc(u.name || '—')}</b><div class="caption" dir="auto">${esc(u.email || '')}${u.phone_verified ? ' · <span dir="ltr">0' + esc(String(u.phone_verified)) + '</span>' : ''}</div>
       <div class="abal">${esc(usd(u.wallet_balance))}</div>
+      ${Object.entries(u.wallets || {}).some(([, v]) => n(v)) || (u.default_wallet && u.default_wallet !== 'usd') ? `<div class="achips center">${['usd', 'ly', 'md', 'bk'].map(w => { const b = w === 'usd' ? u.wallet_balance : (u.wallets || {})[w]; return `<span class="achip ${(u.default_wallet || 'usd') === w ? 'g' : ''}">${esc(W_AR_A[w])}: ${esc(wFA(b, w))}</span>`; }).join('')}</div>` : ''}
       <div class="caption">إنفاق ${esc(usd(u.total_spent))}${since != null ? ' · عضو من ' + (since < 1 ? 'اليوم' : since + ' يوم') : ''}</div>
       <div class="achips center">${u.email_verified ? '<span class="achip ok">بريد موثّق</span>' : '<span class="achip">بريد غير موثّق</span>'}${u.phone_verified ? '<span class="achip ok">رقم موثّق</span>' : ''}${plan ? `<span class="achip g">${esc(plan)}</span>` : ''}${u.banned ? '<span class="achip r">موقوف</span>' : ''}</div>
       <div class="aqa">
@@ -5087,6 +5097,7 @@ function vMethods() {
   const usdtOn = s.m_usdt_on === true;
   return `<div class="page-enter astag">
     <div class="ah"><button class="aib" data-nav="more" type="button" aria-label="رجوع">${svg(I.back)}</button><div style="flex:1"><h1>طرق الدفع</h1><p>التشغيل والإيقاف المؤقت والأسعار</p></div></div>
+    ${walletsAdminHtml(s)}
     <div class="alabel"><span>عملات رقمية · تلقائي</span></div>
     <div class="acard">
       <div class="apm"><div class="apm-h"><span class="alg" style="background:#26A17B">₮</span><span class="art"><b>العملات الرقمية</b><span>المفتاح الرئيسي لكل الشبكات</span></span>${aSw('m_usdt_on', usdtOn)}</div>
@@ -5774,4 +5785,90 @@ document.addEventListener('click', async e => {
   if (x === Number(cur)) return;
   if (!confirm(`نغيّر صرف ${RATE_AR[k]} من ${cur ?? '—'} إلى ${x} د.ل؟\nينطبق على الإيداعات الجاية بس.`)) return;
   await saveSettingsPatch({ [k]: x }, `تم ✓ — صرف ${RATE_AR[k]} توا ${x} د.ل`);
+});
+
+/* ═══ v62 — إعدادات المحافظ: ربح ولون لكل محفظة، صورة وحدود لكل طريقة، وتقسيم الرصيد القديم ═══ */
+const WM_LIST = [['libyana', 'ليبيانا', 'د.ل'], ['almadar', 'المدار', 'د.ل'], ['bank', 'تحويل مصرفي', 'د.ل'], ['usdt', 'USDT (عام)', '$'], ['trc20', 'USDT TRC20', '$'], ['bep20', 'USDT BEP20', '$'], ['polygon', 'USDT Polygon', '$'], ['binance_pay', 'Binance Pay', '$'], ['binance', 'Binance (إيصال)', '$']];
+function walletsAdminHtml(s) {
+  const W = [['usd', 'USDT / الدولار', '#26A17B'], ['ly', 'ليبيانا', '#00A6E1'], ['md', 'المدار', '#E2231A'], ['bk', 'مصرف', '#566064']];
+  return `<div class="alabel"><span>المحافظ · ربح ولون لكل محفظة</span></div>
+    <div class="acard" style="padding:12px">
+      <p class="caption" style="margin:0 0 10px">سعر الشراء = سعر المنتج بالدولار × (1 + نسبة ربح المحفظة) × صرفها. الدينار يتقرّب لأعلى نص دينار.</p>
+      <div style="display:grid;gap:10px">${W.map(([w, t, dc]) => `<div style="display:grid;grid-template-columns:44px 1fr 92px;gap:8px;align-items:center">
+        <input type="color" data-wset="w_color_${w}" value="${esc(s['w_color_' + w] || dc)}" style="width:44px;height:40px;border:0;border-radius:10px;padding:0;background:none">
+        <b style="font-size:13px">${esc(t)}${w === 'usd' ? '' : ` <span class="caption">1$ = ${esc(String(s[{ ly: 'rate_libyana', md: 'rate_almadar', bk: 'rate_bank' }[w]] ?? ''))} د.ل</span>`}</b>
+        <label style="display:flex;align-items:center;gap:4px"><input class="input tabular" data-wset="w_margin_${w}" type="number" min="0" max="100" step="0.5" value="${esc(String(s['w_margin_' + w] ?? 0))}" style="padding:8px"><span class="caption">%</span></label></div>`).join('')}</div>
+    </div>
+    <div class="alabel"><span>صورة وحدود كل طريقة دفع</span></div>
+    <div class="acard" style="padding:12px">
+      <p class="caption" style="margin:0 0 10px">الحدود بعملة الطريقة — 0 يعني بلا حد. اضغط الصورة باش ترفع شعار.</p>
+      ${WM_LIST.map(([k, t, u]) => { const logo = s['m_' + k + '_logo'] || ''; const lim = k !== 'usdt';
+        return `<div style="display:grid;grid-template-columns:44px 1fr ${lim ? '74px 74px' : ''};gap:8px;align-items:center;padding:7px 0;border-bottom:1px solid var(--border)">
+          <label class="pm-logo" style="width:44px;height:44px;border-radius:12px;overflow:hidden;display:grid;place-items:center;background:var(--surface-2);cursor:pointer">
+            ${logo ? `<img src="${esc(logo)}" alt="" style="width:100%;height:100%;object-fit:cover" id="wlP_${k}">` : `<span id="wlP_${k}">📷</span>`}<input type="file" accept="image/*" data-wlogo="${k}" hidden></label>
+          <span><b style="font-size:13px">${esc(t)}</b>${logo ? `<br><button type="button" class="btn btn-ghost btn-sm" style="padding:0;min-height:0;font-size:11px" data-wlclr="${k}">حذف الصورة</button>` : ''}</span>
+          ${lim ? `<input class="input tabular" data-wset="lim_${k}_min" type="number" min="0" step="1" placeholder="أدنى ${u}" value="${n(s['lim_' + k + '_min']) || ''}" style="padding:8px">
+          <input class="input tabular" data-wset="lim_${k}_max" type="number" min="0" step="1" placeholder="أقصى ${u}" value="${n(s['lim_' + k + '_max']) || ''}" style="padding:8px">` : ''}</div>`; }).join('')}
+      <button class="btn btn-primary btn-block" id="wSave" type="button" style="margin-top:12px">حفظ إعدادات المحافظ</button>
+    </div>
+    ${isSuperAdmin() ? `<div class="acard" style="padding:12px;margin-top:10px"><b style="font-size:13px">تقسيم الرصيد القديم على المحافظ</b>
+      <p class="caption" style="margin:4px 0 10px">كل زبون رصيده القديم بالدولار يتقسّم حسب الطرق اللي شحن بيها. تشوف المعاينة أول، وما يتنفّذ شي إلا لما تعتمد.</p>
+      <button class="btn btn-secondary btn-block" id="wSplitPrev" type="button">معاينة التقسيم</button></div>` : ''}`;
+}
+const _wLogos = {};
+document.addEventListener('change', async e => {
+  const inp = e.target.closest && e.target.closest('[data-wlogo]'); if (!inp) return;
+  const k = inp.dataset.wlogo;
+  try {
+    const data = await compressImg(inp.files[0], 160, 0.85, 60000);
+    _wLogos['m_' + k + '_logo'] = data;
+    const p = document.getElementById('wlP_' + k); if (p) p.outerHTML = `<img src="${data}" alt="" style="width:100%;height:100%;object-fit:cover" id="wlP_${k}">`;
+    toast('أُرفقت الصورة — اضغط «حفظ إعدادات المحافظ»', 'ok');
+  } catch (er) { toast(er.message, 'bad'); }
+});
+document.addEventListener('click', async e => {
+  const t = e.target.closest && e.target.closest('#wSave,[data-wlclr],#wSplitPrev,#wSplitGo'); if (!t) return;
+  if (t.dataset.wlclr) { _wLogos['m_' + t.dataset.wlclr + '_logo'] = ''; const p = document.getElementById('wlP_' + t.dataset.wlclr); if (p) p.outerHTML = `<span id="wlP_${t.dataset.wlclr}">📷</span>`; t.remove(); toast('تنحذف الصورة لما تحفظ', 'ok'); return; }
+  if (t.id === 'wSave') {
+    const patch = { ..._wLogos };
+    document.querySelectorAll('[data-wset]').forEach(i => { const k = i.dataset.wset; patch[k] = /^w_color_/.test(k) ? i.value : n(i.value); });
+    for (const k of Object.keys(patch)) if (/^w_margin_/.test(k) && (patch[k] < 0 || patch[k] > 100)) return toast('نسبة الربح من 0 إلى 100', 'bad');
+    t.disabled = true;
+    await saveSettingsPatch(patch, 'حُفظت إعدادات المحافظ ✓ — الأسعار تتحدّث خلال دقيقتين');
+    for (const k of Object.keys(_wLogos)) delete _wLogos[k];
+    t.disabled = false;
+    return;
+  }
+  if (t.id === 'wSplitPrev') {
+    t.disabled = true;
+    try {
+      const r = await api('/api/admin/wallets/split', { action: 'preview', limit: 300 });
+      S._split = r;
+      const P = r.plans || [];
+      modal(`<div class="modal-head"><div class="modal-title">معاينة تقسيم الرصيد</div><button class="modal-close" data-act="close-modal" aria-label="إغلاق">${svg(I.x)}</button></div>
+        <p class="caption mb-2">${r.left} زبون عندهم رصيد ما تقسّمش. المعروض ${P.length}. اللي ما عندهمش إيداعات بالدينار يبقى رصيدهم في محفظة USDT.</p>
+        <div style="max-height:52vh;overflow:auto">${P.map(p => `<div style="padding:8px 0;border-bottom:1px solid var(--border)">
+          <b style="font-size:13px">${esc(p.name || p.email || p.uid)}</b> <span class="caption" dir="ltr">${esc(p.email)}</span>
+          <div class="caption">قبل: ${esc(usd(p.bal))} → بعد: USDT ${esc(usd(p.keep_usd))}${p.moves.map(m => ` · ${esc(W_AR_A[m.w])} ${esc(wFA(m.lyd, m.w))} <span style="opacity:.7">(${esc(usd(m.usd))})</span>`).join('')}</div>
+          ${p.pct ? `<div class="caption" style="opacity:.75">مصادر الشحن: ${Object.entries(p.pct).filter(([, v]) => v).map(([k, v]) => esc(W_AR_A[k]) + ' ' + v + '%').join(' · ')} · الافتراضية: ${esc(W_AR_A[p.default_wallet])}</div>` : ''}</div>`).join('') || '<div class="caption">ما فيش حد يحتاج تقسيم ✓</div>'}</div>
+        ${P.length ? `<button class="btn btn-primary btn-block" id="wSplitGo" type="button" style="margin-top:12px">اعتماد التقسيم للكل</button><div class="caption" id="wSplitProg" style="text-align:center;margin-top:8px"></div>` : ''}`);
+    } catch (er) { toast(er.message, 'bad'); }
+    t.disabled = false;
+    return;
+  }
+  if (t.id === 'wSplitGo') {
+    if (!confirm('نعتمد التقسيم؟ كل رصيد ينتقل لمحفظته حسب المعاينة، ويتسجّل في حركات كل زبون.')) return;
+    t.disabled = true;
+    let total = 0, fails = [];
+    for (let i = 0; i < 60; i++) {
+      try {
+        const r = await api('/api/admin/wallets/split', { action: 'apply' });
+        total += r.done; fails = fails.concat(r.failed || []);
+        const pg = $('#wSplitProg'); if (pg) pg.textContent = `تم ${total} زبون — باقي ${r.left}`;
+        if (!r.left || (!r.done && !(r.failed || []).length)) break;
+      } catch (er) { toast(er.message, 'bad'); break; }
+    }
+    toast(`انتهى التقسيم: ${total} زبون${fails.length ? ` — ${fails.length} فشل (شوف السجل)` : ''}`, fails.length ? 'bad' : 'ok');
+    closeModal();
+  }
 });
