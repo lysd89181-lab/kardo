@@ -5676,12 +5676,32 @@ function vSOrders() {
           <span><a href="#" data-ufile3="${esc(o.uid)}">${esc(o.name || o.email || o.uid)}</a> · ${esc(dt(o.created_at))}${o.number ? ' · #' + esc(o.number) : ''}</span>
           ${Object.keys(o.fields || {}).length ? `<span class="mono" dir="ltr">${esc(Object.entries(o.fields).map(([k, v]) => k + ': ' + v).join(' · '))}</span>` : ''}
           ${o.fail_reason || o.provider_error ? `<span style="color:var(--error)">${esc(o.fail_reason || o.provider_error)}</span>` : ''}
+          ${o.fail_code || o.provider_detail ? `<span class="mono" dir="ltr" style="font-size:11px;opacity:.85;word-break:break-word">${esc([o.fail_code, o.provider_detail].filter((x, i, a) => x && a.indexOf(x) === i).join(' — '))}</span>` : ''}
+          ${['refunded', 'failed', 'unknown'].includes(o.status) && can('orders', 'approve') && o.fail_code !== 'admin' ? `<span style="margin-top:4px"><button class="btn btn-ghost btn-sm" data-soprobe="${esc(o.id)}" type="button" style="padding:4px 8px;min-height:0">🔎 اسأل المزود</button></span>` : ''}
           ${['unknown', 'submitting', 'created', 'processing'].includes(o.status) && can('orders', 'approve') ? `<span style="display:flex;gap:6px;margin-top:6px"><button class="btn btn-secondary btn-sm" data-sochk="${esc(o.id)}" data-num="${esc(o.number)}" type="button">إعادة الفحص</button><button class="btn btn-outline-danger btn-sm" data-soref="${esc(o.id)}" type="button">استرداد</button></span>` : ''}</span>
         <span style="text-align:left"><b class="anum">${esc(usd(o.total_usd))}</b><br><span class="caption">ربح ${esc(usd(o.total_usd - o.cost_usd))}</span><br><span class="achip ${st[0]}" style="font-size:11px">${esc(st[1])}</span></span></div>`; }).join('') || '<div class="aempty"><b>ما فيش طلبات</b></div>'}</div>`}
   </div>`;
 }
 document.addEventListener('click', async e => {
-  const t = e.target.closest && e.target.closest('[data-sost],[data-sodays],#soGo,[data-sochk],[data-soref]'); if (!t) return;
+  const t = e.target.closest && e.target.closest('[data-sost],[data-sodays],#soGo,[data-sochk],[data-soref],[data-soprobe]'); if (!t) return;
+  if (t.dataset.soprobe) {                                           // v63
+    t.disabled = true; t.textContent = 'نسأل المزود…';
+    try {
+      const r = await api('/api/admin/rsc', { action: 'order', id: t.dataset.soprobe, op: 'probe' }); const p = r.probe || {};
+      const o = (S.so.list || []).find(x => x.id === t.dataset.soprobe) || {};
+      modal(`<div class="modal-head"><div class="modal-title">رد المزود</div><button class="modal-close" data-act="close-modal" aria-label="إغلاق">${svg(I.x)}</button></div>
+        <p class="caption mb-2">${esc(o.cat_name || '')} — ${esc(o.offer_name || '')}${p.number ? ` · رقم المزود #${esc(p.number)}` : ''}</p>
+        ${p.error ? `<div class="alert alert-error mb-2">${esc(p.error)}</div>` : ''}
+        ${p.saved ? `<div class="card card-sm mb-2"><div class="caption">الرسالة المحفوظة وقت الرفض:</div><div class="mono" dir="ltr" style="font-size:12px;word-break:break-word">${esc(p.saved)}</div></div>` : ''}
+        ${p.status || p.fail_code || p.reason ? `<div class="card card-sm mb-2">
+          <div class="flex-between"><span class="caption">الحالة</span><b dir="ltr">${esc(p.status || '—')}</b></div>
+          <div class="flex-between"><span class="caption">كود الفشل</span><b dir="ltr">${esc(p.fail_code || '—')}</b></div>
+          ${p.reason ? `<div class="caption" style="margin-top:6px">السبب:</div><div dir="ltr" style="font-size:13px;word-break:break-word">${esc(p.reason)}</div>` : ''}</div>` : ''}
+        ${p.raw ? `<details><summary class="caption">كل البيانات</summary><pre dir="ltr" style="font-size:11px;white-space:pre-wrap;word-break:break-word">${esc(JSON.stringify(p.raw, null, 1))}</pre></details>` : ''}`);
+    } catch (er) { toast(er.message, 'bad'); }
+    t.disabled = false; t.textContent = '🔎 اسأل المزود';
+    return;
+  }
   if (t.dataset.sost) { S.so.st = t.dataset.sost; return loadSO(); }
   if (t.dataset.sodays != null) { S.so.days = Number(t.dataset.sodays); return loadSO(); }
   if (t.id === 'soGo') { S.so.q = ($('#soQ').value || '').trim(); return loadSO(); }
@@ -5704,6 +5724,7 @@ async function loadUnm() {
   if (S.page === 'unmatched') render(true);
   try {
     if (S.unm.tab === 'open') { const r = await api('/api/admin/crypto/unmatched', { action: 'list2' }); S.unm.open = r.items || []; }
+    else if (S.unm.tab === 'ign') { const r = await api('/api/admin/crypto/unmatched', { action: 'ignored' }); S.unm.ign = r.items || []; }
     else { const r = await api('/api/admin/crypto/unmatched', { action: 'history', days: S.unm.days }); S.unm.hist = r.items || []; }
     S.unm.err = '';
   } catch (e) { S.unm.err = e.message; }
@@ -5731,9 +5752,14 @@ function unmAnHtml(an, ctx) {                                         // ctx: { 
 }
 function vUnm() {
   const U = S.unm || { tab: 'open', loading: true };
-  const tabs = `<div class="aseg">${[['open', `مفتوحة${(U.open || []).length ? ' (' + U.open.length + ')' : ''}`], ['hist', 'السجل والتحليل']].map(([k, t]) => `<button class="${U.tab === k ? 'on' : ''}" data-unmtab="${k}" type="button">${t}</button>`).join('')}</div>`;
+  const tabs = `<div class="aseg">${[['open', `مفتوحة${(U.open || []).length ? ' (' + U.open.length + ')' : ''}`], ['hist', 'السجل والتحليل'], ['ign', 'المتجاهلة']].map(([k, t]) => `<button class="${U.tab === k ? 'on' : ''}" data-unmtab="${k}" type="button">${t}</button>`).join('')}</div>`;
   let body = '';
-  if (U.loading && !(U.tab === 'open' ? U.open : U.hist)) body = '<div class="skeleton" style="height:160px;border-radius:14px"></div>';
+  if (U.loading && !(U.tab === 'open' ? U.open : U.tab === 'ign' ? U.ign : U.hist)) body = '<div class="skeleton" style="height:160px;border-radius:14px"></div>';
+  else if (U.tab === 'ign') body = `<p class="caption mb-2">التحويلات اللي درتلها «تجاهل». لو عرفت صاحبها اضغط «إرجاع» — ترجع للمفتوحة مع التحليل، ومن غادي تضيفها لصاحبها.</p>
+    <div class="acard">${(U.ign || []).map(x => `<div class="arow static" style="align-items:flex-start"><span class="aric">${svg(I.cash)}</span>
+      <span class="art"><b><span dir="ltr" class="tabular">${esc(Number(x.amount).toFixed(4))}</span> USDT${x.network ? ' · ' + esc(String(x.network).toUpperCase()) : ''}</b>
+        <span>وصل ${esc(dt(new Date(x.at_ms).toISOString()))} · تجاهلته ${esc(dt(x.resolved_at))}${x.by ? ' (' + esc(x.by) + ')' : ''}${x.from ? `<br><span dir="ltr" class="mono" style="word-break:break-all">${esc(x.from)}</span>` : ''}</span></span>
+      ${can('deposits', 'approve') ? `<button class="btn btn-secondary btn-sm" data-unm-reopen="${esc(x.id)}" type="button">إرجاع</button>` : ''}</div>`).join('') || '<div class="aempty"><b>ما فيش تحويلات متجاهلة</b></div>'}</div>`;
   else if (U.tab === 'open') body = (U.open || []).map(it => `<div class="acard mb-3">${unmAnHtml(it.an || {}, { id: it.id })}
       <div style="display:flex;gap:8px;padding:10px;flex-wrap:wrap"><button class="btn btn-secondary btn-sm" data-unm-email="${esc(it.id)}" type="button">أضف بالبريد</button><button class="btn btn-ghost btn-sm" data-unm-ign="${esc(it.id)}" type="button">تجاهل</button></div></div>`).join('') || '<div class="acard"><div class="aempty"><b>ما فيش تحويلات مفتوحة ✓</b></div></div>';
   else body = `<div class="pills mb-2">${[[3, '3 أيام'], [14, '14 يوم'], [60, '60 يوم']].map(([k, t]) => `<button class="pill ${U.days === k ? 'active' : ''}" data-unmdays="${k}" type="button">${t}</button>`).join('')}</div>
@@ -5747,8 +5773,15 @@ function vUnm() {
     ${U.err ? `<div class="alert alert-error mb-2">${esc(U.err)}</div>` : ''}${body}</div>`;
 }
 document.addEventListener('click', async e => {
-  const t = e.target.closest && e.target.closest('[data-unmtab],[data-unmdays],[data-unm-an],[data-unm2-inv],[data-unm2-uid],[data-unm-fix]'); if (!t) return;
+  const t = e.target.closest && e.target.closest('[data-unmtab],[data-unmdays],[data-unm-an],[data-unm2-inv],[data-unm2-uid],[data-unm-fix],[data-unm-reopen]'); if (!t) return;
   e.preventDefault();
+  if (t.dataset.unmReopen) {                                          // v63
+    if (!confirm('نرجّعوا هذا التحويل للمفتوحة باش تضيفه لصاحبه؟')) return;
+    t.disabled = true;
+    try { await api('/api/admin/crypto/unmatched', { action: 'reopen', id: t.dataset.unmReopen }); toast('رجع للمفتوحة ✓ — اختار صاحبه من المرشّحين أو بالبريد', 'ok'); S.unm.tab = 'open'; loadUnm(); }
+    catch (er) { t.disabled = false; toast(er.message, 'bad'); }
+    return;
+  }
   if (t.dataset.unmtab) { S.unm.tab = t.dataset.unmtab; S.unm.anKey = null; return loadUnm(); }
   if (t.dataset.unmdays) { S.unm.days = Number(t.dataset.unmdays); return loadUnm(); }
   if (t.dataset.unmAn) {

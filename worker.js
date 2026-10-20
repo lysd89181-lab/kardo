@@ -7614,6 +7614,7 @@ async function rscCall(env, method, path, body) {
   if (!r.ok) {
     const e = new Error((j && j.error && j.error.message) || ('HTTP ' + r.status));
     e.rscStatus = r.status; e.rscType = j && j.error && j.error.type;
+    e.rscDetail = [`HTTP ${r.status}`, j && j.error && j.error.type, j && j.error && j.error.code, j && j.error && j.error.message].filter(Boolean).join(' · ').slice(0, 400);   // v63
     throw e;
   }
   return j || {};
@@ -7881,7 +7882,7 @@ async function handleRscOrder(user, body, env) {
   } catch (e) {
     const definite = e.rscStatus && e.rscStatus >= 400 && e.rscStatus < 500;   // رفض صريح ← لم يُنفَّذ ← نُرجع المبلغ
     if (definite) {
-      await rscRefund(env, oid, 'تعذّر تنفيذ الطلب لدى المزود', 'system', e.message);
+      await rscRefund(env, oid, 'تعذّر تنفيذ الطلب لدى المزود', 'system', e.rscType || e.message, e.rscDetail || e.message);
     } else {
       await fsPatch(env, `rsc_orders/${oid}`, { status: 'unknown', provider_error: String(e.message || '').slice(0, 200), updated_at: nowIso() }).catch(() => {});
       rscAlertAdmins(env, oid, 'طلب بحالة غير معروفة يحتاج مراجعة');
@@ -7916,13 +7917,14 @@ async function rscApply(env, oid, j) {
     staffAlert(env, 'adm_rsc', { uid: o.uid, ok: true, name: `${o.cat_name} — ${o.offer_name}`, amount: num(o.total_usd, 0).toFixed(2), page: 'sorders' }, 'orders.view');
   } else if (st === 'failed' || st === 'refund' || st === 'refunded' || st === 'cancelled') {
     const code = String(j.fail_code || '').toLowerCase();
-    await rscRefund(env, oid, RSC_FAIL_AR[code] || String(j.status_reason || 'تعذّر تنفيذ الطلب').slice(0, 120), 'system', code);
+    const detail = [j.status, j.fail_code, j.status_reason, j.fail_reason, j.message, j.note].filter(x => x && typeof x === 'string').join(' · ').slice(0, 400);   // v63: نحفظ شرح المزود كامل
+    await rscRefund(env, oid, RSC_FAIL_AR[code] || String(j.status_reason || 'تعذّر تنفيذ الطلب').slice(0, 120), 'system', code, detail);
   } else if (st !== o.status) {
     await fsPatch(env, `rsc_orders/${oid}`, { status: st, updated_at: nowIso() });
   }
 }
 
-async function rscRefund(env, oid, reason, by, code) {
+async function rscRefund(env, oid, reason, by, code, detail) {
   let o0 = null;
   await fsRunTransaction(env, async (tx) => {
     const o = await tx.get(`rsc_orders/${oid}`);
@@ -7932,7 +7934,7 @@ async function rscRefund(env, oid, reason, by, code) {
     const L = await ledgerOpen(tx, o.uid, w);
     await ledgerPost(L, { type: 'credit', amount: back, reason: 'rsc_refund', reference: oid, entryId: `txn_rsc_refund_${oid}`, created_by: by || 'system' });
     ledgerClose(tx, L, { total_spent: Math.max(0, round2(num(L.doc.total_spent, 0) - num(o.total_usd, 0))) });
-    tx.update(`rsc_orders/${oid}`, { status: 'refunded', fail_reason: String(reason || '').slice(0, 160), fail_code: String(code || '').slice(0, 60), refunded_by: by || 'system', updated_at: nowIso() });
+    tx.update(`rsc_orders/${oid}`, { status: 'refunded', ...(detail ? { provider_detail: String(detail).slice(0, 400) } : {}), fail_reason: String(reason || '').slice(0, 160), fail_code: String(code || '').slice(0, 60), refunded_by: by || 'system', updated_at: nowIso() });
   });
   if (o0) { notify(env, o0.uid, 'rsc_failed', { name: `${o0.cat_name} — ${o0.offer_name}`, amount: num(o0.total_usd, 0).toFixed(2), fmt: wOk(o0.wallet) && o0.paid_w != null ? wFmt(o0.wallet, o0.paid_w) : '', reason }); staffAlert(env, 'adm_rsc', { uid: o0.uid, ok: false, name: `${o0.cat_name} — ${o0.offer_name}`, amount: num(o0.total_usd, 0).toFixed(2), reason, page: 'sorders' }, 'orders.view'); }
 }
@@ -8155,7 +8157,7 @@ async function handleAdminRsc(user, body, env) {
     }
     const names = await userNamesMap(env, items.slice(0, 600).map(o => o.uid));
     let list = items.map(o => { const u = names.get(o.uid) || {}; return { id: o.id, uid: o.uid, name: u.name || '', email: u.email || '', status: o.status, cat_name: o.cat_name || '', offer_name: o.offer_name || '', qty: o.qty || 1,
-      total_usd: num(o.total_usd, 0), cost_usd: num(o.cost_usd, 0), number: o.number || '', fields: o.fields || {}, fail_reason: o.fail_reason || '', provider_error: o.provider_error || '', created_at: o.created_at || '' }; });
+      total_usd: num(o.total_usd, 0), cost_usd: num(o.cost_usd, 0), number: o.number || '', fields: o.fields || {}, fail_reason: o.fail_reason || '', fail_code: o.fail_code || '', provider_detail: o.provider_detail || '', provider_error: o.provider_error || '', wallet: o.wallet || 'usd', paid_w: o.paid_w == null ? null : num(o.paid_w, 0), created_at: o.created_at || '' }; });
     if (q && !/^[A-Za-z0-9_-]{20,128}$/.test(q)) list = list.filter(o => [o.id, o.number, o.cat_name, o.offer_name, o.name, o.email, ...Object.values(o.fields || {})].join(' ').toLowerCase().includes(q));
     const done = list.filter(o => o.status === 'completed');
     const sum = { n: list.length, done: done.length, fail: list.filter(o => ST.fail.includes(o.status)).length, open: list.filter(o => ST.open.includes(o.status)).length,
@@ -8183,6 +8185,17 @@ async function handleAdminRsc(user, body, env) {
       const n = String(body.number || o.number || '');
       if (!n) throw httpError(400, 'أدخل رقم الطلب لدى المزود');
       await rscApply(env, oid, await rscCall(env, 'GET', `/orders/${encodeURIComponent(n)}`));
+    } else if (op === 'probe') {                                      // v63: «اسأل المزود» — قراءة فقط
+      const n = String(o.number || '');
+      if (!n) return { success: true, probe: { error: 'الطلب ما خذاش رقم عند المزود — رفضه من أول ما انبعت', saved: o.provider_detail || o.fail_code || o.provider_error || '' } };
+      let j = null, err = '';
+      try { j = await rscCall(env, 'GET', `/orders/${encodeURIComponent(n)}`); } catch (e) { err = e.rscDetail || e.message; }
+      if (j && !o.provider_detail) {
+        const d = [j.status, j.fail_code, j.status_reason, j.fail_reason, j.message].filter(x => x && typeof x === 'string').join(' · ').slice(0, 400);
+        if (d) await fsPatch(env, `rsc_orders/${oid}`, { provider_detail: d }).catch(() => {});
+      }
+      const pickJ = j ? Object.fromEntries(Object.entries(j).filter(([k, v]) => !/code|pin|serial|key|secret/i.test(k) || /fail_code|status/i.test(k)).filter(([, v]) => v == null || typeof v !== 'object').slice(0, 30)) : null;
+      return { success: true, probe: { number: n, error: err, status: j && j.status, fail_code: j && j.fail_code, reason: j && (j.status_reason || j.fail_reason || j.message), raw: pickJ } };
     } else if (op === 'refund') {
       if (['completed', 'refunded'].includes(o.status)) throw httpError(409, 'الطلب مُغلق');
       await rscRefund(env, oid, String(body.reason || 'أُلغي الطلب وأُعيد المبلغ').slice(0, 160), staff.uid, 'admin');
@@ -8434,7 +8447,26 @@ async function unmFindUser(env, body) {
 
 async function handleAdminUnmatched(user, body, env) {
   const action = String(body.action || 'list');
-  const staff = await requirePermission(user, env, ['list', 'list2', 'history', 'analyze'].includes(action) ? 'deposits.view' : 'deposits.approve');
+  const staff = await requirePermission(user, env, ['list', 'list2', 'history', 'analyze', 'ignored'].includes(action) ? 'deposits.view' : 'deposits.approve');
+  if (action === 'ignored') {                                        // v63: التحويلات المتجاهلة — نقدروا نرجعوها
+    const rows = await d1All(env, `SELECT id, data FROM crypto_unmatched WHERE status = 'ignored' ORDER BY ts DESC LIMIT 40`).catch(() => []);
+    const items = rows.map(r => ({ id: r.id, ..._jp(r.data) }));
+    const names = await userNamesMap(env, items.map(d => d.resolved_by).filter(Boolean));
+    return { success: true, items: items.map(d => ({ id: d.id, amount: d.amount, network: d.network, txid: d.txid, from: d.from || '', at_ms: d.at_ms, resolved_at: d.resolved_at || '', by: (names.get(d.resolved_by) || {}).email || '' })) };
+  }
+  if (action === 'reopen') {                                         // v63: إرجاع تحويل متجاهَل للمفتوحة باش ينسند لصاحبه
+    const id = String(body.id || '');
+    if (!/^U[0-9a-f]{30}$/.test(id)) throw httpError(400, 'معرّف غير صالح');
+    await fsRunTransaction(env, async (tx) => {
+      const cur = await tx.get(`crypto_unmatched/${id}`);
+      if (!cur) throw httpError(404, 'التحويل غير موجود');
+      if (cur.status !== 'ignored') throw httpError(409, cur.status === 'open' ? 'التحويل أصلًا مفتوح' : 'التحويل انسند قبل');
+      if (await tx.get(`usdt_txids/${cur.key}`)) throw httpError(409, 'هذه المعاملة محسوبة مسبقًا');
+      tx.update(`crypto_unmatched/${id}`, { status: 'open', reopened_by: staff.uid, reopened_at: nowIso() });
+    });
+    await logOp(env, staff.uid, 'crypto.unmatched.reopen', { id }, {}, true);
+    return { success: true };
+  }
   if (action === 'list2') {                                          // v60: المفتوحة مع التحليل الكامل
     const rows = await d1All(env, `SELECT id, data FROM crypto_unmatched WHERE status = 'open' ORDER BY ts DESC LIMIT 30`).catch(() => []);
     const items = [];
