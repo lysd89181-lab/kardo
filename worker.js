@@ -125,7 +125,7 @@ export default {
       ctx.waitUntil(Promise.allSettled(drainBackground()));
       const status = err.status || 500;
       if (status === 500) console.error('UNHANDLED', err.stack || err.message);
-      return json({ success: false, error: err.publicMessage || 'حدث خطأ غير متوقع' }, status, origin);
+      return json({ success: false, error: err.publicMessage || 'حدث خطأ غير متوقع', ...(err.code ? { code: err.code } : {}), ...(err.extra || {}) }, status, origin);
     }
   },
 
@@ -154,6 +154,7 @@ export default {
 
 async function route(path, request, url, env) {
   if (request.method === 'GET') {
+    if (path === '/api/ban/check') return handleBanCheck(url, env);
     const h = { '/api/status': handleStatus, '/api/catalog': handleCatalog, '/api/services/list': handleServicesList, '/api/merchants/list': async () => ({ success: true, merchants: [], removed: true }), '/api/rsc/catalog': handleRscCatalog, '/api/platforms': handlePlatformsList, '/api/howto': handleHowto, '/api/reviews': handleReviewsPublic }[path];
     if (!h) throw httpError(404, 'المسار غير موجود');
     const hit = _pubCache.get(path);
@@ -184,6 +185,7 @@ async function route(path, request, url, env) {
   const user = await requireAuth(request, env);
   _ipByUid.set(user.uid, (request.headers.get('cf-connecting-ip') || '').slice(0, 45));
   if (_ipByUid.size > 5000) _ipByUid.clear();
+  await deviceSeen(env, request, user.uid);                          // v60: تحديد الجهاز + حظر الأجهزة المحظورة
   await verifyAppCheck(request, env);
   await enforceGlobalRateLimit(env, user.uid, path.startsWith('/api/admin/') && await isStaffCached(env, user.uid) ? 240 : 45);
   const body = await safeJson(request);
@@ -284,6 +286,7 @@ async function route(path, request, url, env) {
     case '/api/admin/merchant/sub':    return handleAdminMerchantSub(user, body, env);
     case '/api/admin/report/resolve':  return handleAdminReportResolve(user, body, env);
     case '/api/admin/card/balance':    return handleAdminCardBalance(user, body, env);
+    case '/api/admin/push/test':       return handleAdminPushTest(user, body, env);
     case '/api/admin/card/replace':    return handleAdminCardReplace(user, body, env);
     case '/api/admin/sticker/save':    return handleAdminStickerSave(user, body, env);
 
@@ -1176,7 +1179,7 @@ async function getAccessToken(env) {
 
   const claim = {
     iss: env.FIREBASE_CLIENT_EMAIL,
-    scope: 'https://www.googleapis.com/auth/datastore https://www.googleapis.com/auth/firebase.messaging',
+    scope: 'https://www.googleapis.com/auth/datastore https://www.googleapis.com/auth/firebase.messaging https://www.googleapis.com/auth/identitytoolkit',
     aud: 'https://oauth2.googleapis.com/token',
     iat: now, exp: now + 3600,
   };
@@ -2021,6 +2024,7 @@ async function handleWalletClaim(user, body, env) {
     });
     await logOp(env, user.uid, 'deposit.claim_matched', { amountLyd }, { credited }, true);
     notify(env, user.uid, 'deposit_ok', { amount: credited.toFixed(2) });
+    staffAlert(env, 'adm_deposit', { uid: user.uid, amount: '$' + credited.toFixed(2), method: 'رصيد هاتف (مطابقة تلقائية)', auto: true, page: 'money' }, 'deposits.view');
     background(promoFirstDeposit(env, user.uid, credited, 'claim'));
     return { success: true, matched: true, credited_usd: credited };
   }
@@ -2044,6 +2048,7 @@ async function handleWalletClaim(user, body, env) {
     expires_ms: manualMode ? 0 : Date.now() + 2 * 3600000, created_at: nowIso(),
   });
   notify(env, user.uid, 'deposit_pending', { amount: amountLyd.toFixed(2) + ' د.ل', method: method === 'libyana' ? 'ليبيانا' : 'المدار' });
+  staffAlert(env, 'adm_deposit', { uid: user.uid, amount: amountLyd.toFixed(2) + ' د.ل', method: method === 'libyana' ? 'ليبيانا' : 'المدار', page: 'money' }, 'deposits.view');
   return { success: true, matched: false, manual: manualMode || ownedByOther, claim_id: claimId };
 }
 
@@ -2210,6 +2215,7 @@ async function settleInvoice(env, id, hit, by) {
   if (r.dup) return { paid: false, dup: true };
   await logOp(env, owner, 'deposit.usdt', { id, by }, { txid, received }, true);
   notify(env, owner, 'deposit_ok', { amount: received.toFixed(2), method: CRYPTO_NETS[network].label });
+  if (String(by || 'system') === 'system' || /^cron|^verify|^user/.test(String(by))) staffAlert(env, 'adm_deposit', { uid: owner, amount: received.toFixed(4) + ' USDT', method: CRYPTO_NETS[network].label, auto: true, page: 'money', ref: id }, 'deposits.view');
   background(promoFirstDeposit(env, owner, received, id));
   return { paid: true, credited: received, txid };
 }
@@ -2297,7 +2303,7 @@ async function handleWithdrawRequest(user, body, env) {
     idemWrite(tx, user.uid, key, r);
     return r;
   });
-  if (!resp.replayed) await logOp(env, user.uid, 'withdraw.request', { amount, method }, { id }, true);
+  if (!resp.replayed) { await logOp(env, user.uid, 'withdraw.request', { amount, method }, { id }, true); staffAlert(env, 'adm_withdraw', { uid: user.uid, amount: amount.toFixed(2), method, page: 'withdraw', ref: id }, 'withdraw.view'); }
   return resp;
 }
 
@@ -2378,7 +2384,7 @@ async function handleTransfer(user, body, env) {
     idemWrite(tx, user.uid, key, r);
     return r;
   });
-  if (!resp.replayed) { await logOp(env, user.uid, 'transfer', { to: toUid, amount }, { id }, true); notify(env, toUid, 'transfer_in', { amount: amount.toFixed(2) }); }
+  if (!resp.replayed) { await logOp(env, user.uid, 'transfer', { to: toUid, amount }, { id }, true); notify(env, toUid, 'transfer_in', { amount: amount.toFixed(2) }); staffAlert(env, 'adm_transfer', { uid: user.uid, to_uid: toUid, amount: amount.toFixed(2), page: 'users', ref: id }, 'users.view'); }
   return resp;
 }
 
@@ -2527,7 +2533,7 @@ async function handleManualCardRequest(user, body, env) {
     idemWrite(tx, user.uid, key, r);
     return r;
   });
-  if (!resp.replayed) { await logOp(env, user.uid, 'card.request', { amount }, { id }, true); notify(env, user.uid, 'card_requested', { amount: amount.toFixed(2) }); }
+  if (!resp.replayed) { await logOp(env, user.uid, 'card.request', { amount }, { id }, true); notify(env, user.uid, 'card_requested', { amount: amount.toFixed(2) }); staffAlert(env, 'adm_card', { uid: user.uid, amount: amount.toFixed(2), page: 'mcards', ref: id }, 'mcards.view'); }
   return resp;
 }
 
@@ -2830,6 +2836,7 @@ async function handleServiceCreateOrder(user, body, env) {
   if (!resp.replayed) {
     await logOp(env, user.uid, 'service.order', { serviceId }, { orderId: resp.order.id }, true);
     notify(env, user.uid, 'order_placed', { name: resp.order.service_name, amount: '$' + resp.order.price_usd.toFixed(2), instant: resp.order.status === 'delivered' });
+    staffAlert(env, 'adm_order', { uid: user.uid, name: resp.order.service_name, amount: '$' + resp.order.price_usd.toFixed(2), page: 'orders' }, 'orders.view');
   }
   return resp;
 }
@@ -3004,6 +3011,7 @@ async function handleStoreOrder(user, body, env) {
   if (!resp.replayed) {
     await logOp(env, user.uid, 'store.order', { items: merged.size }, { orderId: resp.order.id }, true);
     notify(env, user.uid, 'order_placed', { name: resp.order.items.map(i => i.name).join('، '), amount: resp.order.total_lyd.toFixed(2) + ' د.ل', instant: resp.order.status === 'completed' });
+    staffAlert(env, 'adm_order', { uid: user.uid, name: resp.order.items.map(i => i.name).join('، ').slice(0, 80), amount: resp.order.total_lyd.toFixed(2) + ' د.ل', page: 'orders' }, 'orders.view');
   }
   return resp;
 }
@@ -3350,6 +3358,118 @@ async function handleAdminStaffSet(user, body, env) {
   return { success: true };
 }
 
+/* ═══ v60 — تحديد المستخدمين والحظر الكامل ═══
+   • كل جهاز له معرّف ثابت (x-kd) + بصمة متصفح (x-kf). المعرّف قوي (للحظر التلقائي)، البصمة والـ IP ضعاف (للعرض بس)
+   • الحظر: علامة banned + تعطيل الحساب في Firebase (ما يقدرش يسجّل دخول) + حظر أجهزته في KV */
+async function bannedError(env, reason, uid) {
+  const s = await getSettings(env).catch(() => ({}));
+  const e = httpError(403, 'حسابك محظور من المطور');
+  e.code = 'BANNED';
+  e.extra = { ban: { uid: uid || '', reason: String(reason || '').slice(0, 200), whatsapp: String(s.contact_whatsapp || '').replace(/[^\d+]/g, '').slice(0, 16), email: String(s.contact_email || '').slice(0, 80) } };
+  return e;
+}
+const _devSeen = new Map();
+const devIdOk = v => /^[A-Za-z0-9_-]{16,64}$/.test(String(v || ''));
+async function deviceSeen(env, request, uid) {
+  const did = String(request.headers.get('x-kd') || ''), fp = String(request.headers.get('x-kf') || '').slice(0, 64);
+  if (!devIdOk(did)) return;
+  const ip = (request.headers.get('cf-connecting-ip') || '').slice(0, 45);
+  const mk = uid + '|' + did;
+  const seen = _devSeen.get(mk);
+  if (seen && seen.ip === ip && seen.exp > Date.now()) return;
+  _devSeen.set(mk, { ip, exp: Date.now() + 6 * 3600000 });
+  if (_devSeen.size > 8000) _devSeen.clear();
+  // جهاز محظور؟ → نحظر الحساب هذا تلقائيًا (إلا الموظفين)
+  const bd = env.KV ? await env.KV.get('bandev:' + did, 'json').catch(() => null) : null;
+  if (bd && bd.uid && bd.uid !== uid && !(await isStaffCached(env, uid))) {
+    const u = await fsGet(env, `users/${uid}`).catch(() => null);
+    if (u && u.ban_exempt_dev !== true) {                            // اللي فكّيت حظره يدويًا ما يتحظرش تاني بسبب الجهاز
+      if (u.banned !== true) {
+        await banApply(env, uid, true, `جهاز مرتبط بحساب محظور (${String(bd.who || bd.uid).slice(0, 60)})`, 'system').catch(e => console.error('AUTO_BAN', e.message));
+        staffAlert(env, 'adm_blocked_dev', { uid, banned: String(bd.who || bd.uid), page: 'users' }, 'users.ban');
+      }
+      throw await bannedError(env, 'جهاز مرتبط بحساب محظور', uid);
+    }
+  }
+  background((async () => {
+    const id = `${uid}_${(await sha256Hex(did)).slice(0, 16)}`;
+    const cur = await fsGet(env, `user_devices/${id}`).catch(() => null);
+    const ua = (request.headers.get('user-agent') || '').slice(0, 160);
+    const cc = String((request.cf && request.cf.country) || '').slice(0, 2), city = String((request.cf && request.cf.city) || '').slice(0, 40);
+    const ips = [...new Set([ip, ...((cur && cur.ips) || [])].filter(Boolean))].slice(0, 12);
+    await fsSet(env, `user_devices/${id}`, { uid, did, fp, ua, ip, ips, cc, city, first_at: (cur && cur.first_at) || nowIso(), last_at: nowIso(), n: num(cur && cur.n, 0) + 1, created_at: (cur && cur.created_at) || nowIso() });
+  })().catch(e => console.error('DEV_SEEN', e.message)));
+}
+async function handleBanCheck(url, env) {                         // عام: هل هذا الجهاز/الحساب لسه محظور؟ (لشاشة الحظر)
+  const did = String(url.searchParams.get('d') || ''), uid = String(url.searchParams.get('u') || '');
+  let banned = false;
+  if (devIdOk(did) && env.KV) banned = !!(await env.KV.get('bandev:' + did).catch(() => null));
+  if (!banned && /^[A-Za-z0-9_-]{20,128}$/.test(uid)) { const u = await fsGet(env, `users/${uid}`).catch(() => null); banned = !!(u && u.banned === true); }
+  return { success: true, banned };
+}
+async function fbAuthDisable(env, uid, disable) {                  // تعطيل/تفعيل الحساب في Firebase Auth
+  try {
+    const at = await getAccessToken(env);
+    const r = await fetch(`https://identitytoolkit.googleapis.com/v1/projects/${env.FIREBASE_PROJECT_ID}/accounts:update`, {
+      method: 'POST', headers: { authorization: `Bearer ${at}`, 'content-type': 'application/json' },
+      body: JSON.stringify({ localId: uid, disableUser: !!disable, ...(disable ? { validSince: String(Math.floor(Date.now() / 1000)) } : {}) }) });
+    if (!r.ok) { const t = await r.text().catch(() => ''); console.error('FB_DISABLE', r.status, t.slice(0, 200)); return false; }
+    return true;
+  } catch (e) { console.error('FB_DISABLE', e.message); return false; }
+}
+async function userDevices(env, uid) {
+  if (!env.DB || !(await d1Table(env, 'user_devices'))) return [];
+  const rows = await d1All(env, `SELECT data FROM user_devices WHERE uid = ? ORDER BY json_extract(data, '$.last_at') DESC LIMIT 20`, [uid]).catch(() => []);
+  return rows.map(r => _jp(r.data));
+}
+async function banApply(env, uid, ban, reason, by) {
+  await fsPatch(env, `users/${uid}`, { banned: ban, banned_at: ban ? nowIso() : '', ban_reason: ban ? reason : '', banned_by: by, ...(ban ? {} : { ban_exempt_dev: true }) });
+  _banCache.delete(uid);
+  const fb = await fbAuthDisable(env, uid, ban);
+  let devs = 0;
+  if (env.KV) {
+    const u = await fsGet(env, `users/${uid}`).catch(() => null);
+    const who = String((u && (u.email || u.name)) || uid).slice(0, 60);
+    for (const d of await userDevices(env, uid)) {
+      if (!devIdOk(d.did)) continue;
+      if (ban) await env.KV.put('bandev:' + d.did, JSON.stringify({ uid, who, at: Date.now() }), { expirationTtl: 86400 * 365 }).catch(() => {});
+      else { const cur = await env.KV.get('bandev:' + d.did, 'json').catch(() => null); if (cur && cur.uid === uid) await env.KV.delete('bandev:' + d.did).catch(() => {}); }
+      devs++;
+    }
+  }
+  return { fb, devs };
+}
+async function userLinks(env, uid) {                                 // الحسابات المرتبطة: جهاز / بصمة / IP / محفظة / رقم
+  const devs = await userDevices(env, uid);
+  const links = new Map();
+  const add = (ouid, why, strong) => { if (!ouid || ouid === uid) return; const x = links.get(ouid) || { uid: ouid, why: [], strong: false }; if (!x.why.includes(why)) x.why.push(why); x.strong = x.strong || strong; links.set(ouid, x); };
+  if (env.DB && await d1Table(env, 'user_devices')) {
+    const dids = [...new Set(devs.map(d => d.did).filter(devIdOk))].slice(0, 20);
+    if (dids.length) for (const r of await d1All(env, `SELECT data FROM user_devices WHERE json_extract(data, '$.did') IN (${dids.map(() => '?').join(',')}) LIMIT 100`, dids).catch(() => [])) add(_jp(r.data).uid, 'نفس الجهاز', true);
+    const fps = [...new Set(devs.map(d => d.fp).filter(f => f && f.length >= 16))].slice(0, 20);
+    if (fps.length) for (const r of await d1All(env, `SELECT data FROM user_devices WHERE json_extract(data, '$.fp') IN (${fps.map(() => '?').join(',')}) LIMIT 100`, fps).catch(() => [])) add(_jp(r.data).uid, 'نفس بصمة المتصفح', false);
+    const ips = [...new Set(devs.flatMap(d => d.ips || []))].slice(0, 15);
+    if (ips.length) for (const r of await d1All(env, `SELECT data FROM user_devices WHERE json_extract(data, '$.ip') IN (${ips.map(() => '?').join(',')}) LIMIT 100`, ips).catch(() => [])) add(_jp(r.data).uid, 'نفس IP', false);
+  }
+  let wallets = [];
+  if (env.DB && await d1Table(env, 'usdt_txids')) {
+    wallets = [...new Set((await d1All(env, `SELECT json_extract(data, '$.from') AS f FROM usdt_txids WHERE uid = ? LIMIT 100`, [uid]).catch(() => [])).map(r => r.f).filter(Boolean))].slice(0, 20);
+    if (wallets.length) for (const r of await d1All(env, `SELECT uid FROM usdt_txids WHERE json_extract(data, '$.from') IN (${wallets.map(() => '?').join(',')}) LIMIT 200`, wallets).catch(() => [])) add(r.uid, 'نفس محفظة USDT', true);
+  }
+  let phones = [];
+  if (env.DB && await d1Table(env, 'sms_transactions')) {
+    phones = [...new Set((await d1All(env, `SELECT json_extract(data, '$.sender') AS p FROM sms_transactions WHERE uid = ? LIMIT 100`, [uid]).catch(() => [])).map(r => r.p).filter(Boolean))].slice(0, 20);
+    if (phones.length) for (const r of await d1All(env, `SELECT uid FROM sms_transactions WHERE json_extract(data, '$.sender') IN (${phones.map(() => '?').join(',')}) LIMIT 200`, phones).catch(() => [])) add(r.uid, 'نفس رقم الهاتف المحوّل', true);
+  }
+  const list = [...links.values()];
+  const names = await userNamesMap(env, list.map(l => l.uid));
+  const bans = new Map();
+  if (env.DB && list.length && await d1Table(env, 'users')) for (const r of await d1All(env, `SELECT id, json_extract(data, '$.banned') AS b FROM users WHERE id IN (${list.slice(0, 60).map(() => '?').join(',')})`, list.slice(0, 60).map(l => l.uid)).catch(() => [])) bans.set(r.id, r.b === 1 || r.b === true || r.b === 'true');
+  list.forEach(l => { const n = names.get(l.uid) || {}; l.name = n.name || ''; l.email = n.email || ''; l.banned = bans.get(l.uid) === true; });
+  list.sort((a, b) => (b.strong ? 1 : 0) - (a.strong ? 1 : 0) || b.why.length - a.why.length);
+  return { devices: devs.map(d => ({ ua: d.ua, ip: d.ip, ips: d.ips || [], cc: d.cc || '', city: d.city || '', first_at: d.first_at, last_at: d.last_at, n: d.n, did: String(d.did || '').slice(0, 6) + '…' })), wallets, phones, links: list.slice(0, 40) };
+}
+
 async function handleAdminUserBan(user, body, env) {
   const staff = await requirePermission(user, env, 'user.ban');
   const uid = String(body.uid || '').trim();
@@ -3360,13 +3480,10 @@ async function handleAdminUserBan(user, body, env) {
   if (ban && reason.length < 3) throw httpError(400, 'السبب مطلوب');
   const target = await getStaff(env, uid);
   if (target && staff.role !== 'super_admin') throw httpError(403, 'إيقاف حساب إداري يتطلب super_admin');
-  await fsRunTransaction(env, async (tx) => {
-    const u = await tx.get(`users/${uid}`);
-    if (!u) throw httpError(404, 'المستخدم غير موجود');
-    tx.update(`users/${uid}`, { banned: ban, banned_at: ban ? nowIso() : '', ban_reason: ban ? reason : '', banned_by: staff.uid });
-  });
-  await logOp(env, staff.uid, ban ? 'user.ban' : 'user.unban', { uid, reason }, {}, true);
-  return { success: true, banned: ban };
+  if (!(await fsGet(env, `users/${uid}`))) throw httpError(404, 'المستخدم غير موجود');
+  const r = await banApply(env, uid, ban, reason, staff.uid);
+  await logOp(env, staff.uid, ban ? 'user.ban' : 'user.unban', { uid, reason }, { fb: r.fb, devs: r.devs }, true);
+  return { success: true, banned: ban, fb: r.fb, devices: r.devs };
 }
 
 async function handleAdminPhoneUnbind(user, body, env) {
@@ -3432,6 +3549,7 @@ async function handleTicketCreate(user, body, env) {
     uid: user.uid, subject, order_id: String(body.order_id || '').replace(/[^A-Za-z0-9_-]/g, '').slice(0, 40),
     status: 'open', messages: [{ by: 'user', text: msg, at: nowIso() }], created_at: nowIso(), updated_at: nowIso(),
   });
+  staffAlert(env, 'adm_ticket', { uid: user.uid, subject, preview: msg.slice(0, 120), page: 'tickets', ref: id }, 'tickets.view');
   return { success: true, id };
 }
 
@@ -3456,6 +3574,9 @@ async function handleTicketReply(user, body, env) {
     await logOp(env, user.uid, 'ticket.reply', { id }, {}, true);
     const t = await fsGet(env, `tickets/${id}`);
     if (t && t.uid) notify(env, t.uid, 'ticket_reply', { subject: t.subject || '', link: `ticket:${id}`, preview: msg.slice(0, 140) });
+  } else {
+    const t = await fsGet(env, `tickets/${id}`).catch(() => null);
+    staffAlert(env, 'adm_ticket_msg', { uid: user.uid, subject: (t && t.subject) || '', preview: msg.slice(0, 120), page: 'tickets', ref: id + ':' + Date.now() }, 'tickets.view');
   }
   return { success: true };
 }
@@ -3610,6 +3731,7 @@ async function handleSmsWebhook(request, env) {
       });
       await logOp(env, claim.uid, 'deposit.sms_matched', { amount_lyd: parsed.amount_lyd }, { credited: amountUsd }, true);
       notify(env, claim.uid, 'deposit_ok', { amount: amountUsd.toFixed(2) });
+      staffAlert(env, 'adm_deposit', { uid: claim.uid, amount: '$' + amountUsd.toFixed(2), method: network === 'almadar' ? 'المدار' : 'ليبيانا', auto: true, page: 'money', ref: fingerprint }, 'deposits.view');
       background(promoFirstDeposit(env, claim.uid, amountUsd, fingerprint));
       return { success: true, parsed: true, matched: true, via: 'claim', credited_usd: amountUsd };
     } catch (e) {
@@ -3686,11 +3808,11 @@ async function requireAuth(request, env) {
   let b = _banCache.get(uid);
   if (!b || b.exp < Date.now()) {
     const userDoc = await fsGet(env, `users/${uid}`);
-    b = { banned: !!(userDoc && userDoc.banned === true), exp: Date.now() + 300000 };
+    b = { banned: !!(userDoc && userDoc.banned === true), reason: (userDoc && userDoc.ban_reason) || '', exp: Date.now() + 120000 };
     _banCache.set(uid, b);
     if (_banCache.size > 5000) _banCache.clear();
   }
-  if (b.banned) throw httpError(403, 'حسابك موقوف — تواصل مع الدعم');
+  if (b.banned) throw await bannedError(env, b.reason, uid);
   return { uid, email: payload.email || '', auth_time: Number(payload.auth_time) || 0 };
 }
 
@@ -3698,7 +3820,7 @@ function corsHeaders(origin) {
   return {
     'access-control-allow-origin': origin,
     'access-control-allow-methods': 'GET, POST, OPTIONS',
-    'access-control-allow-headers': 'content-type, authorization, x-firebase-appcheck',
+    'access-control-allow-headers': 'content-type, authorization, x-firebase-appcheck, x-kd, x-kf',
     'access-control-max-age': '86400',
     'vary': 'Origin',
   };
@@ -3896,6 +4018,7 @@ async function handleManualDeposit(user, body, env) {
     status: 'pending', manual: true, created_at: nowIso(),
   });
   notify(env, user.uid, 'deposit_pending', { amount: amount.toFixed(2) + (method === 'binance' ? ' USDT' : ' د.ل'), method: String(m.label || method) });
+  staffAlert(env, 'adm_deposit', { uid: user.uid, amount: amount.toFixed(2) + (method === 'binance' ? ' USDT' : ' د.ل'), method: String(m.label || method), page: 'money' }, 'deposits.view');
   return { success: true, id, amount_usd: amountUsd };
 }
 
@@ -4231,6 +4354,17 @@ const MAIL = {
   m_renewed: (v) => ['تم تجديد اشتراك متجرك ✓', [`متجر <b>${escHtml(v.store)}</b> فعّال حتى ${escHtml(v.until)}.`], 'لوحة متجري'],
   ticket_reply: (v) => ['ردّ فريق الدعم على تذكرتك 💬', [`تذكرتك «<b>${escHtml(v.subject)}</b>» وصلها رد جديد:`, `<i>${escHtml(v.preview)}</i>`, 'افتح كاردو ← الدعم لقراءة الرد كاملًا والرد عليه.'], 'عرض الرد'],
   transfer_in: (v) => ['وصلك تحويل', [`استلمت <b>$${escHtml(v.amount)}</b> من مستخدم في كاردو.`], 'فتح المحفظة'],
+  // v60 — إشعارات الإدارة (هاتف + داخل اللوحة، بدون بريد)
+  adm_ticket: (v) => ['🎫 تذكرة جديدة', [`${escHtml(v.who)}: «${escHtml(v.subject)}»`, escHtml(v.preview || '')], 'الدعم'],
+  adm_ticket_msg: (v) => ['💬 رد جديد على تذكرة', [`${escHtml(v.who)} في «${escHtml(v.subject)}»: ${escHtml(v.preview || '')}`], 'الدعم'],
+  adm_deposit: (v) => [v.auto ? '💰 إيداع تلقائي انضاف' : '💰 إيداع جديد يحتاج مراجعة', [`${escHtml(v.who)} — <b>${escHtml(v.amount)}</b> عبر ${escHtml(v.method || '')}`], 'المال'],
+  adm_withdraw: (v) => ['🏧 طلب سحب جديد', [`${escHtml(v.who)} — <b>$${escHtml(v.amount)}</b> (${escHtml(v.method || '')})`], 'المال'],
+  adm_transfer: (v) => ['🔁 تحويل بين مستخدمين', [`${escHtml(v.who)} حوّل <b>$${escHtml(v.amount)}</b> إلى ${escHtml(v.to)}`], 'العملاء'],
+  adm_rsc: (v) => [v.ok ? '🛒 طلب متجر اكتمل' : '⚠️ طلب متجر فشل', [`${escHtml(v.who)} — ${escHtml(v.name)} ($${escHtml(v.amount)})`, v.reason ? escHtml(v.reason) : ''], 'طلبات المتجر'],
+  adm_card: (v) => ['💳 طلب بطاقة جديد', [`${escHtml(v.who)} — <b>$${escHtml(v.amount)}</b>`], 'طلبات البطاقات'],
+  adm_order: (v) => ['🛍 طلب خدمة جديد', [`${escHtml(v.who)} — ${escHtml(v.name)} (${escHtml(v.amount)})`], 'الطلبات'],
+  adm_blocked_dev: (v) => ['🚫 محاولة من جهاز محظور', [`${escHtml(v.who)} فتح حساب/دخل من جهاز مرتبط بحساب محظور (${escHtml(v.banned)}) — انحظر تلقائيًا.`], 'العملاء'],
+  adm_test: () => ['🔔 إشعار تجريبي', ['لو شفت هذا، إشعارات الإدارة شغالة على هذا الجهاز ✓'], 'لوحة الإدارة'],
 };
 
 async function notifyUser(env, uid, kind, vars = {}) {
@@ -4252,6 +4386,16 @@ async function handleAdminMailTest(user, body, env) {
   const ok = await notifyUser(env, staff.uid, 'test', {});
   if (!ok) throw httpError(502, `فشل الإرسال — رد Resend: ${_lastMailError || 'غير معروف'}`);
   return { success: true };
+}
+
+async function handleAdminPushTest(user, body, env) {          // v60: يجرّب الإشعار على أجهزة هذا الموظف ويقول كم جهاز وصله
+  const staff = await getStaff(env, user.uid);
+  if (!staff) throw httpError(403, 'غير مصرّح');
+  const u = await fsGet(env, `users/${user.uid}`);
+  const n = u && Array.isArray(u.push_tokens) ? u.push_tokens.length : 0;
+  if (!n) throw httpError(400, 'ما فيش جهاز مسجّل للإشعارات — اضغط «تفعيل الإشعارات» من هذا الجهاز');
+  const r = await sendPush(env, user.uid, u, 'adm_test', { page: 'home' });
+  return { success: true, devices: n, sent: (r && r.sent) || 0, dead: (r && r.dead) || 0 };
 }
 
 async function handleNotifyPrefs(user, body, env) {
@@ -5475,22 +5619,25 @@ async function handlePushRegister(user, body, env) {
 }
 async function sendPush(env, uid, u, kind, vars) {
   const tokens = u && Array.isArray(u.push_tokens) ? u.push_tokens.slice(0, 5) : [];
-  if (!tokens.length || !MAIL[kind]) return;
+  if (!tokens.length || !MAIL[kind]) return { sent: 0, dead: 0 };
   const [title, lines] = MAIL[kind](vars || {});
   const body = lines.filter(Boolean).map(stripHtml).join(' ').slice(0, 180);
-  const link = /_admin$/.test(kind) ? `${siteUrl(env)}/admin.html` : `${siteUrl(env)}/${(vars || {}).link ? 'index.html#n=' + encodeURIComponent(vars.link) : 'index.html'}`;
+  const isAdm = /_admin$|^adm_|^crypto_unmatched$/.test(kind);
+  const link = isAdm ? `${siteUrl(env)}/admin.html${(vars || {}).page ? '#p=' + encodeURIComponent(vars.page) : ''}` : `${siteUrl(env)}/${(vars || {}).link ? 'index.html#n=' + encodeURIComponent(vars.link) : 'index.html'}`;
+  const tag = (kind + ':' + String((vars || {}).ref || Date.now().toString(36) + randomSuffix(3))).slice(0, 64);   // v60: كل إشعار له tag خاص — ما يمسحش اللي قبله
   const at = await getAccessToken(env);
   const dead = [];
   await Promise.all(tokens.map(async token => {
     const r = await fetch(`https://fcm.googleapis.com/v1/projects/${env.FIREBASE_PROJECT_ID}/messages:send`, {
       method: 'POST', headers: { authorization: `Bearer ${at}`, 'content-type': 'application/json' },
       body: JSON.stringify({ message: { token,
-        data: { title: stripHtml(title).slice(0, 100), body, link },
+        data: { title: stripHtml(title).slice(0, 100), body, link, tag },
         webpush: { headers: { Urgency: 'high', TTL: '86400' } } } }),
     }).catch(() => null);
     if (r && (r.status === 404 || r.status === 400)) dead.push(token);
   }));
   if (dead.length) await fsPatch(env, `users/${uid}`, { push_tokens: tokens.filter(t => !dead.includes(t)) }).catch(() => {});
+  return { sent: tokens.length - dead.length, dead: dead.length };
 }
 
 
@@ -5911,6 +6058,32 @@ async function imageIdKnown(env, kind, id) {
   if (kind === 'y') return snap.c.some(x => x._id === id);
   return false;
 }
+/* v60 — إشعارات الموظفين: هاتف + داخل اللوحة لكل من عنده صلاحية القسم (بدون بريد) */
+let _staffList = { v: null, exp: 0 };
+async function staffList(env) {
+  if (_staffList.v && _staffList.exp > Date.now()) return _staffList.v;
+  const v = (await fsQueryRaw(env, { from: [{ collectionId: 'admins' }], limit: 50 }).catch(() => [])).map(r => withId(r, 'admins')).filter(a => a.disabled !== true && STAFF_ROLES.includes(a.role));
+  _staffList = { v, exp: Date.now() + 120000 };
+  return v;
+}
+async function whoOf(env, uid) {
+  if (!uid) return '—';
+  const u = await fsGet(env, `users/${uid}`).catch(() => null);
+  return String((u && (u.name || u.email)) || uid).slice(0, 60);
+}
+async function staffAlertNow(env, kind, vars, perm) {
+  const v = { ...vars };
+  if (v.uid && !v.who) v.who = await whoOf(env, v.uid);
+  if (v.to_uid && !v.to) v.to = await whoOf(env, v.to_uid);
+  for (const a of (await staffList(env)).filter(a => staffCan(a, perm))) {
+    if (v.uid && a._id === v.uid) continue;                         // ما نبلّغش الموظف على حركته هو
+    await pushInApp(env, a._id, kind, v).catch(() => {});
+    const u = await fsGet(env, `users/${a._id}`).catch(() => null);
+    await sendPush(env, a._id, u, kind, v).catch(e => console.error('STAFF_PUSH_FAILED', kind, e && e.message));
+  }
+}
+function staffAlert(env, kind, vars, perm) { background(staffAlertNow(env, kind, vars || {}, perm).catch(e => console.error('STAFF_ALERT_FAILED', kind, e && e.message))); }
+
 async function alertAdmins(env, kind, vars) {
   const admins = await fsQueryRaw(env, { from: [{ collectionId: 'admins' }], limit: 50 }).catch(() => []);
   for (const a of admins.map(r => withId(r, 'admins')).filter(a => a.role === 'super_admin')) await notifyUser(env, a._id, kind, vars).catch(() => {});
@@ -7556,6 +7729,7 @@ async function rscApply(env, oid, j) {
     await fsPatch(env, `rsc_orders/${oid}`, { status: 'completed', codes_enc: await encCodes(env, `rsc:${oid}`, codes), codes_n: codes.length,
       completed_at: nowIso(), updated_at: nowIso(), charged_usd: num(j.charged_usd, 0) });
     notify(env, o.uid, 'rsc_done', { name: `${o.cat_name} — ${o.offer_name}`, codes: codes.length > 0 });
+    staffAlert(env, 'adm_rsc', { uid: o.uid, ok: true, name: `${o.cat_name} — ${o.offer_name}`, amount: num(o.total_usd, 0).toFixed(2), page: 'sorders' }, 'orders.view');
   } else if (st === 'failed' || st === 'refund' || st === 'refunded' || st === 'cancelled') {
     const code = String(j.fail_code || '').toLowerCase();
     await rscRefund(env, oid, RSC_FAIL_AR[code] || String(j.status_reason || 'تعذّر تنفيذ الطلب').slice(0, 120), 'system', code);
@@ -7575,7 +7749,7 @@ async function rscRefund(env, oid, reason, by, code) {
     ledgerClose(tx, L, { total_spent: Math.max(0, round2(num(L.doc.total_spent, 0) - num(o.total_usd, 0))) });
     tx.update(`rsc_orders/${oid}`, { status: 'refunded', fail_reason: String(reason || '').slice(0, 160), fail_code: String(code || '').slice(0, 60), refunded_by: by || 'system', updated_at: nowIso() });
   });
-  if (o0) notify(env, o0.uid, 'rsc_failed', { name: `${o0.cat_name} — ${o0.offer_name}`, amount: num(o0.total_usd, 0).toFixed(2), reason });
+  if (o0) { notify(env, o0.uid, 'rsc_failed', { name: `${o0.cat_name} — ${o0.offer_name}`, amount: num(o0.total_usd, 0).toFixed(2), reason }); staffAlert(env, 'adm_rsc', { uid: o0.uid, ok: false, name: `${o0.cat_name} — ${o0.offer_name}`, amount: num(o0.total_usd, 0).toFixed(2), reason, page: 'sorders' }, 'orders.view'); }
 }
 
 async function rscOrderView(env, oid, uid) {
@@ -7608,7 +7782,7 @@ async function handleRscMyOrders(user, body, env) {
 function rscAlertAdmins(env, oid, why) {
   background((async () => {
     const admins = await fsQueryRaw(env, { from: [{ collectionId: 'admins' }], limit: 30 }).catch(() => []);
-    for (const a of admins.map(r => withId(r, 'admins')).filter(a => a.role === 'super_admin')) await pushInApp(env, a._id, 'rsc_admin', { oid, why }).catch(() => {});
+    for (const a of admins.map(r => withId(r, 'admins')).filter(a => a.role === 'super_admin')) { await pushInApp(env, a._id, 'rsc_admin', { oid, why }).catch(() => {}); const u = await fsGet(env, `users/${a._id}`).catch(() => null); await sendPush(env, a._id, u, 'rsc_admin', { oid, why, page: 'sorders' }).catch(() => {}); }
   })());
 }
 
@@ -7647,7 +7821,7 @@ async function rscCron(env, hourly) {
 /* ─── الأدمن ─── */
 async function handleAdminRsc(user, body, env) {
   const action = String(body.action || 'state');
-  const perm = ['state', 'orders'].includes(action) ? 'orders.view' : action === 'order' ? 'orders.approve' : 'store.edit';
+  const perm = ['state', 'orders', 'olist'].includes(action) ? 'orders.view' : action === 'order' ? 'orders.approve' : 'store.edit';
   const staff = await requirePermission(user, env, perm);
   const s = await getSettings(env);
   const cfg = await rscCfg(env);
@@ -7773,6 +7947,35 @@ async function handleAdminRsc(user, body, env) {
     await rscCfgSave(env, cfg);
     await logOp(env, staff.uid, 'rsc.cat', { key }, { on: cur.on }, true);
     return { success: true };
+  }
+  if (action === 'olist') {                                          // v60: صفحة «طلبات المتجر» — فلتر + بحث + مدة + ملخص
+    const st = String(body.st || 'all'), days = Math.min(365, Math.max(0, Math.floor(num(body.days, 7))));
+    const q = String(body.q || '').trim().toLowerCase().slice(0, 60);
+    const ST = { done: ['completed'], fail: ['refunded', 'failed'], open: ['unknown', 'submitting', 'created', 'processing'] };
+    let items = [];
+    if (env.DB && await d1Table(env, 'rsc_orders')) {
+      const w = [], a = [];
+      if (ST[st]) { w.push(`status IN (${ST[st].map(() => '?').join(',')})`); a.push(...ST[st]); }
+      if (days) { w.push('created_at > ?'); a.push(new Date(Date.now() - days * 86400000).toISOString()); }
+      if (/^[A-Za-z0-9_-]{20,128}$/.test(q)) { w.push('uid = ?'); a.push(body.q.trim()); }
+      const rows = await d1All(env, `SELECT id, data FROM rsc_orders ${w.length ? 'WHERE ' + w.join(' AND ') : ''} ORDER BY created_at DESC LIMIT 600`, a).catch(() => []);
+      items = rows.map(r => { let d = {}; try { d = JSON.parse(r.data); } catch {} return { id: r.id, ...d }; });
+    } else {
+      for (const x of (ST[st] || [...ST.open, ...ST.done, ...ST.fail])) {
+        const rows = await fsQueryRaw(env, { from: [{ collectionId: 'rsc_orders' }], where: { fieldFilter: { field: { fieldPath: 'status' }, op: 'EQUAL', value: { stringValue: x } } }, limit: 100 }).catch(() => []);
+        items.push(...rows.map(r => { const o = withId(r, 'rsc_orders'); return { id: o._id, ...o }; }));
+      }
+      if (days) { const from = new Date(Date.now() - days * 86400000).toISOString(); items = items.filter(o => String(o.created_at || '') > from); }
+      items.sort((x, y) => String(y.created_at || '').localeCompare(String(x.created_at || '')));
+    }
+    const names = await userNamesMap(env, items.slice(0, 600).map(o => o.uid));
+    let list = items.map(o => { const u = names.get(o.uid) || {}; return { id: o.id, uid: o.uid, name: u.name || '', email: u.email || '', status: o.status, cat_name: o.cat_name || '', offer_name: o.offer_name || '', qty: o.qty || 1,
+      total_usd: num(o.total_usd, 0), cost_usd: num(o.cost_usd, 0), number: o.number || '', fields: o.fields || {}, fail_reason: o.fail_reason || '', provider_error: o.provider_error || '', created_at: o.created_at || '' }; });
+    if (q && !/^[A-Za-z0-9_-]{20,128}$/.test(q)) list = list.filter(o => [o.id, o.number, o.cat_name, o.offer_name, o.name, o.email, ...Object.values(o.fields || {})].join(' ').toLowerCase().includes(q));
+    const done = list.filter(o => o.status === 'completed');
+    const sum = { n: list.length, done: done.length, fail: list.filter(o => ST.fail.includes(o.status)).length, open: list.filter(o => ST.open.includes(o.status)).length,
+      sales: round2(done.reduce((t, o) => t + o.total_usd, 0)), profit: round2(done.reduce((t, o) => t + o.total_usd - o.cost_usd, 0)) };
+    return { success: true, orders: list.slice(0, 200), sum };
   }
   if (action === 'orders') {
     const out = [];
@@ -7961,14 +8164,141 @@ async function scanUnmatched(env, s, dep, pay) {
     background((async () => {
       const admins = await fsQueryRaw(env, { from: [{ collectionId: 'admins' }], limit: 30 }).catch(() => []);
       for (const a of admins.map(r => withId(r, 'admins')).filter(a => a.role === 'super_admin' || staffCan(a, 'deposits.approve')))
-        await notifyUser(env, a._id, 'crypto_unmatched', { amount: i.amount.toFixed(4), network: (CRYPTO_NETS[i.network] || {}).label || i.network }).catch(() => {});
+        await notifyUser(env, a._id, 'crypto_unmatched', { amount: i.amount.toFixed(4), network: (CRYPTO_NETS[i.network] || {}).label || i.network, page: 'unmatched', ref: uid }).catch(() => {});
     })());
   }
 }
 
+/* ═══ v60 — تحليل العمليات غير المطابقة: كل الفواتير القريبة + المحفظة المرسلة + التوقيت ═══ */
+const _jp = t => { try { return JSON.parse(t); } catch { return {}; } };
+async function unmWallet(env, from, exceptKey) {
+  if (!from || !env.DB || !(await d1Table(env, 'usdt_txids'))) return [];
+  const rows = await d1All(env, `SELECT id, data FROM usdt_txids WHERE json_extract(data, '$.from') = ? LIMIT 60`, [String(from)]).catch(() => []);
+  const by = new Map();
+  for (const r of rows) { if (r.id === exceptKey) continue; const d = _jp(r.data); if (!d.uid) continue; const x = by.get(d.uid) || { uid: d.uid, n: 0, total: 0, last: '' }; x.n++; x.total = round2(x.total + num(d.amount, 0)); if (String(d.created_at || '') > x.last) x.last = d.created_at || ''; by.set(d.uid, x); }
+  return [...by.values()].sort((a, b) => b.n - a.n);
+}
+async function unmAnalyze(env, it) {
+  const amount = num(it.amount, 0), at = num(it.at_ms, 0) || Date.parse(it.created_at || '') || Date.now();
+  const tol = Math.max(1, amount * 0.1);
+  const out = { amount, at_ms: at, network: it.network || '', from: it.from || '', txid: it.txid || '', candidates: [], wallet: [] };
+  out.wallet = await unmWallet(env, it.from, it.key);
+  const walletUids = new Set(out.wallet.map(w => w.uid));
+  let rows = [];
+  if (env.DB && await d1Table(env, 'usdt_invoices')) {
+    rows = await d1All(env, `SELECT id, data FROM usdt_invoices WHERE created_at BETWEEN ? AND ? AND abs(json_extract(data, '$.pay_amount') - ?) <= ?
+      ORDER BY abs(json_extract(data, '$.pay_amount') - ?) LIMIT 12`,
+      [new Date(at - 48 * 3600000).toISOString(), new Date(at + 10 * 60000).toISOString(), amount, tol, amount]).catch(() => []);
+  }
+  for (const r of rows) {
+    const d = _jp(r.data);
+    const created = num(d.created_ms, 0) || Date.parse(d.created_at || '') || 0;
+    const diff = round4(amount - num(d.pay_amount, 0)), ad = Math.abs(diff);
+    const mins = created ? Math.round((at - created) / 60000) : null;
+    const inWin = created && at >= created && at <= num(d.expires_ms, created + 30 * 60000) + 5 * 60000;
+    const sameTx = it.txid && d.txid && String(d.txid).toLowerCase() === String(it.txid).toLowerCase();
+    let sc = ad <= 0.01 ? 45 : ad <= 0.1 ? 38 : ad <= 0.5 ? 28 : ad <= 1 ? 15 : 5;
+    sc += mins == null || mins < 0 ? 0 : inWin ? 30 : mins <= 120 ? 22 : mins <= 1440 ? 12 : 4;
+    if ((d.network || '') === (it.network || '')) sc += 10;
+    if (d.status !== 'paid') sc += 10;
+    const why = [];
+    if (walletUids.has(d.uid)) { sc += 25; why.push('نفس المحفظة دفعت قبل لنفس المستخدم'); }
+    if (sameTx) { sc = 100; why.push('الفاتورة مدفوعة بنفس رقم المعاملة'); }
+    if (d.status === 'paid' && !sameTx) { sc -= 20; why.push('الفاتورة مدفوعة قبل بمعاملة ثانية'); }
+    if (mins != null && mins < 0) why.push('الفاتورة انعملت بعد ما وصل التحويل');
+    if (inWin) why.push('التحويل وصل داخل مهلة الفاتورة');
+    out.candidates.push({ invoice_id: r.id, no: d.no || '', uid: d.uid || '', pay_amount: num(d.pay_amount, 0), amount_usd: num(d.amount_usd, 0), diff, network: d.network || '', status: d.status || '',
+      created_at: d.created_at || '', expires_ms: num(d.expires_ms, 0), paid_at: d.paid_at || '', mins, score: Math.max(0, Math.min(100, sc)), why });
+  }
+  // مستخدمين المحفظة اللي ما عندهمش فاتورة قريبة — يطلعوا كمرشّحين برضو
+  for (const w of out.wallet) if (!out.candidates.some(c => c.uid === w.uid)) out.candidates.push({ invoice_id: '', uid: w.uid, pay_amount: null, diff: null, network: '', status: '', created_at: '', mins: null, score: Math.min(85, 50 + w.n * 10), why: [`نفس المحفظة بعتت له ${w.n} مرة قبل`] });
+  out.candidates.sort((a, b) => b.score - a.score);
+  const names = await userNamesMap(env, [...out.candidates.map(c => c.uid), ...out.wallet.map(w => w.uid), it.uid].filter(Boolean));
+  out.candidates.forEach(c => { const u = names.get(c.uid) || {}; c.name = u.name || ''; c.email = u.email || ''; c.level = c.score >= 75 ? 'strong' : c.score >= 50 ? 'mid' : 'weak'; });
+  out.wallet.forEach(w => { const u = names.get(w.uid) || {}; w.name = u.name || ''; w.email = u.email || ''; });
+  if (it.uid) {
+    const u = names.get(it.uid) || {};
+    out.assigned = { uid: it.uid, name: u.name || '', email: u.email || '', by: it.by || '', invoice_id: it.invoice_id || '' };
+    const top = out.candidates[0];
+    if (top && top.uid !== it.uid && top.score >= 50) out.warn = `المرشّح الأقوى (${top.name || top.email || top.uid} — ${top.score}%) مش هو اللي انضافله المبلغ`;
+  }
+  return out;
+}
+async function unmHistory(env, days) {
+  if (!env.DB || !(await d1Table(env, 'usdt_txids'))) return [];
+  const rows = await d1All(env, `SELECT id, data FROM usdt_txids WHERE created_at > ? ORDER BY created_at DESC LIMIT 80`, [new Date(Date.now() - days * 86400000).toISOString()]).catch(() => []);
+  const items = rows.map(r => { const d = _jp(r.data); const by = String(d.by || 'system'); return { key: r.id, uid: d.uid || '', amount: num(d.amount, 0), network: d.network || '', from: d.from || '', invoice_id: d.invoice_id || '', created_at: d.created_at || '',
+    how: /^(system|cron|user)$/.test(by) ? 'auto' : 'manual', reassigned_from: d.reassigned_from || '' }; });
+  const names = await userNamesMap(env, items.map(i => i.uid));
+  items.forEach(i => { const u = names.get(i.uid) || {}; i.name = u.name || ''; i.email = u.email || ''; });
+  return items;
+}
+async function unmFindUser(env, body) {
+  if (body.to_invoice) {
+    const inv = await fsGet(env, `usdt_invoices/${String(body.to_invoice)}`);
+    if (!inv || !inv.uid) throw httpError(404, 'الفاتورة غير موجودة');
+    return { uid: inv.uid, invoice_id: String(body.to_invoice), inv };
+  }
+  if (body.to_uid && /^[A-Za-z0-9_-]{6,128}$/.test(String(body.to_uid))) return { uid: String(body.to_uid), invoice_id: '' };
+  const email = String(body.email || '').trim().toLowerCase();
+  if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) throw httpError(400, 'أدخل بريد المستخدم');
+  const r = await fsQueryRaw(env, { from: [{ collectionId: 'users' }], where: { fieldFilter: { field: { fieldPath: 'email' }, op: 'EQUAL', value: { stringValue: email } } }, limit: 2 });
+  if (r.length !== 1) throw httpError(404, 'ما لقينا مستخدم بهذا البريد');
+  return { uid: withId(r[0], 'users')._id, invoice_id: '' };
+}
+
 async function handleAdminUnmatched(user, body, env) {
   const action = String(body.action || 'list');
-  const staff = await requirePermission(user, env, action === 'list' ? 'deposits.view' : 'deposits.approve');
+  const staff = await requirePermission(user, env, ['list', 'list2', 'history', 'analyze'].includes(action) ? 'deposits.view' : 'deposits.approve');
+  if (action === 'list2') {                                          // v60: المفتوحة مع التحليل الكامل
+    const rows = await d1All(env, `SELECT id, data FROM crypto_unmatched WHERE status = 'open' ORDER BY ts DESC LIMIT 30`).catch(() => []);
+    const items = [];
+    for (const r of rows) { const d = _jp(r.data); items.push({ id: r.id, ...d, an: await unmAnalyze(env, d) }); }
+    return { success: true, items };
+  }
+  if (action === 'history') return { success: true, items: await unmHistory(env, Math.min(90, Math.max(1, num(body.days, 14)))) };
+  if (action === 'analyze') {
+    const key = String(body.key || '');
+    if (!key || key.length > 140) throw httpError(400, 'معرّف غير صالح');
+    const t = await fsGet(env, `usdt_txids/${key}`);
+    if (!t) throw httpError(404, 'المعاملة غير موجودة');
+    const um = await fsGet(env, `crypto_unmatched/U${(await sha256Hex(key)).slice(0, 30)}`).catch(() => null);
+    let inv = null; if (t.invoice_id) inv = await fsGet(env, `usdt_invoices/${t.invoice_id}`).catch(() => null);
+    const txid = (um && um.txid) || (inv && inv.txid) || key.replace(/^[a-z0-9]+_/, '');
+    const an = await unmAnalyze(env, { key, amount: t.amount, network: t.network, from: t.from, txid, at_ms: (um && um.at_ms) || 0, created_at: t.created_at, uid: t.uid, by: t.by, invoice_id: t.invoice_id });
+    return { success: true, key, item: { ...t, key, txid }, an };
+  }
+  if (action === 'reassign') {                                       // v60: تصحيح إسناد غلط — ينقص من الأول ويضيف للصحيح
+    if (staff.role !== 'super_admin') throw httpError(403, 'للمسؤول الرئيسي فقط');
+    const key = String(body.key || '');
+    const t0 = await fsGet(env, `usdt_txids/${key}`);
+    if (!t0) throw httpError(404, 'المعاملة غير موجودة');
+    const dest = await unmFindUser(env, body);
+    if (dest.uid === t0.uid) throw httpError(400, 'المبلغ أصلًا عند هذا المستخدم');
+    const amt = round2(num(t0.amount, 0));
+    if (!(amt > 0)) throw httpError(400, 'مبلغ غير صالح');
+    const allowNeg = body.allow_negative === true;
+    const rid = `RA${Date.now()}${randomSuffix(4)}`;
+    const umId = `U${(await sha256Hex(key)).slice(0, 30)}`;
+    await fsRunTransaction(env, async (tx) => {
+      const t = await tx.get(`usdt_txids/${key}`);
+      if (!t || t.uid !== t0.uid) throw httpError(409, 'تغيّرت المعاملة — حدّث الصفحة');
+      const A = await ledgerOpen(tx, t.uid), B = await ledgerOpen(tx, dest.uid);
+      if (A.bal < amt && !allowNeg) throw httpError(402, `رصيد المستخدم الحالي ${A.bal}$ أقل من ${amt}$ — صرف جزء منه. أكّد السحب بالسالب لو تبي تكمّل`);
+      await ledgerPost(A, { type: 'debit', amount: amt, reason: 'usdt_reassign_out', reference: rid, entryId: `txn_ra_out_${rid}`, created_by: staff.uid, note: 'تصحيح إسناد إيداع USDT', allowNegative: true });
+      await ledgerPost(B, { type: 'credit', amount: amt, reason: 'usdt_reassign_in', reference: rid, entryId: `txn_ra_in_${rid}`, created_by: staff.uid, note: 'تصحيح إسناد إيداع USDT' });
+      ledgerClose(tx, A); ledgerClose(tx, B);
+      tx.update(`usdt_txids/${key}`, { uid: dest.uid, invoice_id: dest.invoice_id || '', reassigned_from: t.uid, reassigned_by: staff.uid, reassigned_at: nowIso() });
+      if (t.invoice_id && t.invoice_id !== dest.invoice_id) { const oi = await tx.get(`usdt_invoices/${t.invoice_id}`); if (oi && oi.uid === t.uid) tx.update(`usdt_invoices/${t.invoice_id}`, { status: 'expired', reassigned_to: dest.uid, reassigned_at: nowIso() }); }
+      if (dest.invoice_id) { const ni = await tx.get(`usdt_invoices/${dest.invoice_id}`); if (ni && ni.status !== 'paid') tx.update(`usdt_invoices/${dest.invoice_id}`, { status: 'paid', txid: String(key).replace(/^[a-z0-9]+_/, ''), paid_at: nowIso(), received: amt, late: true, paid_by: staff.uid }); }
+      const um = await tx.get(`crypto_unmatched/${umId}`);
+      if (um) tx.update(`crypto_unmatched/${umId}`, { uid: dest.uid, invoice_id: dest.invoice_id || '', reassigned_from: t.uid, resolved_by: staff.uid, resolved_at: nowIso() });
+      tx.create('wallet_deposits', rid, { uid: dest.uid, amount_usd: amt, amount_lyd: 0, method: `${(CRYPTO_NETS[t.network] || {}).label || 'USDT'} — تصحيح إسناد`, proof_url: '', note: 'منقول من حساب آخر', status: 'approved', auto: false, created_at: nowIso(), reviewed_by: staff.uid });
+    });
+    await logOp(env, staff.uid, 'crypto.reassign', { key, from: t0.uid, to: dest.uid }, { amount: amt, rid }, true);
+    notify(env, dest.uid, 'deposit_ok', { amount: amt.toFixed(2), method: 'USDT' });
+    return { success: true, moved: amt, from: t0.uid, to: dest.uid };
+  }
   if (action === 'list') {
     const rows = await d1All(env, `SELECT id, data FROM crypto_unmatched WHERE status = 'open' ORDER BY ts DESC LIMIT 50`).catch(() => []);
     const items = rows.map(r => { let d = {}; try { d = JSON.parse(r.data); } catch {} return { id: r.id, ...d }; });
@@ -7994,6 +8324,9 @@ async function handleAdminUnmatched(user, body, env) {
     const inv = await fsGet(env, `usdt_invoices/${invoiceId}`);
     if (!inv) throw httpError(404, 'الفاتورة غير موجودة');
     uid = inv.uid;
+  } else if (body.uid && /^[A-Za-z0-9_-]{6,128}$/.test(String(body.uid))) {   // v60: إسناد مباشر لمرشّح (من المحفظة)
+    uid = String(body.uid);
+    if (!(await fsGet(env, `users/${uid}`))) throw httpError(404, 'المستخدم غير موجود');
   } else {
     const email = String(body.email || '').trim().toLowerCase();
     if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) throw httpError(400, 'أدخل بريد المستخدم');
@@ -8193,7 +8526,8 @@ async function handleAdminUserFile(user, body, env) {
     orders: rsc && rsc.map(o => pick(o, ['id', 'cat_name', 'offer_name', 'qty', 'total_usd', 'status', 'created_at'])),
     invoices: inv && inv.map(v => invView({ ...v, _id: v.id })),
     tickets: tks && tks.map(t => pick(t, ['id', 'subject', 'status', 'updated_at', 'created_at'])),
-    withdrawals: wds && wds.map(w => pick(w, ['id', 'method', 'amount_usd', 'status', 'created_at'])) };
+    withdrawals: wds && wds.map(w => pick(w, ['id', 'method', 'amount_usd', 'status', 'created_at'])),
+    ident: await userLinks(env, uid).catch(e => ({ err: e.message, devices: [], links: [], wallets: [], phones: [] })) };
 }
 
 

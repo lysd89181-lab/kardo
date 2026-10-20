@@ -472,7 +472,20 @@ function subscribe() {
 /* ═══ Boot ═══ */
 function boot() {
   buildNav();
-  render();
+  const hp = admHashPage();                                          // v60: الإشعار يفتح القسم المعني مباشرة
+  if (hp) go(hp); else render();
+  if (pushOn()) setTimeout(() => registerPushToken(true), 3000);    // v60: تجديد التوكن مع كل فتح (كان في صفحة وحدة بس)
+  window.addEventListener('hashchange', () => { const p = admHashPage(); if (p) go(p); });
+}
+function admHashPage() {
+  const m = /[#&]p=([a-z_]+)/.exec(location.hash || '');
+  if (!m) return '';
+  try { history.replaceState(null, '', location.pathname + location.search); } catch {}
+  return m[1];
+}
+async function pushTestA() {
+  try { const r = await api('/api/admin/push/test', {}); toast(r.sent ? `انبعت لـ ${r.sent} جهاز — لو ما وصلكش، شيل الإشعارات وفعّلها من جديد` : 'ما وصل لحتى جهاز — فعّل الإشعارات من جديد', r.sent ? 'ok' : 'bad'); }
+  catch (e) { toast(e.message, 'bad'); }
 }
 
 window.refreshAll = () => render();
@@ -484,10 +497,12 @@ const PAGES = [
   { k: 'rsc',       t: 'المتجر',     i: I.bag,    g: 'main', badge: 'rscAttn' },
   { k: 'users',     t: 'العملاء',    i: I.users,  g: 'main' },
   { k: 'more',      t: 'المزيد',     i: I.grid,   g: 'main' },
+  { k: 'sorders',   t: 'طلبات المتجر', i: I.bag,  g: 'الطلبات والعمليات', badge: 'rscAttn' },
+  { k: 'unmatched', t: 'عمليات غير مطابقة', i: I.warn, g: 'الطلبات والعمليات', badge: 'unmB' },
   { k: 'tickets',   t: 'الدعم',      i: I.ticket, g: 'المتجر والعملاء', badge: 'openTic' },
   { k: 'coupons',   t: 'الكوبونات',  i: I.coupon, g: 'المتجر والعملاء' },
-  { k: 'mcards',    t: 'طلبات البطاقات', i: I.card, g: 'البطاقات', badge: 'pendMc' },
-  { k: 'cards',     t: 'البطاقات المُصدرة', i: I.card, g: 'البطاقات' },
+  { k: 'mcards',    t: 'طلبات البطاقات', i: I.card, g: 'الطلبات والعمليات', badge: 'pendMc' },
+  { k: 'cards',     t: 'كل البطاقات', i: I.card, g: 'الطلبات والعمليات' },
   { k: 'analytics', t: 'تحليل الزوار', i: I.chart, g: 'المتجر والعملاء' },
   { k: 'methods',   t: 'طرق الدفع',  i: I.cash,   g: 'الإعدادات' },
   { k: 'howto',     t: 'كيف أدفع؟',  i: I.help,   g: 'الإعدادات' },
@@ -531,7 +546,7 @@ const ROLE_DEFAULT_PERMS = {
   support: { tickets: ['view', 'reply', 'close'], users: ['view', 'ban'] },
   ops: { mcards: ['view', 'approve'], cards: ['view', 'edit'], orders: ['view', 'approve'], store: ['view', 'add', 'edit', 'delete'], services: ['view', 'add', 'edit', 'delete', 'approve'], users: ['view'] },
 };
-const PAGE_SEC = { rsc: 'store', platforms: 'stickers', mview: 'merchants', mcards: 'mcards', cards: 'cards', orders: 'orders', services: 'services', store: 'store', deposits: 'deposits',
+const PAGE_SEC = { sorders: 'orders', unmatched: 'deposits', rsc: 'store', platforms: 'stickers', mview: 'merchants', mcards: 'mcards', cards: 'cards', orders: 'orders', services: 'services', store: 'store', deposits: 'deposits',
   withdraw: 'withdraw', sms: 'sms', tickets: 'tickets', coupons: 'coupons', users: 'users', stickers: 'stickers', merchants: 'merchants', settings: '__super', system: '__super', methods: '__super', analytics: 'users', howto: '__super', reviews: 'users', contact: '__super', sections: '__super' };
 function isSuperAdmin() { return S.admin && S.admin.role === 'super_admin'; }
 function myPerms() { const a = S.admin || {}; return (a.perms && typeof a.perms === 'object') ? a.perms : (ROLE_DEFAULT_PERMS[a.role] || {}); }
@@ -579,7 +594,7 @@ const pendWd = () => S.withdrawals.filter(w => w.status === 'pending').length;
 const openTic = () => S.tickets.filter(t => t.status === 'open').length;
 
 const openReports = () => (S.mreports || []).filter(r => r.status === 'open').length + (S.mapps || []).length;
-const BADGES = { pendMc: () => S.ov ? ovA('mcards') : pendMc(), pendOrd, pendSvc, pendDep, pendWd, openTic: () => S.ov ? ovA('tickets') : openTic(), openReports, money: () => moneyBadge(), rscAttn: () => ovA('rsc') };
+const BADGES = { unmB: () => ovA('unmatched'), pendMc: () => S.ov ? ovA('mcards') : pendMc(), pendOrd, pendSvc, pendDep, pendWd, openTic: () => S.ov ? ovA('tickets') : openTic(), openReports, money: () => moneyBadge(), rscAttn: () => ovA('rsc') };
 
 function buildNav() {
   DOCK = DOCK_ALL.filter(k => k === 'more' || pageAllowed(k));
@@ -634,6 +649,8 @@ window.go = k => {
   if (k === 'platforms') loadPlatforms();
   if (k === 'store') loadStore();
   if (k === 'rsc') loadRscA();
+  if (k === 'sorders') loadSO();
+  if (k === 'unmatched') loadUnm();
   if (k === 'system') { loadStaff(); loadD1Status(); }
   S.page = k;
   S.q = '';
@@ -661,6 +678,8 @@ function render(force = false) {
     contact: vContactA,
     sections: vSections,
     rsc: vRsc,
+    sorders: vSOrders,
+    unmatched: vUnm,
     mcards: vMcardOrders,
     cards: vCards2,
     orders: vShopOrders,
@@ -766,7 +785,7 @@ function vHome() {
   <div class="page-enter">
     <div class="flex-between mb-4">
       <h1 class="h2" style="margin:0;font-family:var(--font-display)">الرئيسية</h1>
-      ${pushOn() ? '' : '<button class="btn btn-secondary btn-sm" id="pushOnA" type="button">🔔 تفعيل إشعارات الهاتف</button>'}
+      ${pushOn() ? '<button class="btn btn-secondary btn-sm" id="pushTestA" type="button">🔔 إشعار تجريبي</button> <button class="btn btn-ghost btn-sm" id="pushOnA" type="button">إعادة تفعيل</button>' : '<button class="btn btn-secondary btn-sm" id="pushOnA" type="button">🔔 تفعيل إشعارات الهاتف</button>'}
       <span class="caption">${esc(new Date().toLocaleDateString('ar-LY', { weekday: 'long', day: 'numeric', month: 'long' }))}</span>
     </div>
 
@@ -2507,9 +2526,9 @@ function openUserManage(uid) {
         reason = (prompt('سبب الإيقاف (إلزامي):') || '').trim();
         if (reason.length < 3) { $('#uBan').disabled = false; return toast('السبب مطلوب', 'bad'); }
       }
-      await api('/api/admin/user/ban', { uid, banned: !u.banned, reason });
+      const br = await api('/api/admin/user/ban', { uid, banned: !u.banned, reason });
       closeModal();
-      toast(u.banned ? 'أُلغي الإيقاف' : 'أُوقف الحساب', 'ok');
+      toast(u.banned ? 'أُلغي الحظر ✓' : `انحظر الحساب ✓${br.fb ? ' — ومعطّل في تسجيل الدخول' : ' — (تعطيل الدخول من Firebase ما نجحش، الحظر شغّال من السيرفر)'}${br.devices ? ` · ${br.devices} جهاز محظور` : ''}`, br.fb || u.banned ? 'ok' : 'bad');
     } catch (e) {
       toast(e.message, 'bad');
       $('#uBan').disabled = false;
@@ -4347,7 +4366,7 @@ function bind() {
   onTap('#usageGo', async () => { try { const r = await api('/api/admin/usage', {}); S.usage = r; render(true); } catch (e) { toast(e.message, 'bad'); } });
   onTap('#funnelGo', async () => { try { const r = await api('/api/admin/funnel', {}); S.funnel = r.funnel; render(true); } catch (e) { toast(e.message, 'bad'); } });
   onTap('#pushOnA', async () => { if (await registerPushToken(false)) render(true); });
-  if (pushOn() && !S._pushRef) { S._pushRef = 1; setTimeout(() => registerPushToken(true), 4000); }
+  onTap('#pushTestA', pushTestA);
   document.querySelectorAll('[data-cbal]').forEach(b => b.onclick = () => openCardBalance(b.dataset.cbal));
   document.querySelectorAll('[data-mcq]').forEach(b => b.onclick = async () => {
     const k = b.dataset.mcq, v = !((S.settings || {})[k] === true);
@@ -4736,7 +4755,7 @@ function invAdminHtml(part) {
   </div>`, `
   <div class="card mb-3">
     <div class="h4" style="margin-bottom:4px">تحويلات تحتاج مراجعة ${(A.unm || []).length ? `<span class="badge badge-warning">${A.unm.length}</span>` : ''}</div>
-    <p class="caption" style="margin-bottom:10px">تحويلات وصلت لحساب Binance بمبلغ ما يطابق أي فاتورة (حوّل مبلغ غلط، أو بدون فاتورة).</p>
+    <p class="caption" style="margin-bottom:10px">تحويلات وصلت لحساب Binance بمبلغ ما يطابق أي فاتورة (حوّل مبلغ غلط، أو بدون فاتورة). <a href="#" data-nav="unmatched" style="font-weight:700">التحليل المفصّل ←</a></p>
     ${(A.unm || []).length ? `<div class="list">${A.unm.map(u => `
       <div class="list-row" style="cursor:default;align-items:flex-start"><div class="list-content">
         <div class="list-title tabular" dir="ltr" style="text-align:right">${esc(String(u.amount))} USDT · ${esc(String(u.network || '').toUpperCase())}</div>
@@ -4798,7 +4817,7 @@ document.addEventListener('click', async e => {
     else if (ui) { if (!confirm('نضيف المبلغ لصاحب الفاتورة المرشّحة؟')) return; body = { action: 'assign', id, invoice_id: ui.dataset.inv }; }
     else { const email = (prompt('بريد المستخدم اللي نضيفله المبلغ:') || '').trim(); if (!email) return; if (!confirm(`نضيف المبلغ لـ ${email}؟`)) return; body = { action: 'assign', id, email }; }
     (ui || ue || ug).disabled = true;
-    try { const r = await api('/api/admin/crypto/unmatched', body); toast(r.credited ? `أُضيف ${r.credited}$ ✓` : 'تم ✓', 'ok'); loadInvA(); }
+    try { const r = await api('/api/admin/crypto/unmatched', body); toast(r.credited ? `أُضيف ${r.credited}$ ✓` : 'تم ✓', 'ok'); loadInvA(); if (S.page === 'unmatched') loadUnm(); }
     catch (err) { toast(err.message, 'bad'); (ui || ue || ug).disabled = false; }
   }
 });
@@ -4883,7 +4902,7 @@ function vHome2() {
   const sk = v => S.ov ? esc(String(v)) : '<i class="ask"></i>';
   const items = [
     can('deposits', 'view') && A.deposits ? { i: I.receipt, c: 'g', t: 'إيداعات للمراجعة', s: `بقيمة ${usd(A.deposits_usd)}`, cnt: A.deposits, attrs: 'data-mgo="review"' } : null,
-    can('deposits', 'view') && A.unmatched ? { i: I.warn, c: 'r', cc: 'r', t: 'تحويل ما يطابق فاتورة', s: 'وصل لحساب Binance — حدّد صاحبه', cnt: A.unmatched, attrs: 'data-mgo="review"' } : null,
+    can('deposits', 'view') && A.unmatched ? { i: I.warn, c: 'r', cc: 'r', t: 'تحويل ما يطابق فاتورة', s: 'وصل لحساب Binance — حدّد صاحبه', cnt: A.unmatched, attrs: 'data-nav="unmatched"' } : null,
     can('orders', 'view') && A.rsc ? { i: I.box, c: 'w', t: 'طلب متجر يحتاج متابعة', s: 'المزود ما أكّدش التنفيذ', cnt: A.rsc, attrs: 'data-nav="rsc"' } : null,
     can('withdraw', 'view') && A.withdrawals ? { i: I.withdraw, c: 'g', t: 'سحوبات معلّقة', cnt: A.withdrawals, attrs: 'data-mgo="withdraw"' } : null,
     can('sms', 'view') && A.sms ? { i: I.sms, c: 'w', t: 'رسائل تحويل للمراجعة', s: 'فوق حد التلقائي أو مرسل غير معروف', cnt: A.sms, attrs: 'data-mgo="sms"' } : null,
@@ -4894,7 +4913,7 @@ function vHome2() {
   const st = S.settings || {};
   return `<div class="page-enter astag">
     <div class="ah"><div><h1>${greet}${name ? '، ' + esc(name) : ''}</h1><p>${esc(new Date().toLocaleDateString('ar-LY', { weekday: 'long', day: 'numeric', month: 'long' }))}</p></div>
-      ${pushOn() ? '' : `<button class="abtn sm" id="pushOnA" type="button">${svg(I.bell)}الإشعارات</button>`}</div>
+      ${pushOn() ? `<button class="abtn sm" id="pushTestA" type="button">${svg(I.bell)}تجربة</button>` : `<button class="abtn sm" id="pushOnA" type="button">${svg(I.bell)}الإشعارات</button>`}</div>
     ${st.site_maint_on === true && isSuperAdmin() ? `<div class="aalert w">${svg(I.tool)}<div><b>وضع الصيانة مفعّل</b> — الزوار يشوفوا شاشة الصيانة. <button class="alink" data-aswitch="site_maint_on" type="button">افتح الموقع للجميع</button></div></div>` : ''}
     ${st.kill_switch === true ? `<div class="aalert r">${svg(I.warn)}<div><b>المنصة متوقفة</b> — العملاء ما يقدروش يشتروا. <button class="alink" data-nav="settings" type="button">الإعدادات</button></div></div>` : ''}
     <div class="alabel"><span>يحتاج انتباهك</span>${S.ov ? `<span class="caption">آخر تحديث ${esc(new Date(o.at).toLocaleTimeString('ar-LY', { hour: '2-digit', minute: '2-digit' }))}</span>` : ''}</div>
@@ -4988,7 +5007,8 @@ function vUserFile() {
     ...(F.deposits || []).map(d => row(d.status === 'approved' ? 'o' : '', I.cash, esc(d.method || '—'), esc(dt(d.created_at)) + ' · ' + esc(ST[d.status] || d.status), esc(usd(d.amount_usd))))].join('');
   else if (tab === 'cards') list = F.cards === undefined ? '<div class="arow"><i class="ask" style="width:60%"></i></div>' : '';
   else if (tab === 'tickets') list = (F.tickets || []).map(t => row('', I.chat, esc(t.subject || '—'), esc(dt(t.updated_at || t.created_at)) + ' · ' + esc(ST[t.status] || t.status), '')).join('');
-  const tabs = [['ledger', 'الحركات'], F.orders ? ['orders', 'الطلبات'] : null, can('cards', 'view') ? ['cards', 'البطاقات'] : null, F.deposits ? ['deposits', 'الشحن'] : null, F.tickets ? ['tickets', 'التذاكر'] : null].filter(Boolean);
+  else if (tab === 'ident') list = identHtml(F.ident || {});
+  const tabs = [['ledger', 'الحركات'], F.orders ? ['orders', 'الطلبات'] : null, can('cards', 'view') ? ['cards', 'البطاقات'] : null, F.deposits ? ['deposits', 'الشحن'] : null, F.tickets ? ['tickets', 'التذاكر'] : null, ['ident', `الهوية${F.ident && (F.ident.links || []).some(l => l.strong) ? ' ⚠' : ''}`]].filter(Boolean);
   return `<div class="page-enter astag">
     <div class="ah"><button class="aib" data-ufback type="button" aria-label="رجوع">${svg(I.back)}</button><div style="flex:1;text-align:center"><h1 style="font-size:18px">ملف العميل</h1></div><span style="width:40px"></span></div>
     <div class="acard aprof"><div class="aav">${esc((u.name || u.email || '?').trim().charAt(0))}</div>
@@ -5005,6 +5025,20 @@ function vUserFile() {
     <div class="aseg">${tabs.map(([k, t]) => `<button class="${tab === k ? 'on' : ''}" data-utab="${k}" type="button">${t}</button>`).join('')}</div>
     ${tab === 'cards' && F.cards ? (F.cards.length ? F.cards.map(c => cardRowHtml(c, true)).join('') : `<div class="acard"><div class="aempty"><b>ما عندهش بطاقات</b></div></div>`) : `<div class="acard">${list || `<div class="aempty"><b>لا شيء هنا</b></div>`}</div>`}
   </div>`;
+}
+function identHtml(X) {                                              // v60: الأجهزة + الحسابات المرتبطة
+  const uaShort = ua => { ua = String(ua || ''); const m = /\(([^)]+)\)/.exec(ua); const os = m ? m[1].split(';').slice(0, 2).join(' ').trim() : ''; const br = /SamsungBrowser|Edg|OPR|Chrome|Firefox|Safari/.exec(ua); return (os || 'جهاز') + (br ? ' · ' + br[0] : ''); };
+  const links = (X.links || []).map(l => `<div class="arow" data-ufile3="${esc(l.uid)}" style="cursor:pointer"><span class="aric ${l.strong ? 'r' : ''}">${svg(l.strong ? I.warn : I.users)}</span>
+      <span class="art"><b>${esc(l.name || l.email || l.uid)}${l.banned ? ' <span class="achip r" style="font-size:11px">محظور</span>' : ''}</b><span>${esc(l.why.join(' · '))}</span></span><b class="anum" style="font-size:12px;color:${l.strong ? 'var(--error)' : 'var(--u-ink-3)'}">${l.strong ? 'قوي' : 'ضعيف'}</b></div>`).join('');
+  const devs = (X.devices || []).map(d => `<div class="arow static"><span class="aric">${svg(I.shield)}</span><span class="art"><b>${esc(uaShort(d.ua))}</b>
+      <span>آخر دخول ${esc(dt(d.last_at))} · أول مرة ${esc(dt(d.first_at))}${d.city || d.cc ? ' · ' + esc([d.city, d.cc].filter(Boolean).join('، ')) : ''}<br><span dir="ltr" class="mono">${esc((d.ips || [d.ip]).slice(0, 4).join(' · '))}</span></span></span><b class="anum" style="font-size:12px">${n(d.n)}×</b></div>`).join('');
+  return `${X.err ? `<div class="arow static"><span class="art"><span style="color:var(--error)">${esc(X.err)}</span></span></div>` : ''}
+    <div class="arow static"><span class="art"><b>حسابات مرتبطة (${(X.links || []).length})</b><span>«قوي» = نفس الجهاز أو المحفظة أو رقم التحويل · «ضعيف» = نفس الـ IP أو نوع المتصفح (ممكن صدفة)</span></span></div>
+    ${links || '<div class="aempty"><b>ما فيش حسابات مرتبطة</b></div>'}
+    <div class="arow static"><span class="art"><b>الأجهزة (${(X.devices || []).length})</b><span>تنحسب من تحديث v60 وطالع</span></span></div>
+    ${devs || '<div class="aempty"><b>ما سجّلناش أجهزة بعد</b></div>'}
+    ${(X.wallets || []).length ? `<div class="arow static"><span class="art"><b>محافظ USDT اللي بعت منها</b><span dir="ltr" class="mono" style="word-break:break-all">${X.wallets.map(esc).join('<br>')}</span></span></div>` : ''}
+    ${(X.phones || []).length ? `<div class="arow static"><span class="art"><b>أرقام حوّل منها رصيد</b><span dir="ltr" class="mono">${X.phones.map(p => '0' + esc(String(p).replace(/^0/, ''))).join(' · ')}</span></span></div>` : ''}`;
 }
 async function openUserFile2(uid) {
   S.uFile = { loading: true }; S.uTab = 'ledger'; render(true); window.scrollTo({ top: 0, behavior: 'instant' });
@@ -5030,9 +5064,10 @@ function vMore() {
   const cardsOn = (st.mc_maint_on !== true) && (pageAllowed('mcards') || pageAllowed('cards'));
   return `<div class="page-enter astag">
     ${aHead('المزيد', 'كل أقسام الإدارة')}
+    <div class="alabel"><span>الطلبات والعمليات</span></div>
+    <div class="atiles">${tile('sorders', I.bag, 'طلبات المتجر', ovA('rsc'))}${tile('mcards', I.card, 'طلبات البطاقات', ovA('mcards'))}${tile('cards', I.card, 'كل البطاقات')}${tile('unmatched', I.warn, 'غير مطابقة', ovA('unmatched'))}</div>
     <div class="alabel"><span>المتجر والعملاء</span></div>
     <div class="atiles">${tile('rsc', I.bag, 'الأقسام والأسعار')}${tile('tickets', I.chat, 'الدعم', ovA('tickets'))}${tile('coupons', I.tag, 'الكوبونات')}${tile('analytics', I.chart, 'تحليل الزوار')}${tile('reviews', I.chat, 'آراء العملاء')}${tile('cards', I.card, 'البطاقات')}</div>
-    ${cardsOn ? `<div class="alabel"><span>البطاقات</span></div><div class="atiles">${tile('mcards', I.card, 'طلبات البطاقات', ovA('mcards'))}</div>` : ''}
     ${set.length ? `<div class="alabel"><span>الإعدادات</span></div><div class="acard">${set.map(aRow).join('')}</div>` : ''}
     ${isSuperAdmin() ? `<div class="alabel"><span>أرشيف</span></div><div class="acard">${[
       { i: I.box, t: 'طلبات المتجر القديم', attrs: 'data-nav="orders"' }, { i: I.grid, t: 'الخدمات القديمة', attrs: 'data-nav="services"' }, { i: I.box, t: 'منتجات المتجر القديم', attrs: 'data-nav="store"' }].map(aRow).join('')}</div>` : ''}
@@ -5603,4 +5638,125 @@ document.addEventListener('click', async e => {
     else toast('المزود رد بخطأ: ' + (r.error || 'غير معروف'), 'bad');
   } catch (er) { toast(er.message, 'bad'); }
   await loadRscA();
+});
+
+/* ═══ v60 — طلبات المتجر (صفحة كاملة) ═══ */
+const SO_ST = { completed: ['ok', 'مكتمل'], refunded: ['r', 'مُسترد'], failed: ['r', 'فشل'], unknown: ['w', 'يحتاج مراجعة'], submitting: ['w', 'قيد الإرسال'], created: ['w', 'قيد التنفيذ'], processing: ['w', 'قيد التنفيذ'] };
+async function loadSO() {
+  S.so = { st: 'all', days: 7, q: '', ...(S.so || {}), loading: true };
+  if (S.page === 'sorders') render(true);
+  try { const r = await api('/api/admin/rsc', { action: 'olist', st: S.so.st, days: S.so.days, q: S.so.q }); S.so = { ...S.so, list: r.orders || [], sum: r.sum || {}, loading: false, err: '' }; }
+  catch (e) { S.so = { ...S.so, loading: false, err: e.message }; }
+  if (S.page === 'sorders') render(true);
+}
+function vSOrders() {
+  const O = S.so || { st: 'all', days: 7, loading: true }, sm = O.sum || {};
+  const pill = (attr, v, cur, t) => `<button class="pill ${cur === v ? 'active' : ''}" ${attr}="${v}" type="button">${t}</button>`;
+  return `<div class="page-enter astag">
+    ${aHead('طلبات المتجر', 'كل طلبات العملاء من المتجر')}
+    <div class="pills mb-2" style="flex-wrap:wrap">${[['all', 'الكل'], ['done', 'مكتمل'], ['open', 'معلّق'], ['fail', 'فشل / مُسترد']].map(([k, t]) => pill('data-sost', k, O.st, t)).join('')}</div>
+    <div class="pills mb-2" style="flex-wrap:wrap">${[[1, 'اليوم'], [7, '7 أيام'], [30, '30 يوم'], [0, 'الكل']].map(([k, t]) => pill('data-sodays', k, O.days, t)).join('')}</div>
+    <div style="display:flex;gap:8px;margin-bottom:10px"><input class="input" id="soQ" placeholder="اسم العميل، البريد، رقم الطلب، الآيدي…" value="${esc(O.q || '')}" style="flex:1"><button class="btn btn-secondary btn-sm" id="soGo" type="button">بحث</button></div>
+    ${O.list ? `<div class="achips mb-2"><span class="achip">${n(sm.n)} طلب</span><span class="achip ok">مكتمل ${n(sm.done)}</span>${sm.open ? `<span class="achip w">معلّق ${n(sm.open)}</span>` : ''}${sm.fail ? `<span class="achip r">فشل ${n(sm.fail)}</span>` : ''}<span class="achip g">مبيعات ${esc(usd(sm.sales))}</span><span class="achip g">ربح ${esc(usd(sm.profit))}</span></div>` : ''}
+    ${O.err ? `<div class="alert alert-error mb-2">${esc(O.err)}</div>` : ''}
+    ${O.loading && !O.list ? '<div class="skeleton" style="height:140px;border-radius:14px"></div>' : `<div class="acard">${(O.list || []).map(o => { const st = SO_ST[o.status] || ['', o.status];
+      return `<div class="arow static" style="align-items:flex-start"><span class="aric ${st[0] === 'ok' ? 'o' : st[0]}">${svg(I.bag)}</span>
+        <span class="art"><b>${esc(o.cat_name)} — ${esc(o.offer_name)}${o.qty > 1 ? ' × ' + o.qty : ''}</b>
+          <span><a href="#" data-ufile3="${esc(o.uid)}">${esc(o.name || o.email || o.uid)}</a> · ${esc(dt(o.created_at))}${o.number ? ' · #' + esc(o.number) : ''}</span>
+          ${Object.keys(o.fields || {}).length ? `<span class="mono" dir="ltr">${esc(Object.entries(o.fields).map(([k, v]) => k + ': ' + v).join(' · '))}</span>` : ''}
+          ${o.fail_reason || o.provider_error ? `<span style="color:var(--error)">${esc(o.fail_reason || o.provider_error)}</span>` : ''}
+          ${['unknown', 'submitting', 'created', 'processing'].includes(o.status) && can('orders', 'approve') ? `<span style="display:flex;gap:6px;margin-top:6px"><button class="btn btn-secondary btn-sm" data-sochk="${esc(o.id)}" data-num="${esc(o.number)}" type="button">إعادة الفحص</button><button class="btn btn-outline-danger btn-sm" data-soref="${esc(o.id)}" type="button">استرداد</button></span>` : ''}</span>
+        <span style="text-align:left"><b class="anum">${esc(usd(o.total_usd))}</b><br><span class="caption">ربح ${esc(usd(o.total_usd - o.cost_usd))}</span><br><span class="achip ${st[0]}" style="font-size:11px">${esc(st[1])}</span></span></div>`; }).join('') || '<div class="aempty"><b>ما فيش طلبات</b></div>'}</div>`}
+  </div>`;
+}
+document.addEventListener('click', async e => {
+  const t = e.target.closest && e.target.closest('[data-sost],[data-sodays],#soGo,[data-sochk],[data-soref]'); if (!t) return;
+  if (t.dataset.sost) { S.so.st = t.dataset.sost; return loadSO(); }
+  if (t.dataset.sodays != null) { S.so.days = Number(t.dataset.sodays); return loadSO(); }
+  if (t.id === 'soGo') { S.so.q = ($('#soQ').value || '').trim(); return loadSO(); }
+  if (t.dataset.sochk) {
+    let number = t.dataset.num; if (!number) { number = prompt('رقم الطلب لدى المزود (من لوحة Resell Codes):', ''); if (!number) return; }
+    try { await api('/api/admin/rsc', { action: 'order', id: t.dataset.sochk, op: 'recheck', number: t.dataset.num ? undefined : number }); toast('حُدّثت حالة الطلب', 'ok'); loadSO(); } catch (er) { toast(er.message, 'bad'); }
+    return;
+  }
+  if (t.dataset.soref) {
+    if (!confirm('إرجاع المبلغ لمحفظة العميل وإغلاق الطلب؟ تأكد أن الطلب لم يُنفَّذ لدى المزود.')) return;
+    try { await api('/api/admin/rsc', { action: 'order', id: t.dataset.soref, op: 'refund' }); toast('أُعيد المبلغ للعميل ✓', 'ok'); loadSO(); } catch (er) { toast(er.message, 'bad'); }
+  }
+});
+document.addEventListener('keydown', e => { if (e.key === 'Enter' && e.target && e.target.id === 'soQ') { S.so.q = e.target.value.trim(); loadSO(); } });
+
+/* ═══ v60 — عمليات غير مطابقة: تحليل كامل + سجل + تصحيح ═══ */
+const UNM_LV = { strong: ['ok', 'قوي'], mid: ['w', 'متوسط'], weak: ['', 'ضعيف'] };
+async function loadUnm() {
+  S.unm = { tab: 'open', days: 14, ...(S.unm || {}), loading: true };
+  if (S.page === 'unmatched') render(true);
+  try {
+    if (S.unm.tab === 'open') { const r = await api('/api/admin/crypto/unmatched', { action: 'list2' }); S.unm.open = r.items || []; }
+    else { const r = await api('/api/admin/crypto/unmatched', { action: 'history', days: S.unm.days }); S.unm.hist = r.items || []; }
+    S.unm.err = '';
+  } catch (e) { S.unm.err = e.message; }
+  S.unm.loading = false;
+  if (S.page === 'unmatched') render(true);
+}
+const minsTxt = m => m == null ? '—' : m < 0 ? `الفاتورة بعد التحويل بـ ${Math.abs(m)} د` : m < 60 ? `قبل التحويل بـ ${m} د` : m < 1440 ? `قبل التحويل بـ ${Math.round(m / 60)} س` : `قبل التحويل بـ ${Math.round(m / 1440)} يوم`;
+function unmAnHtml(an, ctx) {                                         // ctx: { id } للمفتوحة أو { key } للسجل
+  const head = `<div class="arow static"><span class="art"><b>وصل <span dir="ltr" class="tabular">${esc(Number(an.amount).toFixed(4))}</span> USDT${an.network ? ' · ' + esc(an.network.toUpperCase()) : ''}</b>
+    <span>وقت الاستلام: ${esc(dt(new Date(an.at_ms).toISOString()))}${an.from ? `<br>من المحفظة: <span dir="ltr" class="mono" style="word-break:break-all">${esc(an.from)}</span>` : '<br>المحفظة المرسلة غير معروفة (تحويل داخلي)'}${an.txid ? `<br>TXID: <span dir="ltr" class="mono" style="word-break:break-all">${esc(an.txid)}</span>` : ''}</span></span></div>
+    ${an.assigned ? `<div class="arow static"><span class="art"><b>انضاف لـ: <a href="#" data-ufile3="${esc(an.assigned.uid)}">${esc(an.assigned.name || an.assigned.email || an.assigned.uid)}</a></b><span>${/^(system|cron|user)$/.test(an.assigned.by || 'system') ? 'مطابقة تلقائية' : 'إسناد يدوي'}${an.assigned.invoice_id ? ' · فاتورة ' + esc(an.assigned.invoice_id) : ''}</span></span></div>` : ''}
+    ${an.warn ? `<div class="alert alert-error" style="margin:8px">${svg(I.warn, 2)}<div><b>انتبه:</b> ${esc(an.warn)}</div></div>` : ''}
+    ${(an.wallet || []).length ? `<div class="arow static"><span class="art"><b>⭐ نفس المحفظة دفعت قبل لـ:</b><span>${an.wallet.map(w => `<a href="#" data-ufile3="${esc(w.uid)}">${esc(w.name || w.email || w.uid)}</a> (${w.n} مرة · ${esc(usd(w.total))})`).join('<br>')}</span></span></div>` : ''}`;
+  const cands = (an.candidates || []).map(c => { const lv = UNM_LV[c.level] || ['', ''];
+    const isCur = an.assigned && an.assigned.uid === c.uid;
+    const act = ctx.id ? (c.invoice_id && c.status !== 'paid' ? `<button class="btn btn-primary btn-sm" data-unm2-inv="${esc(ctx.id)}" data-inv="${esc(c.invoice_id)}" type="button">أضف له</button>` : `<button class="btn btn-primary btn-sm" data-unm2-uid="${esc(ctx.id)}" data-uid="${esc(c.uid)}" type="button">أضف له</button>`)
+      : (!isCur && isSuperAdmin() ? `<button class="btn btn-outline-danger btn-sm" data-unm-fix="${esc(ctx.key)}" data-uid="${esc(c.uid)}" data-inv="${esc(c.invoice_id && c.status !== 'paid' ? c.invoice_id : '')}" data-who="${esc(c.name || c.email || c.uid)}" type="button">انقله له</button>` : isCur ? '<span class="achip ok">هو الحالي</span>' : '');
+    return `<div class="arow static" style="align-items:flex-start"><span class="aric ${lv[0] === 'ok' ? 'o' : lv[0]}" style="font-size:12px;font-weight:800">${c.score}%</span>
+      <span class="art"><b><a href="#" data-ufile3="${esc(c.uid)}">${esc(c.name || c.email || c.uid)}</a> <span class="achip ${lv[0]}" style="font-size:11px">${lv[1]}</span></b>
+        <span>${c.invoice_id ? `فاتورة ${esc(c.no || c.invoice_id)} · <span dir="ltr" class="tabular">${esc(Number(c.pay_amount).toFixed(4))}</span> · فرق <b dir="ltr">${c.diff > 0 ? '+' : ''}${esc(String(c.diff))}</b>${c.network && c.network !== an.network ? ' · شبكة ' + esc(c.network.toUpperCase()) : ''} · ${esc({ paid: 'مدفوعة', awaiting: 'بانتظار الدفع', expired: 'منتهية', cancelled: 'ملغاة' }[c.status] || c.status)}
+          <br>انعملت: ${esc(dt(c.created_at))} — ${esc(minsTxt(c.mins))}` : 'ما عندهش فاتورة قريبة'}
+          ${(c.why || []).length ? `<br><span style="color:var(--u-ink-2)">${c.why.map(esc).join(' · ')}</span>` : ''}</span></span>
+      <span>${act}</span></div>`; }).join('');
+  return head + `<div class="arow static"><span class="art"><b>المرشّحين (${(an.candidates || []).length})</b><span>مرتّبين حسب قوة التطابق: الفرق في المبلغ + التوقيت + الشبكة + المحفظة</span></span></div>` + (cands || '<div class="aempty"><b>ما فيش فواتير قريبة من هذا المبلغ خلال 48 ساعة</b></div>');
+}
+function vUnm() {
+  const U = S.unm || { tab: 'open', loading: true };
+  const tabs = `<div class="aseg">${[['open', `مفتوحة${(U.open || []).length ? ' (' + U.open.length + ')' : ''}`], ['hist', 'السجل والتحليل']].map(([k, t]) => `<button class="${U.tab === k ? 'on' : ''}" data-unmtab="${k}" type="button">${t}</button>`).join('')}</div>`;
+  let body = '';
+  if (U.loading && !(U.tab === 'open' ? U.open : U.hist)) body = '<div class="skeleton" style="height:160px;border-radius:14px"></div>';
+  else if (U.tab === 'open') body = (U.open || []).map(it => `<div class="acard mb-3">${unmAnHtml(it.an || {}, { id: it.id })}
+      <div style="display:flex;gap:8px;padding:10px;flex-wrap:wrap"><button class="btn btn-secondary btn-sm" data-unm-email="${esc(it.id)}" type="button">أضف بالبريد</button><button class="btn btn-ghost btn-sm" data-unm-ign="${esc(it.id)}" type="button">تجاهل</button></div></div>`).join('') || '<div class="acard"><div class="aempty"><b>ما فيش تحويلات مفتوحة ✓</b></div></div>';
+  else body = `<div class="pills mb-2">${[[3, '3 أيام'], [14, '14 يوم'], [60, '60 يوم']].map(([k, t]) => `<button class="pill ${U.days === k ? 'active' : ''}" data-unmdays="${k}" type="button">${t}</button>`).join('')}</div>
+    <p class="caption mb-2">كل إيداعات USDT اللي انحسبت. اضغط «تحليل» على أي وحدة تشك فيها — يعيد فحص كل الفواتير القريبة والمحفظة، ولو الإسناد غلط تقدر تنقله للصحيح.</p>
+    <div class="acard">${(U.hist || []).map(h => `<div class="arow static" style="align-items:flex-start;flex-wrap:wrap"><span class="aric o">${svg(I.cash)}</span>
+      <span class="art"><b><span dir="ltr" class="tabular">${esc(Number(h.amount).toFixed(4))}</span> → <a href="#" data-ufile3="${esc(h.uid)}">${esc(h.name || h.email || h.uid)}</a></b>
+        <span>${esc(dt(h.created_at))} · ${h.how === 'auto' ? 'تلقائي' : '<b>يدوي</b>'}${h.network ? ' · ' + esc(h.network.toUpperCase()) : ''}${h.reassigned_from ? ' · <b>منقول (مصحّح)</b>' : ''}</span></span>
+      <button class="btn btn-secondary btn-sm" data-unm-an="${esc(h.key)}" type="button">${U.anKey === h.key && U.an ? 'إخفاء' : 'تحليل'}</button>
+      ${U.anKey === h.key ? `<div style="flex-basis:100%;margin-top:8px;border-top:1px solid var(--border);padding-top:6px">${U.an ? unmAnHtml(U.an, { key: h.key }) : '<div class="skeleton" style="height:90px;border-radius:12px"></div>'}</div>` : ''}</div>`).join('') || '<div class="aempty"><b>ما فيش إيداعات في هذي الفترة</b></div>'}</div>`;
+  return `<div class="page-enter astag">${aHead('عمليات غير مطابقة', 'التحويلات المشكوك فيها — من صاحبها؟')}${tabs}
+    ${U.err ? `<div class="alert alert-error mb-2">${esc(U.err)}</div>` : ''}${body}</div>`;
+}
+document.addEventListener('click', async e => {
+  const t = e.target.closest && e.target.closest('[data-unmtab],[data-unmdays],[data-unm-an],[data-unm2-inv],[data-unm2-uid],[data-unm-fix]'); if (!t) return;
+  e.preventDefault();
+  if (t.dataset.unmtab) { S.unm.tab = t.dataset.unmtab; S.unm.anKey = null; return loadUnm(); }
+  if (t.dataset.unmdays) { S.unm.days = Number(t.dataset.unmdays); return loadUnm(); }
+  if (t.dataset.unmAn) {
+    const key = t.dataset.unmAn;
+    if (S.unm.anKey === key && S.unm.an) { S.unm.anKey = null; S.unm.an = null; return render(true); }
+    S.unm.anKey = key; S.unm.an = null; render(true);
+    try { const r = await api('/api/admin/crypto/unmatched', { action: 'analyze', key }); if (S.unm.anKey === key) { S.unm.an = r.an; render(true); } }
+    catch (er) { toast(er.message, 'bad'); S.unm.anKey = null; render(true); }
+    return;
+  }
+  const done = async (body, msg) => { t.disabled = true; try { const r = await api('/api/admin/crypto/unmatched', body); toast(msg(r), 'ok'); S.unm.an = null; S.unm.anKey = null; loadUnm(); } catch (er) { t.disabled = false; throw er; } };
+  try {
+    if (t.dataset.unm2Inv) { if (!confirm('نضيف المبلغ لصاحب هذي الفاتورة؟')) return; await done({ action: 'assign', id: t.dataset.unm2Inv, invoice_id: t.dataset.inv }, r => `أُضيف ${r.credited}$ ✓`); }
+    else if (t.dataset.unm2Uid) { if (!confirm('نضيف المبلغ لهذا المستخدم؟')) return; await done({ action: 'assign', id: t.dataset.unm2Uid, uid: t.dataset.uid }, r => `أُضيف ${r.credited}$ ✓`); }
+    else if (t.dataset.unmFix) {
+      if (!confirm(`ننقل المبلغ من الحساب الحالي إلى «${t.dataset.who}»؟\nينقص من الأول ويضاف للثاني، ويتسجّل في السجل.`)) return;
+      const body = { action: 'reassign', key: t.dataset.unmFix, ...(t.dataset.inv ? { to_invoice: t.dataset.inv } : { to_uid: t.dataset.uid }) };
+      try { await done(body, r => `انتقل ${r.moved}$ ✓`); }
+      catch (er) { if (/أكّد السحب بالسالب/.test(er.message) && confirm(er.message + '\n\nنكمّل؟ (رصيده يولّي بالسالب)')) await done({ ...body, allow_negative: true }, r => `انتقل ${r.moved}$ ✓`); else throw er; }
+    }
+  } catch (er) { toast(er.message, 'bad'); }
 });

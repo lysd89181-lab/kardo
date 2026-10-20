@@ -172,6 +172,7 @@ $('#rsBack').onclick = () => showView('login');
 
 /* ═══ Firebase Errors ═══ */
 function fbMsg(code) {
+  if (code === 'auth/user-disabled') { try { window.kardoBanned && window.kardoBanned({}); } catch {} return 'حسابك محظور من المطور — تواصل مع الدعم'; }   // v60
   const map = {
     'auth/invalid-email': 'البريد الإلكتروني غير صحيح',
     'auth/user-disabled': 'هذا الحساب معطّل',

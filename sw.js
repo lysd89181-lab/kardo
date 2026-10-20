@@ -1,5 +1,5 @@
 /* KARDO service worker — ملفات الموقع فقط، لا يلمس الـ API ولا البيانات */
-const V = 'kardo-v59';
+const V = 'kardo-v60';
 const CORE = ['./', './index.html', './app.js', './config.js', './styles.css', './theme-desert.css', './kardo-v8.css', './kardo-v9.css', './kardo-v10.css', './kardo-ui.css', './gate.js', './kardo-qr.js', './manifest.json', './favicon-64.png', './kardo-mark.png', './kardo-logo.png', './icon-192.png',
   './fennec-welcome.webp', './fennec-success.webp', './fennec-empty.webp', './fennec-card.webp', './fennec-wait.webp', './fennec-error.webp'];
 
@@ -43,7 +43,7 @@ self.addEventListener('push', e => {
   const title = d.title || 'كاردو';
   e.waitUntil(self.registration.showNotification(title, {
     body: d.body || '', icon: './icon-192.png', badge: './icon-192.png', dir: 'rtl', lang: 'ar',
-    data: { link: d.link || './index.html' }, tag: (d.link || 'kardo').slice(-60), renotify: true, vibrate: [120, 60, 120],
+    data: { link: d.link || './index.html' }, tag: d.tag || ('k' + Date.now()), renotify: true, vibrate: [120, 60, 120],
   }));
 });
 self.addEventListener('notificationclick', e => {

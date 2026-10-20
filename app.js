@@ -369,10 +369,14 @@ async function api(path, body, ms = 20000) {
   const token = await auth.currentUser.getIdToken();
   const res = await fetchWithTimeout(API_BASE + path, {
     method: 'POST',
-    headers: { 'content-type': 'application/json', authorization: 'Bearer ' + token, ...(await appCheckHeader()) },
+    headers: { 'content-type': 'application/json', authorization: 'Bearer ' + token, ...(await appCheckHeader()), ...((window.kardoDev && window.kardoDev.headers()) || {}) },
     body: JSON.stringify(body || {}),
   }, ms);
   const d = await res.json().catch(() => ({ success: false, error: 'رد غير مفهوم' }));
+  if (!d.success && d.code === 'BANNED') {                           // v60: حظر كامل — شاشة الحظر وخروج
+    try { window.kardoBanned && window.kardoBanned(d.ban || {}); } catch {}
+    try { await signOut(auth); } catch {}
+  }
   if (!d.success) throw new Error(d.error || 'فشلت العملية');
   if (KDB && !/^\/api\/(db|sync)\//.test(path) && !KDB_QUIET.has(path)) kdbSoon(600);   // v35: تحديث فوري بعد أي عملية
   return d;
