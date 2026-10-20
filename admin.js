@@ -5098,12 +5098,12 @@ function vMethods() {
     </div>
     <div class="alabel"><span>رصيد هاتف · SMS</span></div>
     <div class="acard">
-      ${M('libyana', '#00A6E1', 'LY', esc(s.m_libyana_label || 'ليبيانا'), esc(s.m_libyana_phone || s.deposit_phone || '—'), 'm_libyana_on', [`<span class="achip g">1$ = ${esc(String(s.rate_libyana ?? 11.8))} د.ل</span>`, `<span class="achip">${(s.m_libyana_mode || s.deposit_mode) === 'manual' ? 'مراجعة يدوية' : 'تلقائي حتى ' + esc(String(s.sms_auto_max_lyd ?? 100)) + ' د.ل'}</span>`])}
-      ${M('almadar', '#E2231A', 'MD', esc(s.m_almadar_label || 'المدار'), esc(s.m_almadar_phone || s.deposit_phone || '—'), 'm_almadar_on', [`<span class="achip g">1$ = ${esc(String(s.rate_almadar ?? 12.5))} د.ل</span>`, `<span class="achip">${(s.m_almadar_mode || s.deposit_mode) === 'manual' ? 'مراجعة يدوية' : 'تلقائي حتى ' + esc(String(s.sms_auto_max_lyd ?? 100)) + ' د.ل'}</span>`])}
+      ${M('libyana', '#00A6E1', 'LY', esc(s.m_libyana_label || 'ليبيانا'), esc(s.m_libyana_phone || s.deposit_phone || '—'), 'm_libyana_on', [`<button class="achip g btnc" data-rateedit="rate_libyana" type="button">1$ = ${esc(String(s.rate_libyana ?? 11.8))} د.ل ✎</button>`, `<span class="achip">${(s.m_libyana_mode || s.deposit_mode) === 'manual' ? 'مراجعة يدوية' : 'تلقائي حتى ' + esc(String(s.sms_auto_max_lyd ?? 100)) + ' د.ل'}</span>`])}
+      ${M('almadar', '#E2231A', 'MD', esc(s.m_almadar_label || 'المدار'), esc(s.m_almadar_phone || s.deposit_phone || '—'), 'm_almadar_on', [`<button class="achip g btnc" data-rateedit="rate_almadar" type="button">1$ = ${esc(String(s.rate_almadar ?? 12.5))} د.ل ✎</button>`, `<span class="achip">${(s.m_almadar_mode || s.deposit_mode) === 'manual' ? 'مراجعة يدوية' : 'تلقائي حتى ' + esc(String(s.sms_auto_max_lyd ?? 100)) + ' د.ل'}</span>`])}
     </div>
     <div class="alabel"><span>بإيصال · مراجعة</span></div>
     <div class="acard">
-      ${M('bank', '#566064', '🏦', esc(s.m_bank_label || 'تحويل مصرفي'), (s.m_bank_fields || []).length + ' حقول', 'm_bank_on', [`<span class="achip g">1$ = ${esc(String(s.rate_bank ?? 9.5))} د.ل</span>`])}
+      ${M('bank', '#566064', '🏦', esc(s.m_bank_label || 'تحويل مصرفي'), (s.m_bank_fields || []).length + ' حقول', 'm_bank_on', [`<button class="achip g btnc" data-rateedit="rate_bank" type="button">1$ = ${esc(String(s.rate_bank ?? 9.5))} د.ل ✎</button>`])}
       ${(Array.isArray(s.custom_methods) ? s.custom_methods : []).map((m, i) => m && m.label ? M(String(m.key || `custom${i}`).replace(/[^a-z0-9_]/gi, '').slice(0, 20) || `custom${i}`, '#566064', '＋', esc(m.label), 'طريقة مخصّصة', '', [`<span class="achip">${m.on === false ? 'مطفأة' : 'مفعّلة'}</span>`]) : '').join('')}
     </div>
     <button class="abtn block" data-setgo="pay" type="button" style="margin-top:12px">${svg(I.edit)}تعديل الأسعار والأرقام وبيانات التحويل</button>
@@ -5759,4 +5759,19 @@ document.addEventListener('click', async e => {
       catch (er) { if (/أكّد السحب بالسالب/.test(er.message) && confirm(er.message + '\n\nنكمّل؟ (رصيده يولّي بالسالب)')) await done({ ...body, allow_negative: true }, r => `انتقل ${r.moved}$ ✓`); else throw er; }
     }
   } catch (er) { toast(er.message, 'bad'); }
+});
+
+/* v60 — تعديل صرف ليبيانا / المدار / البنك من «طرق الدفع» */
+const RATE_AR = { rate_libyana: 'ليبيانا', rate_almadar: 'المدار', rate_bank: 'التحويل المصرفي' };
+document.addEventListener('click', async e => {
+  const b = e.target.closest && e.target.closest('[data-rateedit]'); if (!b) return;
+  e.preventDefault();
+  const k = b.dataset.rateedit, cur = (S.settings || {})[k];
+  const v = (prompt(`صرف ${RATE_AR[k]} الجديد — كم دينار لكل 1$؟\n(الحالي: ${cur ?? '—'})`, cur ?? '') || '').trim().replace(',', '.');
+  if (!v) return;
+  const x = Number(v);
+  if (!(x > 0) || x > 100) return toast('اكتب رقم صحيح، مثلاً 11.5', 'bad');
+  if (x === Number(cur)) return;
+  if (!confirm(`نغيّر صرف ${RATE_AR[k]} من ${cur ?? '—'} إلى ${x} د.ل؟\nينطبق على الإيداعات الجاية بس.`)) return;
+  await saveSettingsPatch({ [k]: x }, `تم ✓ — صرف ${RATE_AR[k]} توا ${x} د.ل`);
 });
