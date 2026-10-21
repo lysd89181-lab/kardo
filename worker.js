@@ -316,6 +316,7 @@ async function route(path, request, url, env) {
     case '/api/admin/me':              return handleAdminMe(user, body, env);
     case '/api/admin/staff/set':       return handleAdminStaffSet(user, body, env);
     case '/api/admin/user/ban':        return handleAdminUserBan(user, body, env);
+    case '/api/admin/user/verify':     return handleAdminUserVerify(user, body, env);
     case '/api/admin/phone/unbind':    return handleAdminPhoneUnbind(user, body, env);
     case '/api/admin/ledger/verify':   return handleAdminLedgerVerify(user, body, env);
     case '/api/admin/settings':        return handleAdminSettings(user, body, env);
@@ -3639,6 +3640,32 @@ async function userLinks(env, uid) {                                 // الحس
   list.forEach(l => { const n = names.get(l.uid) || {}; l.name = n.name || ''; l.email = n.email || ''; l.banned = bans.get(l.uid) === true; });
   list.sort((a, b) => (b.strong ? 1 : 0) - (a.strong ? 1 : 0) || b.why.length - a.why.length);
   return { devices: devs.map(d => ({ ua: d.ua, ip: d.ip, ips: d.ips || [], cc: d.cc || '', city: d.city || '', first_at: d.first_at, last_at: d.last_at, n: d.n, did: String(d.did || '').slice(0, 6) + '…' })), wallets, phones, links: list.slice(0, 40) };
+}
+
+async function handleAdminUserVerify(user, body, env) {              // v64: توثيق يدوي (رقم/بريد) من الإدارة
+  const staff = await requirePermission(user, env, 'users.edit');
+  const uid = String(body.uid || '').trim(), kind = String(body.kind || '');
+  const u = await fsGet(env, `users/${uid}`);
+  if (!u) throw httpError(404, 'المستخدم غير موجود');
+  if (kind === 'email') {
+    await fsPatch(env, `users/${uid}`, { email_verified: true, email_verified_at: nowIso(), email_verified_by: staff.uid });
+  } else if (kind === 'phone') {
+    const phone = normalizePhone(body.phone || '');
+    if (!phone) throw httpError(400, 'رقم غير صالح');
+    const network = body.network === 'almadar' ? 'almadar' : 'libyana';
+    await fsRunTransaction(env, async (tx) => {
+      const bind = await tx.get(`phone_bindings/${phone}`), own = await tx.get(`phone_owners/${phone}`);
+      if ((bind && bind.uid && bind.uid !== uid) || (own && own.uid && own.uid !== uid)) throw httpError(409, 'الرقم موثّق على حساب ثاني');
+      tx.update(`users/${uid}`, { phone_verified: phone, phone_network: network, phone_verified_at: nowIso(), phone: '0' + phone, phone_verified_by: staff.uid });
+      if (!bind) tx.create('phone_bindings', phone, { uid, network, created_at: nowIso(), by: staff.uid });
+      if (!own) tx.create('phone_owners', phone, { uid, network, at: nowIso() });
+      const pv = await tx.get(`phone_verifications/${phone}`);
+      if (pv && pv.status === 'pending' && pv.uid === uid) tx.update(`phone_verifications/${phone}`, { status: 'done', done_at: nowIso(), approved_by: staff.uid });
+    });
+    notify(env, uid, 'phone_ok', {});
+  } else throw httpError(400, 'نوع غير معروف');
+  await logOp(env, staff.uid, 'user.verify_manual', { uid, kind }, { phone: body.phone || '' }, true);
+  return { success: true };
 }
 
 async function handleAdminUserBan(user, body, env) {
@@ -7693,7 +7720,9 @@ async function rscListCats(env, type, q) {
     for (const b of (j.data || [])) for (const c of ((b && b.subcategories) || [])) {
       if (!c || !c.category_id) continue;
       const r = rscCatRow(type, c, b.brand || b.name);
-      if (!rows.has(r.key)) rows.set(r.key, r);
+      const bn = String(b.brand || b.name || '').slice(0, 60);
+      if (!rows.has(r.key)) rows.set(r.key, { ...r, brand: bn });
+      else if (bn) rows.get(r.key).brand = bn;                          // v64: القسم الرئيسي (البراند)
     }
   } catch (e) { brandErr = String(e.message || '').slice(0, 120); }
   return { list: [...rows.values()], stat: { total, from_cats: fromCats, from_brands: rows.size - fromCats, n: rows.size, brand_err: brandErr } };
@@ -7738,6 +7767,15 @@ async function rscOffers(env, key, maxAgeMs) {
   if (v && (!maxAgeMs || Date.now() - num(v.at, 0) < maxAgeMs)) return v;
   return rscFetchOffers(env, key);
 }
+// v64: سعر منتج بمحفظة: تسعير يدوي لكل طريقة > خصم % > السعر العادي
+function offerUnitW(s, w, usdUnit, op) {
+  op = op || {};
+  const man = op.p && num(op.p[w], 0);
+  if (man > 0) return man;
+  const base = wPrice(s, w, usdUnit);
+  if (num(op.d, 0) > 0) { const x = base * (1 - Math.min(90, num(op.d, 0)) / 100); return w === 'usd' ? Math.ceil(x * 100 - 1e-6) / 100 : Math.ceil(x * 2 - 1e-6) / 2; }
+  return base;
+}
 const rscSell = (cost, margin) => Math.ceil(cost * (1 + Math.max(0, margin) / 100) * 100) / 100;
 function rscMargin(s, cfg, key) {
   const c = cfg.cats[key] || {};
@@ -7769,7 +7807,9 @@ async function handleRscCatalog(env) {
     categories.push({
       key, type: cat.type, name: c.name || cat.name, image: rscImg(env, key, cfg, cat), note: c.note || cat.note || '',
       sort: num(c.sort, 99), fields: off.fields || [], featured: c.featured === true, promo: c.promo || '', group: RSC_GRP.includes(c.group) ? c.group : '', pop: pop[key] || 0, maint: c.maint === true, pick: c.pick === true,
-      offers: (off.offers || []).filter(o => o.stock == null || o.stock > 0).map(o => ({ id: o.id, name: o.name, price: rscSell(o.cost, m), min: o.min, max: o.max })),
+      brand: c.brand || cat.brand || '',
+      offers: (off.offers || []).filter(o => o.stock == null || o.stock > 0).map(o => { const op = (c.offers || {})[o.id] || {};
+        return { id: o.id, name: o.name, price: rscSell(o.cost, m), min: o.min, max: o.max, ...(op.d > 0 ? { d: op.d } : {}), ...(op.p && Object.keys(op.p).length ? { p: op.p } : {}) }; }),
     });
   }
   categories.sort((a, b) => a.sort - b.sort || a.name.localeCompare(b.name));
@@ -7850,7 +7890,7 @@ async function handleRscOrder(user, body, env) {
   const total = round2(unit * qty);
   const expect = num(body.expect, 0);
   if (!(expect > 0) || total > round2(expect + 0.009)) throw httpError(409, 'تغيّر السعر — حدّث الصفحة وأعد المحاولة');
-  if (!(total > 0) || total < round2(off.cost * qty)) throw httpError(409, 'السعر غير متاح الآن — حاول بعد قليل');   // لا بيع بخسارة
+  if (!(total > 0) || (total < round2(off.cost * qty) && !(cfg.cats[ckey].offers || {})[off.id])) throw httpError(409, 'السعر غير متاح الآن — حاول بعد قليل');   // لا بيع بخسارة
   const cats = await rscCats(env);
   const cat = cats.find(c => c.key === ckey) || {};
   const catName = (cfg.cats[ckey] && cfg.cats[ckey].name) || cat.name || catId;
@@ -7859,6 +7899,11 @@ async function handleRscOrder(user, body, env) {
   const resp = await fsRunTransaction(env, async (tx) => {
     const hit = await idemRead(tx, user.uid, key); if (hit) return hit;
     const sp = await spendPlan(tx, s, user.uid, total);                // v62: من المحفظة الافتراضية
+    const opx = (cfg.cats[ckey].offers || {})[off.id];                 // v64: تسعير يدوي/خصم للمنتج
+    if (opx) {
+      sp.amt = Math.round(offerUnitW(s, sp.w, unit, opx) * qty * 100) / 100;
+      if (wToUsd(s, sp.w, sp.amt) < round2(off.cost * qty) - 0.01) throw httpError(409, 'السعر غير متاح الآن — حاول بعد قليل');   // لا بيع تحت التكلفة
+    }
     const L = await ledgerOpen(tx, user.uid, sp.w);
     if (L.doc.banned === true) throw httpError(403, 'الحساب موقوف');
     assertEmailVerified(env, s, L.doc);
@@ -8008,7 +8053,7 @@ async function rscCron(env, hourly) {
 /* ─── الأدمن ─── */
 async function handleAdminRsc(user, body, env) {
   const action = String(body.action || 'state');
-  const perm = ['state', 'orders', 'olist'].includes(action) ? 'orders.view' : action === 'order' ? 'orders.approve' : 'store.edit';
+  const perm = ['state', 'orders', 'olist', 'offers'].includes(action) ? 'orders.view' : action === 'order' ? 'orders.approve' : 'store.edit';
   const staff = await requirePermission(user, env, perm);
   const s = await getSettings(env);
   const cfg = await rscCfg(env);
@@ -8134,6 +8179,27 @@ async function handleAdminRsc(user, body, env) {
     await rscCfgSave(env, cfg);
     await logOp(env, staff.uid, 'rsc.cat', { key }, { on: cur.on }, true);
     return { success: true };
+  }
+  if (action === 'offers') {                                         // v64: منتجات قسم مع التسعير اليدوي
+    const key = String(body.key || '');
+    if (!rscKeyOk(key)) throw httpError(400, 'قسم غير صالح');
+    let off = await rscKvGet(env, 'rsc:off:' + key);
+    if (!off) off = await rscFetchOffers(env, key).catch(() => ({ offers: [] }));
+    const c = cfg.cats[key] || {}, m = rscMargin(s, cfg, key);
+    return { success: true, key, rates: Object.fromEntries(WALLETS.map(w => [w, wRate(s, w)])), offers: (off.offers || []).map(o => ({ id: o.id, name: o.name, cost: o.cost, price: rscSell(o.cost, m),
+      auto: Object.fromEntries(WALLETS.map(w => [w, wPrice(s, w, rscSell(o.cost, m))])), set: (c.offers || {})[o.id] || null })) };
+  }
+  if (action === 'oprice') {                                         // v64: خصم % أو سعر يدوي لكل طريقة
+    const key = String(body.key || ''), oid = String(body.offer || '').slice(0, 80);
+    if (!rscKeyOk(key) || !oid) throw httpError(400, 'بيانات ناقصة');
+    const cur = { ...(cfg.cats[key] || {}) }, offs = { ...(cur.offers || {}) };
+    const d = Math.max(0, Math.min(90, num(body.d, 0))), p = {};
+    for (const w of WALLETS) { const v = num((body.p || {})[w], 0); if (v > 0) p[w] = round2(v); }
+    if (!d && !Object.keys(p).length) delete offs[oid]; else offs[oid] = { ...(d ? { d } : {}), ...(Object.keys(p).length ? { p } : {}) };
+    cur.offers = offs; cfg.cats[key] = cur;
+    await rscCfgSave(env, cfg); bustPublic();
+    await logOp(env, staff.uid, 'rsc.oprice', { key, oid }, { d, p }, true);
+    return { success: true, set: offs[oid] || null };
   }
   if (action === 'olist') {                                          // v60: صفحة «طلبات المتجر» — فلتر + بحث + مدة + ملخص
     const st = String(body.st || 'all'), days = Math.min(365, Math.max(0, Math.floor(num(body.days, 7))));

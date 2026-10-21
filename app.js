@@ -194,6 +194,13 @@ const wFmt = (x, w = wDef()) => w === 'usd' ? usd(x) : lyd(x);
 const wP = u => wFmt(wPrice(u));                                      // سعر منتج بعملة المحفظة الافتراضية
 const wIsShort = u => wBal() < wPrice(u) - 1e-9;
 const wShortUsd = u => { const w = wDef(), i = wInfo(w), d = Math.max(0, wPrice(u) - wBal()); return Math.ceil(d / ((1 + n(i.margin) / 100) * (w === 'usd' ? 1 : n(i.rate))) * 100) / 100; };
+// v64: سعر منتج بالمحفظة: يدوي لكل طريقة > خصم % > عادي — نفس السيرفر
+const wOff = (o, qty = 1, w = wDef()) => { const man = o.p && n(o.p[w]); let u;
+  if (man > 0) u = man; else if (n(o.d) > 0) { const b = wPrice(o.price, w), x = b * (1 - Math.min(90, n(o.d)) / 100); u = w === 'usd' ? Math.ceil(x * 100 - 1e-6) / 100 : Math.ceil(x * 2 - 1e-6) / 2; }
+  else return wPrice(Math.round(n(o.price) * qty * 100) / 100, w);
+  return Math.round(u * qty * 100) / 100; };
+const wOffHtml = o => { const v = wOff(o), b = wPrice(o.price); return esc(wFmt(v)) + (v < b - 0.001 ? ` <s style="opacity:.6;font-size:.85em">${esc(wFmt(b))}</s>` : ''); };
+const wShortOf = amtW => { const w = wDef(), i = wInfo(w), d = Math.max(0, amtW - wBal()); return Math.ceil(d / ((1 + n(i.margin) / 100) * (w === 'usd' ? 1 : n(i.rate))) * 100) / 100; };
 const methodW = k => /libyana/.test(k) ? 'ly' : /almadar/.test(k) ? 'md' : k === 'bank' ? 'bk' : 'usd';
 const lyd = v => Number(v || 0).toLocaleString('en-US',
   { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + ' د.ل';
@@ -1373,15 +1380,21 @@ function renderCard(c) {
 /* v62 — شبكة المحافظ: لون وصورة لكل محفظة + تعيين كافتراضي */
 function walletsGrid() {
   const d = wDef();
-  return `<div class="kwal-grid">${W_KEYS.map(w => { const i = wInfo(w), b = wBalOf(w);
+  return `<div class="kwal-grid kwal-car" id="kwCar">${[d, ...W_KEYS.filter(x => x !== d)].map(w => { const i = wInfo(w), b = wBalOf(w);
     return `<div class="kwal ${w === d ? 'on' : ''}" style="--wc:${esc(i.color)}">
       ${w === d ? '<span class="kwal-def">الافتراضية ✓</span>' : ''}
       <div class="kwal-n"><span class="kwal-lg">${i.logo ? `<img src="${esc(i.logo)}" alt="">` : esc({ usd: '₮', ly: 'LY', md: 'MD', bk: '🏦' }[w])}</span>${esc(i.label)}</div>
       <div class="kwal-b tabular" dir="ltr">${w === 'usd' ? '<small>$</small>' : ''}${esc(Number(b).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }))}${w === 'usd' ? '' : '<small> د.ل</small>'}</div>
-      ${w === d ? '' : `<button type="button" class="kwal-set" data-wdef="${w}">تعيين كافتراضي</button>`}
+      <div style="display:flex;gap:6px;position:relative;z-index:1">${w === d ? '' : `<button type="button" class="kwal-set" data-wdef="${w}">تعيين كافتراضي</button>`}<button type="button" class="kwal-set" data-wdep="${w}">+ شحن</button></div>
     </div>`; }).join('')}</div>
+  <div class="kwal-dots">${W_KEYS.map((_, i) => `<i class="${i ? '' : 'on'}"></i>`).join('')}</div>
   <p class="caption mb-4" style="text-align:center">🔒 كل محفظة تتصرّف بعملتها. الشراء والسحب والتحويل من المحفظة الافتراضية.</p>`;
 }
+document.addEventListener('click', e => {                              // v64: شحن محفظة معيّنة
+  const b = e.target.closest && e.target.closest('[data-wdep]'); if (!b) return;
+  const w = b.dataset.wdep; S._depW = w; openDeposit(0);
+});
+document.addEventListener('scroll', e => { const c = e.target; if (!c || c.id !== 'kwCar') return; const i = Math.round(Math.abs(c.scrollLeft) / (c.firstElementChild ? c.firstElementChild.offsetWidth + 10 : 1)); document.querySelectorAll('.kwal-dots i').forEach((d, j) => d.classList.toggle('on', j === i)); }, true);
 document.addEventListener('click', async e => {
   const b = e.target.closest && e.target.closest('[data-wdef]'); if (!b) return;
   const w = b.dataset.wdef; b.disabled = true;
@@ -2859,13 +2872,15 @@ async function openDeposit(preset, checkout) {
   if (!checkout) CHECKOUT = null;
   anEv(checkout ? 'buy_short' : 'dep_open');
   { const g = moneyGateHtml(); if (g) { modal(g); onTap('#gateGo', () => { closeModal(); go('settings'); }); return; } }
-  let opts = depositOptions();
-  // v62: في الشراء المعلّق نعرض بس الطرق اللي تشحن المحفظة الافتراضية (باش يكمل الشراء)
-  if (CHECKOUT && wOn()) { const f = opts.filter(o => methodW(o.key) === wDef()); if (f.length) opts = f; }
-  if (!opts.length) { modal(`<div class="h4 mb-3">شحن المحفظة</div><p class="body-sm text-2">لا توجد طرق شحن مفعّلة حاليًا.</p>`); return; }
-  let cur = CHECKOUT && wOn() && wDef() !== 'usd' ? 'lyd' : 'usd';
+  const allOpts = depositOptions();
+  if (!allOpts.length) { modal(`<div class="h4 mb-3">شحن المحفظة</div><p class="body-sm text-2">لا توجد طرق شحن مفعّلة حاليًا.</p>`); return; }
+  // v64: الشحن = المحفظة — الزبون يختار المحفظة، ويطلعله بس طرقها وبعملتها
+  const wHas = w => allOpts.some(o => methodW(o.key) === w);
+  let selW = wOn() ? (S._depW && wHas(S._depW) ? S._depW : wHas(wDef()) ? wDef() : W_KEYS.find(wHas) || 'usd') : null; S._depW = null;
+  let opts = selW ? allOpts.filter(o => methodW(o.key) === selW) : allOpts;
+  let cur = selW ? (selW === 'usd' ? 'usd' : 'lyd') : 'usd';
   let amt = n(preset) || 0;
-  if (cur === 'lyd' && amt) amt = Math.ceil(wPrice(amt));
+  if (cur === 'lyd' && amt) amt = Math.ceil(CHECKOUT && CHECKOUT.tw ? Math.max(0, CHECKOUT.tw - wBal()) : wPrice(amt));
   let sel = (() => { try { return localStorage.getItem('kardo_last_pm') || ''; } catch { return ''; } })();
   if (!opts.find(o => o.key === sel && !o.paused)) sel = (opts.find(o => !o.paused) || opts[0]).key;
   const usdOf = o => cur === 'usd' ? amt : (o.unit === 'USDT' ? amt / (n(S.config.usd_to_lyd) || 11.8) : amt / (o.rate || 1));
@@ -2899,11 +2914,12 @@ async function openDeposit(preset, checkout) {
     modal(`
       <div class="modal-head"><div class="modal-title">${CHECKOUT ? 'ادفع وأكمل الشراء' : 'شحن المحفظة'}</div>
         <button class="modal-close" data-act="close-modal" aria-label="إغلاق">${svg(I.x)}</button></div>
-      ${CHECKOUT ? `<div class="kco">${svg(I.store)}<div><b>${esc(CHECKOUT.name)}</b><span>ينقصك ${esc(wFmt(Math.max(0, wPrice(CHECKOUT.total) - wBal())))} — بعد ما يوصل الدفع نكمل الشراء تلقائيًا</span></div></div>` : ''}
+      ${CHECKOUT ? `<div class="kco">${svg(I.store)}<div><b>${esc(CHECKOUT.name)}</b><span>ينقصك ${esc(wFmt(Math.max(0, (CHECKOUT.tw || wPrice(CHECKOUT.total)) - wBal())))} — بعد ما يوصل الدفع نكمل الشراء تلقائيًا</span></div></div>` : ''}
+      ${selW ? `<div class="kwsel">${W_KEYS.filter(wHas).map(w => { const i = wInfo(w); return `<button type="button" data-dw="${w}" class="${w === selW ? 'on' : ''}" style="--wc:${esc(i.color)}"><i></i>${esc(i.label)}<small>${esc(wFmt(wBalOf(w), w))}</small></button>`; }).join('')}</div>` : ''}
       <div id="kdPromo">${promoHtml()}</div>
       <div class="kdep-amt">
-        <div class="kdep-row"><label for="kdA">${cur === 'usd' ? 'المبلغ بالدولار' : 'المبلغ بالدينار'}</label>
-          <div class="kseg"><button type="button" data-cur="usd" class="${cur === 'usd' ? 'on' : ''}">$</button><button type="button" data-cur="lyd" class="${cur === 'lyd' ? 'on' : ''}">د.ل</button></div></div>
+        <div class="kdep-row"><label for="kdA">${selW ? `تشحن محفظة ${esc(wInfo(selW).label)} — ${cur === 'usd' ? 'بالدولار' : 'بالدينار'}` : cur === 'usd' ? 'المبلغ بالدولار' : 'المبلغ بالدينار'}</label>
+          ${selW ? '' : `<div class="kseg"><button type="button" data-cur="usd" class="${cur === 'usd' ? 'on' : ''}">$</button><button type="button" data-cur="lyd" class="${cur === 'lyd' ? 'on' : ''}">د.ل</button></div>`}</div>
         <div class="kdep-in"><input id="kdA" type="text" inputmode="decimal" autocomplete="off" placeholder="0" value="${amt || ''}" class="tabular" dir="ltr"><span>${cur === 'usd' ? '$' : 'د.ل'}</span></div>
       </div>
       <div class="kchips" id="kdChips">${chipsHtml()}</div>
@@ -2912,6 +2928,8 @@ async function openDeposit(preset, checkout) {
     const inp = $('#kdA');
     inp.oninput = () => { const v = String(inp.value).replace(/[٠-٩]/g, d => '٠١٢٣٤٥٦٧٨٩'.indexOf(d)).replace(/[۰-۹]/g, d => '۰۱۲۳۴۵۶۷۸۹'.indexOf(d)).replace(/,/g, '.').replace(/[^\d.]/g, '').replace(/(\..*)\./g, '$1'); if (v !== inp.value) inp.value = v; amt = n(v); update(); };
     $$('[data-cur]').forEach(b => b.onclick = () => { if (cur !== b.dataset.cur) { cur = b.dataset.cur; amt = 0; draw(); } });
+    $$('[data-dw]').forEach(b => b.onclick = () => { const w = b.dataset.dw; if (w === selW) return; selW = w; opts = allOpts.filter(o => methodW(o.key) === w); cur = w === 'usd' ? 'usd' : 'lyd'; amt = 0;
+      if (!opts.find(o => o.key === sel && !o.paused)) sel = (opts.find(o => !o.paused) || opts[0]).key; draw(); });
     bindParts();
     _htBack = () => openDeposit(cur === 'usd' ? amt : 0, !!CHECKOUT);
     onTap('#kdGo', () => {
@@ -4493,7 +4511,7 @@ let _rscLoading = null;
 async function loadRsc(force) {
   if (_rscLoading || (S.rsc.loaded && !force && Date.now() - (S.rsc.at || 0) < 120000)) return _rscLoading;
   _rscLoading = (async () => {
-    try { const d = await apiGet('/api/rsc/catalog'); S.rsc = { loaded: true, cats: d.categories || [], on: d.on !== false, at: Date.now() }; }
+    try { const d = await apiGet('/api/rsc/catalog'); S.rsc = { loaded: true, all: d.categories || [], cats: rscBrands(d.categories || []), on: d.on !== false, at: Date.now() }; }
     catch { S.rsc = { ...S.rsc, error: true }; }
     _rscLoading = null; render();
   })();
@@ -4502,7 +4520,33 @@ async function loadRsc(force) {
 async function loadRscOrders() {
   try { const r = await api('/api/rsc/my-orders', {}); S.rscOrders = r.orders || []; render(); } catch {}
 }
-const rscCatBy = key => (S.rsc.cats || []).find(c => c.key === key);
+const rscCatBy = key => (S.rsc.cats || []).find(c => c.key === key) || (S.rsc.all || []).find(c => c.key === key);
+// v64: نجمع الأقسام الفرعية تحت قسم رئيسي (البراند) زي المزود — مثلاً «iTunes» وداخله أمريكي/تركي/إماراتي…
+function rscBrands(list) {
+  const by = new Map(), out = [];
+  for (const c of list) { const b = String(c.brand || '').trim(); if (!b) { out.push(c); continue; } if (!by.has(b)) by.set(b, []); by.get(b).push(c); }
+  for (const [b, subs] of by) {
+    if (subs.length < 2) { out.push(subs[0]); continue; }
+    subs.sort((x, y) => (x.maint ? 1 : 0) - (y.maint ? 1 : 0) || (y.pop || 0) - (x.pop || 0) || x.sort - y.sort || String(x.name).localeCompare(String(y.name)));
+    const f = subs.find(x => x.image) || subs[0];
+    out.push({ ...f, key: 'B~' + b, name: b, isBrand: true, subs, pop: subs.reduce((t, x) => t + (x.pop || 0), 0), sort: Math.min(...subs.map(x => x.sort)),
+      featured: subs.some(x => x.featured), maint: subs.every(x => x.maint), promo: (subs.find(x => x.promo) || {}).promo || '', note: '', offers: subs.flatMap(x => x.offers || []) });
+  }
+  return out;
+}
+function vRscBrand(b) {
+  S.rscBrandKey = b.key;
+  const q = (S.rscBQ || '').trim().toLowerCase();
+  const list = b.subs.filter(c => !q || srchMatch(c.name, q));
+  const g = rscGroup(b) === 'topup' ? 'topup' : 'gift';
+  return `<div class="page-enter">
+    <div class="kp-bk"><button class="kp-back" data-rscback type="button" aria-label="رجوع">${svg(I.next)}<span>رجوع</span></button></div>
+    <h1 class="kpage-title">${esc(b.name)}</h1><p class="kpage-sub">${b.subs.length} قسم — اختار اللي يناسبك</p>
+    ${b.subs.length > 8 ? `<label class="ksearch">${svg(I.search)}<input id="rscBQ" placeholder="ابحث داخل ${esc(b.name)}…" value="${esc(S.rscBQ || '')}" autocomplete="off" inputmode="search"></label>` : ''}
+    ${g === 'topup' ? `<div class="kgrid3">${list.map(rscTile).join('')}</div>` : `<div class="kgrid2">${list.map(rscGiftTile).join('')}</div>`}
+    ${!list.length ? '<div class="caption" style="text-align:center;padding:20px">لا نتائج</div>' : ''}
+  </div>`;
+}
 const rscFrom = c => Math.min(...(c.offers || []).map(o => o.price));
 const RSC_GROUPS = ['topup', 'gift', 'subs', 'apps', 'pay'];
 const rscGroup = c => RSC_GROUPS.includes(c.group) ? c.group : (c.type === 'topup' ? 'topup' : 'gift');
@@ -4552,7 +4596,7 @@ function rscAgain() {
   return `<div class="ksh"><h2>اشتري مرة ثانية</h2></div>
     <div class="krow">${out.map(({ o, c, off }) => { const f = Object.values(o.fields || {})[0];
       return `<button class="kagain" data-rscagain="${esc(o.id)}" type="button"><span class="kagain-ic">${rscImgTag(c)}</span>
-        <span class="kagain-t"><b dir="auto">${esc(off.name)}</b><span>${f ? `<bdi dir="ltr">${esc(mask(f))}</bdi> · ` : ''}${esc(wP(off.price))}</span></span><span class="kagain-go">↺</span></button>`; }).join('')}</div>`;
+        <span class="kagain-t"><b dir="auto">${esc(off.name)}</b><span>${f ? `<bdi dir="ltr">${esc(mask(f))}</bdi> · ` : ''}${wOffHtml(off)}</span></span><span class="kagain-go">↺</span></button>`; }).join('')}</div>`;
 }
 function rscChips(tab, cats) {
   const has = g => g === 'all' || cats.some(c => rscGroup(c) === g);
@@ -4584,12 +4628,14 @@ function rscHome() {
 function vKStore() {
   if (!S.rsc.loaded) loadRsc();
   const cur = S.rscCat ? rscCatBy(S.rscCat) : null;
+  if (!S.rscCat) S.rscBrandKey = null;
+  if (cur && cur.isBrand) return vRscBrand(cur);
   if (cur && cur.maint) { S.rscCat = null; }
   else if (cur) return vRscProduct(cur);
   const q = (S.rscQ || '').trim().toLowerCase();
   const tab = S.rscTab || 'all';
   const cats = S.rsc.cats || [];
-  const shown = cats.filter(c => (!q || srchMatch(c.name, q)) && (q || tab === 'all' || rscGroup(c) === tab));
+  const shown = q ? (S.rsc.all || cats).filter(c => srchMatch(c.name + ' ' + (c.brand || ''), q)) : cats.filter(c => tab === 'all' || rscGroup(c) === tab);   // v64: البحث يلقى الأقسام الفرعية مباشرة
   const feat = cats.filter(c => c.featured).slice(0, 5);
   const home = tab === 'all' && !q;
   if (home && S.user && !S.rscOrders) { S.rscOrders = []; loadRscOrders(); }
@@ -4630,7 +4676,7 @@ function vRscProduct(cur) {
   const sel = cur.offers.find(o => o.id === S.rscSel) || cur.offers[0];
   const qty = isTop ? 1 : Math.min(sel.max, Math.max(sel.min, Math.floor(n(S.rscQty) || sel.min)));
   const total = Math.round(sel.price * qty * 100) / 100;
-  const bal = wBal(), short = wIsShort(total);
+  const tw = wOff(sel, qty), bal = wBal(), short = bal < tw - 1e-9;
   const pop = rscPop(cur);
   return `<div class="page-enter kprod">
     <div class="kp-bk"><button class="kp-back" data-rscback type="button" aria-label="رجوع">${svg(I.next)}<span>رجوع</span></button></div>
@@ -4641,14 +4687,14 @@ function vRscProduct(cur) {
     ${cur.note ? `<div class="alert alert-info mb-3">${svg(I.help)}<div style="white-space:pre-line">${esc(cur.note)}</div></div>` : ''}
     <div class="kp-lbl">اختر الباقة</div>
     <div class="kpk">${cur.offers.map(o => `<button class="kpkc ${o.id === sel.id ? 'on' : ''}" data-rscpick="${esc(o.id)}" type="button">
-      <b dir="auto">${esc(o.name)}</b><span class="p">${esc(wP(o.price))}</span><span class="u">${wDef() === 'usd' ? '' : 'محفظة ' + esc(wInfo(wDef()).label)}</span></button>`).join('')}</div>
+      <b dir="auto">${esc(o.name)}</b><span class="p">${wOffHtml(o)}</span><span class="u">${wDef() === 'usd' ? '' : 'محفظة ' + esc(wInfo(wDef()).label)}</span></button>`).join('')}</div>
     ${isTop ? (cur.fields || []).map((f, i) => `<div class="kp-lbl">${esc(f.label)}</div>
       <input class="input kp-in" id="rpf${i}" data-rpf="${esc(f.key)}" ${f.type === 'number' ? 'inputmode="numeric"' : ''} dir="ltr" maxlength="120" autocomplete="off" value="${esc((S.rscF[cur.key] || {})[f.key] || '')}">`).join('') +
       `<div class="caption" style="margin-top:8px;display:flex;gap:6px;align-items:center">${svg(I.help)}تأكد من الرقم — الشحن يمشي مباشرة ولا يُسترجع</div>` : `
       <div class="kp-lbl">الكمية</div>
       <div class="kqty"><button type="button" data-rscqty="-1" ${qty <= sel.min ? 'disabled' : ''}>−</button><b class="tabular">${qty}</b><button type="button" data-rscqty="1" ${qty >= sel.max ? 'disabled' : ''}>+</button></div>`}
-    <div class="kbuy"><div class="kbuy-t"><span>${short ? `رصيد ${esc(wInfo(wDef()).label)} ${esc(wFmt(bal))}` : 'الإجمالي'}</span><b class="tabular">${esc(wP(total))}</b></div>
-      <button class="kbuy-b" id="rpGo" type="button" data-total="${total}" data-short="${short ? 1 : ''}">${short ? `${svg(I.wallet2)} ادفع الفرق ${esc(wFmt(Math.max(0, wPrice(total) - bal)))}` : `${svg(I.lock)} ادفع من محفظة ${esc(wInfo(wDef()).label)}`}</button>
+    <div class="kbuy"><div class="kbuy-t"><span>${short ? `رصيد ${esc(wInfo(wDef()).label)} ${esc(wFmt(bal))}` : 'الإجمالي'}</span><b class="tabular">${esc(wFmt(tw))}</b></div>
+      <button class="kbuy-b" id="rpGo" type="button" data-total="${total}" data-short="${short ? 1 : ''}">${short ? `${svg(I.wallet2)} ادفع الفرق ${esc(wFmt(Math.max(0, tw - bal)))}` : `${svg(I.lock)} ادفع من محفظة ${esc(wInfo(wDef()).label)}`}</button>
       ${short ? `<div class="kbuy-x"><i>؟</i>رصيدك ما يكفيش — تدفع الناقص بس، ويكتمل الشراء وحده أول ما توصل الشحنة</div>` : ''}</div>
   </div>`;
 }
@@ -4662,7 +4708,7 @@ function openRscBuy(cat, off, pre) {
       ${cat.image ? `<img src="${esc(rscImgUrl(cat.image))}" alt="">` : `<span class="kstate" style="margin:0;width:64px;height:64px">${svg(isTop ? I.game : I.giftbox)}</span>`}
       <div><div class="h4" style="margin:0">${esc(cat.name)}</div><div class="caption">${isTop ? 'شحن مباشر — يصل خلال دقائق' : 'كود رقمي — يصلك فورًا'}</div></div>
     </div>
-    ${chips ? `<div class="field-label">اختر الباقة</div><div class="kopts">${chips.map(o => `<button class="kopt ${o.id === off.id ? 'on' : ''}" data-kopt="${esc(o.id)}" type="button"><b dir="auto">${esc(o.name)}</b><small>${esc(wP(o.price))}</small></button>`).join('')}</div>`
+    ${chips ? `<div class="field-label">اختر الباقة</div><div class="kopts">${chips.map(o => `<button class="kopt ${o.id === off.id ? 'on' : ''}" data-kopt="${esc(o.id)}" type="button"><b dir="auto">${esc(o.name)}</b><small>${wOffHtml(o)}</small></button>`).join('')}</div>`
       : `<div class="field-label">الباقة</div><div class="copy-box mb-4"><div class="copy-value" dir="auto">${esc(off.name)}</div></div>`}
     ${isTop ? (cat.fields || []).map((f, i) => `
       <div class="field mb-2"><label class="field-label" for="rf${i}">${esc(f.label)}</label>
@@ -4672,18 +4718,18 @@ function openRscBuy(cat, off, pre) {
         <input class="input tabular" id="rQty" type="number" inputmode="numeric" min="${off.min}" max="${off.max}" value="${off.min}"></div>`}
     <div class="ksum" id="rSum"></div>
     <button class="btn btn-primary btn-block btn-lg" id="rGo" type="button"></button>`);
-  let total = off.price;
+  let total = off.price, twAmt = 0;
   const calc = () => {
     const q = isTop ? 1 : Math.floor(n(($('#rQty') || {}).value));
     const ok = isTop || (q >= sel.min && q <= sel.max);
     total = Math.round(sel.price * (ok ? q : sel.min) * 100) / 100;
-    const bal = wBal(), short = wIsShort(total);
+    const tw = wOff(sel, ok ? q : sel.min), bal = wBal(), short = bal < tw - 1e-9; twAmt = tw;
     $('#rSum').innerHTML = `
       <div><span>رصيد محفظة ${esc(wInfo(wDef()).label)}</span><b class="tabular" style="${short ? 'color:var(--u-err)' : ''}">${esc(wFmt(bal))}</b></div>
-      <div class="tot"><span>الإجمالي</span><b class="tabular">${esc(wP(total))}</b></div>
+      <div class="tot"><span>الإجمالي</span><b class="tabular">${esc(wFmt(tw))}</b></div>
       ${!ok ? `<div style="color:var(--u-warn)">الكمية من ${sel.min} إلى ${sel.max}</div>` : ''}`;
     const b = $('#rGo');
-    b.innerHTML = short ? `${svg(I.wallet2)} ادفع الفرق ${esc(wFmt(Math.max(0, wPrice(total) - bal)))}` : `${svg(I.lock)} ادفع ${esc(wP(total))} من محفظتي`;
+    b.innerHTML = short ? `${svg(I.wallet2)} ادفع الفرق ${esc(wFmt(Math.max(0, tw - bal)))}` : `${svg(I.lock)} ادفع ${esc(wFmt(tw))} من محفظتي`;
     b.dataset.short = short ? '1' : '';
     b.disabled = !ok;
   };
@@ -4704,8 +4750,8 @@ function openRscBuy(cat, off, pre) {
       fields[cat.fields[i].key] = v;
     }
     if (btn.dataset.short) {
-      const short = wShortUsd(total);
-      CHECKOUT = { name: `${cat.name} — ${sel.name}`, total, body: { cat: cat.key, offer: sel.id, qty: isTop ? 1 : Math.floor(n($('#rQty').value)), fields, expect: total, idempotency_key: key } };
+      const short = wShortOf(twAmt);
+      CHECKOUT = { name: `${cat.name} — ${sel.name}`, total, tw: twAmt, body: { cat: cat.key, offer: sel.id, qty: isTop ? 1 : Math.floor(n($('#rQty').value)), fields, expect: total, idempotency_key: key } };
       closeModal(); openDeposit(short, true); return;
     }
     btn.disabled = true; btn.classList.add('loading');
@@ -4754,7 +4800,8 @@ function rscOrderRows() {
 }
 function bindRsc() {
   $$('[data-rsccat]').forEach(b => b.onclick = () => { const _c = rscCatBy(b.dataset.rsccat); if (_c && _c.maint) return toast('هذا القسم قيد الصيانة حاليًا — جرّب بعد شوية', 'bad'); S.rscCat = b.dataset.rsccat; if (S.page !== 'kstore') go('kstore', true); else { render(); window.scrollTo({ top: 0, behavior: 'instant' }); } });
-  $$('[data-rscback]').forEach(b => b.onclick = () => { S.rscCat = null; render(); window.scrollTo({ top: 0, behavior: 'instant' }); });
+  $$('[data-rscback]').forEach(b => b.onclick = () => { const bk = S.rscBrandKey; S.rscCat = bk && S.rscCat !== bk && rscCatBy(bk) ? bk : null; if (!S.rscCat) S.rscBQ = ''; render(); window.scrollTo({ top: 0, behavior: 'instant' }); });
+  { const bq = $('#rscBQ'); if (bq) bq.oninput = () => { S.rscBQ = bq.value; clearTimeout(bq._t); bq._t = setTimeout(() => { const pos = bq.selectionStart; render(); const n2 = $('#rscBQ'); if (n2) { n2.focus(); try { n2.setSelectionRange(pos, pos); } catch {} } }, 250); }; }
   $$('[data-rscpick]').forEach(b => b.onclick = () => { S.rscSel = b.dataset.rscpick; S.rscQty = null; haptic.tap(); render(); });
   $$('[data-rscqty]').forEach(b => b.onclick = () => { const c = rscCatBy(S.rscCat), o = c && (c.offers.find(x => x.id === S.rscSel) || c.offers[0]); if (!o) return; S.rscQty = Math.min(o.max, Math.max(o.min, (n(S.rscQty) || o.min) + Number(b.dataset.rscqty))); render(); });
   $$('[data-rpf]').forEach(inp => inp.oninput = () => { S.rscF[S.rscCat] = { ...(S.rscF[S.rscCat] || {}), [inp.dataset.rpf]: inp.value }; });
@@ -5381,12 +5428,13 @@ async function rscProductPay() {
     fields[cat.fields[i].key] = v;
   }
   const body = { cat: cat.key, offer: sel.id, qty, fields, expect: total, idempotency_key: S.rscKey };
-  if (wIsShort(total)) {
-    const short = wShortUsd(total);
-    CHECKOUT = { name: `${cat.name} — ${sel.name}`, total, body };
+  const tw = wOff(sel, qty);
+  if (wBal() < tw - 1e-9) {
+    const short = wShortOf(tw);
+    CHECKOUT = { name: `${cat.name} — ${sel.name}`, total, tw, body };
     return openDeposit(short, true);
   }
-  if (!confirm(`تأكيد شراء ${sel.name}${qty > 1 ? ' × ' + qty : ''} بـ ${wP(total)} من محفظة ${wInfo(wDef()).label}؟`)) return;
+  if (!confirm(`تأكيد شراء ${sel.name}${qty > 1 ? ' × ' + qty : ''} بـ ${wFmt(tw)} من محفظة ${wInfo(wDef()).label}؟`)) return;
   const btn = $('#rpGo'); if (btn) { btn.disabled = true; btn.classList.add('loading'); }
   try {
     const r = await api('/api/rsc/order', body, 60000);

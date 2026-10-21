@@ -749,3 +749,17 @@ label.kset-row.static { cursor: pointer; }
 .kw-dot { display: inline-block; width: 9px; height: 9px; border-radius: 50%; margin-inline-end: 6px; vertical-align: middle; box-shadow: 0 0 0 2px rgba(255, 255, 255, .5); }
 .kw-switch { background: none; border: 0; color: inherit; font: inherit; opacity: .85; padding: 0; cursor: pointer; text-decoration: underline; text-underline-offset: 3px; }
 @media (max-width: 360px) { .kwal-b { font-size: 19px; } .kwal { min-height: 112px; padding: 12px; } }
+/* v64 — المحافظ كبطاقات تنسحب + اختيار المحفظة في الشحن */
+.kwal-car { display: flex; overflow-x: auto; scroll-snap-type: x mandatory; gap: 10px; padding: 4px 2px 6px; margin-inline: -2px; scrollbar-width: none; }
+.kwal-car::-webkit-scrollbar { display: none; }
+.kwal-car .kwal { flex: 0 0 82%; scroll-snap-align: center; min-height: 150px; }
+.kwal-car .kwal-b { font-size: 30px; }
+.kwal-dots { display: flex; justify-content: center; gap: 6px; margin: 2px 0 10px; }
+.kwal-dots i { width: 6px; height: 6px; border-radius: 50%; background: var(--u-line-2); transition: width .2s; }
+.kwal-dots i.on { width: 18px; border-radius: 4px; background: var(--u-gold-fill); }
+.kwsel { display: flex; gap: 8px; overflow-x: auto; scrollbar-width: none; margin-bottom: 12px; }
+.kwsel::-webkit-scrollbar { display: none; }
+.kwsel button { flex: none; display: flex; flex-direction: column; align-items: flex-start; gap: 2px; padding: 9px 12px; border-radius: 14px; border: 1.5px solid var(--u-line); background: var(--u-s1); color: var(--u-ink); font-weight: 700; font-size: 13px; cursor: pointer; }
+.kwsel button i { width: 18px; height: 4px; border-radius: 3px; background: var(--wc); }
+.kwsel button small { font-weight: 500; color: var(--u-ink-3); font-size: 11px; direction: ltr; }
+.kwsel button.on { border-color: var(--wc); background: color-mix(in srgb, var(--wc) 10%, var(--u-s1)); }

@@ -2501,6 +2501,13 @@ function openUserManage(uid) {
     </div>
 
     <button class="btn btn-primary btn-block" id="uAdj">تنفيذ التعديل</button>
+    ${can('users', 'edit') ? `<div class="card card-sm" style="margin-top:12px;background:var(--surface-2);border:none">
+      <div class="h4" style="font-size:13px;margin-bottom:8px">توثيق يدوي</div>
+      <div class="caption mb-2">رقم: ${u.phone_verified ? '0' + esc(String(u.phone_verified)) + ' ✓' : 'غير موثّق'} · بريد: ${u.email_verified ? 'موثّق ✓' : 'غير موثّق'}</div>
+      <div style="display:grid;grid-template-columns:110px 1fr;gap:8px;margin-bottom:8px">
+        <select class="input" id="uVk"><option value="libyana">رقم ليبيانا</option><option value="almadar">رقم المدار</option><option value="email">البريد</option></select>
+        <input class="input" id="uVp" dir="ltr" inputmode="numeric" maxlength="14" placeholder="09xxxxxxxx" value="${esc(u.phone_verified ? '0' + u.phone_verified : '')}"></div>
+      <button class="btn btn-secondary btn-block" id="uVer" type="button">توثيق</button></div>` : ''}
     <div style="margin-top:12px">${userPlanBlock(u)}</div>
     <button class="btn ${u.banned ? 'btn-secondary' : 'btn-outline-danger'} btn-block" style="margin-top:6px" id="uBan">
       ${u.banned ? 'إلغاء الإيقاف' : 'إيقاف الحساب'}
@@ -2508,6 +2515,13 @@ function openUserManage(uid) {
   `);
 
   bindUserPlan(uid);
+  const vk = $('#uVk'); if (vk) vk.onchange = () => { $('#uVp').style.display = vk.value === 'email' ? 'none' : ''; };
+  onTap('#uVer', async () => {                                        // v64
+    const k = $('#uVk').value, body = k === 'email' ? { uid, kind: 'email' } : { uid, kind: 'phone', network: k, phone: $('#uVp').value.trim() };
+    if (k !== 'email' && body.phone.replace(/\D/g, '').length < 9) return toast('اكتب الرقم كامل', 'bad');
+    if (!confirm(k === 'email' ? 'نوثّقوا بريده؟' : `نوثّقوا الرقم ${body.phone} (${k === 'almadar' ? 'المدار' : 'ليبيانا'}) لهذا الحساب؟`)) return;
+    try { await api('/api/admin/user/verify', body); toast('تم التوثيق ✓', 'ok'); closeModal(); } catch (e) { toast(e.message, 'bad'); }
+  });
   const adjIdemKey = newIdemKey();
   onTap('#uAdj', async () => {
     const amt = parseFloat($('#uAmt').value);
@@ -4599,6 +4613,7 @@ function openRscCatEdit(key) {
   modal(`
     <div class="modal-head"><div class="modal-title">${esc(c.name)}</div>
       <button class="modal-close" data-act="close-modal" aria-label="إغلاق">${svg(I.x)}</button></div>
+    <button class="btn btn-secondary btn-block mb-3" data-oprices="${esc(c.key)}" type="button">🏷️ تسعير المنتجات وخصوماتها</button>
     <div class="field mb-3"><label class="field-label" for="rcN">الاسم الظاهر للعملاء (اختياري)</label><input class="input" id="rcN" maxlength="60" value="${esc(c.alias || '')}" placeholder="${esc(c.name)}"></div>
     <div class="grid-2 mb-3">
       <div class="field"><label class="field-label" for="rcM">ربح خاص (%)</label><input class="input tabular" id="rcM" type="number" min="0" max="300" step="0.5" value="${esc(String(c.margin))}" placeholder="العام ${esc(String(S.rscA.margin))}%"></div>
@@ -5904,4 +5919,36 @@ document.addEventListener('click', async e => {
     toast(`انتهى التقسيم: ${total} زبون${fails.length ? ` — ${fails.length} فشل (شوف السجل)` : ''}`, fails.length ? 'bad' : 'ok');
     closeModal();
   }
+});
+
+/* ═══ v64 — تسعير يدوي وخصم لكل منتج (بكل طريقة دفع) ═══ */
+const OP_W = [['usd', 'USDT $'], ['ly', 'ليبيانا د.ل'], ['md', 'المدار د.ل'], ['bk', 'مصرف د.ل']];
+async function openOfferPrices(key) {
+  modal(`<div style="text-align:center;padding:24px"><div class="skeleton" style="height:80px;border-radius:12px"></div></div>`);
+  let r; try { r = await api('/api/admin/rsc', { action: 'offers', key }); } catch (e) { closeModal(); return toast(e.message, 'bad'); }
+  const c = (S.rscA.cats || []).find(x => x.key === key) || {};
+  modal(`<div class="modal-head"><div class="modal-title">تسعير — ${esc(c.alias || c.name || key)}</div><button class="modal-close" data-act="close-modal" aria-label="إغلاق">${svg(I.x)}</button></div>
+    <p class="caption mb-2">لكل منتج: خصم % على السعر العادي، أو سعر يدوي ثابت لأي طريقة دفع (يغلب الخصم). فاضي = السعر العادي. ما ينباعش تحت تكلفة المزود.</p>
+    <input class="input mb-2" id="opQ" placeholder="ابحث عن منتج…">
+    <div id="opList" style="max-height:58vh;overflow:auto">${(r.offers || []).map(o => { const st = o.set || {}, p = st.p || {};
+      return `<div class="card card-sm mb-2" data-opk="${esc(o.id)}" data-nm="${esc(String(o.name).toLowerCase())}">
+        <div class="flex-between"><b style="font-size:13px" dir="auto">${esc(o.name)}</b><span class="caption">تكلفة $${esc(Number(o.cost).toFixed(2))}</span></div>
+        <div class="caption mb-2">العادي: ${OP_W.map(([w]) => esc(wFA(o.auto[w], w))).join(' · ')}</div>
+        <div style="display:grid;grid-template-columns:repeat(5,1fr);gap:6px;align-items:end">
+          <label class="caption">خصم %<input class="input tabular" data-opd type="number" min="0" max="90" step="1" value="${st.d || ''}" style="padding:6px"></label>
+          ${OP_W.map(([w, t]) => `<label class="caption">${t}<input class="input tabular" data-opw="${w}" type="number" min="0" step="0.5" value="${p[w] || ''}" placeholder="${esc(String(o.auto[w]))}" style="padding:6px"></label>`).join('')}
+        </div>
+        <button class="btn btn-primary btn-sm" data-opsave="${esc(o.id)}" data-key="${esc(key)}" type="button" style="margin-top:8px">حفظ</button>${o.set ? ' <span class="badge badge-warning">مسعّر يدوي</span>' : ''}
+      </div>`; }).join('') || '<div class="caption">ما فيش منتجات — اضغط «جلب الأسعار» للقسم أول</div>'}</div>`);
+  const q = $('#opQ'); if (q) q.oninput = () => { const v = q.value.trim().toLowerCase(); document.querySelectorAll('[data-opk]').forEach(el => { el.style.display = !v || el.dataset.nm.includes(v) ? '' : 'none'; }); };
+}
+document.addEventListener('click', async e => {
+  const a = e.target.closest && e.target.closest('[data-oprices]'); if (a) { e.preventDefault(); return openOfferPrices(a.dataset.oprices); }
+  const b = e.target.closest && e.target.closest('[data-opsave]'); if (!b) return;
+  const box = b.closest('[data-opk]'), p = {};
+  box.querySelectorAll('[data-opw]').forEach(i => { if (n(i.value) > 0) p[i.dataset.opw] = n(i.value); });
+  b.disabled = true;
+  try { await api('/api/admin/rsc', { action: 'oprice', key: b.dataset.key, offer: b.dataset.opsave, d: n(box.querySelector('[data-opd]').value), p }); toast('حُفظ ✓ — يبان للعملاء خلال دقيقتين', 'ok'); }
+  catch (er) { toast(er.message, 'bad'); }
+  b.disabled = false;
 });
