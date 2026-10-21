@@ -1767,7 +1767,8 @@ async function spendPlan(tx, s, uid, usd, noMargin) {
   return { w, amt: noMargin ? (w === 'usd' ? round2(usd) : wFromUsd(s, w, usd)) : wPrice(s, w, usd) };
 }
 async function spendPost(L, sp, e) {
-  if (L.bal < sp.amt - 1e-9) throw httpError(402, `رصيد محفظة ${W_AR[sp.w]} غير كافٍ — المطلوب ${wFmt(sp.w, sp.amt)} والمتاح ${wFmt(sp.w, L.bal)}`);
+  if (!(sp.amt > 0) || !Number.isFinite(sp.amt)) throw httpError(400, 'مبلغ غير صالح');
+  if (L.bal < sp.amt - 1e-9) throw httpError(402, `رصيدك غير كافٍ — ينقصك ${wFmt(sp.w, round2(sp.amt - L.bal))} لإكمال عملية الشراء (المطلوب ${wFmt(sp.w, sp.amt)} · المتاح في محفظة ${W_AR[sp.w]} ${wFmt(sp.w, L.bal)})`);
   return ledgerPost(L, { ...e, type: 'debit', amount: sp.amt });
 }
 function depWallet(s, key) { return s.wallets_on === false ? 'usd' : methodWallet(key); }   // v62: محفظة الإيداع حسب الطريقة
@@ -6250,6 +6251,7 @@ function ipAllow(request, scope, perMin) {
 }
 let _platIds = { v: null, exp: 0 };
 async function imageIdKnown(env, kind, id) {
+  if (kind === 'm') return /^[a-z0-9_]{2,30}$/.test(id);              // v65: صور طرق الدفع والشبكات (كانت ترجع 404)
   if (kind === 's') return STICKER_SLOTS.includes(id);
   if (kind === 'b') return /^\d$/.test(id);
   if (kind === 'p' || kind === 'c') return (await getSettings(env)).kardo_store_on === true;
@@ -7809,7 +7811,8 @@ async function handleRscCatalog(env) {
       sort: num(c.sort, 99), fields: off.fields || [], featured: c.featured === true, promo: c.promo || '', group: RSC_GRP.includes(c.group) ? c.group : '', pop: pop[key] || 0, maint: c.maint === true, pick: c.pick === true,
       brand: c.brand || cat.brand || '',
       offers: (off.offers || []).filter(o => o.stock == null || o.stock > 0).map(o => { const op = (c.offers || {})[o.id] || {};
-        return { id: o.id, name: o.name, price: rscSell(o.cost, m), min: o.min, max: o.max, ...(op.d > 0 ? { d: op.d } : {}), ...(op.p && Object.keys(op.p).length ? { p: op.p } : {}) }; }),
+        return { id: o.id, name: o.name, price: rscSell(o.cost, m), min: o.min, max: o.max, ...(op.d > 0 ? { d: op.d } : {}), ...(op.p && Object.keys(op.p).length ? { p: op.p } : {}) }; })
+        .sort((a, b) => a.price - b.price),                            // v65: من الأرخص للأغلى
     });
   }
   categories.sort((a, b) => a.sort - b.sort || a.name.localeCompare(b.name));

@@ -4695,7 +4695,7 @@ function vRscProduct(cur) {
       <div class="kqty"><button type="button" data-rscqty="-1" ${qty <= sel.min ? 'disabled' : ''}>−</button><b class="tabular">${qty}</b><button type="button" data-rscqty="1" ${qty >= sel.max ? 'disabled' : ''}>+</button></div>`}
     <div class="kbuy"><div class="kbuy-t"><span>${short ? `رصيد ${esc(wInfo(wDef()).label)} ${esc(wFmt(bal))}` : 'الإجمالي'}</span><b class="tabular">${esc(wFmt(tw))}</b></div>
       <button class="kbuy-b" id="rpGo" type="button" data-total="${total}" data-short="${short ? 1 : ''}">${short ? `${svg(I.wallet2)} ادفع الفرق ${esc(wFmt(Math.max(0, tw - bal)))}` : `${svg(I.lock)} ادفع من محفظة ${esc(wInfo(wDef()).label)}`}</button>
-      ${short ? `<div class="kbuy-x"><i>؟</i>رصيدك ما يكفيش — تدفع الناقص بس، ويكتمل الشراء وحده أول ما توصل الشحنة</div>` : ''}</div>
+      ${short ? `<div class="kbuy-x" style="color:var(--u-err)"><i>!</i><span><b>رصيدك غير كافٍ</b> — ينقصك <b class="tabular">${esc(wFmt(Math.max(0, tw - bal)))}</b> لإكمال عملية الشراء. تدفع الناقص بس، ويكتمل الشراء وحده أول ما توصل الشحنة.</span></div>` : ''}</div>
   </div>`;
 }
 function openRscBuy(cat, off, pre) {
@@ -4727,6 +4727,7 @@ function openRscBuy(cat, off, pre) {
     $('#rSum').innerHTML = `
       <div><span>رصيد محفظة ${esc(wInfo(wDef()).label)}</span><b class="tabular" style="${short ? 'color:var(--u-err)' : ''}">${esc(wFmt(bal))}</b></div>
       <div class="tot"><span>الإجمالي</span><b class="tabular">${esc(wFmt(tw))}</b></div>
+      ${short ? `<div style="color:var(--u-err);font-weight:600">رصيدك غير كافٍ — ينقصك ${esc(wFmt(Math.max(0, tw - bal)))} لإكمال عملية الشراء</div>` : ''}
       ${!ok ? `<div style="color:var(--u-warn)">الكمية من ${sel.min} إلى ${sel.max}</div>` : ''}`;
     const b = $('#rGo');
     b.innerHTML = short ? `${svg(I.wallet2)} ادفع الفرق ${esc(wFmt(Math.max(0, tw - bal)))}` : `${svg(I.lock)} ادفع ${esc(wFmt(tw))} من محفظتي`;
