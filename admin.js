@@ -5968,7 +5968,26 @@ function balCardA() {
       <div><div class="caption">عندهم رصيد</div><b class="tabular" style="font-size:20px">${n(B.with_balance).toLocaleString('en-US')}</b></div>
     </div>
     <div class="achips">${['usd', 'ly', 'md', 'bk'].map(w => `<span class="achip">${esc(W_AR_A[w])}: <b>${esc(wFA(t[w], w))}</b></span>`).join('')}</div>
+    <button class="btn btn-secondary btn-block btn-sm" data-ballist type="button" style="margin-top:10px">👥 عرض اللي عندهم رصيد (${n(B.with_balance)})</button>
     <div class="caption" style="margin-top:8px">الإجمالي بالدولار تقريبًا: <b>${esc(usd(B.usd_eq))}</b>${n(B.banned) ? ` · محظورين ${n(B.banned)}` : ''}${n(B.negative) ? ` · <span style="color:var(--error)">رصيد بالسالب ${n(B.negative)}</span>` : ''}</div>
   </div>`;
 }
 document.addEventListener('click', e => { if (e.target.closest && e.target.closest('[data-balref]')) { S.balA = null; render(true); } });
+
+/* v69 — قائمة المستخدمين اللي عندهم رصيد */
+async function openBalList() {
+  modal(`<div style="padding:24px"><div class="skeleton" style="height:120px;border-radius:12px"></div></div>`);
+  let r; try { r = await api('/api/admin/balances', { list: true }); } catch (e) { closeModal(); return toast(e.message, 'bad'); }
+  const L = r.list || [];
+  const row = u => `<div class="arow" data-ufile3="${esc(u.id)}" data-bl="${esc((u.name + ' ' + u.email + ' ' + u.phone).toLowerCase())}" style="cursor:pointer;align-items:flex-start">
+    <span class="art"><b>${esc(u.name || u.email || u.id)}${u.banned ? ' <span class="achip r" style="font-size:10px">محظور</span>' : ''}</b>
+      <span dir="ltr" style="text-align:right">${esc(u.email)}${u.phone ? ' · 0' + esc(String(u.phone)) : ''}</span>
+      <span>${['usd', 'ly', 'md', 'bk'].filter(w => u.b[w]).map(w => `<span style="${u.b[w] < 0 ? 'color:var(--error)' : ''}">${esc(W_AR_A[w])}${u.dw === w ? '✓' : ''} ${esc(wFA(u.b[w], w))}</span>`).join(' · ')}</span></span>
+    <b class="anum tabular" style="${u.eq < 0 ? 'color:var(--error)' : ''}">${esc(usd(u.eq))}</b></div>`;
+  modal(`<div class="modal-head"><div class="modal-title">اللي عندهم رصيد (${L.length})</div><button class="modal-close" data-act="close-modal" aria-label="إغلاق">${svg(I.x)}</button></div>
+    <input class="input mb-2" id="blQ" placeholder="ابحث بالاسم أو البريد أو الرقم…">
+    <div class="caption mb-2">مرتّبين من الأكبر رصيد (بالدولار تقريبًا). اضغط على أي واحد يفتحلك ملفه.</div>
+    <div class="acard" id="blList" style="max-height:62vh;overflow:auto">${L.map(row).join('') || '<div class="aempty"><b>ما فيش حد عنده رصيد</b></div>'}</div>`);
+  const q = $('#blQ'); if (q) q.oninput = () => { const v = q.value.trim().toLowerCase(); document.querySelectorAll('#blList [data-bl]').forEach(el => { el.style.display = !v || el.dataset.bl.includes(v) ? '' : 'none'; }); };
+}
+document.addEventListener('click', e => { if (e.target.closest && e.target.closest('[data-ballist]')) openBalList(); });

@@ -4613,6 +4613,18 @@ async function handleAdminMailTest(user, body, env) {
 async function handleAdminBalances(user, body, env) {              // v68: عدد المستخدمين ومجموع أرصدتهم (كل محفظة)
   await requirePermission(user, env, 'users.view');
   if (!env.DB || !(await d1Table(env, 'users'))) throw httpError(503, 'قاعدة D1 غير جاهزة');
+  if (body.list) {                                                   // v69: قائمة اللي عندهم رصيد (الأكبر أول)
+    const s0 = await getSettings(env);
+    const rows = await d1All(env, `SELECT id, json_extract(data, '$.name') AS name, json_extract(data, '$.email') AS email, json_extract(data, '$.phone_verified') AS phone,
+        COALESCE(json_extract(data, '$.wallet_balance'), 0) AS usd, COALESCE(json_extract(data, '$.wallets.ly'), 0) AS ly, COALESCE(json_extract(data, '$.wallets.md'), 0) AS md, COALESCE(json_extract(data, '$.wallets.bk'), 0) AS bk,
+        json_extract(data, '$.default_wallet') AS dw, json_extract(data, '$.banned') AS banned FROM users
+      WHERE COALESCE(json_extract(data, '$.wallet_balance'), 0) != 0 OR COALESCE(json_extract(data, '$.wallets.ly'), 0) != 0 OR COALESCE(json_extract(data, '$.wallets.md'), 0) != 0 OR COALESCE(json_extract(data, '$.wallets.bk'), 0) != 0 LIMIT 2000`).catch(() => []);
+    const list = rows.map(r => ({ id: r.id, name: r.name || '', email: r.email || '', phone: r.phone || '', dw: r.dw || 'usd', banned: r.banned === 1 || r.banned === true || r.banned === 'true',
+      b: { usd: round2(num(r.usd, 0)), ly: round2(num(r.ly, 0)), md: round2(num(r.md, 0)), bk: round2(num(r.bk, 0)) } }))
+      .map(x => ({ ...x, eq: round2(x.b.usd + wToUsd(s0, 'ly', x.b.ly) + wToUsd(s0, 'md', x.b.md) + wToUsd(s0, 'bk', x.b.bk)) }))
+      .sort((a, b) => b.eq - a.eq);
+    return { success: true, list };
+  }
   const r = (await d1All(env, `SELECT COUNT(*) AS n,
       SUM(CASE WHEN COALESCE(json_extract(data, '$.wallet_balance'), 0) > 0 OR COALESCE(json_extract(data, '$.wallets.ly'), 0) > 0 OR COALESCE(json_extract(data, '$.wallets.md'), 0) > 0 OR COALESCE(json_extract(data, '$.wallets.bk'), 0) > 0 THEN 1 ELSE 0 END) AS withbal,
       SUM(CASE WHEN json_extract(data, '$.banned') = 1 OR json_extract(data, '$.banned') = 'true' THEN 1 ELSE 0 END) AS banned,
