@@ -8810,10 +8810,15 @@ async function handleAdminOverview(user, body, env) {
     jobs.push(d1CountW(env, 'rsc_orders', `status = 'unknown' OR (status IN ('submitting','created','processing') AND created_at < ?)`, [new Date(Date.now() - 20 * 60000).toISOString()]).then(n => { out.attn.rsc = n; }));
     jobs.push(d1Sum(env, 'rsc_orders', [J('total_usd'), J('cost_usd')], `status = 'completed' AND created_at >= ?`, [day0]).then(r => { out.today.sales = r.s; out.today.orders = r.n; out.today.profit = round2(r.s - r.s2); }));
     jobs.push(d1Sum(env, 'rsc_orders', [J('total_usd')], `status = 'completed' AND created_at >= ? AND created_at < ?`, [y0, day0]).then(r => { out.yesterday.sales = r.s; }));
-    if (env.RSC_API_KEY) jobs.push((async () => {
+    if (env.RSC_API_KEY) jobs.push((async () => {                   // v70: رصيد المزود ما يعطّلش الإحصائيات (أقصى 4 ثواني)
       if (_rscBalMem.exp > Date.now()) { out.rsc_balance = _rscBalMem.v; return; }
+      out.rsc_balance = _rscBalMem.v;
+      const pr = (async () => {
       try { const me = await rscCall(env, 'GET', '/me'); const b = me && (me.balance_usd ?? me.balance ?? (me.account && me.account.balance)); _rscBalMem = { v: b == null ? null : num(b, 0), exp: Date.now() + 300000 }; out.rsc_balance = _rscBalMem.v; }
-      catch { _rscBalMem = { v: null, exp: Date.now() + 60000 }; }
+      catch { _rscBalMem = { v: _rscBalMem.v, exp: Date.now() + 60000 }; }
+      })();
+      background(pr.catch(() => {}));                                  // يكمل في الخلفية لو تأخّر
+      await Promise.race([pr, new Promise(r => setTimeout(r, 4000))]);
     })());
   }
   if (can('users.view')) jobs.push(d1All(env, `SELECT COUNT(*) AS n, SUM(CASE WHEN ${J('phone_verified')} IS NOT NULL AND ${J('phone_verified')} != '' THEN 1 ELSE 0 END) AS v FROM users WHERE created_at >= ?`, [day0])

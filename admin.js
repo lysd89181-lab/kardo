@@ -282,7 +282,7 @@ function newIdemKey() {
   return 'k' + Array.from(b, x => x.toString(16).padStart(2, '0')).join('');
 }
 
-const ADM_QUIET = /^\/api\/(admin\/(overview|users\/find|user\/file|names|invoices|crypto\/unmatched|usdt\/find|d1\/(status|rows)|usage|funnel)|db\/)/;
+const ADM_QUIET = /^\/api\/(admin\/(overview|balances|push\/test|users\/find|user\/file|names|invoices|crypto\/unmatched|usdt\/find|d1\/(status|rows)|usage|funnel)|db\/)/;
 async function api(path, body) {
   const token = await auth.currentUser.getIdToken();
   let ac = {};
@@ -4887,8 +4887,11 @@ let _ovT = null, _ovBusy = false;
 async function loadOverview(fresh) {
   if (_ovBusy || !S.admin) return;
   _ovBusy = true;
-  try { S.ov = await api('/api/admin/overview', fresh ? { fresh: true } : {}); render(); }
-  catch (e) { console.warn('overview', e.message); }
+  try {                                                              // v70: مهلة 15 ثانية + رسالة بدل هيكل فاضي للأبد
+    S.ov = await Promise.race([api('/api/admin/overview', fresh ? { fresh: true } : {}), new Promise((_, rej) => setTimeout(() => rej(new Error('السيرفر بطيء — اضغط إعادة')), 15000))]);
+    S.ovErr = ''; render(true);
+  }
+  catch (e) { console.warn('overview', e.message); S.ovErr = e.message; render(true); }
   finally { _ovBusy = false; }
 }
 function ovSoon(ms = 1200) { clearTimeout(_ovT); _ovT = setTimeout(() => loadOverview(true), ms); }
@@ -4939,6 +4942,7 @@ function vHome2() {
     <div class="ah"><div><h1>${greet}${name ? '، ' + esc(name) : ''}</h1><p>${esc(new Date().toLocaleDateString('ar-LY', { weekday: 'long', day: 'numeric', month: 'long' }))}</p></div>
       ${pushOn() ? `<button class="abtn sm" id="pushTestA" type="button">${svg(I.bell)}تجربة</button>` : `<button class="abtn sm" id="pushOnA" type="button">${svg(I.bell)}الإشعارات</button>`}</div>
     ${st.site_maint_on === true && isSuperAdmin() ? `<div class="aalert w">${svg(I.tool)}<div><b>وضع الصيانة مفعّل</b> — الزوار يشوفوا شاشة الصيانة. <button class="alink" data-aswitch="site_maint_on" type="button">افتح الموقع للجميع</button></div></div>` : ''}
+    ${S.ovErr && !S.ov ? `<div class="aalert r">${svg(I.warn)}<div><b>تعذّر تحميل الإحصائيات</b> — ${esc(S.ovErr)} <button class="alink" data-ovretry type="button">إعادة</button></div></div>` : ''}
     ${can('users', 'view') ? balCardA() : ''}
     ${st.kill_switch === true ? `<div class="aalert r">${svg(I.warn)}<div><b>المنصة متوقفة</b> — العملاء ما يقدروش يشتروا. <button class="alink" data-nav="settings" type="button">الإعدادات</button></div></div>` : ''}
     <div class="alabel"><span>يحتاج انتباهك</span>${S.ov ? `<span class="caption">آخر تحديث ${esc(new Date(o.at).toLocaleTimeString('ar-LY', { hour: '2-digit', minute: '2-digit' }))}</span>` : ''}</div>
@@ -5991,3 +5995,5 @@ async function openBalList() {
   const q = $('#blQ'); if (q) q.oninput = () => { const v = q.value.trim().toLowerCase(); document.querySelectorAll('#blList [data-bl]').forEach(el => { el.style.display = !v || el.dataset.bl.includes(v) ? '' : 'none'; }); };
 }
 document.addEventListener('click', e => { if (e.target.closest && e.target.closest('[data-ballist]')) openBalList(); });
+
+document.addEventListener('click', e => { if (e.target.closest && e.target.closest('[data-ovretry]')) { S.ovErr = ''; loadOverview(true); } });   // v70
