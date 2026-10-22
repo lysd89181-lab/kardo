@@ -434,8 +434,9 @@ onAuthStateChanged(auth, async user => {
     else if (hm && ROUTABLE.has(hm[1]) && hm[1] !== 'store' && hm[1] !== 'mystore') S.page = hm[1]; }
   try { history.replaceState({ page: S.page }, '', location.pathname + location.search + (location.hash && !location.hash.startsWith('#/') ? location.hash : '#/' + S.page)); } catch {}
 
-  await ensureProfile(user);
-  claimStoredRef();
+  // v67: ما نستنوش ملف المستخدم قبل الرسم — كان يعلّق الشاشة (الهيدر والشعار بس) لين يرص الزبون «الرئيسية»
+  go(S.page && ROUTABLE.has(S.page) ? S.page : 'dashboard');
+  Promise.race([ensureProfile(user), new Promise(r => setTimeout(r, 8000))]).then(() => claimStoredRef()).catch(() => {});
   if (pushOn()) setTimeout(() => registerPushToken(true), 4000);
   { const nm = /[#&]n=([^&]+)/.exec(location.hash); if (nm) { history.replaceState(null, '', location.pathname); setTimeout(() => followLink(decodeURIComponent(nm[1])), 1200); } }
   setTimeout(() => { if (!document.getElementById('overlay')?.classList.contains('open')) maybeTour(); }, 1500);
@@ -458,7 +459,7 @@ onAuthStateChanged(auth, async user => {
 
   api('/api/activity/ping', {}).catch(() => {});
   loadCatalog();
-  go('dashboard');
+  render();
 });
 
 async function ensureProfile(user) {
