@@ -296,6 +296,7 @@ async function route(path, request, url, env) {
     case '/api/admin/report/resolve':  return handleAdminReportResolve(user, body, env);
     case '/api/admin/card/balance':    return handleAdminCardBalance(user, body, env);
     case '/api/admin/push/test':       return handleAdminPushTest(user, body, env);
+    case '/api/admin/balances':        return handleAdminBalances(user, body, env);
     case '/api/admin/wallets/split':   return handleAdminWalletSplit(user, body, env);
     case '/api/admin/card/replace':    return handleAdminCardReplace(user, body, env);
     case '/api/admin/sticker/save':    return handleAdminStickerSave(user, body, env);
@@ -4607,6 +4608,21 @@ async function handleAdminMailTest(user, body, env) {
   const ok = await notifyUser(env, staff.uid, 'test', {});
   if (!ok) throw httpError(502, `فشل الإرسال — رد Resend: ${_lastMailError || 'غير معروف'}`);
   return { success: true };
+}
+
+async function handleAdminBalances(user, body, env) {              // v68: عدد المستخدمين ومجموع أرصدتهم (كل محفظة)
+  await requirePermission(user, env, 'users.view');
+  if (!env.DB || !(await d1Table(env, 'users'))) throw httpError(503, 'قاعدة D1 غير جاهزة');
+  const r = (await d1All(env, `SELECT COUNT(*) AS n,
+      SUM(CASE WHEN COALESCE(json_extract(data, '$.wallet_balance'), 0) > 0 OR COALESCE(json_extract(data, '$.wallets.ly'), 0) > 0 OR COALESCE(json_extract(data, '$.wallets.md'), 0) > 0 OR COALESCE(json_extract(data, '$.wallets.bk'), 0) > 0 THEN 1 ELSE 0 END) AS withbal,
+      SUM(CASE WHEN json_extract(data, '$.banned') = 1 OR json_extract(data, '$.banned') = 'true' THEN 1 ELSE 0 END) AS banned,
+      SUM(COALESCE(json_extract(data, '$.wallet_balance'), 0)) AS usd, SUM(COALESCE(json_extract(data, '$.wallets.ly'), 0)) AS ly,
+      SUM(COALESCE(json_extract(data, '$.wallets.md'), 0)) AS md, SUM(COALESCE(json_extract(data, '$.wallets.bk'), 0)) AS bk,
+      SUM(CASE WHEN COALESCE(json_extract(data, '$.wallet_balance'), 0) < 0 THEN 1 ELSE 0 END) AS neg FROM users`).catch(() => [{}]))[0] || {};
+  const s = await getSettings(env);
+  const tot = { usd: round2(num(r.usd, 0)), ly: round2(num(r.ly, 0)), md: round2(num(r.md, 0)), bk: round2(num(r.bk, 0)) };
+  const usdEq = round2(tot.usd + wToUsd(s, 'ly', tot.ly) + wToUsd(s, 'md', tot.md) + wToUsd(s, 'bk', tot.bk));
+  return { success: true, users: num(r.n, 0), with_balance: num(r.withbal, 0), banned: num(r.banned, 0), negative: num(r.neg, 0), totals: tot, usd_eq: usdEq, at: nowIso() };
 }
 
 async function handleAdminPushTest(user, body, env) {          // v60: يجرّب الإشعار على أجهزة هذا الموظف ويقول كم جهاز وصله

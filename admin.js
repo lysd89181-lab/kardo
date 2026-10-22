@@ -4939,6 +4939,7 @@ function vHome2() {
     <div class="ah"><div><h1>${greet}${name ? '، ' + esc(name) : ''}</h1><p>${esc(new Date().toLocaleDateString('ar-LY', { weekday: 'long', day: 'numeric', month: 'long' }))}</p></div>
       ${pushOn() ? `<button class="abtn sm" id="pushTestA" type="button">${svg(I.bell)}تجربة</button>` : `<button class="abtn sm" id="pushOnA" type="button">${svg(I.bell)}الإشعارات</button>`}</div>
     ${st.site_maint_on === true && isSuperAdmin() ? `<div class="aalert w">${svg(I.tool)}<div><b>وضع الصيانة مفعّل</b> — الزوار يشوفوا شاشة الصيانة. <button class="alink" data-aswitch="site_maint_on" type="button">افتح الموقع للجميع</button></div></div>` : ''}
+    ${can('users', 'view') ? balCardA() : ''}
     ${st.kill_switch === true ? `<div class="aalert r">${svg(I.warn)}<div><b>المنصة متوقفة</b> — العملاء ما يقدروش يشتروا. <button class="alink" data-nav="settings" type="button">الإعدادات</button></div></div>` : ''}
     <div class="alabel"><span>يحتاج انتباهك</span>${S.ov ? `<span class="caption">آخر تحديث ${esc(new Date(o.at).toLocaleTimeString('ar-LY', { hour: '2-digit', minute: '2-digit' }))}</span>` : ''}</div>
     <div class="acard">${!S.ov ? '<div class="arow"><i class="ask" style="width:60%"></i></div>'.repeat(3) : items.length ? items.map(aRow).join('') : `<div class="aempty">${svg(I.check)}<b>كل شي تمام</b><span>ما فيش حاجة تنتظرك توا</span></div>`}</div>
@@ -5952,3 +5953,22 @@ document.addEventListener('click', async e => {
   catch (er) { toast(er.message, 'bad'); }
   b.disabled = false;
 });
+
+/* v68 — عدد المستخدمين ومجموع الأرصدة */
+function balCardA() {
+  const B = S.balA;
+  if (!B && !S._balL) { S._balL = 1; api('/api/admin/balances', {}).then(r => { S.balA = r; render(true); }).catch(e => { S.balA = { err: e.message }; render(true); }).finally(() => { S._balL = 0; }); }
+  if (!B) return '<div class="acard" style="padding:14px"><i class="ask" style="width:60%"></i></div>';
+  if (B.err) return `<div class="acard" style="padding:12px"><span class="caption" style="color:var(--error)">${esc(B.err)}</span></div>`;
+  const t = B.totals || {};
+  return `<div class="acard" style="padding:14px">
+    <div class="flex-between" style="margin-bottom:8px"><b>المستخدمين والأرصدة</b><button class="abtn sm" data-balref type="button">↻</button></div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:8px">
+      <div><div class="caption">عدد المستخدمين</div><b class="tabular" style="font-size:20px">${n(B.users).toLocaleString('en-US')}</b></div>
+      <div><div class="caption">عندهم رصيد</div><b class="tabular" style="font-size:20px">${n(B.with_balance).toLocaleString('en-US')}</b></div>
+    </div>
+    <div class="achips">${['usd', 'ly', 'md', 'bk'].map(w => `<span class="achip">${esc(W_AR_A[w])}: <b>${esc(wFA(t[w], w))}</b></span>`).join('')}</div>
+    <div class="caption" style="margin-top:8px">الإجمالي بالدولار تقريبًا: <b>${esc(usd(B.usd_eq))}</b>${n(B.banned) ? ` · محظورين ${n(B.banned)}` : ''}${n(B.negative) ? ` · <span style="color:var(--error)">رصيد بالسالب ${n(B.negative)}</span>` : ''}</div>
+  </div>`;
+}
+document.addEventListener('click', e => { if (e.target.closest && e.target.closest('[data-balref]')) { S.balA = null; render(true); } });
