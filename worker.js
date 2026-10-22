@@ -3553,7 +3553,7 @@ async function deviceSeen(env, request, uid) {
   _devSeen.set(mk, { ip, exp: Date.now() + 6 * 3600000 });
   if (_devSeen.size > 8000) _devSeen.clear();
   // جهاز محظور؟ → نحظر الحساب هذا تلقائيًا (إلا الموظفين)
-  const bd = env.KV ? await env.KV.get('bandev:' + did, 'json').catch(() => null) : null;
+  const bd = (await banDevs(env))[did] || null;                      // v66: من مفتاح واحد بالذاكرة
   if (bd && bd.uid && bd.uid !== uid && !(await isStaffCached(env, uid))) {
     const u = await fsGet(env, `users/${uid}`).catch(() => null);
     if (u && u.ban_exempt_dev !== true) {                            // اللي فكّيت حظره يدويًا ما يتحظرش تاني بسبب الجهاز
@@ -3576,9 +3576,16 @@ async function deviceSeen(env, request, uid) {
 async function handleBanCheck(url, env) {                         // عام: هل هذا الجهاز/الحساب لسه محظور؟ (لشاشة الحظر)
   const did = String(url.searchParams.get('d') || ''), uid = String(url.searchParams.get('u') || '');
   let banned = false;
-  if (devIdOk(did) && env.KV) banned = !!(await env.KV.get('bandev:' + did).catch(() => null));
+  if (devIdOk(did)) banned = !!(await banDevs(env))[did];
   if (!banned && /^[A-Za-z0-9_-]{20,128}$/.test(uid)) { const u = await fsGet(env, `users/${uid}`).catch(() => null); banned = !!(u && u.banned === true); }
   return { success: true, banned };
+}
+let _banDevs = { v: null, exp: 0 };
+async function banDevs(env, fresh) {                                 // v66: كل الأجهزة المحظورة في مفتاح واحد (ذاكرة 10 دقائق)
+  if (!fresh && _banDevs.v && _banDevs.exp > Date.now()) return _banDevs.v;
+  const v = (env.KV ? await env.KV.get('bandevs', 'json').catch(() => null) : null) || {};
+  _banDevs = { v, exp: Date.now() + 600000 };
+  return v;
 }
 async function fbAuthDisable(env, uid, disable) {                  // تعطيل/تفعيل الحساب في Firebase Auth
   try {
@@ -3603,12 +3610,15 @@ async function banApply(env, uid, ban, reason, by) {
   if (env.KV) {
     const u = await fsGet(env, `users/${uid}`).catch(() => null);
     const who = String((u && (u.email || u.name)) || uid).slice(0, 60);
+    const M = { ...(await banDevs(env, true)) };
     for (const d of await userDevices(env, uid)) {
       if (!devIdOk(d.did)) continue;
-      if (ban) await env.KV.put('bandev:' + d.did, JSON.stringify({ uid, who, at: Date.now() }), { expirationTtl: 86400 * 365 }).catch(() => {});
-      else { const cur = await env.KV.get('bandev:' + d.did, 'json').catch(() => null); if (cur && cur.uid === uid) await env.KV.delete('bandev:' + d.did).catch(() => {}); }
+      if (ban) M[d.did] = { uid, who, at: Date.now() };
+      else if (M[d.did] && M[d.did].uid === uid) delete M[d.did];
       devs++;
     }
+    _banDevs = { v: M, exp: Date.now() + 600000 };
+    await env.KV.put('bandevs', JSON.stringify(M)).catch(() => {});
   }
   return { fb, devs };
 }
@@ -7682,7 +7692,7 @@ async function rscCfg(env) {
   if (!v) { v = await fsGet(env, 'settings/rsc_cfg').catch(() => null); if (v) kvPutJSON(env, 'rsc:cfg', v, 86400 * 30); }
   v = v && typeof v === 'object' ? v : {};
   v.cats = v.cats && typeof v.cats === 'object' ? v.cats : {};
-  _rscCfg = { v, exp: Date.now() + 60000 };
+  _rscCfg = { v, exp: Date.now() + 300000 };
   return v;
 }
 async function rscCfgSave(env, v) {
@@ -7741,8 +7751,30 @@ async function rscSyncCategories(env) {
 async function rscCats(env) { const v = await rscKvGet(env, 'rsc:cats'); return (v && v.list) || []; }
 async function rscCatsMeta(env) { const v = await rscKvGet(env, 'rsc:cats'); return v ? { at: v.at || null, stats: v.stats || null } : null; }
 
-/* ─── عروض قسم واحد (طلب واحد) ─── */
-async function rscFetchOffers(env, key) {
+/* ─── v66: كل عروض الأقسام في مفتاح KV واحد (rsc:offb) + ذاكرة 3 دقائق — بدل قراية لكل قسم ─── */
+let _offB = { v: null, exp: 0 };
+async function offB(env, fresh) {
+  if (!fresh && _offB.v && _offB.exp > Date.now()) return _offB.v;
+  let v = env.KV ? await env.KV.get('rsc:offb', 'json').catch(() => null) : null;
+  if (!v) {                                                          // ترحيل مرة وحدة من المفاتيح القديمة
+    v = {};
+    const cfg = await rscCfg(env);
+    const keys = Object.keys(cfg.cats).filter(k => cfg.cats[k] && cfg.cats[k].on === true);
+    for (let i = 0; i < keys.length; i += 40) (await Promise.all(keys.slice(i, i + 40).map(k => rscKvGet(env, 'rsc:off:' + k)))).forEach((x, j) => { if (x) v[keys[i + j]] = x; });
+    await offBSave(env, v);
+  }
+  _offB = { v, exp: Date.now() + 180000 };
+  return v;
+}
+async function offBSave(env, v) {
+  _offB = { v, exp: Date.now() + 180000 };
+  if (env.KV) await env.KV.put('rsc:offb', JSON.stringify(v), { expirationTtl: 86400 * 30 }).catch(() => {});
+}
+const offOk = e => !!(e && num(e.at, 0) > 0);                         // انجابت عروضه مرة على الأقل
+
+/* ─── عروض قسم واحد (طلب واحد) — B: الحزمة (تتعدّل في الذاكرة ويحفظها المنادي) / noSave: للشراء ─── */
+async function rscFetchOffers(env, key, B, noSave) {
+  const own = !B; if (!B) B = noSave ? null : await offB(env, true);
   const { type, id } = rscSplit(key);
   let j;
   try {
@@ -7750,7 +7782,7 @@ async function rscFetchOffers(env, key) {
       ? `/top-ups/categories/${encodeURIComponent(id)}/offers`
       : `/gift-cards/categories/${encodeURIComponent(id)}/cards`);
   } catch (e) {                                                      // v58: نسجّل سبب الفشل باش يبان في الإدارة
-    await rscKvPut(env, 'rsc:err:' + key, { at: Date.now(), msg: String(e.message || 'خطأ').slice(0, 200), st: e.rscStatus || 0 }, 86400 * 7).catch(() => {});
+    if (B) { B[key] = { ...(B[key] || { at: 0, offers: [], fields: [] }), err: { at: Date.now(), msg: String(e.message || 'خطأ').slice(0, 200), st: e.rscStatus || 0 } }; if (own) await offBSave(env, B); }
     throw e;
   }
   const offers = (j.offers || []).map(o => ({
@@ -7759,13 +7791,12 @@ async function rscFetchOffers(env, key) {
     min: Math.max(1, Math.floor(num(o.min_quantity, 1))), max: Math.min(100, Math.max(1, Math.floor(num(o.max_quantity, type === 'topup' ? 1 : 20)))),
   })).filter(o => o.id && o.cost > 0);
   const fields = type === 'topup' ? (j.fields || []).slice(0, 6).map(f => ({ key: String(f.key || '').slice(0, 40), label: String(f.label || f.key || '').slice(0, 60), type: f.type === 'number' ? 'number' : 'text' })).filter(f => f.key) : [];
-  const v = { at: Date.now(), offers, fields };
-  await rscKvPut(env, 'rsc:off:' + key, v, 86400 * 7);
-  if (env.KV) { if (offers.length) await env.KV.delete('rsc:err:' + key).catch(() => {}); else await rscKvPut(env, 'rsc:err:' + key, { at: Date.now(), msg: 'المزود ما عنده باقات متوفرة لهذا القسم حاليًا', empty: true }, 86400 * 7).catch(() => {}); }
+  const v = { at: Date.now(), offers, fields, ...(offers.length ? {} : { err: { at: Date.now(), msg: 'المزود ما عنده باقات متوفرة لهذا القسم حاليًا', empty: true } }) };
+  if (B) { B[key] = v; if (own) await offBSave(env, B); }
   return v;
 }
 async function rscOffers(env, key, maxAgeMs) {
-  const v = await rscKvGet(env, 'rsc:off:' + key);
+  const v = (await offB(env))[key];
   if (v && (!maxAgeMs || Date.now() - num(v.at, 0) < maxAgeMs)) return v;
   return rscFetchOffers(env, key);
 }
@@ -7800,7 +7831,7 @@ async function handleRscCatalog(env) {
     for (const r of rows) if (r.c) pop[r.c] = num(r.n, 0);
   }
   const offs = [];                                                   // v56: قراءة العروض بالتوازي (دفعات 40) بدل واحد ورا واحد
-  for (let i = 0; i < keys.length; i += 40) offs.push(...await Promise.all(keys.slice(i, i + 40).map(k => rscKvGet(env, 'rsc:off:' + k))));
+  { const B = await offB(env); for (const k of keys) offs.push(offOk(B[k]) ? B[k] : null); }   // v66: قراية وحدة
   for (let ki = 0; ki < keys.length; ki++) {
     const key = keys[ki], cat = byKey.get(key), c = cfg.cats[key];
     const off = offs[ki];
@@ -7874,7 +7905,7 @@ async function handleRscOrder(user, body, env) {
   const offerId = String(body.offer || '').slice(0, 80);
 
   let live;
-  try { live = await rscFetchOffers(env, ckey); }                     // سعر ومخزون لحظي قبل الخصم
+  try { live = await rscFetchOffers(env, ckey, null, true); }      // v66: سعر لحظي بدون كتابة KV                     // سعر ومخزون لحظي قبل الخصم
   catch (e) { throw httpError(502, 'تعذّر الوصول للمزود الآن — حاول بعد قليل'); }
   const off = live.offers.find(o => o.id === offerId);
   if (!off) throw httpError(404, 'العرض لم يعد متاحًا — حدّث الصفحة');
@@ -8039,16 +8070,17 @@ async function rscCron(env, hourly) {
   const allOn = Object.keys(cfg.cats).filter(k => cfg.cats[k] && cfg.cats[k].on === true);
   if (!hourly) {                                                     // v56: أقسام مفعّلة بلا عروض بعد — 15 كل دورة (5 دقائق)
     let got = 0;
-    const have = await Promise.all(allOn.map(k => rscKvGet(env, 'rsc:off:' + k).then(Boolean)));
-    for (let i = 0; i < allOn.length && got < 15; i++) { if (have[i]) continue; got++; try { await rscFetchOffers(env, allOn[i]); } catch {} await new Promise(r => setTimeout(r, 150)); }
-    if (got) bustPublic();
+    const B = await offB(env, true);                                  // v66: قراية وحدة + كتابة وحدة لكل دورة
+    for (let i = 0; i < allOn.length && got < 15; i++) { if (offOk(B[allOn[i]]) || (B[allOn[i]] && B[allOn[i]].err && Date.now() - num(B[allOn[i]].err.at, 0) < 3600000)) continue; got++; try { await rscFetchOffers(env, allOn[i], B); } catch {} await new Promise(r => setTimeout(r, 150)); }
+    if (got) { await offBSave(env, B); bustPublic(); }
     return;
   }
   // تحديث الأقدم أولاً (30 قسم كل ساعة) بدل أول 20 دائمًا
-  const ages = await Promise.all(allOn.map(async k => { const o = await rscKvGet(env, 'rsc:off:' + k); return [k, o ? num(o.at, 0) : 0]; }));
+  const B = await offB(env, true);
+  const ages = allOn.map(k => [k, B[k] ? num(B[k].at, 0) : 0]);
   const on = ages.sort((a, b) => a[1] - b[1]).slice(0, 30).map(x => x[0]);
-  for (const k of on) { try { await rscFetchOffers(env, k); } catch {} await new Promise(r => setTimeout(r, 300)); }
-  if (on.length) bustPublic();
+  for (const k of on) { try { await rscFetchOffers(env, k, B); } catch {} await new Promise(r => setTimeout(r, 300)); }
+  if (on.length) { await offBSave(env, B); bustPublic(); }
   const cats = await rscKvGet(env, 'rsc:cats');
   if (!cats || Date.now() - num(cats.at, 0) > 86400000) await rscSyncCategories(env).catch(() => {});
 }
@@ -8071,7 +8103,7 @@ async function handleAdminRsc(user, body, env) {
     const offM = new Map(), errM = new Map();                         // v58: قراءة بالتوازي + سبب عدم الظهور
     for (let i = 0; i < onKeys.length; i += 40) {
       const ch = onKeys.slice(i, i + 40);
-      const [o, e] = await Promise.all([Promise.all(ch.map(k => rscKvGet(env, 'rsc:off:' + k))), Promise.all(ch.map(k => rscKvGet(env, 'rsc:err:' + k)))]);
+      const B = await offB(env); const o = ch.map(k => offOk(B[k]) ? B[k] : null), e = ch.map(k => (B[k] && B[k].err) || null);   // v66
       ch.forEach((k, j) => { offM.set(k, o[j]); if (e[j]) errM.set(k, e[j]); });
     }
     for (const c of cats) {
@@ -8124,7 +8156,7 @@ async function handleAdminRsc(user, body, env) {
       else if (to === 'group') { cur.group = grp; cur.group_set = true; }
       else cur.pick = to === 'pick';
       cfg.cats[key] = cur;
-      if (cur.on && !(await rscKvGet(env, 'rsc:off:' + key))) need.push(key);
+      if (cur.on && !offOk((await offB(env))[key])) need.push(key);
     }
     await rscCfgSave(env, cfg);
     await logOp(env, staff.uid, 'rsc.bulk', { n: keys.length }, { set: to }, true);
@@ -8177,7 +8209,7 @@ async function handleAdminRsc(user, body, env) {
         cur.img_v = Date.now();
       }
     }
-    if (cur.on) { try { await rscFetchOffers(env, key); } catch (e) { if (!(await rscKvGet(env, 'rsc:off:' + key))) throw httpError(502, 'تعذّر جلب عروض القسم: ' + e.message); } }
+    if (cur.on) { try { await rscFetchOffers(env, key); } catch (e) { if (!offOk((await offB(env))[key])) throw httpError(502, 'تعذّر جلب عروض القسم: ' + e.message); } }
     cfg.cats[key] = cur;
     await rscCfgSave(env, cfg);
     await logOp(env, staff.uid, 'rsc.cat', { key }, { on: cur.on }, true);
@@ -8186,8 +8218,8 @@ async function handleAdminRsc(user, body, env) {
   if (action === 'offers') {                                         // v64: منتجات قسم مع التسعير اليدوي
     const key = String(body.key || '');
     if (!rscKeyOk(key)) throw httpError(400, 'قسم غير صالح');
-    let off = await rscKvGet(env, 'rsc:off:' + key);
-    if (!off) off = await rscFetchOffers(env, key).catch(() => ({ offers: [] }));
+    let off = (await offB(env))[key];
+    if (!offOk(off)) off = await rscFetchOffers(env, key).catch(() => ({ offers: [] }));
     const c = cfg.cats[key] || {}, m = rscMargin(s, cfg, key);
     return { success: true, key, rates: Object.fromEntries(WALLETS.map(w => [w, wRate(s, w)])), offers: (off.offers || []).map(o => ({ id: o.id, name: o.name, cost: o.cost, price: rscSell(o.cost, m),
       auto: Object.fromEntries(WALLETS.map(w => [w, wPrice(s, w, rscSell(o.cost, m))])), set: (c.offers || {})[o.id] || null })) };
