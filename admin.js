@@ -503,6 +503,7 @@ const PAGES = [
   { k: 'users',     t: 'العملاء',    i: I.users,  g: 'main' },
   { k: 'more',      t: 'المزيد',     i: I.grid,   g: 'main' },
   { k: 'sorders',   t: 'طلبات المتجر', i: I.bag,  g: 'الطلبات والعمليات', badge: 'rscAttn' },
+  { k: 'lorders',   t: 'طلبات بالرابط', i: I.bag,  g: 'الطلبات والعمليات' },
   { k: 'unmatched', t: 'عمليات غير مطابقة', i: I.warn, g: 'الطلبات والعمليات', badge: 'unmB' },
   { k: 'tickets',   t: 'الدعم',      i: I.ticket, g: 'المتجر والعملاء', badge: 'openTic' },
   { k: 'coupons',   t: 'الكوبونات',  i: I.coupon, g: 'المتجر والعملاء' },
@@ -551,7 +552,7 @@ const ROLE_DEFAULT_PERMS = {
   support: { tickets: ['view', 'reply', 'close'], users: ['view', 'ban'] },
   ops: { mcards: ['view', 'approve'], cards: ['view', 'edit'], orders: ['view', 'approve'], store: ['view', 'add', 'edit', 'delete'], services: ['view', 'add', 'edit', 'delete', 'approve'], users: ['view'] },
 };
-const PAGE_SEC = { sorders: 'orders', unmatched: 'deposits', rsc: 'store', platforms: 'stickers', mview: 'merchants', mcards: 'mcards', cards: 'cards', orders: 'orders', services: 'services', store: 'store', deposits: 'deposits',
+const PAGE_SEC = { sorders: 'orders', lorders: 'orders', unmatched: 'deposits', rsc: 'store', platforms: 'stickers', mview: 'merchants', mcards: 'mcards', cards: 'cards', orders: 'orders', services: 'services', store: 'store', deposits: 'deposits',
   withdraw: 'withdraw', sms: 'sms', tickets: 'tickets', coupons: 'coupons', users: 'users', stickers: 'stickers', merchants: 'merchants', settings: '__super', system: '__super', methods: '__super', analytics: 'users', howto: '__super', reviews: 'users', contact: '__super', sections: '__super' };
 function isSuperAdmin() { return S.admin && S.admin.role === 'super_admin'; }
 function myPerms() { const a = S.admin || {}; return (a.perms && typeof a.perms === 'object') ? a.perms : (ROLE_DEFAULT_PERMS[a.role] || {}); }
@@ -655,6 +656,7 @@ window.go = k => {
   if (k === 'store') loadStore();
   if (k === 'rsc') loadRscA();
   if (k === 'sorders') loadSO();
+  if (k === 'lorders') loadLoA();
   if (k === 'unmatched') loadUnm();
   if (k === 'system') { loadStaff(); loadD1Status(); }
   S.page = k;
@@ -684,6 +686,7 @@ function render(force = false) {
     sections: vSections,
     rsc: vRsc,
     sorders: vSOrders,
+    lorders: vLoA,
     unmatched: vUnm,
     mcards: vMcardOrders,
     cards: vCards2,
@@ -5997,3 +6000,205 @@ async function openBalList() {
 document.addEventListener('click', e => { if (e.target.closest && e.target.closest('[data-ballist]')) openBalList(); });
 
 document.addEventListener('click', e => { if (e.target.closest && e.target.closest('[data-ovretry]')) { S.ovErr = ''; loadOverview(true); } });   // v70
+
+/* ═══════════════════════════════════════════════════════════
+   v71 — طلبات بالرابط (SHEIN): تسعير + دفع + شراء + تتبع
+   ═══════════════════════════════════════════════════════════ */
+const LOA_ST = { pending_fetch: ['w', 'بانتظار الجلب'], pending_pricing: ['w', 'بانتظار التسعير'], pending_payment: ['w', 'بانتظار الدفع'], paid: ['ok', 'مدفوع'],
+  purchased: ['ok', 'اشترينا'], shipped: ['ok', 'شُحن'], arrived_libya: ['ok', 'وصل ليبيا'], delivered: ['ok', 'تم التسليم'], cancelled: ['r', 'ملغي'] };
+const LOA_TABS = [['open', 'المفتوحة'], ['pending_pricing', 'تحتاج تسعير'], ['pending_payment', 'بانتظار الدفع'], ['paid', 'مدفوعة'], ['purchased', 'اشترينا'], ['shipped', 'شُحن'],
+  ['arrived_libya', 'وصل ليبيا'], ['delivered', 'تم التسليم'], ['cancelled', 'ملغي'], ['all', 'الكل']];
+async function loadLoA() {
+  S.loa = { st: 'open', ...(S.loa || {}), loading: true };
+  if (S.page === 'lorders') render(true);
+  try { const r = await api('/api/admin/lo', { action: 'list', status: S.loa.st }); S.loa = { ...S.loa, list: r.orders || [], counts: r.counts || {}, cfg: r.cfg || {}, fetchers: r.fetchers || {}, rates: r.rates || {}, err: '' }; }
+  catch (e) { S.loa.err = e.message; }
+  S.loa.loading = false;
+  if (S.page === 'lorders') render(true);
+}
+function vLoA() {
+  const O = S.loa || { st: 'open', loading: true }, c = O.cfg || {}, f = O.fetchers || {}, cn = O.counts || {};
+  const openN = ['pending_fetch', 'pending_pricing', 'pending_payment', 'paid', 'purchased', 'shipped', 'arrived_libya'].reduce((t, k) => t + n(cn[k]), 0);
+  const cntOf = k => k === 'open' ? openN : k === 'all' ? Object.values(cn).reduce((t, x) => t + n(x), 0) : n(cn[k]);
+  return `<div class="page-enter astag">
+    ${aHead('طلبات بالرابط', 'سلات SHEIN — التسعير والدفع والشراء والتتبع')}
+    ${O.cfg ? `<div class="acard mb-2" style="padding:12px">
+      <div class="achips mb-2"><span class="achip ${c.lo_public ? 'ok' : 'w'}">${c.lo_public ? 'ظاهر للزبائن' : 'مخفي — للإدارة بس'}</span>${c.lo_on ? '' : '<span class="achip r">متوقف</span>'}
+        <span class="achip ok">جلب مباشر</span><span class="achip ${f.browser ? 'ok' : ''}">Browser Rendering ${f.browser ? '✓' : '—'}</span><span class="achip ${f.provider ? 'ok' : ''}">مزوّد جلب ${f.provider ? '✓' : '—'}</span></div>
+      <div class="caption">رسوم ${esc(String(c.lo_fee_pct))}% · ${c.lo_ship_mode === 'flat' ? `شحن ثابت $${esc(String(c.lo_ship_usd))} + $${esc(String(c.lo_ship_item_usd))}/قطعة` : 'الشحن بعد الوصول'} · السعر ثابت ${esc(String(c.lo_quote_min))} د · صرف: <span dir="ltr">${esc(c.lo_fx)}</span></div>
+      ${isSuperAdmin() ? '<button class="btn btn-secondary btn-sm" type="button" data-loacfg="1" style="margin-top:8px">⚙️ الإعدادات</button>' : ''}</div>` : ''}
+    <div class="pills mb-2" style="flex-wrap:wrap">${LOA_TABS.map(([k, t]) => `<button class="pill ${O.st === k ? 'active' : ''}" data-loast="${k}" type="button">${t}${cntOf(k) ? ` (${cntOf(k)})` : ''}</button>`).join('')}</div>
+    ${O.err ? `<div class="alert alert-error mb-2">${esc(O.err)}</div>` : ''}
+    ${O.loading && !O.list ? '<div class="skeleton" style="height:140px;border-radius:14px"></div>' : `<div class="acard">${(O.list || []).map(o => { const st = LOA_ST[o.status] || ['', o.status], x = (o.items || [])[0];
+      const amt = o.paid_w != null ? wFA(o.paid_w, o.wallet) : o.quote ? usd(o.quote.total_usd) : '—';
+      return `<button class="arow" type="button" data-loao="${esc(o.id)}" style="width:100%;text-align:start;align-items:flex-start">
+        <span class="aric ${st[0] === 'ok' ? 'o' : st[0]}">${x && x.img ? `<img src="${esc(x.img)}" alt="" referrerpolicy="no-referrer" style="width:100%;height:100%;object-fit:cover;border-radius:10px">` : svg(I.bag)}</span>
+        <span class="art"><b>${esc(o.who || o.uid)} — <span dir="ltr">${esc(o.ref)}</span></b>
+          <span>${(o.items || []).length ? esc((o.items || []).length + ' منتج · ' + (x ? x.name.slice(0, 40) : '')) : 'بدون منتجات بعد'} · ${esc(dt(o.created_at))}</span>
+          ${o.job && o.job.err && ['pending_pricing', 'pending_fetch'].includes(o.status) ? `<span style="color:var(--error);font-size:12px">${esc(o.job.err)}</span>` : ''}
+          ${o.tracking ? `<span class="mono" dir="ltr">🚚 ${esc(o.tracking)}</span>` : ''}</span>
+        <span style="text-align:left"><b class="anum">${esc(amt)}</b><br><span class="achip ${st[0]}" style="font-size:11px">${esc(st[1])}</span>${o.expired ? '<br><span class="achip r" style="font-size:10px">السعر انتهى</span>' : ''}</span></button>`; }).join('')
+      || `<div class="aempty"><b>ما فيش طلبات هنا</b></div>`}</div>`}
+  </div>`;
+}
+function loaEst(o) {
+  const fx = {}; String((S.loa.cfg || {}).lo_fx || 'USD=1').split(',').forEach(p => { const [k, v] = p.split('='); if (k && n(v) > 0) fx[k.trim()] = n(v); });
+  const items = loaCollect(true) || o.items || [];
+  const sub = items.reduce((t, x) => t + n(x.amount) * (fx[String(x.cur || 'USD').toUpperCase()] || 0) * Math.max(1, n(x.qty)), 0);
+  const fp = $('#loaFee') && $('#loaFee').value !== '' ? n($('#loaFee').value) : n((S.loa.cfg || {}).lo_fee_pct);
+  const mode = ($('#loaShipMode') && $('#loaShipMode').value) || (S.loa.cfg || {}).lo_ship_mode || 'after';
+  const qn = items.reduce((t, x) => t + Math.max(1, n(x.qty)), 0);
+  const ship = mode === 'flat' ? ($('#loaShip') && $('#loaShip').value !== '' ? n($('#loaShip').value) : n(S.loa.cfg.lo_ship_usd) + n(S.loa.cfg.lo_ship_item_usd) * qn) : 0;
+  const tot = sub + sub * fp / 100 + ship, R = S.loa.rates || {};
+  return `تقديري: منتجات ${usd(sub)} + خدمة ${fp}% + شحن ${mode === 'flat' ? usd(ship) : 'بعد الوصول'} = <b>${usd(tot)}</b> ≈ ليبيانا ${(tot * n(R.ly)).toFixed(1)} · المدار ${(tot * n(R.md)).toFixed(1)} · مصرف ${(tot * n(R.bk)).toFixed(1)} د.ل (قبل ربح المحافظ)`;
+}
+function loaItemRow(x, i) {
+  const v = k => esc(x[k] ?? '');
+  return `<div class="loa-it" data-loaidx="${i}">
+    <div class="loa-it-top">${x.img ? `<img src="${esc(x.img)}" alt="" referrerpolicy="no-referrer">` : '<span class="loa-noimg">📦</span>'}
+      <input class="input" data-f="name" placeholder="اسم المنتج" value="${v('name')}">
+      <button class="btn btn-ghost btn-sm" type="button" data-loadel="${i}" title="حذف" style="color:var(--error)">✕</button></div>
+    <div class="loa-it-grid">
+      <input class="input" data-f="color" placeholder="اللون" value="${v('color')}">
+      <input class="input" data-f="size" placeholder="المقاس" value="${v('size')}">
+      <input class="input" data-f="qty" type="number" min="1" max="50" dir="ltr" placeholder="الكمية" value="${v('qty') || 1}">
+      <input class="input" data-f="amount" type="number" step="0.01" min="0" dir="ltr" placeholder="السعر" value="${v('amount')}">
+      <input class="input" data-f="cur" dir="ltr" maxlength="3" placeholder="USD" value="${v('cur') || 'USD'}">
+      <input class="input" data-f="img" dir="ltr" placeholder="رابط الصورة (اختياري)" value="${v('img')}">
+    </div>
+    ${x.link ? `<a class="caption" href="${esc(x.link)}" target="_blank" rel="noopener noreferrer" dir="ltr">${esc(x.link)}</a><input type="hidden" data-f="link" value="${v('link')}">` : ''}
+    <input type="hidden" data-f="id" value="${v('id')}"></div>`;
+}
+function loaCollect(soft) {
+  const rows = [...document.querySelectorAll('#loaItems [data-loaidx]')];
+  if (!rows.length && !document.getElementById('loaItems')) return null;
+  return rows.map(r => { const o = {}; r.querySelectorAll('[data-f]').forEach(el => { o[el.dataset.f] = el.value; }); o.qty = n(o.qty) || 1; o.amount = n(o.amount); o.cur = String(o.cur || 'USD').toUpperCase(); return o; })
+    .filter(o => soft || o.name.trim());
+}
+function loaOpen(o) {
+  S.loa.cur = o;
+  const st = LOA_ST[o.status] || ['', o.status], pre = ['pending_fetch', 'pending_pricing', 'pending_payment'].includes(o.status), q = o.quote;
+  const j = o.job || {};
+  modal(`<div class="modal-head"><div class="modal-title">طلب <span dir="ltr">${esc(o.ref)}</span> <span class="achip ${st[0]}" style="font-size:11px">${esc(st[1])}</span></div>
+      <button class="modal-close" data-act="close-modal" aria-label="إغلاق">${svg(I.x)}</button></div>
+    <div class="caption mb-2"><a href="#" data-ufile3="${esc(o.uid)}">${esc(o.name || o.email || o.uid)}</a>${o.default_wallet ? ` · المحفظة الافتراضية: ${esc(W_AR_A[o.default_wallet])}` : ''} · ${esc(dt(o.created_at))}</div>
+    <div class="loa-box mb-2"><div class="caption">رابط السلة</div><a href="${esc(o.url)}" target="_blank" rel="noopener noreferrer" dir="ltr" class="mono" style="word-break:break-all;font-size:12px">${esc(o.url)}</a>
+      ${o.final_url && o.final_url !== o.url ? `<div class="caption" style="margin-top:4px">بعد التحويل: <span dir="ltr" class="mono" style="word-break:break-all">${esc(o.final_url)}</span></div>` : ''}
+      ${o.user_note ? `<div class="caption" style="margin-top:4px">ملاحظة الزبون: ${esc(o.user_note)}</div>` : ''}</div>
+    ${j.log && j.log.length ? `<details class="mb-2"><summary class="caption">سجل الجلب${j.how ? ' — ' + esc(j.how) : ''}${j.err ? ' — <span style="color:var(--error)">' + esc(j.err) + '</span>' : ''} (محاولات ${n(j.tries)})</summary>
+      <pre dir="rtl" style="font-size:11px;white-space:pre-wrap;margin:6px 0 0">${esc(j.log.join('\n'))}</pre></details>` : ''}
+    <div class="h4 mb-1" style="font-size:14px">المنتجات ${o.auto_items ? '<span class="achip ok" style="font-size:10px">مجلوبة تلقائيًا</span>' : ''}</div>
+    ${pre ? `<div id="loaItems">${(o.items || []).map(loaItemRow).join('')}</div>
+      <button class="btn btn-secondary btn-sm mb-2" type="button" data-loaadd="1">+ منتج</button>
+      <div class="loa-grid3 mb-2">
+        <label class="caption">رسوم الخدمة %<input class="input" id="loaFee" type="number" step="0.1" dir="ltr" placeholder="${esc(String((S.loa.cfg || {}).lo_fee_pct))}" value="${o.fee_pct ?? ''}"></label>
+        <label class="caption">الشحن<select class="input" id="loaShipMode"><option value="">حسب الإعدادات</option><option value="after" ${o.ship_mode === 'after' ? 'selected' : ''}>بعد الوصول</option><option value="flat" ${o.ship_mode === 'flat' ? 'selected' : ''}>محسوب الآن</option></select></label>
+        <label class="caption">مبلغ الشحن $<input class="input" id="loaShip" type="number" step="0.01" dir="ltr" placeholder="تلقائي" value="${o.ship_usd ?? ''}"></label></div>
+      <div class="loa-box mb-2 caption" id="loaEst">${loaEst(o)}</div>
+      <label class="caption">ملاحظة داخلية<textarea class="input" id="loaNote" rows="2">${esc(o.admin_note || '')}</textarea></label>
+      <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:10px">
+        <button class="btn btn-secondary" type="button" data-loado="save">حفظ</button>
+        <button class="btn btn-primary" type="button" data-loado="quote">حفظ وإرسال السعر للزبون</button>
+        ${['pending_fetch', 'pending_pricing'].includes(o.status) ? '<button class="btn btn-ghost" type="button" data-loado="retry">🔄 إعادة الجلب</button>' : ''}</div>`
+    : `<div class="loa-box mb-2">${(o.items || []).map(x => `<div class="flex-between" style="gap:8px;padding:6px 0;border-bottom:1px solid var(--u-line)">
+        <span style="display:flex;gap:8px;align-items:center;min-width:0">${x.img ? `<img src="${esc(x.img)}" alt="" referrerpolicy="no-referrer" style="width:40px;height:40px;object-fit:cover;border-radius:8px">` : ''}
+        <span style="min-width:0"><b style="font-size:13px">${esc(x.name)}</b><br><span class="caption">${esc([x.color, x.size].filter(Boolean).join(' / ') || '—')} · × ${esc(String(x.qty))}${x.link ? ` · <a href="${esc(x.link)}" target="_blank" rel="noopener noreferrer">فتح</a>` : ''}</span></span></span>
+        <b class="anum" dir="ltr">${esc(String(x.amount))} ${esc(x.cur)}</b></div>`).join('')}</div>`}
+    ${q ? `<div class="loa-box mb-2"><div class="caption">عرض السعر${o.expired ? ' <span class="achip r" style="font-size:10px">منتهي</span>' : ` — صالح لين ${esc(dt(q.exp_ms))}`}</div>
+      <div class="caption">منتجات ${usd(q.sub_usd)} + خدمة ${esc(String(q.fee_pct))}% (${usd(q.fee_usd)}) + شحن ${q.ship_mode === 'after' ? 'بعد الوصول' : usd(q.ship_usd)} = <b>${usd(q.total_usd)}</b></div>
+      <div class="achips" style="margin-top:6px">${['usd', 'ly', 'md', 'bk'].map(w => `<span class="achip ${o.wallet === w ? 'g' : ''}">${esc(W_AR_A[w])}: ${esc(wFA(q.w[w], w))}</span>`).join('')}</div>
+      ${o.paid_w != null ? `<div style="margin-top:6px"><b>المدفوع: ${esc(wFA(o.paid_w, o.wallet))}</b> من ${esc(W_AR_A[o.wallet] || '')}${o.refunded ? ' · <span class="achip r">مُسترد</span>' : ''}</div>` : ''}</div>` : ''}
+    ${!pre && o.status !== 'cancelled' ? `<div class="loa-box mb-2">
+      <label class="caption">رقم التتبع<div style="display:flex;gap:6px"><input class="input" id="loaTrk" dir="ltr" value="${esc(o.tracking || '')}" style="flex:1"><button class="btn btn-secondary btn-sm" type="button" data-loado="track">حفظ</button></div></label>
+      <label class="caption">ملاحظة للزبون مع تغيير الحالة (اختياري)<input class="input" id="loaPub" maxlength="200"></label>
+      <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:8px">${(o.next || []).map(to => `<button class="btn btn-primary btn-sm" type="button" data-loato="${esc(to)}">← ${esc((LOA_ST[to] || ['', to])[1])}</button>`).join('')}</div></div>` : ''}
+    ${o.status !== 'cancelled' && !['shipped', 'arrived_libya', 'delivered'].includes(o.status) ? `<button class="btn btn-ghost btn-block" type="button" data-loado="cancel" style="color:var(--error)">${o.paid_w != null ? 'إلغاء واسترداد المبلغ للمحفظة' : 'إلغاء الطلب'}</button>` : ''}
+    <details style="margin-top:8px"><summary class="caption">سجل الطلب (${(o.events || []).length})</summary>
+      <div style="margin-top:6px">${(o.events || []).slice().reverse().map(e => `<div class="caption" style="padding:3px 0">${esc(dt(e.at))} · <b>${esc((LOA_ST[e.st] || ['', e.st === 'note' ? 'ملاحظة' : e.st])[1])}</b>${e.note ? ' — ' + esc(e.note) : ''}</div>`).join('')}</div>
+      <div style="display:flex;gap:6px;margin-top:6px"><input class="input" id="loaEvNote" placeholder="أضف ملاحظة للسجل" style="flex:1"><button class="btn btn-secondary btn-sm" type="button" data-loado="note">إضافة</button></div></details>`);
+}
+async function loaAct(op, body) {
+  try {
+    const r = await api('/api/admin/lo', { action: op, id: S.loa.cur.id, ...body });
+    if (r.order) loaOpen(r.order);
+    loadLoA();
+    return r;
+  } catch (e) { toast(e.message, 'bad'); return null; }
+}
+function loaCfgOpen() {
+  const c = S.loa.cfg || {};
+  modal(`<div class="modal-head"><div class="modal-title">إعدادات «اطلب بالرابط»</div><button class="modal-close" data-act="close-modal" aria-label="إغلاق">${svg(I.x)}</button></div>
+    <label class="caption" style="display:flex;gap:8px;align-items:center;margin-bottom:8px"><input type="checkbox" id="lcOn" ${c.lo_on ? 'checked' : ''}> الخدمة شغالة</label>
+    <label class="caption" style="display:flex;gap:8px;align-items:center;margin-bottom:10px"><input type="checkbox" id="lcPub" ${c.lo_public ? 'checked' : ''}> ظاهرة لكل الزبائن (لو مطفية: للإدارة بس)</label>
+    <div class="loa-grid3">
+      <label class="caption">رسوم الخدمة %<input class="input" id="lcFee" type="number" step="0.1" dir="ltr" value="${esc(String(c.lo_fee_pct))}"></label>
+      <label class="caption">صلاحية السعر (دقيقة)<input class="input" id="lcMin" type="number" dir="ltr" value="${esc(String(c.lo_quote_min))}"></label>
+      <label class="caption">الشحن الدولي<select class="input" id="lcShipM"><option value="after" ${c.lo_ship_mode !== 'flat' ? 'selected' : ''}>يُدفع بعد الوصول</option><option value="flat" ${c.lo_ship_mode === 'flat' ? 'selected' : ''}>محسوب في السعر</option></select></label>
+      <label class="caption">شحن ثابت للطلب $<input class="input" id="lcShip" type="number" step="0.01" dir="ltr" value="${esc(String(c.lo_ship_usd))}"></label>
+      <label class="caption">شحن لكل قطعة $<input class="input" id="lcShipI" type="number" step="0.01" dir="ltr" value="${esc(String(c.lo_ship_item_usd))}"></label>
+      <label class="caption">أقل طلب $<input class="input" id="lcMinU" type="number" dir="ltr" value="${esc(String(c.lo_min_usd))}"></label>
+      <label class="caption">أعلى طلب تلقائي $<input class="input" id="lcMaxU" type="number" dir="ltr" value="${esc(String(c.lo_max_usd))}"></label></div>
+    <label class="caption">صرف العملات للدولار<input class="input" id="lcFx" dir="ltr" value="${esc(c.lo_fx || '')}" placeholder="USD=1,EUR=1.08"></label>
+    <label class="caption">ملاحظة تظهر للزبون<input class="input" id="lcNote" maxlength="300" value="${esc(c.lo_note || '')}"></label>
+    <p class="caption" style="margin:8px 0">صرف المحافظ (ليبيانا/المدار/مصرف) وربحها من إعدادات طرق الدفع — نفس أسعار المتجر.</p>
+    <button class="btn btn-primary btn-block" type="button" data-loacfgsave="1">حفظ</button>`);
+}
+document.addEventListener('input', e => { if (e.target && e.target.closest && e.target.closest('#loaItems, #loaFee, #loaShip, #loaShipMode') && $('#loaEst') && S.loa && S.loa.cur) $('#loaEst').innerHTML = loaEst(S.loa.cur); });
+document.addEventListener('change', e => { if (e.target && e.target.id === 'loaShipMode' && $('#loaEst') && S.loa && S.loa.cur) $('#loaEst').innerHTML = loaEst(S.loa.cur); });
+document.addEventListener('click', async e => {
+  const t = e.target.closest && e.target.closest('[data-loast],[data-loao],[data-loado],[data-loato],[data-loaadd],[data-loadel],[data-loacfg],[data-loacfgsave]');
+  if (!t) return;
+  if (t.dataset.loast) { S.loa.st = t.dataset.loast; return loadLoA(); }
+  if (t.dataset.loao) { try { const r = await api('/api/admin/lo', { action: 'get', id: t.dataset.loao }); loaOpen(r.order); } catch (er) { toast(er.message, 'bad'); } return; }
+  if (t.dataset.loacfg) return loaCfgOpen();
+  if (t.dataset.loacfgsave) {
+    const body = { action: 'cfg', lo_on: $('#lcOn').checked, lo_public: $('#lcPub').checked, lo_fee_pct: $('#lcFee').value, lo_quote_min: $('#lcMin').value, lo_ship_mode: $('#lcShipM').value,
+      lo_ship_usd: $('#lcShip').value, lo_ship_item_usd: $('#lcShipI').value, lo_min_usd: $('#lcMinU').value, lo_max_usd: $('#lcMaxU').value, lo_fx: $('#lcFx').value, lo_note: $('#lcNote').value };
+    if (body.lo_public && !(S.loa.cfg || {}).lo_public && !confirm('القسم بيظهر لكل الزبائن. متأكد؟')) return;
+    try { await api('/api/admin/lo', body); closeModal(); toast('حُفظت الإعدادات ✓', 'ok'); loadLoA(); } catch (er) { toast(er.message, 'bad'); }
+    return;
+  }
+  if (t.dataset.loaadd) {
+    const cur = loaCollect(true) || [];
+    cur.push({ name: '', qty: 1, amount: '', cur: 'USD' });
+    $('#loaItems').innerHTML = cur.map(loaItemRow).join('');
+    const last = $('#loaItems').lastElementChild; if (last) last.querySelector('[data-f="name"]').focus();
+    return;
+  }
+  if (t.dataset.loadel != null) {
+    const cur = loaCollect(true) || []; cur.splice(Number(t.dataset.loadel), 1);
+    $('#loaItems').innerHTML = cur.map(loaItemRow).join(''); if ($('#loaEst')) $('#loaEst').innerHTML = loaEst(S.loa.cur);
+    return;
+  }
+  if (t.dataset.loato) {
+    const to = t.dataset.loato;
+    if (!confirm(`نقل الطلب إلى «${(LOA_ST[to] || ['', to])[1]}»؟ الزبون يوصله إشعار.`)) return;
+    t.disabled = true;
+    await loaAct('status', { to, tracking: ($('#loaTrk') && $('#loaTrk').value) || '', note: ($('#loaPub') && $('#loaPub').value) || '' });
+    return;
+  }
+  const op = t.dataset.loado;
+  if (!op) return;
+  if (op === 'save' || op === 'quote') {
+    const items = loaCollect(false) || [];
+    const body = { items, fee_pct: $('#loaFee').value, ship_mode: $('#loaShipMode').value, ship_usd: $('#loaShip').value, admin_note: $('#loaNote').value };
+    if (op === 'quote' && !items.length) return toast('أضف المنتجات أولًا', 'bad');
+    t.disabled = true;
+    const r = await loaAct('save', body);
+    if (r && op === 'quote') { if (await loaAct('quote', {})) toast('وصل السعر للزبون ✓', 'ok'); }
+    else if (r) toast('حُفظ ✓', 'ok');
+    t.disabled = false;
+    return;
+  }
+  if (op === 'retry') { t.disabled = true; t.textContent = 'نجلبوا…'; await loaAct('retry', {}); return; }
+  if (op === 'track') { await loaAct('track', { tracking: $('#loaTrk').value }); toast('حُفظ رقم التتبع ✓', 'ok'); return; }
+  if (op === 'note') { const v = ($('#loaEvNote').value || '').trim(); if (!v) return; await loaAct('note', { note: v }); return; }
+  if (op === 'cancel') {
+    const o = S.loa.cur, paid = o.paid_w != null;
+    const reason = prompt(paid ? 'سبب الإلغاء (يرجع المبلغ لنفس محفظة الزبون):' : 'سبب الإلغاء:', '');
+    if (reason === null) return;
+    const force = o.status === 'purchased' ? confirm('المنتجات انشرت فعلًا. متأكد تلغي وترجّع المبلغ؟') : false;
+    if (o.status === 'purchased' && !force) return;
+    if (await loaAct('cancel', { reason, force })) toast(paid ? 'انلغى ورجع المبلغ ✓' : 'انلغى ✓', 'ok');
+  }
+});

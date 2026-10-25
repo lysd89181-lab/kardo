@@ -384,7 +384,7 @@ async function appCheckHeader() {
 }
 
 // مسارات قراءة فقط: لا تستدعي تحديث كل الاشتراكات بعدها (كانت تضاعف القراءات أثناء انتظار الفاتورة)
-const KDB_QUIET = new Set(['/api/activity/ping', '/api/wallet/usdt/verify', '/api/wallet/invoices', '/api/wallet/invoice', '/api/rsc/my-orders', '/api/mcard/list']);
+const KDB_QUIET = new Set(['/api/activity/ping', '/api/wallet/usdt/verify', '/api/wallet/invoices', '/api/wallet/invoice', '/api/rsc/my-orders', '/api/mcard/list', '/api/lo/state', '/api/lo/get', '/api/lo/list']);
 async function api(path, body, ms = 20000) {
   if (!navigator.onLine) throw new Error('لا يوجد اتصال بالإنترنت');
   const token = await auth.currentUser.getIdToken();
@@ -459,6 +459,7 @@ onAuthStateChanged(auth, async user => {
 
   api('/api/activity/ping', {}).catch(() => {});
   loadCatalog();
+  loadLoState();
   render();
 });
 
@@ -644,7 +645,7 @@ function ensurePageData() {
 }
 
 /* ═══ Navigation ═══ */
-const ROUTABLE = new Set(['dashboard', 'cards', 'orders', 'settings', 'wallet', 'transactions', 'plans', 'referral', 'support', 'kstore', 'trust', 'invoices']);
+const ROUTABLE = new Set(['dashboard', 'cards', 'orders', 'settings', 'wallet', 'transactions', 'plans', 'referral', 'support', 'kstore', 'trust', 'invoices', 'linkorder']);
 window.go = (page, keepCat, fromPop) => {
   if (!fromPop && ROUTABLE.has(page) && (S.page !== page || page === 'store')) {
     try { history.pushState({ page, store: S.curStore || null, sec: S.curSection || null }, '', '#/' + page + (page === 'store' && S.curStore ? '/' + encodeURIComponent(S.curStore) : '')); } catch {}
@@ -663,6 +664,7 @@ window.go = (page, keepCat, fromPop) => {
   if (page === 'kstore' || page === 'dashboard') loadRsc();
   if (page === 'invoices') S.invoices = null; else if (page === 'dashboard' && !S.invoices && S.user) loadInvoices();
   if (page === 'orders') loadRscOrders();
+  if (page === 'linkorder') loEnter();
   if (!keepCat) S.rscCat = null;
   if (page === 'transactions' || page === 'wallet') subscribeLedger();
 };
@@ -707,6 +709,7 @@ function paint() {
   if (!S.user) return;
   if (['stores', 'store', 'chats', 'mystore'].includes(S.page)) S.page = 'dashboard';
   if (S.page === 'kstore' && !rscOn()) S.page = 'dashboard';
+  if (S.page === 'linkorder' && S.lo && S.lo.loaded && !S.lo.on) S.page = 'dashboard';
 
   const av = $('#avatarInitial');
   { const ini = esc(((S.profile.name || S.user.email || 'ك').trim()[0] || 'ك').toUpperCase()); if (av && av.dataset.seed !== ini) { av.dataset.seed = ini; av.textContent = ini; av.className = 'kav-sm'; av.removeAttribute('style'); } }
@@ -740,6 +743,7 @@ function paint() {
     trust: vTrust,
     kstore: vKStore,
     invoices: vInvoices,
+    linkorder: vLinkOrder,
   };
   if (S.page === 'shop' && !S.config.store_on) S.page = 'dashboard';
 
@@ -799,6 +803,7 @@ function vDashboard() {
       <button data-nav="orders" type="button"><span class="kq-ic">${svg(I.receipt)}</span>طلباتي</button>
       <button data-nav="transactions" type="button"><span class="kq-ic">${svg(I.wallet2)}</span>المعاملات</button>
     </div>
+    ${loHomeTile()}
     ${bannersHtml()}
     ${rateNudge()}
     ${rscHome()}
@@ -3338,6 +3343,7 @@ function followLink(link) {
   if (kind === 'mcase' && id) { go('orders'); setTimeout(() => openCase(id, 'customer'), 700); return true; }
   if (kind === 'mstore') { S.mstoreTab = id || 'home'; S.mine = null; go('mystore'); return true; }
   if (kind === 'card') { go('cards'); return true; }
+  if (kind === 'lo') { S.lo.tab = 'new'; go('linkorder'); if (id) loOpen(id); return true; }
   return false;
 }
 
@@ -5639,3 +5645,219 @@ function bindStoreBits() {
   $$('#kRes [data-rsccat]').forEach(b => b.onclick = () => { const _c = rscCatBy(b.dataset.rsccat); if (_c && _c.maint) return toast('هذا القسم قيد الصيانة حاليًا — جرّب بعد شوية', 'bad'); S.rscCat = b.dataset.rsccat; render(); window.scrollTo({ top: 0, behavior: 'instant' }); });
   $$('#kChips [data-rsctab], #kRes [data-rsctab]').forEach(b => b.onclick = () => { S.rscTab = b.dataset.rsctab; S.rscQ = ''; render(); });
 }
+
+/* ═══════════════════════════════════════════════════════════
+   v71 — «اطلب بالرابط» (SHEIN بالدينار) — ظاهر للإدارة بس لين يتفعّل للعامة
+   ═══════════════════════════════════════════════════════════ */
+S.lo = { on: false, loaded: false, preview: false, tab: 'new', cur: null, list: null, busy: false, url: '', idem: null };
+let _loPollT = null, _loTick = null, _loPollN = 0;
+const LO_STEP = { pending_fetch: 1, pending_pricing: 1, pending_payment: 2, paid: 3, purchased: 4, shipped: 4, arrived_libya: 4, delivered: 4, cancelled: 0 };
+const LO_BADGE = { pending_fetch: 'badge-warning', pending_pricing: 'badge-warning', pending_payment: 'badge-warning', paid: 'badge-success', purchased: 'badge-success',
+  shipped: 'badge-success', arrived_libya: 'badge-success', delivered: 'badge-success', cancelled: 'badge-error' };
+const LO_TRACK = ['paid', 'purchased', 'shipped', 'arrived_libya', 'delivered'];
+const LO_TRACK_AR = { paid: 'مدفوع', purchased: 'اشترينا', shipped: 'شُحن', arrived_libya: 'وصل ليبيا', delivered: 'تم التسليم' };
+
+async function loadLoState() {
+  try { const r = await api('/api/lo/state', {}); S.lo = { ...S.lo, on: !!r.on, preview: !!r.preview, cfg: r, loaded: true }; }
+  catch { S.lo.loaded = true; }
+  render();
+}
+function loEnter() {
+  if (S.lo.tab === 'list') loLoadList();
+  if (S.lo.cur) loPoll(S.lo.cur.id, true);
+}
+async function loLoadList() {
+  try { const r = await api('/api/lo/list', {}); S.lo.list = r.orders || []; } catch (e) { S.lo.list = S.lo.list || []; toast(e.message, 'bad'); }
+  render();
+}
+function loSet(o) {
+  S.lo.cur = o;
+  if (S.lo.list) { const i = S.lo.list.findIndex(x => x.id === o.id); if (i >= 0) S.lo.list[i] = o; else S.lo.list.unshift(o); }
+  render();
+  loTimer();
+}
+async function loOpen(id) {
+  S.lo.tab = 'new'; S.lo.idem = null;
+  try { const r = await api('/api/lo/get', { id }); loSet(r.order); loPoll(id, true); } catch (e) { toast(e.message, 'bad'); }
+}
+// استعلام عن الحالة: كل 3 ثواني أولًا ثم يتباعد، ويوقف لما الجلب يخلص أو نطلع من الصفحة
+function loPoll(id, reset) {
+  if (reset) _loPollN = 0;
+  clearTimeout(_loPollT);
+  const o = S.lo.cur;
+  if (!o || o.id !== id || o.status !== 'pending_fetch' || S.page !== 'linkorder') return;
+  const waits = [3, 3, 3, 3, 3, 4, 5, 6, 8, 10, 15, 20, 30];
+  const ms = (waits[Math.min(_loPollN, waits.length - 1)]) * 1000;
+  _loPollT = setTimeout(async () => {
+    if (S.page !== 'linkorder' || !S.lo.cur || S.lo.cur.id !== id) return;
+    if (document.hidden) return loPoll(id);
+    _loPollN++;
+    try { const r = await api('/api/lo/get', { id }); loSet(r.order); if (r.order.status !== 'pending_fetch') { haptic.ok && haptic.ok(); return; } } catch {}
+    if (_loPollN < 60) loPoll(id);
+  }, ms);
+}
+function loLeft(o) { return o && o.quote ? Math.max(0, o.quote.exp_ms - (Date.now() - (S.lo.skew || 0))) : 0; }
+function loTimer() {
+  clearInterval(_loTick);
+  const o = S.lo.cur;
+  if (!o || o.status !== 'pending_payment' || !o.quote) return;
+  if (o.now) S.lo.skew = Date.now() - o.now;
+  _loTick = setInterval(() => {
+    const el = document.getElementById('loTimer');
+    if (!el || S.page !== 'linkorder') { clearInterval(_loTick); return; }
+    const left = loLeft(S.lo.cur);
+    if (left <= 0) { clearInterval(_loTick); S.lo.cur = { ...S.lo.cur, expired: true }; render(); return; }
+    const m = Math.floor(left / 60000), s = Math.floor(left / 1000) % 60;
+    el.textContent = `${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
+  }, 1000);
+}
+const loW = (o) => (o.my_wallet && W_KEYS.includes(o.my_wallet) ? o.my_wallet : wDef());
+const loMoney = (x, w) => wFmt(x, w);
+
+function loHomeTile() {
+  if (!S.lo || !S.lo.on) return '';
+  return `<button class="lo-tile" data-nav="linkorder" type="button"><span class="lo-tile-ic">🛍️</span>
+    <span class="lo-tile-tx"><b>اطلب من SHEIN بالدينار</b><span>حط رابط سلتك ونجيبولك السعر في ثواني${S.lo.preview ? ' · معاينة الإدارة' : ''}</span></span><span class="lo-tile-go">←</span></button>`;
+}
+
+function vLinkOrder() {
+  const L = S.lo;
+  if (!L.loaded) return `<div class="page-enter"><div class="skeleton" style="height:180px;border-radius:18px"></div></div>`;
+  if (!L.on) return `<div class="page-enter"><div class="card" style="text-align:center;padding:30px 18px">${fennec('empty')}<div class="h4">الخدمة غير متاحة حاليًا</div></div></div>`;
+  const nOpen = (L.list || []).filter(o => !['delivered', 'cancelled'].includes(o.status)).length;
+  return `<div class="page-enter lo">
+    <div class="lo-eye">● تسوّق SHEIN بالدينار</div>
+    <h1 class="h2" style="margin:2px 0 6px">اطلب بالرابط</h1>
+    <p class="body-sm text-2 mb-3">حط رابط سلتك، نجيبولك المنتجات وسعرها بالدينار، وتدفع من محفظتك.</p>
+    ${L.preview ? `<div class="alert alert-warning mb-3">🧪<div><b>معاينة الإدارة</b> — القسم مخفي عن الزبائن لين تفعّله من لوحة الإدارة.</div></div>` : ''}
+    <div class="lo-seg mb-3"><button type="button" class="${L.tab === 'new' ? 'on' : ''}" data-lotab="new">سلة جديدة</button><button type="button" class="${L.tab === 'list' ? 'on' : ''}" data-lotab="list">طلباتي${nOpen ? ` <i>${nOpen}</i>` : ''}</button></div>
+    ${L.tab === 'list' ? loListHtml() : L.cur ? loOrderHtml(L.cur) : loFormHtml()}
+  </div>`;
+}
+function loStepsHtml(o) {
+  const cur = o ? LO_STEP[o.status] : 1;
+  return `<div class="lo-steps">${['الرابط', 'المنتجات', 'الدفع', 'التتبع'].map((t, i) => `<span class="${i + 1 < cur || (o && o.status === 'delivered') ? 'done' : i + 1 === cur ? 'on' : ''}"><b>${i + 1 < cur ? '✓' : i + 1}</b>${t}</span>`).join('')}</div>`;
+}
+function loFormHtml() {
+  const c = S.lo.cfg || {};
+  return `<div class="card lo-card">
+    ${loStepsHtml(null)}
+    <label class="field-label" for="loUrl">رابط سلة SHEIN</label>
+    <div class="lo-urlrow"><input class="input" id="loUrl" dir="ltr" inputmode="url" autocomplete="off" placeholder="https://…shein…" value="${esc(S.lo.url || '')}">
+      <button class="btn btn-secondary btn-sm" type="button" data-loact="paste">لصق</button></div>
+    <button class="btn btn-primary btn-block" type="button" data-loact="create" ${S.lo.busy ? 'disabled' : ''} style="margin-top:12px">${S.lo.busy ? 'نرسلوا الرابط…' : 'اجلب سلتي'}</button>
+    <div class="lo-facts"><span>رسوم الخدمة ${esc(String(c.fee_pct ?? 5))}%</span><span>${c.ship_mode === 'flat' ? 'الشحن الدولي محسوب في السعر' : 'الشحن الدولي يُدفع بعد الوصول'}</span><span>السعر ثابت ${esc(String(c.quote_min ?? 30))} دقيقة</span></div>
+    ${c.note ? `<p class="caption" style="margin-top:8px">${esc(c.note)}</p>` : ''}
+  </div>
+  <details class="faq-item mb-3"><summary>كيف نجيب رابط السلة؟</summary><p>افتح تطبيق SHEIN ← السلة ← زر المشاركة ↗ ← «نسخ الرابط»، وارجع هنا واضغط «لصق». ما يتخصم أي مبلغ قبل ما تشوف السعر النهائي وتوافق عليه.</p></details>`;
+}
+function loItemsHtml(o, priced) {
+  const w = loW(o);
+  return `<div class="lo-items">${(o.items || []).map(x => `<div class="lo-item">
+      <div class="lo-img">${x.img ? `<img src="${esc(x.img)}" alt="" loading="lazy" referrerpolicy="no-referrer">` : svg(I.bag, 2)}</div>
+      <div class="lo-it"><div class="lo-name">${esc(x.name)}</div>
+        <div class="lo-attr">${[x.color, x.size].filter(Boolean).map(esc).join(' / ') || '—'}</div>
+        ${priced && x.line_w != null ? `<div class="lo-price tabular">${esc(loMoney(x.line_w, w))}</div>` : ''}</div>
+      <div class="lo-qty tabular">× ${esc(String(x.qty))}</div></div>`).join('')}</div>`;
+}
+function loOrderHtml(o) {
+  const back = `<button class="btn btn-ghost btn-sm" type="button" data-loact="new" style="margin-bottom:8px">→ رجوع</button>`;
+  const head = `<div class="flex-between mb-2"><b class="tabular" dir="ltr">${esc(o.ref)}</b><span class="badge ${LO_BADGE[o.status] || 'badge'}">${esc(o.status_ar)}</span></div>`;
+  if (o.status === 'pending_fetch') return `${back}<div class="card lo-card">${loStepsHtml(o)}
+    <div class="lo-wait"><span class="lo-spin"></span><div><b>نجهّز سلتك…</b><span>نقروا المنتجات والأسعار من SHEIN، عادة ياخذ ثواني.</span></div></div>
+    <button class="btn btn-secondary btn-block" type="button" data-loact="cancel" style="margin-top:14px">إيقاف الجلب</button></div>`;
+  if (o.status === 'pending_pricing') return `${back}<div class="card lo-card">${loStepsHtml(o)}${head}
+    <div class="lo-wait"><span class="lo-clock">⏳</span><div><b>طلبك قيد التسعير</b><span>ما قدرناش نقروا السلة تلقائيًا. الإدارة تراجعها وتوصلك إشعار بالسعر قبل أي خصم.</span></div></div>
+    ${(o.items || []).length ? loItemsHtml(o, false) : ''}
+    <button class="btn btn-secondary btn-block" type="button" data-loact="cancel" style="margin-top:14px">إلغاء الطلب</button></div>`;
+  if (o.status === 'cancelled') return `${back}<div class="card lo-card">${head}${(o.items || []).length ? loItemsHtml(o, false) : ''}
+    <p class="body-sm text-2" style="margin-top:10px">${o.paid_w != null ? 'انلغى الطلب ورجع المبلغ لمحفظتك.' : 'الطلب ملغي.'}</p>
+    <button class="btn btn-primary btn-block" type="button" data-loact="new" style="margin-top:10px">سلة جديدة</button></div>`;
+  const q = o.quote || {}, w = o.status === 'pending_payment' ? loW(o) : (o.wallet || loW(o));
+  const sum = `<div class="lo-sum">
+      <div><span>المنتجات</span><b class="tabular">${esc(loMoney(q.sub_w, w))}</b></div>
+      <div><span>الخدمة ${esc(String(q.fee_pct ?? ''))}%</span><b class="tabular">${esc(loMoney(q.fee_w, w))}</b></div>
+      <div><span>الشحن الدولي</span><b>${q.ship_mode === 'after' ? 'يُدفع بعد الوصول' : esc(loMoney(q.ship_w, w))}</b></div></div>`;
+  if (o.status === 'pending_payment') {
+    const amt = q.w ? q.w[w] : 0, bal = wBalOf(w), short = bal < amt - 1e-9;
+    const left = loLeft(o), mm = Math.floor(left / 60000), ss = Math.floor(left / 1000) % 60;
+    return `${back}<div class="card lo-card">${loStepsHtml(o)}${head}${loItemsHtml(o, true)}${sum}
+      <div class="lo-total"><div><span class="caption">الإجمالي · محفظة ${esc(wInfo(w).label)}</span><b class="tabular">${esc(loMoney(amt, w))}</b></div>
+        ${o.expired ? '<span class="lo-exp">انتهت صلاحية السعر</span>' : `<span class="lo-timer">⏱ متبقٍ لقبول السعر <b id="loTimer" class="tabular">${String(mm).padStart(2, '0')}:${String(ss).padStart(2, '0')}</b></span>`}</div>
+      ${o.expired ? `<button class="btn btn-primary btn-block" type="button" data-loact="requote">تحديث السعر</button>`
+        : short ? `<div class="alert alert-warning" style="margin:10px 0">رصيد محفظة ${esc(wInfo(w).label)}: ${esc(loMoney(bal, w))} — ينقصك ${esc(loMoney(Math.round((amt - bal) * 100) / 100, w))}</div>
+          <button class="btn btn-primary btn-block" type="button" data-act="dock-deposit">شحن المحفظة</button>`
+        : `<button class="btn btn-primary btn-block" type="button" data-loact="pay">موافقة ودفع ${esc(loMoney(amt, w))}</button>`}
+      <button class="btn btn-ghost btn-block" type="button" data-loact="cancel" style="margin-top:6px">إلغاء الطلب</button>
+      <p class="caption" style="margin-top:8px;text-align:center">الدفع من محفظتك الافتراضية. تقدر تغيّرها من صفحة المحفظة.</p></div>`;
+  }
+  const idx = LO_TRACK.indexOf(o.status);
+  return `${back}<div class="card lo-card">${loStepsHtml(o)}${head}
+    <div class="lo-track">${LO_TRACK.map((st, i) => { const ev = (o.events || []).filter(e => e.st === st).pop();
+      return `<div class="${i < idx ? 'done' : i === idx ? 'on' : ''}"><i></i><span><b>${LO_TRACK_AR[st]}</b>${ev ? `<small>${esc(dt(ev.at))}${ev.note ? ' · ' + esc(ev.note) : ''}</small>` : ''}</span></div>`; }).join('')}</div>
+    ${o.tracking ? `<div class="lo-trk"><span class="caption">رقم التتبع</span><b dir="ltr" class="tabular">${esc(o.tracking)}</b><button class="btn btn-ghost btn-sm" type="button" data-locopy="${esc(o.tracking)}">نسخ</button></div>` : ''}
+    ${loItemsHtml(o, true)}${sum}
+    <div class="lo-total"><div><span class="caption">المدفوع · محفظة ${esc(wInfo(w).label)}</span><b class="tabular">${esc(loMoney(o.paid_w, w))}</b></div></div></div>`;
+}
+function loListHtml() {
+  const L = S.lo.list;
+  if (!L) return '<div class="skeleton" style="height:120px;border-radius:16px"></div>';
+  if (!L.length) return `<div class="card" style="text-align:center;padding:28px 18px">${fennec('empty')}<div class="h4" style="margin-bottom:6px">ما عندكش طلبات بعد</div>
+    <button class="btn btn-primary btn-sm" type="button" data-lotab="new">سلة جديدة</button></div>`;
+  return `<div class="lo-list">${L.map(o => { const x = (o.items || [])[0], w = o.wallet || loW(o), amt = o.paid_w != null ? o.paid_w : o.quote && o.quote.w ? o.quote.w[w] : null;
+    return `<button class="list-row" type="button" data-loid="${esc(o.id)}">
+      <div class="list-icon brand">${x && x.img ? `<img src="${esc(x.img)}" alt="" referrerpolicy="no-referrer" style="width:100%;height:100%;object-fit:cover;border-radius:12px">` : svg(I.bag, 2)}</div>
+      <div class="list-content"><div class="list-title">${esc(x ? x.name : 'سلة SHEIN')}${(o.items || []).length > 1 ? ` +${o.items.length - 1}` : ''}</div><div class="list-meta"><bdi>${esc(o.ref)}</bdi> · ${esc(dt(o.created_at))}</div></div>
+      <div class="list-end">${amt != null ? `<div class="list-amount">${esc(loMoney(amt, w))}</div>` : ''}<span class="badge ${LO_BADGE[o.status] || 'badge'}" style="margin-top:4px;font-size:10px">${esc(o.status_ar)}</span></div></button>`; }).join('')}</div>`;
+}
+
+async function loCreate() {
+  const url = ($('#loUrl') && $('#loUrl').value || '').trim();
+  S.lo.url = url;
+  if (!/https?:\/\/\S*shein/i.test(url)) return toast('حط رابط سلة SHEIN صحيح', 'bad');
+  S.lo.busy = true; render();
+  try { const r = await api('/api/lo/create', { url }); S.lo.url = ''; S.lo.idem = null; loSet(r.order); loPoll(r.order.id, true); }
+  catch (e) { toast(e.message, 'bad'); }
+  S.lo.busy = false; render();
+}
+function loPayConfirm() {
+  const o = S.lo.cur; if (!o || !o.quote) return;
+  const w = loW(o), amt = o.quote.w[w];
+  if (!S.lo.idem) S.lo.idem = newIdemKey();
+  modal(`<div class="modal-head"><div class="modal-title">تأكيد الدفع</div><button class="modal-close" data-act="close-modal" aria-label="إغلاق">${svg(I.x, 2)}</button></div>
+    <p class="body-sm mb-3">يتخصم <b>${esc(loMoney(amt, w))}</b> من محفظة <b>${esc(wInfo(w).label)}</b> لطلب <bdi>${esc(o.ref)}</bdi>.</p>
+    <p class="caption mb-3">${o.quote.ship_mode === 'after' ? 'الشحن الدولي يُدفع لما الطلب يوصل ليبيا.' : 'السعر يشمل الشحن الدولي.'} لو انلغى الطلب قبل الشراء يرجع المبلغ لنفس المحفظة.</p>
+    <button class="btn btn-primary btn-block" type="button" data-loact="pay-go">ادفع ${esc(loMoney(amt, w))}</button>`);
+}
+async function loPay(btn) {
+  const o = S.lo.cur; if (!o || !o.quote) return;
+  const w = loW(o), amt = o.quote.w[w];
+  if (btn) { btn.disabled = true; btn.textContent = 'ندفعوا…'; }
+  try {
+    const r = await api('/api/lo/approve', { id: o.id, idempotency_key: S.lo.idem || newIdemKey(), expect: amt, qat: o.quote.at });
+    closeModal(); S.lo.idem = null; haptic.ok && haptic.ok(); toast('تم الدفع ✓ — نبلّغوك في كل مرحلة', 'ok'); loSet(r.order);
+  } catch (e) {
+    toast(e.message, 'bad'); if (btn) { btn.disabled = false; btn.textContent = 'ادفع'; }
+    if (/تغيّر|انتهت/.test(e.message)) { closeModal(); S.lo.idem = null; loOpen(o.id); }
+  }
+}
+document.addEventListener('click', async e => {
+  const t = e.target.closest && e.target.closest('[data-lotab],[data-loact],[data-loid],[data-locopy]');
+  if (!t || !S.user) return;
+  if (t.dataset.lotab) { S.lo.tab = t.dataset.lotab; if (S.lo.tab === 'list') { S.lo.list = S.lo.list || null; loLoadList(); } else S.lo.cur = S.lo.cur && !['delivered', 'cancelled'].includes(S.lo.cur.status) ? S.lo.cur : null; return render(); }
+  if (t.dataset.loid) { haptic.tap && haptic.tap(); return loOpen(t.dataset.loid); }
+  if (t.dataset.locopy) { try { await navigator.clipboard.writeText(t.dataset.locopy); toast('نُسخ ✓', 'ok'); } catch {} return; }
+  const a = t.dataset.loact;
+  if (a === 'create') return loCreate();
+  if (a === 'paste') { try { const tx = await navigator.clipboard.readText(); const m = /https?:\/\/\S+/.exec(tx || ''); if ($('#loUrl')) $('#loUrl').value = m ? m[0] : (tx || '').trim(); } catch { toast('اضغط مطوّل على الخانة واختار «لصق»', ''); } return; }
+  if (a === 'new') { clearTimeout(_loPollT); clearInterval(_loTick); S.lo.cur = null; S.lo.tab = 'new'; return render(); }
+  if (a === 'pay') return loPayConfirm();
+  if (a === 'pay-go') return loPay(t);
+  if (a === 'requote') { try { const r = await api('/api/lo/requote', { id: S.lo.cur.id }); S.lo.idem = null; loSet(r.order); toast('حدّثنا السعر ✓', 'ok'); } catch (er) { toast(er.message, 'bad'); } return; }
+  if (a === 'cancel') {
+    if (!S.lo.cur || !confirm(S.lo.cur.status === 'pending_fetch' ? 'نوقفوا جلب السلة؟' : 'تلغي الطلب؟')) return;
+    try { const r = await api('/api/lo/cancel', { id: S.lo.cur.id }); clearTimeout(_loPollT); loSet(r.order); toast('انلغى الطلب', 'ok'); } catch (er) { toast(er.message, 'bad'); }
+  }
+});
+document.addEventListener('keydown', e => { if (e.key === 'Enter' && e.target && e.target.id === 'loUrl') { e.preventDefault(); loCreate(); } });
+document.addEventListener('visibilitychange', () => { if (!document.hidden && S.page === 'linkorder' && S.lo.cur && S.lo.cur.status === 'pending_fetch') loPoll(S.lo.cur.id, false); });

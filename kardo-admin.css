@@ -238,3 +238,16 @@ html .sw.on::after { right: 21px !important; background: #fff !important; box-sh
 .rsc-vis.w { color: var(--u-warn, #A8650C); }
 .rsc-vis.bad { color: var(--u-err, #C8432F); }
 .rsc-vis button { border: 1px solid currentColor; background: none; color: inherit; border-radius: 8px; padding: 2px 8px; font: 600 11px inherit; cursor: pointer; }
+
+/* v71 — طلبات بالرابط */
+.loa-box{padding:10px 12px;border-radius:12px;background:var(--u-s2);border:1px solid var(--u-line)}
+.loa-it{padding:10px;border-radius:12px;border:1px solid var(--u-line);margin-bottom:8px;display:flex;flex-direction:column;gap:6px}
+.loa-it-top{display:flex;gap:8px;align-items:center}
+.loa-it-top img,.loa-noimg{width:44px;height:44px;flex:0 0 44px;border-radius:10px;object-fit:cover;display:grid;place-items:center;background:var(--u-s2)}
+.loa-it-top .input{flex:1;min-width:0}
+.loa-it-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:6px}
+.loa-it-grid .input,.loa-grid3 .input{min-height:38px;padding:6px 8px;font-size:13px}
+.loa-it-grid [data-f="img"]{grid-column:1 / -1}
+.loa-grid3{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px}
+.loa-grid3 label{display:flex;flex-direction:column;gap:4px}
+@media (max-width:420px){.loa-grid3{grid-template-columns:1fr 1fr}}

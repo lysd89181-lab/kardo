@@ -77,6 +77,9 @@ const DEFAULT_SETTINGS = {
   lim_trc20_min: 0, lim_trc20_max: 0, lim_bep20_min: 0, lim_bep20_max: 0, lim_polygon_min: 0, lim_polygon_max: 0,
   lim_binance_pay_min: 0, lim_binance_pay_max: 0, lim_binance_min: 0, lim_binance_max: 0,
   m_trc20_logo: '', m_bep20_logo: '', m_polygon_logo: '', m_binance_pay_logo: '',
+  // v71 — «اطلب بالرابط» (SHEIN): ظاهر للإدارة بس لين lo_public = true
+  lo_on: true, lo_public: false, lo_fee_pct: 5, lo_ship_mode: 'after', lo_ship_usd: 0, lo_ship_item_usd: 0,
+  lo_quote_min: 30, lo_fx: 'USD=1,EUR=1.08,GBP=1.27,SAR=0.2667,AED=0.2723', lo_min_usd: 3, lo_max_usd: 1500, lo_note: '',
 };
 
 const ADMIN_SETTINGS_KEYS = Object.keys(DEFAULT_SETTINGS);
@@ -144,6 +147,7 @@ export default {
     ];
     { const _m = new Date(event.scheduledTime || Date.now()).getUTCMinutes(); jobs.push(rscCron(env, _m < 5).catch(e => console.error('RSC_CRON_FAILED', e.message))); }
     jobs.push(invoiceCron(env).catch(e => console.error('INVOICE_CRON_FAILED', e.message)));
+    jobs.push(loCron(env).catch(e => console.error('LO_CRON_FAILED', e.message)));
     const _t = new Date(event.scheduledTime || Date.now());
     const minute = _t.getUTCMinutes(), hour = _t.getUTCHours();
     if (minute < 5) {
@@ -205,6 +209,14 @@ async function route(path, request, url, env) {
 
   switch (path) {
     case '/api/rsc/order':             return handleRscOrder(user, body, env);
+    case '/api/lo/state':              return handleLoState(user, body, env);
+    case '/api/lo/create':             return handleLoCreate(user, body, env);
+    case '/api/lo/get':                return handleLoGet(user, body, env);
+    case '/api/lo/list':               return handleLoList(user, body, env);
+    case '/api/lo/approve':            return handleLoApprove(user, body, env);
+    case '/api/lo/requote':            return handleLoRequote(user, body, env);
+    case '/api/lo/cancel':             return handleLoCancel(user, body, env);
+    case '/api/admin/lo':              return handleAdminLo(user, body, env);
     case '/api/rsc/my-orders':         return handleRscMyOrders(user, body, env);
     case '/api/admin/rsc':             return handleAdminRsc(user, body, env);
     case '/api/admin/usdt/find':       return handleAdminUsdtFind(user, body, env);
@@ -4544,6 +4556,12 @@ const MAIL = {
   verify_code: (v) => ['رمز تأكيد بريدك', [`رمزك هو:`, `<div style="font-size:30px;letter-spacing:8px;font-weight:bold;color:#e8b64c;font-family:monospace;direction:ltr;text-align:center;padding:10px 0">${escHtml(v.code)}</div>`, 'صالح لمدة 10 دقائق. إذا لم تطلبه، تجاهل هذه الرسالة.'], ''],
   crypto_unmatched: (v) => ['تحويل يحتاج مراجعة', [`وصل <b>${escHtml(v.amount)} USDT</b> عبر ${escHtml(v.network)} ولم يرتبط بأي فاتورة بالضبط.`, 'افتح الإيداعات ← تحويلات تحتاج مراجعة.'], 'لوحة الإدارة'],
   rsc_done: (v) => ['تم تنفيذ طلبك ✓', [`اكتمل طلبك <b>${escHtml(v.name)}</b>.`, v.codes ? 'الكود جاهز في «طلباتي».' : 'وصل الشحن إلى حسابك.'], 'عرض طلباتي'],
+  lo_quote: (v) => ['سعر طلبك جاهز ✓', [`طلبك <b>${escHtml(v.ref)}</b> من SHEIN: <b>${escHtml(v.fmt || '')}</b>.`, `السعر ثابت ${escHtml(String(v.mins || 30))} دقيقة — وافق وادفع من «اطلب بالرابط».`], 'فتح الطلب'],
+  lo_pricing: (v) => ['طلبك قيد التسعير', [`استلمنا سلتك <b>${escHtml(v.ref)}</b>.`, 'الإدارة تراجعها وتوصلك إشعار بالسعر النهائي قبل أي خصم.'], 'فتح الطلب'],
+  lo_status: (v) => ['تحديث طلبك', [`طلبك <b>${escHtml(v.ref)}</b>: <b>${escHtml(v.label || '')}</b>.`, v.tracking ? `رقم التتبع: <b>${escHtml(v.tracking)}</b>` : '', v.note ? escHtml(v.note) : ''], 'فتح الطلب'],
+  lo_paid: (v) => ['تم الدفع ✓', [`دفعت <b>${escHtml(v.fmt || '')}</b> لطلبك <b>${escHtml(v.ref)}</b>.`, 'نبدوا في الشراء ونبلّغوك في كل مرحلة.'], 'فتح الطلب'],
+  lo_refund: (v) => ['أُلغي طلبك', [`طلبك <b>${escHtml(v.ref)}</b> انلغى${v.reason ? ': ' + escHtml(v.reason) : ''}.`, v.fmt ? `رجعنا <b>${escHtml(v.fmt)}</b> لمحفظتك.` : ''], 'فتح الطلب'],
+  lo_expiring: (v) => ['سعر طلبك قرب يخلص', [`سعر طلبك <b>${escHtml(v.ref)}</b> ينتهي خلال دقائق.`, 'وافق وادفع قبل ما يخلص، وإلا تحتاج تحديث السعر.'], 'فتح الطلب'],
   rsc_failed: (v) => ['تعذّر تنفيذ طلبك', [`طلبك <b>${escHtml(v.name)}</b> لم يكتمل: ${escHtml(v.reason || '')}.`, `أُعيد <b>${escHtml(v.fmt || '$' + v.amount)}</b> إلى محفظتك.`], 'فتح كاردو'],
   rsc_admin: (v) => ['طلب متجر يحتاج مراجعة', [`الطلب <b>${escHtml(v.oid)}</b>: ${escHtml(v.why)}.`, 'افتح «متجر كاردو» في لوحة الإدارة.'], 'لوحة الإدارة'],
   order_placed: (v) => ['تم الشراء ✓', [`تم شراء <b>${escHtml(v.name)}</b> بقيمة <b>${escHtml(v.amount)}</b>.`, v.instant ? 'الكود جاهز في «طلباتي».' : 'سيُنفَّذ طلبك يدويًا ونُعلمك فور اكتماله.'], 'عرض طلباتي'],
@@ -4586,6 +4604,7 @@ const MAIL = {
   adm_card: (v) => ['💳 طلب بطاقة جديد', [`${escHtml(v.who)} — <b>$${escHtml(v.amount)}</b>`], 'طلبات البطاقات'],
   adm_order: (v) => ['🛍 طلب خدمة جديد', [`${escHtml(v.who)} — ${escHtml(v.name)} (${escHtml(v.amount)})`], 'الطلبات'],
   adm_blocked_dev: (v) => ['🚫 محاولة من جهاز محظور', [`${escHtml(v.who)} فتح حساب/دخل من جهاز مرتبط بحساب محظور (${escHtml(v.banned)}) — انحظر تلقائيًا.`], 'العملاء'],
+  adm_lo: (v) => ['🔗 طلب بالرابط', [`${escHtml(v.who)} — ${escHtml(v.what || '')}${v.ref ? ' (' + escHtml(v.ref) + ')' : ''}`, v.amount ? escHtml(v.amount) : ''], 'طلبات بالرابط'],
   adm_test: () => ['🔔 إشعار تجريبي', ['لو شفت هذا، إشعارات الإدارة شغالة على هذا الجهاز ✓'], 'لوحة الإدارة'],
 };
 
@@ -6629,7 +6648,7 @@ const D1_IDX = {
   merchant_applications: [['status']], merchant_stock: [['sid', 'used']], stock: [['pid', 'used']], service_stock: [['service_id', 'is_used']],
   tickets: [['uid'], ['updated_at'], ['status']], sms_transactions: [['created_at'], ['sender'], ['status']], audit_log: [['created_at']], products: [['cat']],
   categories: [['parent']], coupon_uses: [['uid']], plan_orders: [['uid']], transfers: [['uid']], usdt_invoices: [['uid'], ['status'], ['created_at']], ref_codes: [['uid']],
-  rsc_orders: [['uid'], ['status'], ['created_at']], crypto_unmatched: [['status']], reviews: [['status'], ['created_at']],
+  rsc_orders: [['uid'], ['status'], ['created_at']], link_orders: [['uid'], ['status'], ['created_at']], crypto_unmatched: [['status']], reviews: [['status'], ['created_at']],
   rate_limits: [], idempotency: [], otp_codes: [], otp_waits: [], email_codes: [], card_cvv_once: [], manual_card_reveal: [], public: [], settings: [],
   admins: [], stickers: [], platforms: [], daily_counters: [], usdt_amounts: [], usdt_txids: [], phone_bindings: [], phone_owners: [], phone_verifications: [['status']],
 };
@@ -9354,4 +9373,759 @@ async function handleAdminReviews(user, body, env) {
   bustPublic();
   await logOp(env, staff.uid, 'review.' + body.action, { id }, {}, true);
   return { success: true };
+}
+
+/* ═══════════════════════════════════════════════════════════
+   v71 — «اطلب بالرابط»: الزبون يحط رابط سلة SHEIN ← نجلبها في الخلفية ← سعر بالدينار ← يوافق ويدفع
+   - الطلب يتسجّل أولًا (link_orders) والجلب يمشي فورًا في الخلفية، والـ Cron يعيد المحاولات المعلّقة فقط
+   - الجلب: مباشر ← Cloudflare Browser Rendering (CF_ACCOUNT_ID + CF_BR_TOKEN) ← مزوّد خارجي (SHEIN_FETCH_API_URL [+ SHEIN_FETCH_API_KEY])
+   - أي نقص في البيانات ← «بانتظار التسعير» والإدارة تسعّر يدويًا
+   - ما يتخصم شي قبل موافقة الزبون، والمبلغ يتثبّت من عرض السعر (لكل محفظة) وقت إنشائه
+   ═══════════════════════════════════════════════════════════ */
+const LO_ST = ['pending_fetch', 'pending_pricing', 'pending_payment', 'paid', 'purchased', 'shipped', 'arrived_libya', 'delivered', 'cancelled'];
+const LO_AR = { pending_fetch: 'بانتظار الجلب', pending_pricing: 'بانتظار التسعير', pending_payment: 'بانتظار الدفع', paid: 'مدفوع', purchased: 'اشترينا',
+  shipped: 'شُحن', arrived_libya: 'وصل ليبيا', delivered: 'تم التسليم', cancelled: 'ملغي' };
+const LO_NEXT = { pending_fetch: ['pending_pricing'], pending_pricing: [], pending_payment: ['pending_pricing'], paid: ['purchased'], purchased: ['shipped'],
+  shipped: ['arrived_libya'], arrived_libya: ['delivered'], delivered: [], cancelled: [] };
+const LO_PREPAY = ['pending_fetch', 'pending_pricing', 'pending_payment'];
+const LO_UA = 'Mozilla/5.0 (Linux; Android 13; SM-A536B) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0 Mobile Safari/537.36';
+const LO_MAX_TRIES = 3;
+const loHostOk = h => /(^|\.)shein\.[a-z]{2,4}(\.[a-z]{2})?$/i.test(String(h || '')) || /(^|\.)onelink\.me$/i.test(String(h || ''));
+const loRef = id => 'LO-' + String(id || '').replace(/[^A-Za-z0-9]/g, '').slice(-6).toUpperCase();
+const loIdOk = id => /^LO[0-9]{10,16}[A-Za-z0-9]{2,8}$/.test(String(id || ''));
+
+async function loGate(env, s, uid) {
+  if (s.lo_on === false) throw httpError(503, 'الخدمة متوقفة مؤقتًا');
+  if (s.lo_public !== true && !(await isStaffCached(env, uid))) throw httpError(404, 'الخدمة غير متاحة');
+}
+function loFx(s) {
+  const m = { USD: 1 };
+  for (const part of String(s.lo_fx || '').split(/[,\n]/)) {
+    const [k, v] = part.split('=').map(x => String(x || '').trim());
+    if (/^[A-Z]{3}$/.test(k) && num(v, 0) > 0) m[k] = num(v, 0);
+  }
+  return m;
+}
+function loCleanUrl(raw) {
+  const t = toLatinDigits(String(raw || '')).trim().slice(0, 2000);
+  const m = /https?:\/\/[^\s<>"'`]+/i.exec(t);
+  if (!m) return null;
+  let u;
+  try { u = new URL(m[0].replace(/[).,،؛;!?]+$/, '')); } catch { return null; }
+  if (u.protocol === 'http:') u.protocol = 'https:';
+  if (u.protocol !== 'https:' || u.username || u.password || (u.port && u.port !== '443')) return null;
+  if (!loHostOk(u.hostname)) return null;
+  const s = u.toString();
+  return s.length <= 1500 ? s : null;
+}
+// روابط المشاركة أحيانًا تلف الرابط الحقيقي في باراميتر (link / url / af_dp …)
+function loUnwrap(url) {
+  try {
+    const u = new URL(url);
+    for (const k of ['link', 'url', 'deeplink_value', 'af_dp', 'af_web_dp', 'redirect', 'target']) {
+      const v = u.searchParams.get(k);
+      if (v) { const c = loCleanUrl(v.startsWith('http') ? v : decodeURIComponent(v)); if (c && c !== url) return c; }
+    }
+  } catch {}
+  return url;
+}
+async function loGet(url, ms, init = {}) {
+  return fetch(url, { ...init, signal: AbortSignal.timeout(ms) });
+}
+// تتبّع التحويلات يدويًا: كل قفزة لازم تكون لنطاق شي إن (حماية SSRF)
+async function loResolve(url, log) {
+  let u = loUnwrap(url);
+  for (let i = 0; i < 6; i++) {
+    const r = await loGet(u, 8000, { redirect: 'manual', headers: { 'user-agent': LO_UA, 'accept-language': 'ar,en;q=0.8', accept: 'text/html,*/*' } });
+    if (r.status >= 300 && r.status < 400) {
+      const loc = r.headers.get('location');
+      if (!loc) return { url: u, res: r };
+      let nx; try { nx = new URL(loc, u); } catch { throw new Error('تحويل غير صالح'); }
+      if (nx.protocol === 'http:') nx.protocol = 'https:';
+      if (!loHostOk(nx.hostname)) {                                   // ممكن يكون ملفوف في باراميتر
+        const inner = loUnwrap(nx.toString());
+        if (inner === nx.toString()) throw new Error('تحويل لنطاق غير مسموح: ' + nx.hostname);
+        u = inner;
+      } else u = loUnwrap(nx.toString());
+      log.push('→ ' + new URL(u).hostname + new URL(u).pathname.slice(0, 40));
+      continue;
+    }
+    return { url: u, res: r };
+  }
+  throw new Error('تحويلات كثيرة');
+}
+async function loReadText(r, cap = 2_500_000) {
+  const t = await r.text();
+  return t.length > cap ? t.slice(0, cap) : t;
+}
+async function loViaBrowser(env, url) {
+  const r = await loGet(`https://api.cloudflare.com/client/v4/accounts/${encodeURIComponent(env.CF_ACCOUNT_ID)}/browser-rendering/content`, 25000, {
+    method: 'POST', headers: { authorization: 'Bearer ' + env.CF_BR_TOKEN, 'content-type': 'application/json' },
+    body: JSON.stringify({ url, userAgent: LO_UA, gotoOptions: { waitUntil: 'networkidle2', timeout: 20000 } }),
+  });
+  const j = await r.json().catch(() => null);
+  if (!r.ok || !j || j.success === false || typeof j.result !== 'string') throw new Error('Browser Rendering ' + r.status + (j && j.errors && j.errors[0] ? ': ' + String(j.errors[0].message || '').slice(0, 80) : ''));
+  return j.result;
+}
+async function loViaProvider(env, url) {
+  const tpl = String(env.SHEIN_FETCH_API_URL || '');
+  if (!/^https:\/\//.test(tpl)) throw new Error('رابط المزود غير صالح');
+  const key = String(env.SHEIN_FETCH_API_KEY || '');
+  const target = tpl.includes('{url}') ? tpl.replace('{url}', encodeURIComponent(url)).replace('{key}', encodeURIComponent(key)) : tpl;
+  const headers = { accept: 'text/html,application/json' };
+  if (key && !tpl.includes('{key}')) { headers['x-api-key'] = key; headers.authorization = 'Bearer ' + key; }
+  const r = tpl.includes('{url}') ? await loGet(target, 28000, { headers })
+    : await loGet(target, 28000, { method: 'POST', headers: { ...headers, 'content-type': 'application/json' }, body: JSON.stringify({ url }) });
+  if (!r.ok) throw new Error('المزود ' + r.status);
+  const t = await loReadText(r);
+  if (/^\s*[{[]/.test(t)) {                                           // بعض المزودين يرجّعوا JSON
+    try { const j = JSON.parse(t); const h = j.html || j.body || j.content || (j.result && (j.result.html || j.result.content)) || (j.data && (j.data.html || j.data.content)); if (typeof h === 'string') return h; return t; } catch {}
+  }
+  return t;
+}
+
+/* ─── قراءة المنتجات من صفحة السلة ─── */
+function loBal(s, i) {
+  const open = s[i]; let d = 0, inS = false, q = '', esc = false;
+  const lim = Math.min(s.length, i + 3_000_000);
+  for (let j = i; j < lim; j++) {
+    const c = s[j];
+    if (inS) { if (esc) esc = false; else if (c === '\\') esc = true; else if (c === q) inS = false; continue; }
+    if (c === '"') { inS = true; q = c; continue; }
+    if (c === '{' || c === '[') d++;
+    else if (c === '}' || c === ']') { d--; if (d === 0) return open === '{' || open === '[' ? s.slice(i, j + 1) : null; }
+  }
+  return null;
+}
+function loJsonBlobs(html) {
+  const out = [];
+  const re = /<script\b[^>]*>([\s\S]*?)<\/script>/gi;
+  let m, n = 0;
+  while ((m = re.exec(html)) && n < 400) {
+    n++;
+    const body = m[1];
+    if (!body || body.length < 40 || !/goods_?name|goodsName|productName|product_name/.test(body)) continue;   // توفير وقت المعالج
+    const t = body.trim();
+    if (/^[{[]/.test(t)) { try { out.push(JSON.parse(t)); continue; } catch {} }
+    const as = /[=(:]\s*([{[])/g;
+    let a, k = 0;
+    while ((a = as.exec(body)) && k < 30) {
+      k++;
+      const st = a.index + a[0].length - 1;
+      const blob = loBal(body, st);
+      if (!blob || blob.length < 60) continue;
+      if (!/goods_?name|goodsName|productName/i.test(blob)) { as.lastIndex = st + blob.length; continue; }
+      try { out.push(JSON.parse(blob)); } catch {}
+      as.lastIndex = st + blob.length;
+    }
+  }
+  return out;
+}
+const LO_SYM = [[/US\s?\$|USD|\$/, 'USD'], [/€|EUR/, 'EUR'], [/£|GBP/, 'GBP'], [/SAR|ر\.?\s?س|SR/, 'SAR'], [/AED|د\.?\s?إ/, 'AED']];
+function loCurOf(str) { const t = String(str || ''); for (const [re, c] of LO_SYM) if (re.test(t)) return c; return ''; }
+function loNum(v) { const x = typeof v === 'number' ? v : parseFloat(String(v || '').replace(/[^0-9.]/g, '')); return Number.isFinite(x) ? x : 0; }
+function loPrice(o, pageCur) {
+  for (const k of ['salePrice', 'sale_price', 'unitPrice', 'unit_price', 'feSalePrice', 'discountPrice', 'retailPrice', 'retail_price', 'price']) {
+    const v = o[k];
+    if (v == null || v === '') continue;
+    if (typeof v === 'object') {
+      if (loNum(v.usdAmount) > 0) return { amount: loNum(v.usdAmount), cur: 'USD' };
+      const amt = loNum(v.amount ?? v.value ?? v.price);
+      if (amt > 0) return { amount: amt, cur: String(v.currency || v.currencyCode || '').toUpperCase().slice(0, 3) || loCurOf(v.amountWithSymbol || v.symbol) || pageCur };
+    } else if (loNum(v) > 0) return { amount: loNum(v), cur: String(o.currency || o.currencyCode || '').toUpperCase().slice(0, 3) || loCurOf(v) || pageCur };
+  }
+  return null;
+}
+function loAttrs(o) {
+  let size = '', color = '';
+  const pick = (name, val) => {
+    const nm = String(name || ''), vl = String(val || '').trim().slice(0, 40);
+    if (!vl) return;
+    if (!size && /size|مقاس|المقاس|尺码/i.test(nm)) size = vl;
+    else if (!color && /colou?r|لون|اللون|颜色/i.test(nm)) color = vl;
+  };
+  for (const src of [o, o.product || {}, o.attr || {}, o.sku || {}]) {
+    for (const arrK of ['sku_sale_attr', 'skuSaleAttr', 'attrs', 'sale_attr_list', 'attr_list']) {
+      const arr = src[arrK];
+      if (Array.isArray(arr)) for (const a of arr.slice(0, 8)) if (a && typeof a === 'object') pick(a.attr_name || a.attrName || a.name, a.attr_value_name || a.attrValueName || a.attr_value || a.value);
+    }
+    if (!size) size = String(src.attr_value_en || src.attr_value || src.attrValue || src.size || src.size_name || '').trim().slice(0, 40);
+    if (!color) color = String(src.color || src.color_name || src.goods_color_name || src.colorName || '').trim().slice(0, 40);
+    for (const sk of ['goods_attr', 'attr_text', 'attrText', 'sku_attr_text']) {
+      const tx = String(src[sk] || '');
+      if (tx) {
+        const sm = /(size|مقاس|المقاس)\s*[:：]\s*([^/;,|]+)/i.exec(tx); if (sm && !size) size = sm[2].trim().slice(0, 40);
+        const cm = /(colou?r|لون|اللون)\s*[:：]\s*([^/;,|]+)/i.exec(tx); if (cm && !color) color = cm[2].trim().slice(0, 40);
+      }
+    }
+  }
+  return { size, color };
+}
+function loImg(v) {
+  let x = String(v || '').trim();
+  if (!x) return '';
+  if (x.startsWith('//')) x = 'https:' + x;
+  return /^https:\/\/[^\s"'<>]+$/i.test(x) ? x.slice(0, 500) : '';
+}
+function loItemOf(o, parent, pageCur) {
+  const P = o.product && typeof o.product === 'object' ? o.product : o;
+  const name = String(P.goods_name || P.goodsName || P.productName || P.product_name || o.goods_name || o.goodsName || '').trim();
+  if (!name || name.length < 2) return null;
+  const pr = loPrice(o, pageCur) || loPrice(P, pageCur);
+  if (!pr) return null;
+  const qtyRaw = o.quantity ?? o.goods_num ?? o.qty ?? o.num ?? (parent && (parent.quantity ?? parent.goods_num));
+  const id = String(P.goods_id || P.goodsId || P.sku_code || P.skuCode || P.goods_sn || P.goodsSn || o.goods_id || '').slice(0, 40);
+  const { size, color } = loAttrs({ ...P, ...o });
+  return {
+    id, name: name.slice(0, 160), img: loImg(P.goods_img || P.goodsImg || P.goods_image || P.goods_thumb || P.imgUrl || P.image || o.goods_img),
+    size, color, qty: Math.max(1, Math.min(50, Math.floor(loNum(qtyRaw) || 1))), has_qty: qtyRaw != null,
+    amount: Math.round(pr.amount * 100) / 100, cur: pr.cur || '', link: /^\d{4,}$/.test(id) ? `https://www.shein.com/item-p-${id}.html` : '',
+  };
+}
+function loWalk(node, parent, acc, pageCur, depth) {
+  if (!node || typeof node !== 'object' || depth > 40 || acc.n > 20000) return;
+  acc.n++;
+  if (Array.isArray(node)) { for (const x of node.slice(0, 300)) loWalk(x, parent, acc, pageCur, depth + 1); return; }
+  const it = (node.goods_name || node.goodsName || node.productName || node.product_name || (node.product && typeof node.product === 'object' && (node.product.goods_name || node.product.goodsName)))
+    ? loItemOf(node, parent, pageCur) : null;
+  if (it) { acc.items.push(it); return; }
+  for (const k of Object.keys(node).slice(0, 200)) loWalk(node[k], node, acc, pageCur, depth + 1);
+}
+function loParse(html) {
+  const pc = /"(?:currency|currencyCode|currency_code)"\s*:\s*"([A-Z]{3})"/.exec(html);
+  const pageCur = pc ? pc[1] : '';
+  const acc = { items: [], n: 0 };
+  for (const blob of loJsonBlobs(html)) loWalk(blob, null, acc, pageCur, 0);
+  let items = acc.items;
+  if (items.some(x => x.has_qty)) items = items.filter(x => x.has_qty);   // سطور السلة فيها كمية — نستبعد «قد يعجبك أيضًا»
+  const seen = new Map();
+  for (const x of items) {
+    const k = [x.id || x.name, x.size, x.color].join('|');
+    const p = seen.get(k);
+    if (!p || x.qty > p.qty) seen.set(k, x);
+  }
+  items = [...seen.values()].slice(0, 60);
+  if (!items.length) {                                               // صفحة منتج واحد
+    const og = k => { const m = new RegExp(`<meta[^>]+property=["']${k}["'][^>]+content=["']([^"']+)`, 'i').exec(html) || new RegExp(`<meta[^>]+content=["']([^"']+)["'][^>]+property=["']${k}["']`, 'i').exec(html); return m ? m[1] : ''; };
+    const amt = loNum(og('product:price:amount') || og('og:price:amount'));
+    const title = stripHtml(og('og:title'));
+    if (amt > 0 && title) items = [{ id: '', name: title.slice(0, 160), img: loImg(og('og:image')), size: '', color: '', qty: 1, has_qty: false, amount: amt, cur: (og('product:price:currency') || og('og:price:currency') || pageCur).toUpperCase().slice(0, 3) }];
+  }
+  const tm = /<title[^>]*>([^<]{0,160})/i.exec(html);
+  return { items, currency: pageCur, title: tm ? stripHtml(tm[1]).trim() : '' };
+}
+// تحويل لسطور جاهزة للتسعير + فحص الاكتمال
+function loPrepare(s, parsed) {
+  const fx = loFx(s), problems = [];
+  const items = parsed.items.map(x => {
+    const cur = x.cur || parsed.currency || '';
+    const r = fx[cur];
+    if (!r) problems.push(`عملة غير معروفة: ${cur || '؟'}`);
+    const unit_usd = r ? round2(x.amount * r) : 0;
+    if (!(unit_usd > 0)) problems.push('سعر ناقص: ' + x.name.slice(0, 30));
+    return { id: x.id, name: x.name, img: x.img, size: x.size, color: x.color, qty: x.qty, amount: x.amount, cur, unit_usd, link: x.link || '' };
+  });
+  if (!items.length) problems.push('ما لقيناش منتجات في الصفحة');
+  if (items.length && items.every(x => !x.size && !x.color)) problems.push('ما لقيناش المقاسات أو الألوان');
+  return { items, problems: [...new Set(problems)].slice(0, 6) };
+}
+
+/* ─── عرض السعر: منتجات + رسوم + شحن ← دولار ← كل محفظة (بربحها وصرفها) ─── */
+function loQuote(s, o) {
+  const items = Array.isArray(o.items) ? o.items : [];
+  const qn = items.reduce((t, x) => t + Math.max(1, Math.floor(num(x.qty, 1))), 0);
+  const sub = round2(items.reduce((t, x) => t + num(x.unit_usd, 0) * Math.max(1, Math.floor(num(x.qty, 1))), 0));
+  const feePct = o.fee_pct != null && o.fee_pct !== '' ? Math.max(0, Math.min(100, num(o.fee_pct, 0))) : Math.max(0, Math.min(100, num(s.lo_fee_pct, 5)));
+  const fee = round2(sub * feePct / 100);
+  const mode = o.ship_mode === 'flat' || o.ship_mode === 'after' ? o.ship_mode : (s.lo_ship_mode === 'flat' ? 'flat' : 'after');
+  const ship = mode === 'after' ? 0 : round2(o.ship_usd != null && o.ship_usd !== '' ? Math.max(0, num(o.ship_usd, 0)) : Math.max(0, num(s.lo_ship_usd, 0)) + Math.max(0, num(s.lo_ship_item_usd, 0)) * qn);
+  const total = round2(sub + fee + ship);
+  const w = {};
+  for (const k of WALLETS) w[k] = wPrice(s, k, total);
+  const mins = Math.max(5, Math.min(1440, num(s.lo_quote_min, 30)));
+  const at = Date.now();
+  return { sub_usd: sub, fee_pct: feePct, fee_usd: fee, ship_mode: mode, ship_usd: ship, total_usd: total, w, qty: qn,
+    rates: { ly: wRate(s, 'ly'), md: wRate(s, 'md'), bk: wRate(s, 'bk') }, margins: Object.fromEntries(WALLETS.map(k => [k, wMargin(s, k)])), at, exp_ms: at + mins * 60000, mins };
+}
+function loEvt(o, st, by, note) {
+  const ev = Array.isArray(o.events) ? o.events.slice(-40) : [];
+  ev.push({ at: nowIso(), st, by: String(by || 'system').slice(0, 64), ...(note ? { note: String(note).slice(0, 200) } : {}) });
+  return ev;
+}
+
+/* ─── الجلب (مرة وحدة لكل محاولة، بقفل) ─── */
+async function loProcess(env, id) {
+  const s = await getSettings(env);
+  let o0 = null;
+  await fsRunTransaction(env, async (tx) => {
+    const o = await tx.get(`link_orders/${id}`);
+    if (!o || o.status !== 'pending_fetch') return;
+    const job = o.job || {};
+    if (num(job.lock_ms, 0) > Date.now() - 90000) return;            // محاولة شغالة توا
+    if (num(job.tries, 0) >= LO_MAX_TRIES) return;
+    tx.update(`link_orders/${id}`, { job: { ...job, lock_ms: Date.now(), tries: num(job.tries, 0) + 1, started_at: nowIso() }, updated_at: nowIso() });
+    o0 = o;
+  });
+  if (!o0) return;
+  const log = [], t0 = Date.now();
+  let parsed = null, how = '', finalUrl = o0.url, lastErr = '';
+  const tryHtml = async (label, fn) => {
+    if (parsed && parsed.items.length) return;
+    if (Date.now() - t0 > 24000) { log.push(label + ': ما فيش وقت'); return; }
+    try {
+      const html = await fn();
+      const p = loParse(html || '');
+      log.push(`${label}: ${String(html || '').length} حرف · ${p.items.length} منتج${p.title ? ' · ' + p.title.slice(0, 40) : ''}`);
+      if (p.items.length) { parsed = p; how = label; }
+      else if (/captcha|verify you are human|challenge|access denied|robot/i.test(String(html || '').slice(0, 20000))) log.push(label + ': حماية بوت');
+    } catch (e) { lastErr = String(e.message || e).slice(0, 140); log.push(label + ': ' + lastErr); }
+  };
+  try {
+    const r = await loResolve(o0.url, log);
+    finalUrl = r.url;
+    await tryHtml('مباشر', async () => { if (!r.res.ok) throw new Error('HTTP ' + r.res.status); return loReadText(r.res); });
+  } catch (e) { lastErr = String(e.message || e).slice(0, 140); log.push('فتح الرابط: ' + lastErr); }
+  if (env.CF_ACCOUNT_ID && env.CF_BR_TOKEN) await tryHtml('Browser Rendering', () => loViaBrowser(env, finalUrl));
+  if (env.SHEIN_FETCH_API_URL) await tryHtml('مزوّد الجلب', () => loViaProvider(env, finalUrl));
+
+  const prep = parsed ? loPrepare(s, parsed) : { items: [], problems: ['تعذّر قراءة السلة' + (lastErr ? ' — ' + lastErr : '')] };
+  let q = null;
+  if (!prep.problems.length) {
+    q = loQuote(s, { items: prep.items });
+    if (q.total_usd < num(s.lo_min_usd, 0)) prep.problems.push('المجموع أقل من الحد الأدنى');
+    if (num(s.lo_max_usd, 0) > 0 && q.total_usd > num(s.lo_max_usd, 0)) prep.problems.push('المجموع أكبر من الحد الأعلى — يحتاج مراجعة');
+  }
+  const auto = !prep.problems.length;
+  let done = null;
+  await fsRunTransaction(env, async (tx) => {
+    const o = await tx.get(`link_orders/${id}`);
+    if (!o || o.status !== 'pending_fetch') return;
+    const job = { ...(o.job || {}), lock_ms: 0, how, err: auto ? '' : prep.problems.join(' · '), log: [...log, `المدة: ${((Date.now() - t0) / 1000).toFixed(1)} ث`].slice(-12), at: nowIso() };
+    const patch = { job, final_url: finalUrl, updated_at: nowIso() };
+    if (prep.items.length) { patch.items = prep.items; patch.auto_items = true; }
+    if (auto) { patch.status = 'pending_payment'; patch.quote = q; patch.warned = false; patch.events = loEvt(o, 'pending_payment', 'system', 'تسعير تلقائي'); }
+    else if (num(job.tries, 0) >= LO_MAX_TRIES || parsed || !/HTTP 5|timeout|aborted|ما فيش وقت/i.test(lastErr)) {
+      patch.status = 'pending_pricing'; patch.events = loEvt(o, 'pending_pricing', 'system', job.err);
+    } else { patch.job.next_ms = Date.now() + 60000; }                 // خطأ مؤقت — الـ Cron يعيد
+    tx.update(`link_orders/${id}`, patch);
+    done = { ...o, ...patch };
+  });
+  if (!done) return;
+  if (done.status === 'pending_payment') {
+    notify(env, done.uid, 'lo_quote', { ref: loRef(id), fmt: await loFmtFor(env, s, done), mins: done.quote.mins, link: 'lo:' + id });
+  } else if (done.status === 'pending_pricing') {
+    notify(env, done.uid, 'lo_pricing', { ref: loRef(id), link: 'lo:' + id });
+    staffAlert(env, 'adm_lo', { uid: done.uid, what: 'سلة تحتاج تسعير يدوي', ref: loRef(id), page: 'lorders' }, 'orders.view');
+  }
+}
+// المبلغ بعملة المحفظة الافتراضية للزبون (للإشعار)
+async function loFmtFor(env, s, o) {
+  if (!o.quote) return '';
+  const u = await fsGet(env, `users/${o.uid}`).catch(() => null);
+  const w = s.wallets_on === false ? 'usd' : userWallet(u);
+  return wFmt(w, o.quote.w[w]);
+}
+
+/* ─── واجهة الزبون ─── */
+async function loPublic(env, s, o, uDoc) {
+  const w = s.wallets_on === false ? 'usd' : userWallet(uDoc);
+  const q = o.quote || null;
+  const showQ = q && ['pending_payment', 'paid', 'purchased', 'shipped', 'arrived_libya', 'delivered'].includes(o.status);
+  return {
+    id: o._id, ref: loRef(o._id), status: o.status, status_ar: LO_AR[o.status] || o.status, url: o.url, created_at: o.created_at, updated_at: o.updated_at,
+    items: (o.items || []).map(x => ({ name: x.name, img: x.img, size: x.size, color: x.color, qty: x.qty, unit_usd: num(x.unit_usd, 0),
+      line_w: showQ ? wPrice(s, w, num(x.unit_usd, 0) * Math.max(1, num(x.qty, 1))) : null })),
+    quote: showQ ? { sub_usd: q.sub_usd, fee_pct: q.fee_pct, fee_usd: q.fee_usd, ship_mode: q.ship_mode, ship_usd: q.ship_usd, total_usd: q.total_usd, w: q.w, at: q.at, exp_ms: q.exp_ms,
+      sub_w: wPrice(s, w, q.sub_usd), fee_w: wPrice(s, w, q.fee_usd), ship_w: q.ship_usd ? wPrice(s, w, q.ship_usd) : 0 } : null,
+    expired: o.status === 'pending_payment' && q ? q.exp_ms < Date.now() : false,
+    my_wallet: w, wallet: o.wallet || null, paid_w: o.paid_w ?? null, tracking: o.tracking || '', user_note: o.user_note || '',
+    events: (o.events || []).filter(e => LO_ST.includes(e.st)).slice(-12).map(e => ({ at: e.at, st: e.st, st_ar: LO_AR[e.st] || e.st, note: e.public_note || '' })),
+    cancel_ok: LO_PREPAY.includes(o.status), now: Date.now(),
+  };
+}
+async function loLoad(env, id, uid) {
+  if (!loIdOk(id)) throw httpError(400, 'رقم طلب غير صالح');
+  const o = await fsGet(env, `link_orders/${id}`);
+  if (!o || (uid && o.uid !== uid)) throw httpError(404, 'الطلب غير موجود');
+  return { ...o, _id: id };
+}
+
+async function handleLoState(user, body, env) {
+  const s = await getSettings(env);
+  let on = s.lo_on !== false;
+  if (on && s.lo_public !== true) on = await isStaffCached(env, user.uid);
+  return { success: true, on, preview: on && s.lo_public !== true, fee_pct: num(s.lo_fee_pct, 5), ship_mode: s.lo_ship_mode === 'flat' ? 'flat' : 'after',
+    quote_min: num(s.lo_quote_min, 30), note: String(s.lo_note || '').slice(0, 300) };
+}
+
+async function handleLoCreate(user, body, env) {
+  const s = await getSettings(env);
+  assertLive(s);
+  await loGate(env, s, user.uid);
+  if (!memAllowWin(`lo_${user.uid}`, 12, 3600)) throw httpError(429, 'محاولات كثيرة — حاول بعد ساعة');
+  const url = loCleanUrl(body.url);
+  if (!url) throw httpError(400, 'حط رابط سلة SHEIN صحيح (يبدا بـ https وفيه shein)');
+  const u = await fsGet(env, `users/${user.uid}`);
+  if (!u) throw httpError(400, 'الحساب غير مكتمل');
+  if (u.banned === true) throw httpError(403, 'الحساب موقوف');
+  if (env.DB && await d1Table(env, 'link_orders')) {                 // ما نخلّوش طلبات مفتوحة كثيرة لنفس الزبون
+    const r = await d1All(env, `SELECT COUNT(*) AS c FROM link_orders WHERE uid = ? AND status IN ('pending_fetch','pending_pricing','pending_payment')`, [user.uid]).catch(() => [{ c: 0 }]);
+    if (num(r[0] && r[0].c, 0) >= 5) throw httpError(429, 'عندك 5 طلبات مفتوحة — كمّلها أو ألغِ واحد منها');
+  }
+  const id = `LO${Date.now()}${randomSuffix(4)}`;
+  const doc = { uid: user.uid, src: 'shein', url, status: 'pending_fetch', items: [], quote: null, wallet: null, paid_w: null, tracking: '', admin_note: '',
+    user_note: String(body.note || '').replace(/[<>]/g, '').trim().slice(0, 300), job: { tries: 0, lock_ms: 0 },
+    events: [{ at: nowIso(), st: 'pending_fetch', by: user.uid }], created_at: nowIso(), updated_at: nowIso() };
+  await fsRunTransaction(env, async (tx) => { tx.create('link_orders', id, doc); });
+  background(loProcess(env, id).catch(e => console.error('LO_PROCESS', e.message)));
+  await logOp(env, user.uid, 'lo.create', { id }, {}, true);
+  return { success: true, order: await loPublic(env, s, { ...doc, _id: id }, u) };
+}
+
+async function handleLoGet(user, body, env) {
+  if (!memAllowWin(`log_${user.uid}`, 900, 3600)) throw httpError(429, 'محاولات كثيرة');
+  const s = await getSettings(env);
+  await loGate(env, s, user.uid);
+  const o = await loLoad(env, String(body.id || ''), user.uid);
+  if (o.status === 'pending_fetch' && num((o.job || {}).lock_ms, 0) < Date.now() - 90000 && num((o.job || {}).tries, 0) < LO_MAX_TRIES)
+    background(loProcess(env, o._id).catch(() => {}));                  // المحاولة الأولى ما بدتش (أو وقفت) — نبداها
+  const u = await fsGet(env, `users/${user.uid}`);
+  return { success: true, order: await loPublic(env, s, o, u) };
+}
+
+async function handleLoList(user, body, env) {
+  if (!memAllowWin(`lol_${user.uid}`, 120, 3600)) throw httpError(429, 'محاولات كثيرة');
+  const s = await getSettings(env);
+  await loGate(env, s, user.uid);
+  let docs = [];
+  if (env.DB && await d1Table(env, 'link_orders')) {
+    const rows = await d1All(env, 'SELECT id, data FROM link_orders WHERE uid = ? ORDER BY created_at DESC LIMIT 30', [user.uid]);
+    docs = rows.map(r => { let d = {}; try { d = JSON.parse(r.data); } catch {} return { ...d, _id: r.id }; });
+  } else {
+    const rows = await fsQueryRaw(env, { from: [{ collectionId: 'link_orders' }], where: { fieldFilter: { field: { fieldPath: 'uid' }, op: 'EQUAL', value: { stringValue: user.uid } } }, limit: 30 });
+    docs = rows.map(r => withId(r, 'link_orders')).sort((a, b) => String(b.created_at || '').localeCompare(String(a.created_at || '')));
+  }
+  const u = await fsGet(env, `users/${user.uid}`);
+  const orders = [];
+  for (const o of docs) orders.push(await loPublic(env, s, o, u));
+  return { success: true, orders };
+}
+
+async function handleLoApprove(user, body, env) {
+  const s = await getSettings(env);
+  assertLive(s);
+  await loGate(env, s, user.uid);
+  const key = idemKeyOf(body);
+  if (!memAllowWin(`loa_${user.uid}`, 20, 3600)) throw httpError(429, 'محاولات كثيرة — حاول بعد ساعة');
+  const id = String(body.id || '');
+  if (!loIdOk(id)) throw httpError(400, 'رقم طلب غير صالح');
+  const expect = num(body.expect, 0), qat = num(body.qat, 0);
+  let paid = null;
+  const resp = await fsRunTransaction(env, async (tx) => {
+    const hit = await idemRead(tx, user.uid, key); if (hit) return hit;
+    const o = await tx.get(`link_orders/${id}`);
+    if (!o || o.uid !== user.uid) throw httpError(404, 'الطلب غير موجود');
+    if (o.status !== 'pending_payment' || !o.quote) throw httpError(409, o.status === 'paid' ? 'الطلب مدفوع مسبقًا' : 'الطلب مش جاهز للدفع');
+    if (num(o.quote.exp_ms, 0) < Date.now()) throw httpError(409, 'انتهت صلاحية السعر — حدّث السعر وأعد المحاولة');
+    if (qat && num(o.quote.at, 0) !== qat) throw httpError(409, 'تغيّر عرض السعر — حدّث الصفحة');
+    const sp = await spendPlan(tx, s, user.uid, o.quote.total_usd);       // المحفظة الافتراضية
+    const amt = num(o.quote.w && o.quote.w[sp.w], 0);                   // المبلغ المثبّت وقت عرض السعر
+    if (!(amt > 0)) throw httpError(409, 'السعر غير متاح لهذه المحفظة — حدّث السعر');
+    if (!(expect > 0) || Math.abs(expect - amt) > 0.009) throw httpError(409, 'تغيّر السعر — حدّث الصفحة وأعد المحاولة');
+    const L = await ledgerOpen(tx, user.uid, sp.w);
+    if (L.doc.banned === true) throw httpError(403, 'الحساب موقوف');
+    assertEmailVerified(env, s, L.doc);
+    await spendPost(L, { w: sp.w, amt }, { reason: 'link_order', reference: id, entryId: `txn_lo_${id}` });
+    ledgerClose(tx, L, { total_spent: round2(num(L.doc.total_spent, 0) + num(o.quote.total_usd, 0)) });
+    tx.update(`link_orders/${id}`, { status: 'paid', wallet: sp.w, paid_w: amt, paid_usd: o.quote.total_usd, paid_at: nowIso(), approved_at: nowIso(), updated_at: nowIso(),
+      events: loEvt(o, 'paid', user.uid, `دفع ${wFmt(sp.w, amt)}`) });
+    paid = { ...o, wallet: sp.w, paid_w: amt };
+    const r = { success: true, id, wallet: sp.w, paid: amt };
+    idemWrite(tx, user.uid, key, r);
+    return r;
+  });
+  if (paid) {
+    notify(env, user.uid, 'lo_paid', { ref: loRef(id), fmt: wFmt(paid.wallet, paid.paid_w), link: 'lo:' + id });
+    staffAlert(env, 'adm_lo', { uid: user.uid, what: 'طلب مدفوع — اشترِ المنتجات', ref: loRef(id), amount: wFmt(paid.wallet, paid.paid_w), page: 'lorders' }, 'orders.view');
+    await logOp(env, user.uid, 'lo.pay', { id }, { w: paid.wallet, amt: paid.paid_w }, true);
+  }
+  const o = await loLoad(env, id, user.uid);
+  const u = await fsGet(env, `users/${user.uid}`);
+  return { success: true, replayed: !!resp.replayed, order: await loPublic(env, s, o, u) };
+}
+
+async function handleLoRequote(user, body, env) {
+  const s = await getSettings(env);
+  await loGate(env, s, user.uid);
+  if (!memAllowWin(`loq_${user.uid}`, 30, 3600)) throw httpError(429, 'محاولات كثيرة');
+  const id = String(body.id || '');
+  await fsRunTransaction(env, async (tx) => {
+    const o = await tx.get(`link_orders/${id}`);
+    if (!o || o.uid !== user.uid) throw httpError(404, 'الطلب غير موجود');
+    if (o.status !== 'pending_payment' || !o.quote) throw httpError(409, 'الطلب مش بانتظار الدفع');
+    if (num(o.quote.exp_ms, 0) > Date.now()) return;                  // السعر لسه صالح
+    const q = loQuote(s, { ...o, fee_pct: o.quote.fee_pct, ship_mode: o.quote.ship_mode, ship_usd: o.quote.ship_mode === 'flat' ? o.quote.ship_usd : null });
+    tx.update(`link_orders/${id}`, { quote: q, warned: false, updated_at: nowIso(), events: loEvt(o, 'pending_payment', 'system', 'تحديث السعر') });
+  });
+  const o = await loLoad(env, id, user.uid);
+  const u = await fsGet(env, `users/${user.uid}`);
+  return { success: true, order: await loPublic(env, s, o, u) };
+}
+
+async function handleLoCancel(user, body, env) {
+  const s = await getSettings(env);
+  await loGate(env, s, user.uid);
+  const id = String(body.id || '');
+  if (!loIdOk(id)) throw httpError(400, 'رقم طلب غير صالح');
+  await fsRunTransaction(env, async (tx) => {
+    const o = await tx.get(`link_orders/${id}`);
+    if (!o || o.uid !== user.uid) throw httpError(404, 'الطلب غير موجود');
+    if (!LO_PREPAY.includes(o.status)) throw httpError(409, o.status === 'cancelled' ? 'الطلب ملغي مسبقًا' : 'الطلب مدفوع — تواصل مع الدعم للإلغاء');
+    tx.update(`link_orders/${id}`, { status: 'cancelled', cancelled_by: user.uid, cancelled_at: nowIso(), updated_at: nowIso(), events: loEvt(o, 'cancelled', user.uid, 'ألغاه الزبون') });
+  });
+  await logOp(env, user.uid, 'lo.cancel', { id }, {}, true);
+  const o = await loLoad(env, id, user.uid);
+  const u = await fsGet(env, `users/${user.uid}`);
+  return { success: true, order: await loPublic(env, s, o, u) };
+}
+
+// استرداد لنفس المحفظة — مرة وحدة بس (قيد بمعرّف ثابت + فحص الحالة داخل نفس المعاملة)
+async function loRefund(env, id, by, reason) {
+  let o0 = null;
+  await fsRunTransaction(env, async (tx) => {
+    const o = await tx.get(`link_orders/${id}`);
+    if (!o || o.status === 'cancelled') return;
+    const ev = loEvt(o, 'cancelled', by, reason || 'ألغته الإدارة');
+    if (o.paid_w != null && num(o.paid_w, 0) > 0 && !o.refunded) {
+      const w = wOk(o.wallet) ? o.wallet : 'usd';
+      const L = await ledgerOpen(tx, o.uid, w);
+      await ledgerPost(L, { type: 'credit', amount: num(o.paid_w, 0), reason: 'link_order_refund', reference: id, entryId: `txn_lo_refund_${id}`, created_by: by || 'system' });
+      ledgerClose(tx, L, { total_spent: Math.max(0, round2(num(L.doc.total_spent, 0) - num(o.paid_usd, 0))) });
+      tx.update(`link_orders/${id}`, { status: 'cancelled', refunded: true, refunded_at: nowIso(), refunded_by: by, cancel_reason: String(reason || '').slice(0, 160), updated_at: nowIso(), events: ev });
+    } else {
+      tx.update(`link_orders/${id}`, { status: 'cancelled', cancel_reason: String(reason || '').slice(0, 160), cancelled_by: by, updated_at: nowIso(), events: ev });
+    }
+    o0 = o;
+  });
+  if (o0) notify(env, o0.uid, 'lo_refund', { ref: loRef(id), reason, fmt: o0.paid_w != null && num(o0.paid_w, 0) > 0 ? wFmt(wOk(o0.wallet) ? o0.wallet : 'usd', o0.paid_w) : '', link: 'lo:' + id });
+  return !!o0;
+}
+
+/* ─── الإدارة ─── */
+function loCleanItems(arr, s) {
+  const fx = loFx(s);
+  if (!Array.isArray(arr)) throw httpError(400, 'قائمة المنتجات غير صالحة');
+  if (arr.length > 60) throw httpError(400, 'منتجات كثيرة (60 كحد أقصى)');
+  return arr.map((x, i) => {
+    const name = String((x && x.name) || '').replace(/[<>]/g, '').trim().slice(0, 160);
+    if (!name) throw httpError(400, `اسم المنتج ${i + 1} ناقص`);
+    const qty = Math.floor(num(x.qty, 1));
+    if (!(qty >= 1 && qty <= 50)) throw httpError(400, `كمية المنتج ${i + 1} من 1 إلى 50`);
+    const cur = String(x.cur || 'USD').toUpperCase().slice(0, 3);
+    if (!fx[cur]) throw httpError(400, `عملة غير معروفة (${cur}) — أضف صرفها في الإعدادات`);
+    const amount = Math.round(num(x.amount, 0) * 100) / 100;
+    if (!(amount > 0 && amount < 100000)) throw httpError(400, `سعر المنتج ${i + 1} غير صالح`);
+    return { id: String(x.id || '').replace(/[^A-Za-z0-9_-]/g, '').slice(0, 40), name, img: loImg(x.img), size: String(x.size || '').replace(/[<>]/g, '').slice(0, 40),
+      color: String(x.color || '').replace(/[<>]/g, '').slice(0, 40), qty, amount, cur, unit_usd: round2(amount * fx[cur]),
+      link: /^https:\/\//.test(String(x.link || '')) && loHostOk((() => { try { return new URL(x.link).hostname; } catch { return ''; } })()) ? String(x.link).slice(0, 400) : '' };
+  });
+}
+async function loAdminView(env, s, o, withUser) {
+  const u = withUser ? await fsGet(env, `users/${o.uid}`).catch(() => null) : null;
+  return { id: o._id, ref: loRef(o._id), uid: o.uid, name: u ? (u.name || '') : '', email: u ? (u.email || '') : '', default_wallet: u ? userWallet(u) : null,
+    status: o.status, status_ar: LO_AR[o.status] || o.status, url: o.url, final_url: o.final_url || '', items: o.items || [], quote: o.quote || null,
+    expired: o.status === 'pending_payment' && o.quote ? o.quote.exp_ms < Date.now() : false,
+    fee_pct: o.fee_pct ?? null, ship_mode: o.ship_mode || null, ship_usd: o.ship_usd ?? null, wallet: o.wallet || null, paid_w: o.paid_w ?? null, paid_usd: o.paid_usd ?? null,
+    refunded: o.refunded === true, tracking: o.tracking || '', admin_note: o.admin_note || '', user_note: o.user_note || '', job: o.job || {}, auto_items: o.auto_items === true,
+    events: (o.events || []).slice(-30), created_at: o.created_at, updated_at: o.updated_at, next: LO_NEXT[o.status] || [] };
+}
+async function handleAdminLo(user, body, env) {
+  const action = String(body.action || 'list');
+  const perm = ['list', 'get'].includes(action) ? 'orders.view' : action === 'cfg' ? 'settings.manage' : 'orders.approve';
+  const staff = await requirePermission(user, env, perm);
+  const s = await getSettings(env);
+
+  if (action === 'list') {
+    const st = String(body.status || 'open');
+    const want = st === 'all' ? null : st === 'open' ? ['pending_fetch', 'pending_pricing', 'pending_payment', 'paid', 'purchased', 'shipped', 'arrived_libya'] : LO_ST.includes(st) ? [st] : null;
+    let docs = [];
+    if (env.DB && await d1Table(env, 'link_orders')) {
+      const rows = want ? await d1All(env, `SELECT id, data FROM link_orders WHERE status IN (${want.map(() => '?').join(',')}) ORDER BY created_at DESC LIMIT 80`, want)
+        : await d1All(env, 'SELECT id, data FROM link_orders ORDER BY created_at DESC LIMIT 80');
+      docs = rows.map(r => { let d = {}; try { d = JSON.parse(r.data); } catch {} return { ...d, _id: r.id }; });
+    } else {
+      const rows = await fsQueryRaw(env, { from: [{ collectionId: 'link_orders' }], limit: 200 });
+      docs = rows.map(r => withId(r, 'link_orders')).filter(o => !want || want.includes(o.status)).sort((a, b) => String(b.created_at || '').localeCompare(String(a.created_at || ''))).slice(0, 80);
+    }
+    const counts = {};
+    if (env.DB && await d1Table(env, 'link_orders')) {
+      for (const r of await d1All(env, 'SELECT status, COUNT(*) AS c FROM link_orders GROUP BY status').catch(() => [])) counts[r.status] = num(r.c, 0);
+    }
+    const names = new Map();
+    const out = [];
+    for (const o of docs) {
+      if (!names.has(o.uid)) names.set(o.uid, await whoOf(env, o.uid).catch(() => o.uid));
+      const v = await loAdminView(env, s, o, false);
+      out.push({ ...v, who: names.get(o.uid) });
+    }
+    return { success: true, orders: out, counts,
+      cfg: { lo_on: s.lo_on !== false, lo_public: s.lo_public === true, lo_fee_pct: num(s.lo_fee_pct, 5), lo_ship_mode: s.lo_ship_mode === 'flat' ? 'flat' : 'after', lo_ship_usd: num(s.lo_ship_usd, 0),
+        lo_ship_item_usd: num(s.lo_ship_item_usd, 0), lo_quote_min: num(s.lo_quote_min, 30), lo_fx: String(s.lo_fx || ''), lo_min_usd: num(s.lo_min_usd, 0), lo_max_usd: num(s.lo_max_usd, 0), lo_note: String(s.lo_note || '') },
+      fetchers: { direct: true, browser: !!(env.CF_ACCOUNT_ID && env.CF_BR_TOKEN), provider: !!env.SHEIN_FETCH_API_URL },
+      rates: { ly: wRate(s, 'ly'), md: wRate(s, 'md'), bk: wRate(s, 'bk') } };
+  }
+  if (action === 'cfg') {
+    const p = {};
+    if ('lo_on' in body) p.lo_on = body.lo_on === true;
+    if ('lo_public' in body) p.lo_public = body.lo_public === true;
+    const nb = (k, lo, hi) => { if (k in body) { const v = num(body[k], NaN); if (!Number.isFinite(v) || v < lo || v > hi) throw httpError(400, 'قيمة غير صالحة: ' + k); p[k] = Math.round(v * 10000) / 10000; } };
+    nb('lo_fee_pct', 0, 100); nb('lo_ship_usd', 0, 1000); nb('lo_ship_item_usd', 0, 200); nb('lo_quote_min', 5, 1440); nb('lo_min_usd', 0, 10000); nb('lo_max_usd', 0, 100000);
+    if ('lo_ship_mode' in body) p.lo_ship_mode = body.lo_ship_mode === 'flat' ? 'flat' : 'after';
+    if ('lo_fx' in body) {
+      const fx = String(body.lo_fx || '').toUpperCase().replace(/\s+/g, '');
+      if (!/^([A-Z]{3}=[0-9.]+)(,[A-Z]{3}=[0-9.]+)*$/.test(fx)) throw httpError(400, 'صيغة الصرف: USD=1,EUR=1.08');
+      p.lo_fx = fx.slice(0, 400);
+    }
+    if ('lo_note' in body) p.lo_note = String(body.lo_note || '').replace(/[<>]/g, '').slice(0, 300);
+    if (!Object.keys(p).length) throw httpError(400, 'لا يوجد شيء للتحديث');
+    await fsPatch(env, 'settings/main', p);
+    clearSettingsCache();
+    await logOp(env, staff.uid, 'lo.cfg', p, {}, true);
+    return { success: true };
+  }
+
+  const id = String(body.id || '');
+  if (!loIdOk(id)) throw httpError(400, 'رقم طلب غير صالح');
+  if (action === 'get') return { success: true, order: await loAdminView(env, s, await loLoad(env, id), true) };
+
+  if (action === 'save') {                                            // تعديل قبل الدفع فقط — أي تعديل يلغي عرض السعر السابق
+    const items = 'items' in body ? loCleanItems(body.items, s) : null;
+    await fsRunTransaction(env, async (tx) => {
+      const o = await tx.get(`link_orders/${id}`);
+      if (!o) throw httpError(404, 'الطلب غير موجود');
+      if (!LO_PREPAY.includes(o.status)) throw httpError(409, 'ما ينفعش تعديل السعر بعد الدفع');
+      const p = { updated_at: nowIso() };
+      if (items) { p.items = items; p.auto_items = false; }
+      if ('fee_pct' in body) p.fee_pct = body.fee_pct === '' || body.fee_pct == null ? null : Math.max(0, Math.min(100, num(body.fee_pct, 0)));
+      if ('ship_mode' in body) p.ship_mode = body.ship_mode === 'flat' || body.ship_mode === 'after' ? body.ship_mode : null;
+      if ('ship_usd' in body) p.ship_usd = body.ship_usd === '' || body.ship_usd == null ? null : Math.max(0, Math.min(5000, num(body.ship_usd, 0)));
+      if ('admin_note' in body) p.admin_note = String(body.admin_note || '').replace(/[<>]/g, '').slice(0, 500);
+      if (o.status === 'pending_payment' || o.status === 'pending_fetch') { p.status = 'pending_pricing'; p.quote = null; p.events = loEvt(o, 'pending_pricing', staff.uid, 'تعديل من الإدارة'); p.job = { ...(o.job || {}), lock_ms: 0 }; }
+      tx.update(`link_orders/${id}`, p);
+    });
+    await logOp(env, staff.uid, 'lo.save', { id }, {}, true);
+    return { success: true, order: await loAdminView(env, s, await loLoad(env, id), true) };
+  }
+  if (action === 'quote') {                                           // إرسال السعر للزبون
+    let done = null;
+    await fsRunTransaction(env, async (tx) => {
+      const o = await tx.get(`link_orders/${id}`);
+      if (!o) throw httpError(404, 'الطلب غير موجود');
+      if (!['pending_pricing', 'pending_payment', 'pending_fetch'].includes(o.status)) throw httpError(409, 'الطلب مدفوع أو مغلق');
+      if (!Array.isArray(o.items) || !o.items.length) throw httpError(400, 'أضف المنتجات وأسعارها أولًا');
+      if (o.items.some(x => !(num(x.unit_usd, 0) > 0))) throw httpError(400, 'فيه منتج بدون سعر');
+      const q = loQuote(s, o);
+      tx.update(`link_orders/${id}`, { status: 'pending_payment', quote: q, warned: false, job: { ...(o.job || {}), lock_ms: 0 }, updated_at: nowIso(), events: loEvt(o, 'pending_payment', staff.uid, 'تسعير من الإدارة') });
+      done = { ...o, quote: q };
+    });
+    notify(env, done.uid, 'lo_quote', { ref: loRef(id), fmt: await loFmtFor(env, s, done), mins: done.quote.mins, link: 'lo:' + id });
+    await logOp(env, staff.uid, 'lo.quote', { id }, { total: done.quote.total_usd }, true);
+    return { success: true, order: await loAdminView(env, s, await loLoad(env, id), true) };
+  }
+  if (action === 'status') {
+    const to = String(body.to || '');
+    const tracking = String(body.tracking ?? '').replace(/[<>]/g, '').trim().slice(0, 80);
+    const pnote = String(body.note || '').replace(/[<>]/g, '').trim().slice(0, 200);
+    let done = null;
+    await fsRunTransaction(env, async (tx) => {
+      const o = await tx.get(`link_orders/${id}`);
+      if (!o) throw httpError(404, 'الطلب غير موجود');
+      if (!(LO_NEXT[o.status] || []).includes(to)) throw httpError(409, `ما ينفعش من «${LO_AR[o.status]}» إلى «${LO_AR[to] || to}»`);
+      const ev = loEvt(o, to, staff.uid, pnote);
+      if (pnote) ev[ev.length - 1].public_note = pnote;
+      const p = { status: to, updated_at: nowIso(), events: ev, [to + '_at']: nowIso() };
+      if (to === 'pending_pricing') { p.quote = null; p.job = { ...(o.job || {}), lock_ms: 0 }; }
+      if (tracking) p.tracking = tracking;
+      tx.update(`link_orders/${id}`, p);
+      done = { ...o, ...p };
+    });
+    if (to !== 'pending_pricing') notify(env, done.uid, 'lo_status', { ref: loRef(id), label: LO_AR[to], tracking: done.tracking || '', note: pnote, link: 'lo:' + id });
+    await logOp(env, staff.uid, 'lo.status', { id, to }, {}, true);
+    return { success: true, order: await loAdminView(env, s, await loLoad(env, id), true) };
+  }
+  if (action === 'track') {
+    const tracking = String(body.tracking || '').replace(/[<>]/g, '').trim().slice(0, 80);
+    let o0 = null;
+    await fsRunTransaction(env, async (tx) => {
+      const o = await tx.get(`link_orders/${id}`);
+      if (!o) throw httpError(404, 'الطلب غير موجود');
+      if (['cancelled'].includes(o.status) || LO_PREPAY.includes(o.status)) throw httpError(409, 'رقم التتبع بعد الدفع فقط');
+      tx.update(`link_orders/${id}`, { tracking, updated_at: nowIso(), events: loEvt(o, o.status, staff.uid, 'رقم التتبع: ' + (tracking || '—')) });
+      o0 = o;
+    });
+    if (tracking && tracking !== (o0.tracking || '')) notify(env, o0.uid, 'lo_status', { ref: loRef(id), label: LO_AR[o0.status], tracking, link: 'lo:' + id });
+    return { success: true, order: await loAdminView(env, s, await loLoad(env, id), true) };
+  }
+  if (action === 'note') {
+    const note = String(body.note || '').replace(/[<>]/g, '').trim().slice(0, 300);
+    if (!note) throw httpError(400, 'اكتب الملاحظة');
+    await fsRunTransaction(env, async (tx) => {
+      const o = await tx.get(`link_orders/${id}`);
+      if (!o) throw httpError(404, 'الطلب غير موجود');
+      tx.update(`link_orders/${id}`, { updated_at: nowIso(), events: loEvt(o, 'note', staff.uid, note) });
+    });
+    return { success: true, order: await loAdminView(env, s, await loLoad(env, id), true) };
+  }
+  if (action === 'retry') {                                           // إعادة الجلب (قبل الدفع)
+    await fsRunTransaction(env, async (tx) => {
+      const o = await tx.get(`link_orders/${id}`);
+      if (!o) throw httpError(404, 'الطلب غير موجود');
+      if (!['pending_fetch', 'pending_pricing'].includes(o.status)) throw httpError(409, 'إعادة الجلب لطلبات بانتظار الجلب أو التسعير');
+      tx.update(`link_orders/${id}`, { status: 'pending_fetch', quote: null, job: { tries: 0, lock_ms: 0 }, updated_at: nowIso(), events: loEvt(o, 'pending_fetch', staff.uid, 'إعادة الجلب') });
+    });
+    await loProcess(env, id);                                         // ننتظروا النتيجة باش الإدارة تشوف السجل
+    return { success: true, order: await loAdminView(env, s, await loLoad(env, id), true) };
+  }
+  if (action === 'cancel') {
+    const o = await loLoad(env, id);
+    if (o.status === 'cancelled') throw httpError(409, 'ملغي مسبقًا');
+    if (['shipped', 'arrived_libya', 'delivered'].includes(o.status)) throw httpError(409, 'الطلب شُحن — ما ينفعش يتلغى من هنا');
+    if (o.status === 'purchased' && body.force !== true) throw httpError(409, 'المنتجات انشرت — أكّد الإلغاء والاسترداد صراحةً');
+    await loRefund(env, id, staff.uid, String(body.reason || '').replace(/[<>]/g, '').trim().slice(0, 160) || 'ألغته الإدارة');
+    await logOp(env, staff.uid, 'lo.cancel', { id, force: body.force === true }, {}, true);
+    return { success: true, order: await loAdminView(env, s, await loLoad(env, id), true) };
+  }
+  throw httpError(400, 'إجراء غير معروف');
+}
+
+/* ─── Cron (كل 5 دقائق): محاولات الجلب المعلّقة + تنبيه قرب انتهاء السعر ─── */
+async function loCron(env) {
+  if (!env.DB) return;
+  const s = await getSettings(env);
+  if (s.lo_on === false) return;
+  if (!(await d1Table(env, 'link_orders'))) return;
+  const rows = await d1All(env, `SELECT id, data FROM link_orders WHERE status IN ('pending_fetch','pending_payment') ORDER BY created_at DESC LIMIT 40`);
+  let ran = 0;
+  for (const r of rows) {
+    let o = {}; try { o = JSON.parse(r.data); } catch { continue; }
+    if (o.status === 'pending_fetch') {
+      const j = o.job || {};
+      if (num(j.lock_ms, 0) > Date.now() - 90000) continue;
+      if (num(j.tries, 0) >= LO_MAX_TRIES) {
+        await fsRunTransaction(env, async (tx) => {
+          const c = await tx.get(`link_orders/${r.id}`);
+          if (!c || c.status !== 'pending_fetch') return;
+          tx.update(`link_orders/${r.id}`, { status: 'pending_pricing', updated_at: nowIso(), events: loEvt(c, 'pending_pricing', 'system', 'تعذّر الجلب بعد عدة محاولات') });
+        });
+        notify(env, o.uid, 'lo_pricing', { ref: loRef(r.id), link: 'lo:' + r.id });
+        staffAlert(env, 'adm_lo', { uid: o.uid, what: 'سلة تحتاج تسعير يدوي', ref: loRef(r.id), page: 'lorders' }, 'orders.view');
+      } else if (ran < 2 && num(j.next_ms, 0) <= Date.now()) { ran++; await loProcess(env, r.id).catch(e => console.error('LO_CRON_PROCESS', e.message)); }
+    } else if (o.status === 'pending_payment' && o.quote && !o.warned) {
+      const left = num(o.quote.exp_ms, 0) - Date.now();
+      if (left > 0 && left < 10 * 60000) {
+        await fsPatch(env, `link_orders/${r.id}`, { warned: true });
+        notify(env, o.uid, 'lo_expiring', { ref: loRef(r.id), link: 'lo:' + r.id });
+      }
+    }
+  }
 }
