@@ -5092,6 +5092,7 @@ function vMore() {
   const st = S.settings || {};
   const set = [
     isSuperAdmin() ? { i: I.cash, c: 'g', t: 'طرق الدفع', s: 'التشغيل، الإيقاف المؤقت، الأسعار، QR', attrs: 'data-nav="methods"' } : null,
+    isSuperAdmin() ? { i: I.cash, c: 'g', t: 'Ezone Pay', s: 'إعدادات ومتابعة بوابة الدفع الإلكتروني', attrs: 'data-nav="ezone"' } : null,
     isSuperAdmin() ? { i: I.help, c: 'g', t: 'كيف أدفع؟', s: 'شرح الدفع بالصور لكل طريقة', attrs: 'data-nav="howto"' } : null,
     isSuperAdmin() ? { i: I.grid, c: 'g', t: 'أقسام الموقع', s: 'تفعيل، صيانة، إخفاء — البطاقات، المتجر، الشحن، الدعم…', attrs: 'data-nav="sections"' } : null,
     isSuperAdmin() ? { i: I.help, c: 'g', t: 'التواصل والأسئلة', s: 'واتساب، البريد، السوشيال، الأسئلة الشائعة', attrs: 'data-nav="contact"' } : null,
@@ -5103,18 +5104,15 @@ function vMore() {
   return `<div class="page-enter astag">
     ${aHead('المزيد', 'كل أقسام الإدارة')}
     <div class="alabel"><span>الطلبات والعمليات</span></div>
-    <div class="atiles">${tile('sorders', I.bag, 'طلبات المتجر', ovA('rsc'))}${tile('mcards', I.card, 'طلبات البطاقات', ovA('mcards'))}${tile('cards', I.card, 'كل البطاقات')}${tile('unmatched', I.warn, 'غير مطابقة', ovA('unmatched'))}</div>
+    <div class="atiles">${tile('sorders', I.bag, 'طلبات المتجر', ovA('rsc'))}${tile('shein', I.bag, 'طلبات SHEIN')}${tile('mcards', I.card, 'طلبات البطاقات', ovA('mcards'))}${tile('cards', I.card, 'كل البطاقات')}${tile('unmatched', I.warn, 'غير مطابقة', ovA('unmatched'))}</div>
     <div class="alabel"><span>المتجر والعملاء</span></div>
-    <div class="atiles">${tile('rsc', I.bag, 'الأقسام والأسعار')}${tile('tickets', I.chat, 'الدعم', ovA('tickets'))}${tile('coupons', I.tag, 'الكوبونات')}${tile('analytics', I.chart, 'تحليل الزوار')}${tile('reviews', I.chat, 'آراء العملاء')}${tile('cards', I.card, 'البطاقات')}</div>
+    <div class="atiles">${tile('rsc', I.bag, 'الأقسام والأسعار')}${tile('kyc', I.shield, 'توثيق الهوية')}${tile('tickets', I.chat, 'الدعم', ovA('tickets'))}${tile('coupons', I.tag, 'الكوبونات')}${tile('analytics', I.chart, 'تحليل الزوار')}${tile('reviews', I.chat, 'آراء العملاء')}${tile('cards', I.card, 'البطاقات')}</div>
     ${set.length ? `<div class="alabel"><span>الإعدادات</span></div><div class="acard">${set.map(aRow).join('')}</div>` : ''}
     ${isSuperAdmin() ? `<div class="alabel"><span>أرشيف</span></div><div class="acard">${[
-      { i: I.box, t: 'طلبات المتجر القديم', attrs: 'data-nav="orders"' }, { i: I.grid, t: 'الخدمات القديمة', attrs: 'data-nav="services"' }, { i: I.box, t: 'منتجات المتجر القديم', attrs: 'data-nav="store"' }].map(aRow).join('')}</div>` : ''}
-    <div class="alabel"><span>الحساب</span></div>
-    <div class="acard"><div class="arow static"><span class="aric">${svg(I.moon)}</span><span class="art"><b>المظهر</b><span>نهاري / ليلي</span></span><button class="aib" data-theme-toggle type="button">${svg(themeNow() === 'dark' ? I.sun : I.moon)}</button></div>
-      <button class="arow danger" id="logoutBtn2" type="button"><span class="aric r">${svg(I.out)}</span><span class="art"><b>تسجيل الخروج</b></span></button></div>
+      { i: I.box, t: 'طلبات المتجر القديم', attrs: 'data-nav="orders"' }, { i: I.grid, t: 'الخدمات القديمة', attrs: 'data-nav="services"' }, { i: I.box, t: 'منتجات المتجر القديم', attrs: 'data-nav="store"' }
+    ].map(aRow).join('')}</div>` : ''}
   </div>`;
 }
-
 /* ═══ طرق الدفع ═══ */
 function vMethods() {
   const s = S.settings || {}, ps = pausedSet();
